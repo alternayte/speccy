@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { assignRole, createBackend, createBundle, deleteBackend, deleteFile, diffVersions, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, importBundle, listBackends, listBundles, listFiles, listFindings, listPresets, listProfiles, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, testBackend, unassignRole, updateBackend } from '../sdk.gen';
-import type { AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse } from '../types.gen';
+import { assignRole, createBackend, createBundle, createMcpConnection, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, importBundle, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listMcpConnections, listMcpTools, listPresets, listProfiles, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
+import type { AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -378,6 +378,164 @@ export const listRunsOptions = (options: Options<ListRunsData>) => queryOptions<
         return data;
     },
     queryKey: listRunsQueryKey(options)
+});
+
+/**
+ * Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+ */
+export const startRunMutation = (options?: Partial<Options<StartRunData>>): UseMutationOptions<StartRunResponse, StartRunError, Options<StartRunData>> => {
+    const mutationOptions: UseMutationOptions<StartRunResponse, StartRunError, Options<StartRunData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await startRun({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const estimateRunQueryKey = (options: Options<EstimateRunData>) => createQueryKey('estimateRun', options);
+
+/**
+ * Estimate the tokens and cost of a full review before it starts (REQ-104).
+ */
+export const estimateRunOptions = (options: Options<EstimateRunData>) => queryOptions<EstimateRunResponse, EstimateRunError, EstimateRunResponse, ReturnType<typeof estimateRunQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await estimateRun({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: estimateRunQueryKey(options)
+});
+
+export const listAssumptionsQueryKey = (options: Options<ListAssumptionsData>) => createQueryKey('listAssumptions', options);
+
+/**
+ * List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+ */
+export const listAssumptionsOptions = (options: Options<ListAssumptionsData>) => queryOptions<ListAssumptionsResponse, ListAssumptionsError, ListAssumptionsResponse, ReturnType<typeof listAssumptionsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAssumptions({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAssumptionsQueryKey(options)
+});
+
+export const listClaimsQueryKey = (options: Options<ListClaimsData>) => createQueryKey('listClaims', options);
+
+/**
+ * List a run's factual claims and their labels (REQ-031).
+ */
+export const listClaimsOptions = (options: Options<ListClaimsData>) => queryOptions<ListClaimsResponse, ListClaimsError, ListClaimsResponse, ReturnType<typeof listClaimsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listClaims({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listClaimsQueryKey(options)
+});
+
+export const listMcpConnectionsQueryKey = (options?: Options<ListMcpConnectionsData>) => createQueryKey('listMcpConnections', options);
+
+/**
+ * List the MCP connections (REQ-112).
+ */
+export const listMcpConnectionsOptions = (options?: Options<ListMcpConnectionsData>) => queryOptions<ListMcpConnectionsResponse, ListMcpConnectionsError, ListMcpConnectionsResponse, ReturnType<typeof listMcpConnectionsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listMcpConnections({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listMcpConnectionsQueryKey(options)
+});
+
+/**
+ * Add an MCP connection.
+ */
+export const createMcpConnectionMutation = (options?: Partial<Options<CreateMcpConnectionData>>): UseMutationOptions<CreateMcpConnectionResponse, CreateMcpConnectionError, Options<CreateMcpConnectionData>> => {
+    const mutationOptions: UseMutationOptions<CreateMcpConnectionResponse, CreateMcpConnectionError, Options<CreateMcpConnectionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createMcpConnection({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete an MCP connection.
+ */
+export const deleteMcpConnectionMutation = (options?: Partial<Options<DeleteMcpConnectionData>>): UseMutationOptions<DeleteMcpConnectionResponse, DeleteMcpConnectionError, Options<DeleteMcpConnectionData>> => {
+    const mutationOptions: UseMutationOptions<DeleteMcpConnectionResponse, DeleteMcpConnectionError, Options<DeleteMcpConnectionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteMcpConnection({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change an MCP connection. Leave the secret out to keep the stored one.
+ */
+export const updateMcpConnectionMutation = (options?: Partial<Options<UpdateMcpConnectionData>>): UseMutationOptions<UpdateMcpConnectionResponse, UpdateMcpConnectionError, Options<UpdateMcpConnectionData>> => {
+    const mutationOptions: UseMutationOptions<UpdateMcpConnectionResponse, UpdateMcpConnectionError, Options<UpdateMcpConnectionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateMcpConnection({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listMcpToolsQueryKey = (options: Options<ListMcpToolsData>) => createQueryKey('listMcpTools', options);
+
+/**
+ * Connect and list the server's tools, to choose the allowlist.
+ */
+export const listMcpToolsOptions = (options: Options<ListMcpToolsData>) => queryOptions<ListMcpToolsResponse, ListMcpToolsError, ListMcpToolsResponse, ReturnType<typeof listMcpToolsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listMcpTools({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listMcpToolsQueryKey(options)
 });
 
 export const getRunQueryKey = (options: Options<GetRunData>) => createQueryKey('getRun', options);

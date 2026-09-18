@@ -156,12 +156,18 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 		return nil, err
 	}
 	svc := &bundle.Service{DB: db, Workspace: ws, Local: root}
-	reviews := &review.Service{DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig}
+	adminAPI := &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway}
+	reviews := &review.Service{
+		DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig,
+		Gateway: gateway, Search: adminAPI.SearchSource, Progress: review.NewBroker(),
+	}
 	// DEC-027: lint runs on every new version.
 	svc.AfterChange = reviews.EnsureLinted
 	if err := svc.Sync(ctx); err != nil {
 		return nil, err
 	}
+	// SDD §7.2: one worker runs queued reviews.
+	go reviews.Work(ctx)
 	go func() {
 		_ = root.Watch(ctx, 300*time.Millisecond, func() {
 			if err := profiles.Reload(ctx); err != nil && ctx.Err() == nil {
@@ -177,8 +183,8 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 		VersionAPI: &version.API{DB: db, Workspace: ws},
 		ExportAPI:  &export.API{DB: db, Workspace: ws},
 		ProfileAPI: &profile.API{Registry: profiles},
-		ReviewAPI:  &review.API{DB: db, Workspace: ws},
-		AdminAPI:   &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway},
+		ReviewAPI:  &review.API{DB: db, Workspace: ws, Service: reviews},
+		AdminAPI:   adminAPI,
 	}
 	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, api) }, nil
 }

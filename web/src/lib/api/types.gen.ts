@@ -110,7 +110,96 @@ export type Run = {
     error: string;
     started_at: string;
     finished_at?: string;
+    tokens_in?: number;
+    tokens_out?: number;
+    /**
+     * USD, from the prices on the role assignments.
+     */
+    cost_estimate?: number;
+    /**
+     * Steps answered from the cache (REQ-021).
+     */
+    cache_hits?: number;
+    /**
+     * Notes for the run report, such as "no search source configured" (REQ-034).
+     */
+    notes?: Array<string>;
     verdict?: BundleVerdict;
+};
+
+export type RunEstimate = {
+    calls: number;
+    cached_steps: number;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd?: number;
+    /**
+     * False when the reviewer role has no prices, so there is no cost.
+     */
+    priced: boolean;
+};
+
+export type RunEvent = {
+    type: 'stage' | 'progress' | 'done' | 'failed';
+    stage: string;
+    message?: string;
+    done?: number;
+    total?: number;
+    cache_hits?: number;
+};
+
+export type Claim = {
+    id: string;
+    text: string;
+    label: 'verified' | 'contradicted' | 'unverified';
+    reason: string;
+    sources: Array<string>;
+    anchor: Anchor;
+};
+
+export type McpConnectionInput = {
+    name: string;
+    transport: 'stdio' | 'http';
+    /**
+     * For stdio, one argument per item.
+     */
+    command?: Array<string>;
+    /**
+     * For http.
+     */
+    url?: string;
+    /**
+     * Write-only. An http server gets it as a bearer token; a stdio server as the variable in secret_env.
+     */
+    secret?: string;
+    secret_env?: string;
+    tool_allowlist: Array<string>;
+    is_search: boolean;
+    /**
+     * The allowlisted tool that searches, when is_search is true.
+     */
+    search_tool?: string;
+};
+
+export type McpConnection = {
+    id: string;
+    name: string;
+    transport: string;
+    command?: Array<string>;
+    url?: string;
+    secret_env?: string;
+    has_secret: boolean;
+    secret_last4: string;
+    tool_allowlist: Array<string>;
+    is_search: boolean;
+    search_tool: string;
+};
+
+export type McpTool = {
+    name: string;
+    description: string;
+    read_only: boolean;
+    destructive: boolean;
 };
 
 export type RunList = {
@@ -390,6 +479,8 @@ export type RenderResult = {
      */
     html: string;
 };
+
+export type ConnectionId = string;
 
 export type BackendId = string;
 
@@ -824,6 +915,280 @@ export type ListRunsResponses = {
 };
 
 export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
+
+export type StartRunData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/runs';
+};
+
+export type StartRunErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type StartRunError = StartRunErrors[keyof StartRunErrors];
+
+export type StartRunResponses = {
+    /**
+     * The queued run. Follow its progress at /runs/{runId}/events.
+     */
+    202: Run;
+};
+
+export type StartRunResponse = StartRunResponses[keyof StartRunResponses];
+
+export type EstimateRunData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/runs/estimate';
+};
+
+export type EstimateRunErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type EstimateRunError = EstimateRunErrors[keyof EstimateRunErrors];
+
+export type EstimateRunResponses = {
+    /**
+     * The estimate.
+     */
+    200: RunEstimate;
+};
+
+export type EstimateRunResponse = EstimateRunResponses[keyof EstimateRunResponses];
+
+export type ListAssumptionsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/assumptions';
+};
+
+export type ListAssumptionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListAssumptionsError = ListAssumptionsErrors[keyof ListAssumptionsErrors];
+
+export type ListAssumptionsResponses = {
+    /**
+     * The assumptions.
+     */
+    200: {
+        items: Array<Anchor>;
+    };
+};
+
+export type ListAssumptionsResponse = ListAssumptionsResponses[keyof ListAssumptionsResponses];
+
+export type RunEventsData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/events';
+};
+
+export type RunEventsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RunEventsError = RunEventsErrors[keyof RunEventsErrors];
+
+export type RunEventsResponses = {
+    /**
+     * A stream of events. Each data line is a RunEvent. The stream ends when the run ends.
+     */
+    200: string;
+};
+
+export type RunEventsResponse = RunEventsResponses[keyof RunEventsResponses];
+
+export type ListClaimsData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/claims';
+};
+
+export type ListClaimsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListClaimsError = ListClaimsErrors[keyof ListClaimsErrors];
+
+export type ListClaimsResponses = {
+    /**
+     * The claims, in document order.
+     */
+    200: {
+        items: Array<Claim>;
+    };
+};
+
+export type ListClaimsResponse = ListClaimsResponses[keyof ListClaimsResponses];
+
+export type ListMcpConnectionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/mcp';
+};
+
+export type ListMcpConnectionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListMcpConnectionsError = ListMcpConnectionsErrors[keyof ListMcpConnectionsErrors];
+
+export type ListMcpConnectionsResponses = {
+    /**
+     * The connections.
+     */
+    200: {
+        items: Array<McpConnection>;
+    };
+};
+
+export type ListMcpConnectionsResponse = ListMcpConnectionsResponses[keyof ListMcpConnectionsResponses];
+
+export type CreateMcpConnectionData = {
+    body: McpConnectionInput;
+    path?: never;
+    query?: never;
+    url: '/admin/mcp';
+};
+
+export type CreateMcpConnectionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateMcpConnectionError = CreateMcpConnectionErrors[keyof CreateMcpConnectionErrors];
+
+export type CreateMcpConnectionResponses = {
+    /**
+     * The connection.
+     */
+    201: McpConnection;
+};
+
+export type CreateMcpConnectionResponse = CreateMcpConnectionResponses[keyof CreateMcpConnectionResponses];
+
+export type DeleteMcpConnectionData = {
+    body?: never;
+    path: {
+        connectionId: string;
+    };
+    query?: never;
+    url: '/admin/mcp/{connectionId}';
+};
+
+export type DeleteMcpConnectionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteMcpConnectionError = DeleteMcpConnectionErrors[keyof DeleteMcpConnectionErrors];
+
+export type DeleteMcpConnectionResponses = {
+    /**
+     * Deleted.
+     */
+    204: void;
+};
+
+export type DeleteMcpConnectionResponse = DeleteMcpConnectionResponses[keyof DeleteMcpConnectionResponses];
+
+export type UpdateMcpConnectionData = {
+    body: McpConnectionInput;
+    path: {
+        connectionId: string;
+    };
+    query?: never;
+    url: '/admin/mcp/{connectionId}';
+};
+
+export type UpdateMcpConnectionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UpdateMcpConnectionError = UpdateMcpConnectionErrors[keyof UpdateMcpConnectionErrors];
+
+export type UpdateMcpConnectionResponses = {
+    /**
+     * The connection.
+     */
+    200: McpConnection;
+};
+
+export type UpdateMcpConnectionResponse = UpdateMcpConnectionResponses[keyof UpdateMcpConnectionResponses];
+
+export type ListMcpToolsData = {
+    body?: never;
+    path: {
+        connectionId: string;
+    };
+    query?: never;
+    url: '/admin/mcp/{connectionId}/tools';
+};
+
+export type ListMcpToolsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListMcpToolsError = ListMcpToolsErrors[keyof ListMcpToolsErrors];
+
+export type ListMcpToolsResponses = {
+    /**
+     * The tools.
+     */
+    200: {
+        items: Array<McpTool>;
+    };
+};
+
+export type ListMcpToolsResponse = ListMcpToolsResponses[keyof ListMcpToolsResponses];
 
 export type GetRunData = {
     body?: never;

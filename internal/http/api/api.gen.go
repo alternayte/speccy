@@ -128,6 +128,27 @@ func (e ChangeStatus) Valid() bool {
 	}
 }
 
+// Defines values for ClaimLabel.
+const (
+	Contradicted ClaimLabel = "contradicted"
+	Unverified   ClaimLabel = "unverified"
+	Verified     ClaimLabel = "verified"
+)
+
+// Valid indicates whether the value is a known member of the ClaimLabel enum.
+func (e ClaimLabel) Valid() bool {
+	switch e {
+	case Contradicted:
+		return true
+	case Unverified:
+		return true
+	case Verified:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingLevel.
 const (
 	INFO   FindingLevel = "INFO"
@@ -164,6 +185,24 @@ func (e LineOpOp) Valid() bool {
 	case Equal:
 		return true
 	case Insert:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MCPConnectionInputTransport.
+const (
+	Http  MCPConnectionInputTransport = "http"
+	Stdio MCPConnectionInputTransport = "stdio"
+)
+
+// Valid indicates whether the value is a known member of the MCPConnectionInputTransport enum.
+func (e MCPConnectionInputTransport) Valid() bool {
+	switch e {
+	case Http:
+		return true
+	case Stdio:
 		return true
 	default:
 		return false
@@ -432,6 +471,20 @@ type BundleVerdictKind string
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
 
+// Claim defines model for Claim.
+type Claim struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor  Anchor             `json:"anchor"`
+	Id      openapi_types.UUID `json:"id"`
+	Label   ClaimLabel         `json:"label"`
+	Reason  string             `json:"reason"`
+	Sources []string           `json:"sources"`
+	Text    string             `json:"text"`
+}
+
+// ClaimLabel defines model for Claim.Label.
+type ClaimLabel string
+
 // CreateBundleRequest defines model for CreateBundleRequest.
 type CreateBundleRequest struct {
 	// Name The bundle folder name.
@@ -513,6 +566,52 @@ type LineOp struct {
 
 // LineOpOp defines model for LineOp.Op.
 type LineOpOp string
+
+// MCPConnection defines model for MCPConnection.
+type MCPConnection struct {
+	Command       *[]string          `json:"command,omitempty"`
+	HasSecret     bool               `json:"has_secret"`
+	Id            openapi_types.UUID `json:"id"`
+	IsSearch      bool               `json:"is_search"`
+	Name          string             `json:"name"`
+	SearchTool    string             `json:"search_tool"`
+	SecretEnv     *string            `json:"secret_env,omitempty"`
+	SecretLast4   string             `json:"secret_last4"`
+	ToolAllowlist []string           `json:"tool_allowlist"`
+	Transport     string             `json:"transport"`
+	Url           *string            `json:"url,omitempty"`
+}
+
+// MCPConnectionInput defines model for MCPConnectionInput.
+type MCPConnectionInput struct {
+	// Command For stdio, one argument per item.
+	Command  *[]string `json:"command,omitempty"`
+	IsSearch bool      `json:"is_search"`
+	Name     string    `json:"name"`
+
+	// SearchTool The allowlisted tool that searches, when is_search is true.
+	SearchTool *string `json:"search_tool,omitempty"`
+
+	// Secret Write-only. An http server gets it as a bearer token; a stdio server as the variable in secret_env.
+	Secret        *string                     `json:"secret,omitempty"`
+	SecretEnv     *string                     `json:"secret_env,omitempty"`
+	ToolAllowlist []string                    `json:"tool_allowlist"`
+	Transport     MCPConnectionInputTransport `json:"transport"`
+
+	// Url For http.
+	Url *string `json:"url,omitempty"`
+}
+
+// MCPConnectionInputTransport defines model for MCPConnectionInput.Transport.
+type MCPConnectionInputTransport string
+
+// MCPTool defines model for MCPTool.
+type MCPTool struct {
+	Description string `json:"description"`
+	Destructive bool   `json:"destructive"`
+	Name        string `json:"name"`
+	ReadOnly    bool   `json:"read_only"`
+}
 
 // Meta defines model for Meta.
 type Meta struct {
@@ -620,16 +719,27 @@ type RoleName string
 
 // Run defines model for Run.
 type Run struct {
-	BundleId       openapi_types.UUID `json:"bundle_id"`
-	Error          string             `json:"error"`
-	FinishedAt     *time.Time         `json:"finished_at,omitempty"`
-	Id             openapi_types.UUID `json:"id"`
-	Kind           RunKind            `json:"kind"`
-	ProfileKey     string             `json:"profile_key"`
-	ProfileVersion int64              `json:"profile_version"`
-	Stage          string             `json:"stage"`
-	StartedAt      time.Time          `json:"started_at"`
-	Status         RunStatus          `json:"status"`
+	BundleId openapi_types.UUID `json:"bundle_id"`
+
+	// CacheHits Steps answered from the cache (REQ-021).
+	CacheHits *int64 `json:"cache_hits,omitempty"`
+
+	// CostEstimate USD, from the prices on the role assignments.
+	CostEstimate *float32           `json:"cost_estimate,omitempty"`
+	Error        string             `json:"error"`
+	FinishedAt   *time.Time         `json:"finished_at,omitempty"`
+	Id           openapi_types.UUID `json:"id"`
+	Kind         RunKind            `json:"kind"`
+
+	// Notes Notes for the run report, such as "no search source configured" (REQ-034).
+	Notes          *[]string `json:"notes,omitempty"`
+	ProfileKey     string    `json:"profile_key"`
+	ProfileVersion int64     `json:"profile_version"`
+	Stage          string    `json:"stage"`
+	StartedAt      time.Time `json:"started_at"`
+	Status         RunStatus `json:"status"`
+	TokensIn       *int64    `json:"tokens_in,omitempty"`
+	TokensOut      *int64    `json:"tokens_out,omitempty"`
 
 	// Verdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
 	Verdict       *BundleVerdict     `json:"verdict,omitempty"`
@@ -642,6 +752,18 @@ type RunKind string
 
 // RunStatus defines model for Run.Status.
 type RunStatus string
+
+// RunEstimate defines model for RunEstimate.
+type RunEstimate struct {
+	CachedSteps int      `json:"cached_steps"`
+	Calls       int      `json:"calls"`
+	CostUsd     *float32 `json:"cost_usd,omitempty"`
+
+	// Priced False when the reviewer role has no prices, so there is no cost.
+	Priced    bool  `json:"priced"`
+	TokensIn  int64 `json:"tokens_in"`
+	TokensOut int64 `json:"tokens_out"`
+}
 
 // RunList defines model for RunList.
 type RunList struct {
@@ -688,6 +810,9 @@ type BaseVersion = openapi_types.UUID
 
 // BundleId defines model for BundleId.
 type BundleId = openapi_types.UUID
+
+// ConnectionId defines model for ConnectionId.
+type ConnectionId = openapi_types.UUID
 
 // Cursor defines model for Cursor.
 type Cursor = string
@@ -786,6 +911,12 @@ type TestBackendJSONRequestBody TestBackendJSONBody
 // SetBudgetJSONRequestBody defines body for SetBudget for application/json ContentType.
 type SetBudgetJSONRequestBody SetBudgetJSONBody
 
+// CreateMCPConnectionJSONRequestBody defines body for CreateMCPConnection for application/json ContentType.
+type CreateMCPConnectionJSONRequestBody = MCPConnectionInput
+
+// UpdateMCPConnectionJSONRequestBody defines body for UpdateMCPConnection for application/json ContentType.
+type UpdateMCPConnectionJSONRequestBody = MCPConnectionInput
+
 // AssignRoleJSONRequestBody defines body for AssignRole for application/json ContentType.
 type AssignRoleJSONRequestBody = RoleInput
 
@@ -824,6 +955,21 @@ type ServerInterface interface {
 	// SetBudget Set the monthly token limit. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(w http.ResponseWriter, r *http.Request)
+	// ListMCPConnections List the MCP connections (REQ-112).
+	// (GET /admin/mcp)
+	ListMCPConnections(w http.ResponseWriter, r *http.Request)
+	// CreateMCPConnection Add an MCP connection.
+	// (POST /admin/mcp)
+	CreateMCPConnection(w http.ResponseWriter, r *http.Request)
+	// DeleteMCPConnection Delete an MCP connection.
+	// (DELETE /admin/mcp/{connectionId})
+	DeleteMCPConnection(w http.ResponseWriter, r *http.Request, connectionId ConnectionId)
+	// UpdateMCPConnection Change an MCP connection. Leave the secret out to keep the stored one.
+	// (PUT /admin/mcp/{connectionId})
+	UpdateMCPConnection(w http.ResponseWriter, r *http.Request, connectionId ConnectionId)
+	// ListMCPTools Connect and list the server's tools, to choose the allowlist.
+	// (GET /admin/mcp/{connectionId}/tools)
+	ListMCPTools(w http.ResponseWriter, r *http.Request, connectionId ConnectionId)
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	// (GET /admin/presets)
 	ListPresets(w http.ResponseWriter, r *http.Request)
@@ -848,6 +994,9 @@ type ServerInterface interface {
 	// GetBundle Get one bundle.
 	// (GET /bundles/{bundleId})
 	GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+	// (GET /bundles/{bundleId}/assumptions)
+	ListAssumptions(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /bundles/{bundleId}/diff)
 	DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams)
@@ -872,6 +1021,12 @@ type ServerInterface interface {
 	// ListRuns List the review runs of a bundle, newest first.
 	// (GET /bundles/{bundleId}/runs)
 	ListRuns(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListRunsParams)
+	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	// (POST /bundles/{bundleId}/runs)
+	StartRun(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
+	// (GET /bundles/{bundleId}/runs/estimate)
+	EstimateRun(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
@@ -887,6 +1042,12 @@ type ServerInterface interface {
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// ListClaims List a run's factual claims and their labels (REQ-031).
+	// (GET /runs/{runId}/claims)
+	ListClaims(w http.ResponseWriter, r *http.Request, runId RunId)
+	// RunEvents Follow a run's progress by stage, as server-sent events (REQ-026).
+	// (GET /runs/{runId}/events)
+	RunEvents(w http.ResponseWriter, r *http.Request, runId RunId)
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -1026,6 +1187,112 @@ func (siw *ServerInterfaceWrapper) SetBudget(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetBudget(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMCPConnections operation middleware
+func (siw *ServerInterfaceWrapper) ListMCPConnections(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMCPConnections(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMCPConnection(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId ConnectionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", r.PathValue("connectionId"), &connectionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "connectionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteMCPConnection(w, r, connectionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMCPConnection operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMCPConnection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId ConnectionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", r.PathValue("connectionId"), &connectionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "connectionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMCPConnection(w, r, connectionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMCPTools operation middleware
+func (siw *ServerInterfaceWrapper) ListMCPTools(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId ConnectionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", r.PathValue("connectionId"), &connectionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "connectionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMCPTools(w, r, connectionId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1206,6 +1473,32 @@ func (siw *ServerInterfaceWrapper) GetBundle(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetBundle(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAssumptions operation middleware
+func (siw *ServerInterfaceWrapper) ListAssumptions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAssumptions(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1587,6 +1880,58 @@ func (siw *ServerInterfaceWrapper) ListRuns(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// StartRun operation middleware
+func (siw *ServerInterfaceWrapper) StartRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartRun(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EstimateRun operation middleware
+func (siw *ServerInterfaceWrapper) EstimateRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EstimateRun(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListVersions operation middleware
 func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
 
@@ -1701,6 +2046,58 @@ func (siw *ServerInterfaceWrapper) GetRun(w http.ResponseWriter, r *http.Request
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetRun(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListClaims operation middleware
+func (siw *ServerInterfaceWrapper) ListClaims(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListClaims(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RunEvents operation middleware
+func (siw *ServerInterfaceWrapper) RunEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RunEvents(w, r, runId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1870,6 +2267,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/diff", wrapper.DiffVersions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/export", wrapper.ExportBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.ListRuns)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.StartRun)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs/estimate", wrapper.EstimateRun)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/assumptions", wrapper.ListAssumptions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/events", wrapper.RunEvents)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/claims", wrapper.ListClaims)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp", wrapper.ListMCPConnections)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/mcp", wrapper.CreateMCPConnection)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.DeleteMCPConnection)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.UpdateMCPConnection)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp/{connectionId}/tools", wrapper.ListMCPTools)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles", wrapper.ListProfiles)
@@ -2147,6 +2554,199 @@ type SetBudgetdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response SetBudgetdefaultApplicationProblemPlusJSONResponse) VisitSetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMCPConnectionsRequestObject struct {
+}
+
+type ListMCPConnectionsResponseObject interface {
+	VisitListMCPConnectionsResponse(w http.ResponseWriter) error
+}
+
+type ListMCPConnections200JSONResponse struct {
+	Items []MCPConnection `json:"items"`
+}
+
+func (response ListMCPConnections200JSONResponse) VisitListMCPConnectionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMCPConnectionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListMCPConnectionsdefaultApplicationProblemPlusJSONResponse) VisitListMCPConnectionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMCPConnectionRequestObject struct {
+	Body *CreateMCPConnectionJSONRequestBody
+}
+
+type CreateMCPConnectionResponseObject interface {
+	VisitCreateMCPConnectionResponse(w http.ResponseWriter) error
+}
+
+type CreateMCPConnection201JSONResponse MCPConnection
+
+func (response CreateMCPConnection201JSONResponse) VisitCreateMCPConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMCPConnectiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateMCPConnectiondefaultApplicationProblemPlusJSONResponse) VisitCreateMCPConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMCPConnectionRequestObject struct {
+	ConnectionId ConnectionId `json:"connectionId"`
+}
+
+type DeleteMCPConnectionResponseObject interface {
+	VisitDeleteMCPConnectionResponse(w http.ResponseWriter) error
+}
+
+type DeleteMCPConnection204Response struct {
+}
+
+func (response DeleteMCPConnection204Response) VisitDeleteMCPConnectionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteMCPConnectiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteMCPConnectiondefaultApplicationProblemPlusJSONResponse) VisitDeleteMCPConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMCPConnectionRequestObject struct {
+	ConnectionId ConnectionId `json:"connectionId"`
+	Body         *UpdateMCPConnectionJSONRequestBody
+}
+
+type UpdateMCPConnectionResponseObject interface {
+	VisitUpdateMCPConnectionResponse(w http.ResponseWriter) error
+}
+
+type UpdateMCPConnection200JSONResponse MCPConnection
+
+func (response UpdateMCPConnection200JSONResponse) VisitUpdateMCPConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMCPConnectiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateMCPConnectiondefaultApplicationProblemPlusJSONResponse) VisitUpdateMCPConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMCPToolsRequestObject struct {
+	ConnectionId ConnectionId `json:"connectionId"`
+}
+
+type ListMCPToolsResponseObject interface {
+	VisitListMCPToolsResponse(w http.ResponseWriter) error
+}
+
+type ListMCPTools200JSONResponse struct {
+	Items []MCPTool `json:"items"`
+}
+
+func (response ListMCPTools200JSONResponse) VisitListMCPToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListMCPToolsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListMCPToolsdefaultApplicationProblemPlusJSONResponse) VisitListMCPToolsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2452,6 +3052,47 @@ type GetBundledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetBundledefaultApplicationProblemPlusJSONResponse) VisitGetBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAssumptionsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type ListAssumptionsResponseObject interface {
+	VisitListAssumptionsResponse(w http.ResponseWriter) error
+}
+
+type ListAssumptions200JSONResponse struct {
+	Items []Anchor `json:"items"`
+}
+
+func (response ListAssumptions200JSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAssumptionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListAssumptionsdefaultApplicationProblemPlusJSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -2796,6 +3437,84 @@ func (response ListRunsdefaultApplicationProblemPlusJSONResponse) VisitListRunsR
 	return err
 }
 
+type StartRunRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type StartRunResponseObject interface {
+	VisitStartRunResponse(w http.ResponseWriter) error
+}
+
+type StartRun202JSONResponse Run
+
+func (response StartRun202JSONResponse) VisitStartRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartRundefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response StartRundefaultApplicationProblemPlusJSONResponse) VisitStartRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EstimateRunRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type EstimateRunResponseObject interface {
+	VisitEstimateRunResponse(w http.ResponseWriter) error
+}
+
+type EstimateRun200JSONResponse RunEstimate
+
+func (response EstimateRun200JSONResponse) VisitEstimateRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EstimateRundefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response EstimateRundefaultApplicationProblemPlusJSONResponse) VisitEstimateRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListVersionsRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 	Params   ListVersionsParams
@@ -2990,6 +3709,115 @@ func (response GetRundefaultApplicationProblemPlusJSONResponse) VisitGetRunRespo
 	return err
 }
 
+type ListClaimsRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type ListClaimsResponseObject interface {
+	VisitListClaimsResponse(w http.ResponseWriter) error
+}
+
+type ListClaims200JSONResponse struct {
+	Items []Claim `json:"items"`
+}
+
+func (response ListClaims200JSONResponse) VisitListClaimsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListClaimsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListClaimsdefaultApplicationProblemPlusJSONResponse) VisitListClaimsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunEventsRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type RunEventsResponseObject interface {
+	VisitRunEventsResponse(w http.ResponseWriter) error
+}
+
+type RunEvents200TexteventStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response RunEvents200TexteventStreamResponse) VisitRunEventsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type RunEventsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RunEventsdefaultApplicationProblemPlusJSONResponse) VisitRunEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListFindingsRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -3052,6 +3880,21 @@ type StrictServerInterface interface {
 	// SetBudget Set the monthly token limit. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(ctx context.Context, request SetBudgetRequestObject) (SetBudgetResponseObject, error)
+	// ListMCPConnections List the MCP connections (REQ-112).
+	// (GET /admin/mcp)
+	ListMCPConnections(ctx context.Context, request ListMCPConnectionsRequestObject) (ListMCPConnectionsResponseObject, error)
+	// CreateMCPConnection Add an MCP connection.
+	// (POST /admin/mcp)
+	CreateMCPConnection(ctx context.Context, request CreateMCPConnectionRequestObject) (CreateMCPConnectionResponseObject, error)
+	// DeleteMCPConnection Delete an MCP connection.
+	// (DELETE /admin/mcp/{connectionId})
+	DeleteMCPConnection(ctx context.Context, request DeleteMCPConnectionRequestObject) (DeleteMCPConnectionResponseObject, error)
+	// UpdateMCPConnection Change an MCP connection. Leave the secret out to keep the stored one.
+	// (PUT /admin/mcp/{connectionId})
+	UpdateMCPConnection(ctx context.Context, request UpdateMCPConnectionRequestObject) (UpdateMCPConnectionResponseObject, error)
+	// ListMCPTools Connect and list the server's tools, to choose the allowlist.
+	// (GET /admin/mcp/{connectionId}/tools)
+	ListMCPTools(ctx context.Context, request ListMCPToolsRequestObject) (ListMCPToolsResponseObject, error)
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	// (GET /admin/presets)
 	ListPresets(ctx context.Context, request ListPresetsRequestObject) (ListPresetsResponseObject, error)
@@ -3076,6 +3919,9 @@ type StrictServerInterface interface {
 	// GetBundle Get one bundle.
 	// (GET /bundles/{bundleId})
 	GetBundle(ctx context.Context, request GetBundleRequestObject) (GetBundleResponseObject, error)
+	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+	// (GET /bundles/{bundleId}/assumptions)
+	ListAssumptions(ctx context.Context, request ListAssumptionsRequestObject) (ListAssumptionsResponseObject, error)
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /bundles/{bundleId}/diff)
 	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
@@ -3100,6 +3946,12 @@ type StrictServerInterface interface {
 	// ListRuns List the review runs of a bundle, newest first.
 	// (GET /bundles/{bundleId}/runs)
 	ListRuns(ctx context.Context, request ListRunsRequestObject) (ListRunsResponseObject, error)
+	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	// (POST /bundles/{bundleId}/runs)
+	StartRun(ctx context.Context, request StartRunRequestObject) (StartRunResponseObject, error)
+	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
+	// (GET /bundles/{bundleId}/runs/estimate)
+	EstimateRun(ctx context.Context, request EstimateRunRequestObject) (EstimateRunResponseObject, error)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
@@ -3115,6 +3967,12 @@ type StrictServerInterface interface {
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(ctx context.Context, request GetRunRequestObject) (GetRunResponseObject, error)
+	// ListClaims List a run's factual claims and their labels (REQ-031).
+	// (GET /runs/{runId}/claims)
+	ListClaims(ctx context.Context, request ListClaimsRequestObject) (ListClaimsResponseObject, error)
+	// RunEvents Follow a run's progress by stage, as server-sent events (REQ-026).
+	// (GET /runs/{runId}/events)
+	RunEvents(ctx context.Context, request RunEventsRequestObject) (RunEventsResponseObject, error)
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(ctx context.Context, request ListFindingsRequestObject) (ListFindingsResponseObject, error)
@@ -3361,6 +4219,146 @@ func (sh *strictHandler) SetBudget(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListMCPConnections operation middleware
+func (sh *strictHandler) ListMCPConnections(w http.ResponseWriter, r *http.Request) {
+	var request ListMCPConnectionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMCPConnections(ctx, request.(ListMCPConnectionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMCPConnections")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMCPConnectionsResponseObject); ok {
+		if err := validResponse.VisitListMCPConnectionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMCPConnection operation middleware
+func (sh *strictHandler) CreateMCPConnection(w http.ResponseWriter, r *http.Request) {
+	var request CreateMCPConnectionRequestObject
+
+	var body CreateMCPConnectionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMCPConnection(ctx, request.(CreateMCPConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMCPConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMCPConnectionResponseObject); ok {
+		if err := validResponse.VisitCreateMCPConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteMCPConnection operation middleware
+func (sh *strictHandler) DeleteMCPConnection(w http.ResponseWriter, r *http.Request, connectionId ConnectionId) {
+	var request DeleteMCPConnectionRequestObject
+
+	request.ConnectionId = connectionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteMCPConnection(ctx, request.(DeleteMCPConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteMCPConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteMCPConnectionResponseObject); ok {
+		if err := validResponse.VisitDeleteMCPConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMCPConnection operation middleware
+func (sh *strictHandler) UpdateMCPConnection(w http.ResponseWriter, r *http.Request, connectionId ConnectionId) {
+	var request UpdateMCPConnectionRequestObject
+
+	request.ConnectionId = connectionId
+
+	var body UpdateMCPConnectionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMCPConnection(ctx, request.(UpdateMCPConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMCPConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMCPConnectionResponseObject); ok {
+		if err := validResponse.VisitUpdateMCPConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMCPTools operation middleware
+func (sh *strictHandler) ListMCPTools(w http.ResponseWriter, r *http.Request, connectionId ConnectionId) {
+	var request ListMCPToolsRequestObject
+
+	request.ConnectionId = connectionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMCPTools(ctx, request.(ListMCPToolsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMCPTools")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMCPToolsResponseObject); ok {
+		if err := validResponse.VisitListMCPToolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListPresets operation middleware
 func (sh *strictHandler) ListPresets(w http.ResponseWriter, r *http.Request) {
 	var request ListPresetsRequestObject
@@ -3575,6 +4573,32 @@ func (sh *strictHandler) GetBundle(w http.ResponseWriter, r *http.Request, bundl
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetBundleResponseObject); ok {
 		if err := validResponse.VisitGetBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAssumptions operation middleware
+func (sh *strictHandler) ListAssumptions(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request ListAssumptionsRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAssumptions(ctx, request.(ListAssumptionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAssumptions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAssumptionsResponseObject); ok {
+		if err := validResponse.VisitListAssumptionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -3806,6 +4830,58 @@ func (sh *strictHandler) ListRuns(w http.ResponseWriter, r *http.Request, bundle
 	}
 }
 
+// StartRun operation middleware
+func (sh *strictHandler) StartRun(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request StartRunRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartRun(ctx, request.(StartRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartRunResponseObject); ok {
+		if err := validResponse.VisitStartRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EstimateRun operation middleware
+func (sh *strictHandler) EstimateRun(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request EstimateRunRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EstimateRun(ctx, request.(EstimateRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EstimateRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EstimateRunResponseObject); ok {
+		if err := validResponse.VisitEstimateRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListVersions operation middleware
 func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams) {
 	var request ListVersionsRequestObject
@@ -3931,6 +5007,58 @@ func (sh *strictHandler) GetRun(w http.ResponseWriter, r *http.Request, runId Ru
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRunResponseObject); ok {
 		if err := validResponse.VisitGetRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListClaims operation middleware
+func (sh *strictHandler) ListClaims(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request ListClaimsRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListClaims(ctx, request.(ListClaimsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListClaims")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListClaimsResponseObject); ok {
+		if err := validResponse.VisitListClaimsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RunEvents operation middleware
+func (sh *strictHandler) RunEvents(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request RunEventsRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RunEvents(ctx, request.(RunEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RunEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RunEventsResponseObject); ok {
+		if err := validResponse.VisitRunEventsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
