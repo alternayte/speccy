@@ -1,11 +1,12 @@
 ## What this is
-Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready. The repo is at M0 (SDD.md §18): the design is in SDD.md and BUILD.md, and no code exists yet.
+Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready. The design is in SDD.md and BUILD.md; SDD.md §18 lists the milestones.
 
 ## Run
-Nothing runs. There is no justfile and no binary. BUILD.md §3 lists the recipes that M0 must create.
+`just dev` runs Go (air) and Vite; open http://127.0.0.1:5173. `just build` writes bin/speccy.
 
 ## Test
-No tests exist. BUILD.md §4 defines the gate for every PR. BUILD.md §3 names the gate recipe; the justfile does not exist yet. SDD.md §16 names the tests.
+`just verify` is the PR gate: gen-check, lint, test, test-pg, budget.
+Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs through npx.
 
 ## Stack rules
 - One Go binary embeds a React SPA. The frontend uses Vite and pnpm; the global Bun rule does not apply.
