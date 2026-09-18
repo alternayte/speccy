@@ -2,11 +2,11 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M0. The binary serves the web app in local mode. The review does not exist yet.
+Speccy is at milestone M1. The binary serves the web app in local mode, and the store runs on SQLite and Postgres. The review does not exist yet.
 
 ## Quick start
 
-You need Go, Node 24 or later, and `just`.
+You need Go, Node 24 or later, and `just`. `just test-pg` and `just verify` also need Docker.
 
 ```sh
 git clone https://github.com/alternayte/speccy && cd speccy
@@ -24,6 +24,9 @@ This table lists only the guarantees whose tests pass today.
 
 | Guarantee | Test |
 |---|---|
+| Both store engines pass the same conformance suite. | [`TestStoreConformance`](internal/store/conformance/conformance_test.go) |
+| A concurrent append with a stale version is rejected. | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go) |
+| Projections update in the same transaction as the append. | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go) |
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
 
 ## How the verdict works

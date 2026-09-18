@@ -22,22 +22,24 @@ dev: setup
     echo "Open http://127.0.0.1:5173"
     wait
 
-# Generate the Go server interfaces and the TypeScript API client from api/openapi.yaml.
+# Generate code: sqlc (both engines), oapi-codegen, and the TypeScript API client.
 gen: setup
+    go tool sqlc generate
     cd internal/http/api && go tool oapi-codegen -config oapi-codegen.yaml ../../../api/openapi.yaml
     cd web && {{pnpm}} run gen:api
 
 # Fail when generated files differ from the committed files.
 gen-check: gen
-    git diff --exit-code -- internal/http/api web/src/lib/api
-    test -z "$(git ls-files --others --exclude-standard -- internal/http/api web/src/lib/api)"
+    git diff --exit-code -- db/postgres db/sqlite internal/http/api web/src/lib/api
+    test -z "$(git ls-files --others --exclude-standard -- db/postgres db/sqlite internal/http/api web/src/lib/api)"
 
 # Go tests (SQLite engine) and web unit tests.
 test: setup
     go tool gotestsum --format pkgname-and-test-fails -- -race -count=1 ./...
     cd web && {{pnpm}} run test
 
-# Go tests against Postgres. Tests that need Postgres carry the postgres build tag.
+# Go tests against Postgres in a test container (Docker must run). The postgres build tag
+# adds the postgres engine to every test that loops over storetest.Engines().
 test-pg:
     go tool gotestsum --format pkgname-and-test-fails -- -race -count=1 -tags postgres ./...
 
