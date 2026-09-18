@@ -33,6 +33,7 @@ type Querier interface {
 	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
 	GetProfileVersion(ctx context.Context, arg GetProfileVersionParams) (ProfileVersion, error)
 	GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, error)
+	GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error)
 	GetStream(ctx context.Context, streamID uuid.UUID) (EsStream, error)
 	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
 	GetVersion(ctx context.Context, arg GetVersionParams) (Version, error)
@@ -75,6 +76,7 @@ type Querier interface {
 	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
+	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
 	// The head moves only from the version the change was based on.
 	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error)

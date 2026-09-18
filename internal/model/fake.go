@@ -66,3 +66,9 @@ func (f *Fake) Call(ctx context.Context, _ string, c Call) (Raw, error) {
 	}
 	return Raw{Text: answer, TokensIn: estimateTokens(c.System + c.Prompt), TokensOut: estimateTokens(answer)}, nil
 }
+
+// BackendFunc is a Backend from a function, for tests that answer by the content of a call.
+type BackendFunc func(ctx context.Context, model string, c Call) (Raw, error)
+
+// Call implements Backend.
+func (f BackendFunc) Call(ctx context.Context, model string, c Call) (Raw, error) { return f(ctx, model, c) }

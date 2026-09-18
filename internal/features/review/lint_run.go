@@ -1,5 +1,5 @@
-// Package review runs reviews and stores runs, findings, and verdicts (SDD §8). M3 has the
-// lint stage, which runs on every new version (DEC-027), and the lint-only verdict.
+// Package review runs reviews and stores runs, findings, claims, and verdicts (SDD §8). Lint
+// runs on every new version (DEC-027); a full run adds the model stages on request.
 package review
 
 import (
@@ -25,6 +25,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/store"
 )
@@ -32,8 +33,18 @@ import (
 // Stage names (REQ-020).
 const (
 	StageLint      = "lint"
+	StageRubric    = "rubric"
+	StageGrounding = "grounding"
 	StageCoherence = "coherence"
+	StageVerdict   = "verdict"
 )
+
+// Searcher is a web search source other than the model's own: an MCP connection marked
+// search (REQ-034).
+type Searcher interface {
+	Name() string
+	Search(ctx context.Context, query string) (string, error)
+}
 
 // Service runs reviews for one workspace.
 type Service struct {
@@ -42,8 +53,17 @@ type Service struct {
 	// Profiles returns the current profiles by key. Repo returns .speccy.yaml.
 	Profiles func() map[string]profile.Versioned
 	Repo     func() source.RepoConfig
+	// Gateway calls models. Search returns the MCP search source, or nil when none is set.
+	Gateway *model.Gateway
+	Search  func(ctx context.Context) (Searcher, error)
+	// Progress receives stage events for live views (REQ-026).
+	Progress *Broker
+	// Parallel bounds the model calls of one run (REQ-105). Zero means 4.
+	Parallel int
 
-	mu sync.Mutex // one lint pass at a time
+	mu     sync.Mutex // one lint pass at a time
+	wakeMu sync.Mutex
+	wake   chan struct{}
 }
 
 // categories maps each lint rule to its radar axis (SDD §8.7).
@@ -58,6 +78,196 @@ var categories = map[string]verdict.Category{
 // HasUpstreamSlug is the check for a required upstream link (REQ-057). M3 reads the
 // frontmatter; M7 resolves the link target.
 const HasUpstreamSlug = "links.has-upstream"
+
+// pending is a finding before it is stored.
+type pending struct {
+	slug     string
+	level    kernel.Level
+	stage    string
+	anchor   anchor.Anchor
+	message  string
+	fix      string
+	evidence any
+}
+
+// pendingClaim is a labelled claim before it is stored (REQ-031).
+type pendingClaim struct {
+	text    string
+	label   string
+	reason  string
+	sources []string
+	anchor  anchor.Anchor
+}
+
+// evaluation collects the results of a run's stages.
+type evaluation struct {
+	findings []pending
+	items    []verdict.Item
+	in       verdict.Input
+	claims   []pendingClaim
+	relaxed  map[string]bool
+}
+
+// input is what every stage reads: the bundle version, its main doc, and the profile.
+type input struct {
+	bundle  pgdb.Bundle
+	version uuid.UUID
+	files   []source.File
+	main    []byte
+	doc     section.Doc
+	profile profile.Versioned
+	relaxed map[string]bool
+}
+
+func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, p profile.Versioned) (input, error) {
+	files, err := version.Files(ctx, s.DB.Queries(), versionID)
+	if err != nil {
+		return input{}, err
+	}
+	in := input{bundle: b, version: versionID, files: files, profile: p, relaxed: map[string]bool{}}
+	for _, f := range files {
+		if f.Path == b.MainDoc {
+			in.main = f.Content
+		}
+	}
+	in.doc = section.Parse(in.main)
+	if s.Repo != nil {
+		for _, slug := range s.Repo().Adoption.Relaxed {
+			in.relaxed[slug] = true
+		}
+	}
+	return in, nil
+}
+
+// level returns a check's level after adoption mode (REQ-133).
+func (in input) level(slug string, l kernel.Level) kernel.Level {
+	if in.relaxed[slug] {
+		return kernel.Info
+	}
+	return l
+}
+
+// lintStage runs lint and the upstream check (§8.2, REQ-057).
+func lintStage(in input) evaluation {
+	ev := evaluation{relaxed: in.relaxed}
+	paths := make([]string, len(in.files))
+	for i, f := range in.files {
+		paths[i] = f.Path
+	}
+	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.MainDoc, paths, in.relaxed)
+	res := lint.Run(in.main, cfg)
+	failed := map[string]bool{}
+	for _, f := range res.Findings {
+		ev.findings = append(ev.findings, pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix})
+		failed[f.Slug] = true
+	}
+	for slug, lvl := range res.Rules {
+		ev.items = append(ev.items, verdict.Item{Category: categories[slug], Level: lvl, Passed: !failed[slug], Applicable: true})
+	}
+	if up := in.profile.Profile.Links.Upstream; up != nil && up.Required {
+		level := in.level(HasUpstreamSlug, checkLevel(in.profile.Profile, HasUpstreamSlug, kernel.Must))
+		has := hasUpstream(in.main, up.Kinds)
+		ev.in.UpstreamRequired = level == kernel.Must
+		ev.in.HasUpstream = has
+		ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
+		if !has {
+			ev.findings = append(ev.findings, pending{
+				slug: HasUpstreamSlug, level: level, stage: StageCoherence, anchor: docAnchor(in),
+				message: fmt.Sprintf("This %s has no %s link to a %s, and no standalone acknowledgement.",
+					strings.ToUpper(in.profile.Profile.Key), strings.Join(up.Kinds, " or "), strings.ToUpper(strings.Join(up.Types, " or "))),
+				fix: "Add a link under links: in the frontmatter, or a standalone: entry with the reason.",
+			})
+		}
+	}
+	return ev
+}
+
+// docAnchor points at the frontmatter, or at the first line when there is none.
+func docAnchor(in input) anchor.Anchor {
+	end := in.doc.BodyStart
+	if end == 0 {
+		end = len(in.main)
+		if i := bytes.IndexByte(in.main, '\n'); i >= 0 {
+			end = i
+		}
+	}
+	return anchor.New(in.bundle.MainDoc, in.main, in.doc, 0, end)
+}
+
+// relaxedCount is the number of relaxed slugs that are real checks of the profile.
+func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
+	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true}
+	for _, r := range lint.Rules {
+		known[r.Slug] = true
+	}
+	for _, c := range p.Checks {
+		known[c.Slug] = true
+	}
+	n := 0
+	for slug := range relaxed {
+		if known[slug] {
+			n++
+		}
+	}
+	return n
+}
+
+// save stores a finished run with its findings, claims, and verdict, in one transaction.
+// An existing row (a queued full run) is finished; a new one (a lint run) is inserted.
+func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, ev evaluation, p profile.Profile, existing bool) error {
+	var rows []pgdb.InsertFindingParams
+	in := ev.in
+	for _, f := range ev.findings {
+		id := kernel.NewID()
+		anchorJSON, _ := json.Marshal(f.anchor)
+		evidence := dbtype.JSON(`{}`)
+		if f.evidence != nil {
+			e, _ := json.Marshal(f.evidence)
+			evidence = e
+		}
+		sugg := dbtype.JSON(`{}`)
+		if f.fix != "" {
+			sugg, _ = json.Marshal(map[string]string{"fix": f.fix})
+		}
+		rows = append(rows, pgdb.InsertFindingParams{
+			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
+			Anchor: anchorJSON, Message: f.message, Evidence: evidence, Suggestion: sugg,
+		})
+		in.Findings = append(in.Findings, verdict.Finding{ID: id.String(), Level: f.level})
+	}
+	in.Items = ev.items
+	v := verdict.Decide(in)
+	finished := time.Now().UTC()
+	return s.DB.InTx(ctx, func(tx store.Tx) error {
+		q := tx.Queries()
+		if existing {
+			if err := finishRun(ctx, q, run, finished); err != nil {
+				return err
+			}
+		} else if err := insertRun(ctx, q, run, finished); err != nil {
+			return err
+		}
+		for _, r := range rows {
+			if err := q.InsertFinding(ctx, r); err != nil {
+				return err
+			}
+		}
+		for _, c := range ev.claims {
+			sources, _ := json.Marshal(nonNil(c.sources))
+			an, _ := json.Marshal(c.anchor)
+			if err := q.InsertClaim(ctx, pgdb.InsertClaimParams{ID: kernel.NewID(), RunID: run.ID, Text: c.text, Label: c.label,
+				Reason: c.reason, Sources: sources, Anchor: an}); err != nil {
+				return err
+			}
+		}
+		radar, _ := json.Marshal(v.Radar)
+		blocking, _ := json.Marshal(nonNil(v.BlockingFindingIDs))
+		return q.InsertVerdict(ctx, pgdb.InsertVerdictParams{
+			RunID: run.ID, Result: string(v.Result), Score: int64(v.Score), Radar: dbtype.JSON(radar),
+			WaiverCount: int64(v.WaiverCount), RelaxedCount: int64(relaxedCount(p, ev.relaxed)), BlockingFindingIds: dbtype.JSON(blocking),
+		})
+	})
+}
 
 // EnsureLinted lints every bundle whose current version has no run with the current profile
 // version. It is safe to call after any change.
@@ -105,146 +315,58 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle) error {
 	return err
 }
 
+// noProfile is the error of a run on a doc whose type has no profile.
+func (s *Service) noProfile(key string) string {
+	return fmt.Sprintf("No profile has the key %q, so Speccy cannot review this doc. Use a built-in type (%s), or add .speccy/profiles/%s.yaml.",
+		key, strings.Join(profileKeys(s.Profiles()), ", "), key)
+}
+
 // Lint runs the lint stage on version v of b and stores the run, its findings, and its verdict.
 func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) (pgdb.ReviewRun, error) {
-	q := s.DB.Queries()
 	now := time.Now().UTC()
 	run := pgdb.ReviewRun{
 		ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: b.ID, VersionID: versionID,
 		ProfileKey: b.ProfileKey, Kind: "lint", Stage: StageLint, StartedAt: now,
+		Roles: dbtype.JSON(`{}`), PromptVersions: dbtype.JSON(`{}`),
 	}
 	p, ok := s.Profiles()[b.ProfileKey]
 	if !ok {
 		run.Status = "failed"
-		run.Error = fmt.Sprintf("No profile has the key %q, so Speccy cannot review this doc. Use a built-in type (%s), or add .speccy/profiles/%s.yaml.",
-			b.ProfileKey, strings.Join(profileKeys(s.Profiles()), ", "), b.ProfileKey)
-		return run, insertRun(ctx, q, run, now)
+		run.Error = s.noProfile(b.ProfileKey)
+		return run, insertRun(ctx, s.DB.Queries(), run, now)
 	}
 	run.ProfileVersion = p.Version
-
-	files, err := version.Files(ctx, q, versionID)
+	in, err := s.load(ctx, b, versionID, p)
 	if err != nil {
 		return run, err
 	}
-	var main []byte
-	paths := make([]string, len(files))
-	for i, f := range files {
-		paths[i] = f.Path
-		if f.Path == b.MainDoc {
-			main = f.Content
-		}
-	}
-	repo := s.Repo()
-	relaxed := map[string]bool{}
-	for _, slug := range repo.Adoption.Relaxed {
-		relaxed[slug] = true
-	}
-	cfg := lintConfig(p.Profile, p.TemplateText, b.MainDoc, paths, relaxed)
-	res := lint.Run(main, cfg)
-
-	type stored struct {
-		row     pgdb.InsertFindingParams
-		verdict verdict.Finding
-	}
-	var findings []stored
-	add := func(slug string, level kernel.Level, stage string, a anchor.Anchor, msg, fix string) {
-		id := kernel.NewID()
-		anchorJSON, _ := json.Marshal(a)
-		sugg := json.RawMessage(`{}`)
-		if fix != "" {
-			sugg, _ = json.Marshal(map[string]string{"fix": fix})
-		}
-		findings = append(findings, stored{
-			row: pgdb.InsertFindingParams{ID: id, RunID: run.ID, CheckSlug: slug, Level: string(level), Stage: stage,
-				Relaxed: relaxed[slug], Anchor: anchorJSON, Message: msg, Evidence: dbtype.JSON(`{}`), Suggestion: dbtype.JSON(sugg)},
-			verdict: verdict.Finding{ID: id.String(), Level: level},
-		})
-	}
-	failed := map[string]bool{}
-	for _, f := range res.Findings {
-		add(f.Slug, f.Level, StageLint, f.Anchor, f.Message, f.Fix)
-		failed[f.Slug] = true
-	}
-	var items []verdict.Item
-	for slug, lvl := range res.Rules {
-		items = append(items, verdict.Item{Category: categories[slug], Level: lvl, Passed: !failed[slug], Applicable: true})
-	}
-
-	// REQ-057: a required upstream link, or a standalone acknowledgement, in the frontmatter.
-	in := verdict.Input{}
-	if up := p.Profile.Links.Upstream; up != nil && up.Required {
-		level := checkLevel(p.Profile, HasUpstreamSlug, kernel.Must)
-		if relaxed[HasUpstreamSlug] {
-			level = kernel.Info
-		}
-		has := hasUpstream(main, up.Kinds)
-		in.UpstreamRequired = level == kernel.Must
-		in.HasUpstream = has
-		items = append(items, verdict.Item{Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
-		if !has {
-			// Anchor on the frontmatter, where the link belongs, or on the first line.
-			sd := section.Parse(main)
-			end := sd.BodyStart
-			if end == 0 {
-				end = len(main)
-				if i := bytes.IndexByte(main, '\n'); i >= 0 {
-					end = i
-				}
-			}
-			add(HasUpstreamSlug, level, StageCoherence, anchor.New(b.MainDoc, main, sd, 0, end),
-				fmt.Sprintf("This %s has no %s link to a %s, and no standalone acknowledgement.",
-					strings.ToUpper(p.Profile.Key), strings.Join(up.Kinds, " or "), strings.ToUpper(strings.Join(up.Types, " or "))),
-				"Add a link under links: in the frontmatter, or a standalone: entry with the reason.")
-		}
-	}
-	for _, f := range findings {
-		in.Findings = append(in.Findings, f.verdict)
-	}
-	in.Items = items
-	v := verdict.Decide(in)
-
-	relaxedCount := 0
-	known := map[string]bool{}
-	for _, r := range lint.Rules {
-		known[r.Slug] = true
-	}
-	for _, c := range p.Profile.Checks {
-		known[c.Slug] = true
-	}
-	for slug := range relaxed {
-		if known[slug] {
-			relaxedCount++
-		}
-	}
-
 	run.Status = "complete"
-	finished := time.Now().UTC()
-	err = s.DB.InTx(ctx, func(tx store.Tx) error {
-		tq := tx.Queries()
-		if err := insertRun(ctx, tq, run, finished); err != nil {
-			return err
-		}
-		for _, f := range findings {
-			if err := tq.InsertFinding(ctx, f.row); err != nil {
-				return err
-			}
-		}
-		radar, _ := json.Marshal(v.Radar)
-		blocking, _ := json.Marshal(nonNil(v.BlockingFindingIDs))
-		return tq.InsertVerdict(ctx, pgdb.InsertVerdictParams{
-			RunID: run.ID, Result: string(v.Result), Score: int64(v.Score), Radar: dbtype.JSON(radar),
-			WaiverCount: int64(v.WaiverCount), RelaxedCount: int64(relaxedCount), BlockingFindingIds: dbtype.JSON(blocking),
-		})
-	})
-	return run, err
+	return run, s.save(ctx, run, lintStage(in), p.Profile, false)
 }
 
 func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished time.Time) error {
-	fin := sql.NullTime{Time: finished, Valid: true}
 	return q.InsertRun(ctx, pgdb.InsertRunParams{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, BundleID: r.BundleID, VersionID: r.VersionID, ProfileKey: r.ProfileKey,
 		ProfileVersion: r.ProfileVersion, Kind: r.Kind, Status: r.Status, Stage: r.Stage, Error: r.Error,
-		StartedAt: r.StartedAt, FinishedAt: fin,
+		StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
+	})
+}
+
+func finishRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished time.Time) error {
+	roles, prompts, notes := r.Roles, r.PromptVersions, r.Notes
+	if len(roles) == 0 {
+		roles = dbtype.JSON(`{}`)
+	}
+	if len(prompts) == 0 {
+		prompts = dbtype.JSON(`{}`)
+	}
+	if len(notes) == 0 {
+		notes = dbtype.JSON(`[]`)
+	}
+	return q.FinishRun(ctx, pgdb.FinishRunParams{
+		ID: r.ID, Status: r.Status, Stage: r.Stage, Error: r.Error, Roles: roles, PromptVersions: prompts, Notes: notes,
+		TokensIn: r.TokensIn, TokensOut: r.TokensOut, CostEstimate: r.CostEstimate, CacheHits: r.CacheHits,
+		FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})
 }
 

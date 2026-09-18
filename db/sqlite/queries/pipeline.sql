@@ -63,7 +63,8 @@ UPDATE review_run SET status = sqlc.arg(status), stage = sqlc.arg(stage) WHERE i
 UPDATE review_run
 SET status = sqlc.arg(status), stage = sqlc.arg(stage), error = sqlc.arg(error), roles = sqlc.arg(roles),
     prompt_versions = sqlc.arg(prompt_versions), tokens_in = sqlc.arg(tokens_in), tokens_out = sqlc.arg(tokens_out),
-    cost_estimate = sqlc.arg(cost_estimate), cache_hits = sqlc.arg(cache_hits), finished_at = sqlc.arg(finished_at)
+    cost_estimate = sqlc.arg(cost_estimate), cache_hits = sqlc.arg(cache_hits), notes = sqlc.arg(notes),
+    finished_at = sqlc.arg(finished_at)
 WHERE id = sqlc.arg(id);
 
 -- name: RunningRunFor :one
@@ -71,3 +72,11 @@ SELECT * FROM review_run
 WHERE bundle_id = sqlc.arg(bundle_id) AND kind = 'full' AND status IN ('queued', 'running')
 ORDER BY started_at DESC
 LIMIT 1;
+
+-- name: StartRunExecution :exec
+UPDATE review_run
+SET status = 'running', stage = sqlc.arg(stage), profile_version = sqlc.arg(profile_version)
+WHERE id = sqlc.arg(id);
+
+-- name: GetRunByID :one
+SELECT * FROM review_run WHERE id = sqlc.arg(id);

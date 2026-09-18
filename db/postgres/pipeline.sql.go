@@ -84,8 +84,9 @@ const finishRun = `-- name: FinishRun :exec
 UPDATE review_run
 SET status = $1, stage = $2, error = $3, roles = $4,
     prompt_versions = $5, tokens_in = $6, tokens_out = $7,
-    cost_estimate = $8, cache_hits = $9, finished_at = $10
-WHERE id = $11
+    cost_estimate = $8, cache_hits = $9, notes = $10,
+    finished_at = $11
+WHERE id = $12
 `
 
 type FinishRunParams struct {
@@ -98,6 +99,7 @@ type FinishRunParams struct {
 	TokensOut      int64
 	CostEstimate   float64
 	CacheHits      int64
+	Notes          dbtype.JSON
 	FinishedAt     sql.NullTime
 	ID             uuid.UUID
 }
@@ -113,6 +115,7 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) error {
 		arg.TokensOut,
 		arg.CostEstimate,
 		arg.CacheHits,
+		arg.Notes,
 		arg.FinishedAt,
 		arg.ID,
 	)
@@ -154,6 +157,37 @@ func (q *Queries) GetMCPConnection(ctx context.Context, arg GetMCPConnectionPara
 		&i.IsSearch,
 		&i.SearchTool,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getRunByID = `-- name: GetRunByID :one
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes FROM review_run WHERE id = $1
+`
+
+func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error) {
+	row := q.db.QueryRowContext(ctx, getRunByID, id)
+	var i ReviewRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.BundleID,
+		&i.VersionID,
+		&i.ProfileKey,
+		&i.ProfileVersion,
+		&i.Kind,
+		&i.Status,
+		&i.Stage,
+		&i.Roles,
+		&i.PromptVersions,
+		&i.TokensIn,
+		&i.TokensOut,
+		&i.CostEstimate,
+		&i.CacheHits,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Notes,
 	)
 	return i, err
 }
@@ -340,7 +374,7 @@ func (q *Queries) PutCache(ctx context.Context, arg PutCacheParams) error {
 }
 
 const runningRunFor = `-- name: RunningRunFor :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at FROM review_run
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes FROM review_run
 WHERE bundle_id = $1 AND kind = 'full' AND status IN ('queued', 'running')
 ORDER BY started_at DESC
 LIMIT 1
@@ -368,8 +402,26 @@ func (q *Queries) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (Review
 		&i.Error,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.Notes,
 	)
 	return i, err
+}
+
+const startRunExecution = `-- name: StartRunExecution :exec
+UPDATE review_run
+SET status = 'running', stage = $1, profile_version = $2
+WHERE id = $3
+`
+
+type StartRunExecutionParams struct {
+	Stage          string
+	ProfileVersion int64
+	ID             uuid.UUID
+}
+
+func (q *Queries) StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error {
+	_, err := q.db.ExecContext(ctx, startRunExecution, arg.Stage, arg.ProfileVersion, arg.ID)
+	return err
 }
 
 const updateMCPConnection = `-- name: UpdateMCPConnection :exec

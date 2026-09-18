@@ -109,6 +109,11 @@ func (a Adapter) GetRun(ctx context.Context, arg pgdb.GetRunParams) (pgdb.Review
 	return pgdb.ReviewRun(r), err
 }
 
+func (a Adapter) GetRunByID(ctx context.Context, id uuid.UUID) (pgdb.ReviewRun, error) {
+	r, err := a.q.GetRunByID(ctx, id)
+	return pgdb.ReviewRun(r), err
+}
+
 func (a Adapter) GetStream(ctx context.Context, streamID uuid.UUID) (pgdb.EsStream, error) {
 	r, err := a.q.GetStream(ctx, streamID)
 	return pgdb.EsStream(r), err
@@ -379,6 +384,10 @@ func (a Adapter) SetBundleArchived(ctx context.Context, arg pgdb.SetBundleArchiv
 
 func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersionParams) error {
 	return a.q.SetProfileVersion(ctx, SetProfileVersionParams(arg))
+}
+
+func (a Adapter) StartRunExecution(ctx context.Context, arg pgdb.StartRunExecutionParams) error {
+	return a.q.StartRunExecution(ctx, StartRunExecutionParams(arg))
 }
 
 func (a Adapter) UpdateBackend(ctx context.Context, arg pgdb.UpdateBackendParams) error {

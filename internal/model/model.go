@@ -84,7 +84,8 @@ func SearchCapable(kind, preset, model string) bool {
 	case KindAgentCLI:
 		return preset == "claude"
 	case KindFake:
-		return true
+		// Tests pick a fake model name with "nosearch" to test the MCP path.
+		return !strings.Contains(model, "nosearch")
 	}
 	return false
 }

@@ -49,7 +49,11 @@ CREATE TABLE claim (
 );
 CREATE INDEX claim_run ON claim (run_id);
 
+-- REQ-034, REQ-046: notes for the run report, such as "no search source configured".
+ALTER TABLE review_run ADD COLUMN notes jsonb NOT NULL DEFAULT '[]';
+
 -- +goose Down
+ALTER TABLE review_run DROP COLUMN notes;
 DROP TABLE claim;
 DROP TABLE mcp_connection;
 DROP TABLE cache_entry;

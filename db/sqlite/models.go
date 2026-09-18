@@ -160,6 +160,7 @@ type ReviewRun struct {
 	Error          string
 	StartedAt      time.Time
 	FinishedAt     sql.NullTime
+	Notes          dbtype.JSON
 }
 
 type RoleAssignment struct {
