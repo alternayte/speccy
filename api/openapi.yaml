@@ -1,0 +1,59 @@
+openapi: 3.1.0
+info:
+  title: Speccy API
+  version: 0.1.0
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+servers:
+  - url: /api/v1
+paths:
+  /meta:
+    get:
+      operationId: getMeta
+      summary: Get the server version and mode.
+      responses:
+        "200":
+          description: The server version and mode.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Meta"
+        default:
+          description: An error.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+components:
+  schemas:
+    Meta:
+      type: object
+      additionalProperties: false
+      required: [version, mode]
+      properties:
+        version:
+          type: string
+          description: The build version of the binary.
+        mode:
+          type: string
+          enum: [local]
+          description: The mode the server runs in.
+    Problem:
+      type: object
+      description: RFC 9457 problem details with a stable code.
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          description: A stable machine-readable error code.

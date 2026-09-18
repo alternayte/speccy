@@ -1,0 +1,52 @@
+version: "2"
+run:
+  build-tags:
+    - postgres
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - misspell
+    - nilerr
+    - unconvert
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Fprint
+        - (net.Listener).Close
+    depguard:
+      rules:
+        kernel:
+          files: ["**/internal/kernel/**"]
+          deny:
+            - pkg: github.com/alternayte/speccy/internal
+              desc: kernel imports no internal package
+        verdict:
+          # SDD §17: engine/verdict has no imports outside kernel.
+          list-mode: strict
+          files: ["**/internal/engine/verdict/**"]
+          allow:
+            - $gostd
+            - github.com/alternayte/speccy/internal/kernel
+            - github.com/alternayte/speccy/internal/engine/verdict
+        banned:
+          # SDD §17: no mediator or mapper libraries.
+          deny:
+            - pkg: github.com/mehdihadeli/go-mediatr
+              desc: mediator libraries are banned (SDD §17)
+            - pkg: github.com/jinzhu/copier
+              desc: mapper libraries are banned (SDD §17)
+            - pkg: github.com/devfeel/mapper
+              desc: mapper libraries are banned (SDD §17)
+            - pkg: github.com/dranikpg/dto-mapper
+              desc: mapper libraries are banned (SDD §17)
+  exclusions:
+    generated: strict
+    paths:
+      - web/node_modules
+formatters:
+  enable:
+    - gofmt
