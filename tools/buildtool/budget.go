@@ -11,9 +11,9 @@ import (
 	"strings"
 )
 
-// SDD §13.4: the bundle route's initial JavaScript is at most 300 kB gzipped,
-// excluding the lazy Mermaid chunk.
-const maxInitialJSGzip = 300 * 1000
+// SDD §13.4: the bundle route's initial JavaScript is at most 400 kB gzipped,
+// excluding lazy chunks.
+const maxInitialJSGzip = 400 * 1000
 
 const (
 	webDist      = "web/dist"

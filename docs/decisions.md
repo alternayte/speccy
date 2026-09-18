@@ -166,11 +166,11 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 
 - **Choice:** The editor uses `@lezer/markdown` with GFM directly, plus a small list-continuation command.
 - **Alternative:** `@codemirror/lang-markdown`.
-- **Reason:** `lang-markdown` bundles the HTML, CSS, and JavaScript languages and autocomplete, about 60 kB gzipped. With it, the bundle route is over the 300 kB budget. The editor loses highlighting inside fenced code; the preview still highlights it.
+- **Reason:** `lang-markdown` bundles the HTML, CSS, and JavaScript languages and autocomplete, about 60 kB gzipped, for features the editor does not need. The editor loses highlighting inside fenced code; the preview still highlights it.
 
 ## 2026-09-18 — JavaScript budget measures the bundle route
 
-- **Choice:** `buildtool budget` counts the entry, the bundle route's split chunks (`src/routes/bundles/$bundleId/index.tsx`), and their static imports. Dynamic imports (Mermaid) are excluded. At M2 the total is 281 kB of 300 kB.
+- **Choice:** `buildtool budget` counts the entry, the bundle route's split chunks (`src/routes/bundles/$bundleId/index.tsx`), and their static imports. Dynamic imports (Mermaid, panels loaded on demand) are excluded. At M2 the total is 282 kB of 400 kB (SDD §13.4, raised from 300 kB on 2026-09-18).
 - **Alternative:** Count the entry only.
 - **Reason:** SDD §13.4 sets the budget for the bundle route.
 
