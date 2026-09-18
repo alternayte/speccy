@@ -134,8 +134,12 @@ func (a *agentCLI) Call(ctx context.Context, model string, c Call) (Raw, error) 
 		return Raw{}, err
 	}
 
-	args := make([]string, len(a.preset.Command))
-	for i, arg := range a.preset.Command {
+	command := a.preset.Command
+	if c.Search && a.preset.Name == "claude" {
+		command = withClaudeSearch(command)
+	}
+	args := make([]string, len(command))
+	for i, arg := range command {
 		arg = strings.ReplaceAll(arg, "{model}", model)
 		arg = strings.ReplaceAll(arg, "{schema}", string(c.Schema))
 		arg = strings.ReplaceAll(arg, "{prompt_file}", promptFile)
@@ -168,6 +172,20 @@ func (a *agentCLI) Call(ctx context.Context, model string, c Call) (Raw, error) 
 		raw.TokensIn, raw.TokensOut, raw.Estimated = estimateTokens(prompt), estimateTokens(raw.Text), true
 	}
 	return raw, nil
+}
+
+// withClaudeSearch lets claude use its web tools and nothing else (REQ-034).
+func withClaudeSearch(command []string) []string {
+	out := make([]string, 0, len(command)+2)
+	for i := 0; i < len(command); i++ {
+		if command[i] == "--tools" && i+1 < len(command) {
+			out = append(out, "--tools", "WebSearch,WebFetch", "--allowedTools", "WebSearch,WebFetch")
+			i++
+			continue
+		}
+		out = append(out, command[i])
+	}
+	return out
 }
 
 func tail(s string, n int) string {

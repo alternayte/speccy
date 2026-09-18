@@ -4,6 +4,7 @@ package sqlitedb
 
 import (
 	"context"
+	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
@@ -21,6 +22,11 @@ func (a Adapter) AddBudgetTokens(ctx context.Context, arg pgdb.AddBudgetTokensPa
 	return a.q.AddBudgetTokens(ctx, AddBudgetTokensParams(arg))
 }
 
+func (a Adapter) ClaimJob(ctx context.Context, arg pgdb.ClaimJobParams) (pgdb.Job, error) {
+	r, err := a.q.ClaimJob(ctx, ClaimJobParams(arg))
+	return pgdb.Job(r), err
+}
+
 func (a Adapter) CountAssignmentsForBackend(ctx context.Context, arg pgdb.CountAssignmentsForBackendParams) (int64, error) {
 	return a.q.CountAssignmentsForBackend(ctx, CountAssignmentsForBackendParams(arg))
 }
@@ -31,6 +37,18 @@ func (a Adapter) DeleteAssignment(ctx context.Context, arg pgdb.DeleteAssignment
 
 func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams) (int64, error) {
 	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
+}
+
+func (a Adapter) DeleteMCPConnection(ctx context.Context, arg pgdb.DeleteMCPConnectionParams) error {
+	return a.q.DeleteMCPConnection(ctx, DeleteMCPConnectionParams(arg))
+}
+
+func (a Adapter) FinishJob(ctx context.Context, arg pgdb.FinishJobParams) error {
+	return a.q.FinishJob(ctx, FinishJobParams(arg))
+}
+
+func (a Adapter) FinishRun(ctx context.Context, arg pgdb.FinishRunParams) error {
+	return a.q.FinishRun(ctx, FinishRunParams(arg))
 }
 
 func (a Adapter) GetAssignment(ctx context.Context, arg pgdb.GetAssignmentParams) (pgdb.RoleAssignment, error) {
@@ -62,9 +80,18 @@ func (a Adapter) GetBundleBySlug(ctx context.Context, arg pgdb.GetBundleBySlugPa
 	return pgdb.Bundle(r), err
 }
 
+func (a Adapter) GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error) {
+	return a.q.GetCache(ctx, keyHash)
+}
+
 func (a Adapter) GetFirstWorkspace(ctx context.Context) (pgdb.Workspace, error) {
 	r, err := a.q.GetFirstWorkspace(ctx)
 	return pgdb.Workspace(r), err
+}
+
+func (a Adapter) GetMCPConnection(ctx context.Context, arg pgdb.GetMCPConnectionParams) (pgdb.McpConnection, error) {
+	r, err := a.q.GetMCPConnection(ctx, GetMCPConnectionParams(arg))
+	return pgdb.McpConnection(r), err
 }
 
 func (a Adapter) GetProfileByKey(ctx context.Context, arg pgdb.GetProfileByKeyParams) (pgdb.Profile, error) {
@@ -118,12 +145,24 @@ func (a Adapter) InsertBundle(ctx context.Context, arg pgdb.InsertBundleParams) 
 	return a.q.InsertBundle(ctx, InsertBundleParams(arg))
 }
 
+func (a Adapter) InsertClaim(ctx context.Context, arg pgdb.InsertClaimParams) error {
+	return a.q.InsertClaim(ctx, InsertClaimParams(arg))
+}
+
 func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) error {
 	return a.q.InsertEvent(ctx, InsertEventParams(arg))
 }
 
 func (a Adapter) InsertFinding(ctx context.Context, arg pgdb.InsertFindingParams) error {
 	return a.q.InsertFinding(ctx, InsertFindingParams(arg))
+}
+
+func (a Adapter) InsertJob(ctx context.Context, arg pgdb.InsertJobParams) error {
+	return a.q.InsertJob(ctx, InsertJobParams(arg))
+}
+
+func (a Adapter) InsertMCPConnection(ctx context.Context, arg pgdb.InsertMCPConnectionParams) error {
+	return a.q.InsertMCPConnection(ctx, InsertMCPConnectionParams(arg))
 }
 
 func (a Adapter) InsertProfile(ctx context.Context, arg pgdb.InsertProfileParams) error {
@@ -221,6 +260,18 @@ func (a Adapter) ListBundlesBySource(ctx context.Context, arg pgdb.ListBundlesBy
 	return out, nil
 }
 
+func (a Adapter) ListClaims(ctx context.Context, runID uuid.UUID) ([]pgdb.Claim, error) {
+	rows, err := a.q.ListClaims(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Claim, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Claim(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListEvents(ctx context.Context, streamID uuid.UUID) ([]pgdb.EsEvent, error) {
 	rows, err := a.q.ListEvents(ctx, streamID)
 	if err != nil {
@@ -241,6 +292,18 @@ func (a Adapter) ListFindings(ctx context.Context, runID uuid.UUID) ([]pgdb.Find
 	out := make([]pgdb.Finding, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Finding(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.McpConnection, error) {
+	rows, err := a.q.ListMCPConnections(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.McpConnection, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.McpConnection(r)
 	}
 	return out, nil
 }
@@ -297,6 +360,15 @@ func (a Adapter) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int
 	return a.q.NextVersionNumber(ctx, bundleID)
 }
 
+func (a Adapter) PutCache(ctx context.Context, arg pgdb.PutCacheParams) error {
+	return a.q.PutCache(ctx, PutCacheParams(arg))
+}
+
+func (a Adapter) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
+	r, err := a.q.RunningRunFor(ctx, bundleID)
+	return pgdb.ReviewRun(r), err
+}
+
 func (a Adapter) SetBudgetLimit(ctx context.Context, arg pgdb.SetBudgetLimitParams) error {
 	return a.q.SetBudgetLimit(ctx, SetBudgetLimitParams(arg))
 }
@@ -315,6 +387,14 @@ func (a Adapter) UpdateBackend(ctx context.Context, arg pgdb.UpdateBackendParams
 
 func (a Adapter) UpdateBundleHead(ctx context.Context, arg pgdb.UpdateBundleHeadParams) (int64, error) {
 	return a.q.UpdateBundleHead(ctx, UpdateBundleHeadParams(arg))
+}
+
+func (a Adapter) UpdateMCPConnection(ctx context.Context, arg pgdb.UpdateMCPConnectionParams) error {
+	return a.q.UpdateMCPConnection(ctx, UpdateMCPConnectionParams(arg))
+}
+
+func (a Adapter) UpdateRunProgress(ctx context.Context, arg pgdb.UpdateRunProgressParams) error {
+	return a.q.UpdateRunProgress(ctx, UpdateRunProgressParams(arg))
 }
 
 func (a Adapter) UpdateStream(ctx context.Context, arg pgdb.UpdateStreamParams) (int64, error) {

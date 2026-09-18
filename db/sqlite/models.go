@@ -40,6 +40,22 @@ type Bundle struct {
 	UpdatedAt        time.Time
 }
 
+type CacheEntry struct {
+	KeyHash   string
+	Result    dbtype.JSON
+	CreatedAt time.Time
+}
+
+type Claim struct {
+	ID      uuid.UUID
+	RunID   uuid.UUID
+	Text    string
+	Label   string
+	Reason  string
+	Sources dbtype.JSON
+	Anchor  dbtype.JSON
+}
+
 type EsEvent struct {
 	StreamID   uuid.UUID
 	Version    int64
@@ -68,6 +84,32 @@ type Finding struct {
 	Message    string
 	Evidence   dbtype.JSON
 	Suggestion dbtype.JSON
+}
+
+type Job struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Kind        string
+	Payload     dbtype.JSON
+	Status      string
+	Attempts    int64
+	LockedUntil sql.NullTime
+	LastError   string
+	CreatedAt   time.Time
+}
+
+type McpConnection struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	Name            string
+	Transport       string
+	CommandOrUrl    dbtype.JSON
+	SecretEncrypted []byte
+	SecretLast4     string
+	ToolAllowlist   dbtype.JSON
+	IsSearch        bool
+	SearchTool      string
+	CreatedAt       time.Time
 }
 
 type ModelBackend struct {

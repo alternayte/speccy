@@ -52,6 +52,10 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 	if c.MaxTokens > 0 {
 		body["max_tokens"] = c.MaxTokens
 	}
+	if c.Search && b.kind == KindOpenRouter {
+		// OpenRouter's web plugin adds search results to any model.
+		body["plugins"] = []map[string]any{{"id": "web"}}
+	}
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return Raw{}, err

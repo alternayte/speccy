@@ -7,21 +7,29 @@ package pgdb
 import (
 	"context"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
 )
 
 type Querier interface {
 	AddBudgetTokens(ctx context.Context, arg AddBudgetTokensParams) error
+	// The oldest queued job, or a running job whose lock expired (its worker died).
+	ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 	CountAssignmentsForBackend(ctx context.Context, arg CountAssignmentsForBackendParams) (int64, error)
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
+	FinishJob(ctx context.Context, arg FinishJobParams) error
+	FinishRun(ctx context.Context, arg FinishRunParams) error
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
 	GetBackend(ctx context.Context, arg GetBackendParams) (ModelBackend, error)
 	GetBlob(ctx context.Context, sha256 string) ([]byte, error)
 	GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error)
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
+	GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
+	GetMCPConnection(ctx context.Context, arg GetMCPConnectionParams) (McpConnection, error)
 	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
 	GetProfileVersion(ctx context.Context, arg GetProfileVersionParams) (ProfileVersion, error)
 	GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, error)
@@ -33,8 +41,11 @@ type Querier interface {
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
 	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
+	InsertClaim(ctx context.Context, arg InsertClaimParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
+	InsertJob(ctx context.Context, arg InsertJobParams) error
+	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
 	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
 	InsertRun(ctx context.Context, arg InsertRunParams) error
@@ -50,19 +61,25 @@ type Querier interface {
 	ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]ModelBackend, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
+	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
+	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
 	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
+	PutCache(ctx context.Context, arg PutCacheParams) error
+	RunningRunFor(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
 	// The head moves only from the version the change was based on.
 	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error)
+	UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnectionParams) error
+	UpdateRunProgress(ctx context.Context, arg UpdateRunProgressParams) error
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
 }
