@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M1. The binary serves the web app in local mode, and the store runs on SQLite and Postgres. The review does not exist yet.
+Speccy is at milestone M2. You can open, edit, import, compare, and export bundles in local mode. The review does not exist yet.
 
 ## Quick start
 
@@ -14,7 +14,18 @@ just build
 ./bin/speccy
 ```
 
-`speccy` starts local mode and opens your browser. Add `--no-open` to stop the browser from opening.
+`speccy` starts local mode on the current folder and opens your browser. Add `--dir <folder>` to serve another folder, and `--no-open` to stop the browser from opening.
+
+A bundle is a folder with one markdown file that has a `type` field in its frontmatter:
+
+```markdown
+---
+type: sdd
+title: Payment retries
+---
+```
+
+Speccy keeps a version of each bundle every time a file changes, in the app or on disk. It stores its state in `.speccy/state/`. Do not commit that folder.
 
 To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
 
@@ -37,7 +48,7 @@ The review pipeline does not exist yet. This section describes it when milestone
 
 | Mode | Command | Status |
 |---|---|---|
-| Local | `speccy` | Serves the web app on 127.0.0.1. |
+| Local | `speccy` | Edit, import, compare, and export bundles on 127.0.0.1. |
 | Hosted | `speccy serve --hosted` | Not built yet. |
 | Headless | `speccy review <path>` | Not built yet. |
 
@@ -51,7 +62,7 @@ The GitHub Action does not exist yet.
 
 ## Configuration
 
-`docs/configuration.md` does not exist yet. Local mode takes one flag: `--addr`, default `127.0.0.1:7878`. The address must be a loopback address.
+`docs/configuration.md` does not exist yet. Local mode takes `--dir` (default: the current folder) and `--addr` (default `127.0.0.1:7878`). The address must be a loopback address.
 
 ## Licence
 

@@ -18,6 +18,9 @@ const maxInitialJSGzip = 300 * 1000
 const (
 	webDist      = "web/dist"
 	viteManifest = "web/dist/.vite/manifest.json"
+	// bundleRoute is the source of the bundle route. The router splits its component into a
+	// lazy chunk, which the bundle screen always loads, so it counts as initial JavaScript.
+	bundleRoute = "src/routes/bundles/$bundleId/index.tsx"
 )
 
 type manifestChunk struct {
@@ -26,8 +29,9 @@ type manifestChunk struct {
 	Imports []string `json:"imports"`
 }
 
-// initialJS returns the JavaScript files that the entry loads before any lazy route:
-// the entry chunk and its static imports.
+// initialJS returns the JavaScript files that the bundle route needs before it renders: the
+// entry chunk, the bundle route's chunks, and their static imports. Dynamic imports, such as
+// the Mermaid chunk, are not counted.
 func initialJS(manifest map[string]manifestChunk) []string {
 	seen := map[string]bool{}
 	var files []string
@@ -54,7 +58,7 @@ func initialJS(manifest map[string]manifestChunk) []string {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		if manifest[k].IsEntry {
+		if manifest[k].IsEntry || k == bundleRoute || strings.HasPrefix(k, bundleRoute+"?") {
 			visit(k)
 		}
 	}
@@ -86,10 +90,10 @@ func cmdBudget() error {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		return fmt.Errorf("budget: %s: %w", viteManifest, err)
 	}
-	files := initialJS(manifest)
-	if len(files) == 0 {
-		return fmt.Errorf("budget: %s has no entry chunk", viteManifest)
+	if !hasRoute(manifest) {
+		return fmt.Errorf("budget: %s has no chunk for %s; update bundleRoute in tools/buildtool/budget.go", viteManifest, bundleRoute)
 	}
+	files := initialJS(manifest)
 	total := 0
 	for _, f := range files {
 		b, err := os.ReadFile(filepath.Join(webDist, f))
@@ -108,4 +112,13 @@ func cmdBudget() error {
 	}
 	fmt.Printf("budget: initial JavaScript %.1f kB gzip, limit %d kB\n", float64(total)/1000, maxInitialJSGzip/1000)
 	return nil
+}
+
+func hasRoute(manifest map[string]manifestChunk) bool {
+	for k := range manifest {
+		if k == bundleRoute || strings.HasPrefix(k, bundleRoute+"?") {
+			return true
+		}
+	}
+	return false
 }

@@ -34,7 +34,7 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 	}
 	main, err := source.FindMainDoc(files)
 	if err != nil {
-		return nil, kernel.Invalid("no_main_doc", "The import is not a bundle: %s.", err.Error())
+		return nil, kernel.Invalid("no_main_doc", "The import has %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
 	if err := source.CheckLimits(files); err != nil {
 		return nil, err

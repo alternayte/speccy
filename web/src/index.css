@@ -1,7 +1,338 @@
+/* Direction: a Stripe-docs reading page (one calm column of text, ~72ch) set inside a Linear-density work frame, with Neon's electric green as the only accent and a near-black ground in dark mode (DEC-029). */
+
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Tokens. Every value in the UI comes from here. */
 :root {
-  color-scheme: light dark;
+  /* Type: Inter for UI and doc text, JetBrains Mono for code. Ratio 1.2 (minor third) from a
+     13px UI base; doc text steps up to 16px for reading. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-doc: 16px;
+  --text-lg: 19px;
+  --text-xl: 23px;
+  --text-2xl: 28px;
+  --leading-ui: 1.4;
+  --leading-doc: 1.7;
+  --tracking-tight: -0.011em;
+  --tracking-caps: 0.06em;
+  --measure: 72ch;
+
+  /* Space: a 4px unit. The frame is dense (Linear); the page breathes (Stripe docs). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --rail: 248px;
+  --bar: 44px;
+
+  /* Colour, light: warm paper ground, graphite ink, a deep green for the accent so it passes
+     WCAG AA as text. */
+  --ground: #fbfbfa;
+  --surface: #ffffff;
+  --sunken: #f3f3f1;
+  --ink: #1b1b1a;
+  --ink-2: #4a4a47;
+  --ink-3: #75756f;
+  --line: #e6e6e2;
+  --line-strong: #d4d4ce;
+  --accent: #00794f;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f5ec;
+  --focus: #00a36b;
+  --ok: #047a4a;
+  --ok-soft: #e4f4ec;
+  --bad: #b42318;
+  --bad-soft: #fdecea;
+  --warn: #8a5a00;
+  --warn-soft: #fbf1dc;
+  --diff-add: #e6f6ec;
+  --diff-add-strong: #bfe8cf;
+  --diff-del: #fcecec;
+  --diff-del-strong: #f5c6c6;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px rgb(0 0 0 / 0.08);
+  --scrim: rgb(0 0 0 / 0.3);
+  --code-kw: #8b3dba;
+  --code-str: #0a7a4b;
+  --code-num: #b35c00;
+  --code-fn: #1d5fb8;
+}
+
+.dark {
+  /* Colour, dark: Neon's near-black ground and electric green. */
+  --ground: #0c0d0d;
+  --surface: #131414;
+  --sunken: #0f1010;
+  --ink: #ececea;
+  --ink-2: #b3b3ae;
+  --ink-3: #85857f;
+  --line: #242525;
+  --line-strong: #333434;
+  --accent: #00e599;
+  --accent-ink: #04140d;
+  --accent-soft: #0e2a1f;
+  --focus: #00e599;
+  --ok: #34d399;
+  --ok-soft: #0f2a1f;
+  --bad: #f87171;
+  --bad-soft: #2c1414;
+  --warn: #fbbf24;
+  --warn-soft: #2a2110;
+  --diff-add: #0f2a1d;
+  --diff-add-strong: #17482f;
+  --diff-del: #2d1414;
+  --diff-del-strong: #4d1f1f;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 24px rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.6);
+  --code-kw: #c792ea;
+  --code-str: #7ee2b8;
+  --code-num: #f5a97f;
+  --code-fn: #82aaff;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-focus: var(--focus);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --text-2xs: var(--text-2xs);
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-md: var(--text-md);
+  --text-doc: var(--text-doc);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+  --spacing: 4px;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --shadow-pop: var(--shadow);
+  --color-scrim: var(--scrim);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-tight);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* The reading surface: the rendered doc. */
+.doc {
+  max-width: var(--measure);
+  font-size: var(--text-doc);
+  line-height: var(--leading-doc);
+  color: var(--ink);
+}
+.doc > * + * {
+  margin-top: var(--space-4);
+}
+.doc h1,
+.doc h2,
+.doc h3,
+.doc h4 {
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.doc h1 {
+  font-size: var(--text-2xl);
+  margin-top: var(--space-8);
+}
+.doc > h1:first-child {
+  margin-top: 0;
+}
+.doc h2 {
+  font-size: var(--text-xl);
+  margin-top: var(--space-10);
+  padding-top: var(--space-2);
+}
+.doc h3 {
+  font-size: var(--text-lg);
+  margin-top: var(--space-8);
+}
+.doc h4 {
+  font-size: var(--text-doc);
+  margin-top: var(--space-6);
+}
+.doc a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.doc ul,
+.doc ol {
+  padding-left: var(--space-6);
+}
+.doc ul {
+  list-style: disc;
+}
+.doc ol {
+  list-style: decimal;
+}
+.doc li + li {
+  margin-top: var(--space-1);
+}
+.doc li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: calc(-1 * var(--space-5));
+}
+.doc input[type="checkbox"] {
+  margin-right: var(--space-2);
+  accent-color: var(--accent);
+}
+.doc blockquote {
+  border-left: 3px solid var(--line-strong);
+  padding-left: var(--space-4);
+  color: var(--ink-2);
+}
+.doc code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+.doc pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+}
+.doc pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.doc pre.frontmatter {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+.doc pre.mermaid {
+  background: var(--surface);
+  text-align: center;
+}
+.doc pre.mermaid[data-processed="true"] {
+  font-family: var(--font-sans);
+}
+.doc table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+}
+.doc th,
+.doc td {
+  border: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+.doc th {
+  background: var(--sunken);
+  font-weight: 600;
+}
+.doc hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.doc img {
+  max-width: 100%;
+}
+
+/* Code highlighting: chroma classes. */
+.chroma :is(.k, .kd, .kn, .kr, .kt) {
+  color: var(--code-kw);
+}
+.chroma :is(.s, .s1, .s2, .sb) {
+  color: var(--code-str);
+}
+.chroma :is(.c, .c1, .cm) {
+  color: var(--ink-3);
+  font-style: italic;
+}
+.chroma :is(.m, .mi, .mf) {
+  color: var(--code-num);
+}
+.chroma :is(.nf, .nx, .nt, .na) {
+  color: var(--code-fn);
+}
+
+/* Print: the preview only, for PDF export through the browser (REQ-008). */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only-doc {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .doc {
+    max-width: none;
+  }
+  .doc pre,
+  .doc table {
+    break-inside: avoid;
+  }
 }

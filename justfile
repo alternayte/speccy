@@ -12,11 +12,14 @@ default:
 setup:
     cd web && {{pnpm}} install --frozen-lockfile
 
-# Run the Go server with live reload and the Vite dev server. Local mode.
+# Run the Go server with live reload and the Vite dev server. Local mode, serving a copy of
+# testdata/bundles in build/dev-bundles, so edits in dev never change the fixtures.
 dev: setup
     #!/usr/bin/env bash
     set -euo pipefail
     trap 'kill 0' EXIT
+    mkdir -p build
+    test -d build/dev-bundles || cp -R testdata/bundles build/dev-bundles
     go tool air &
     (cd web && {{pnpm}} run dev) &
     echo "Open http://127.0.0.1:5173"

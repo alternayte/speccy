@@ -64,6 +64,9 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 
 	now := time.Now().UTC()
 	for _, f := range c.Files {
+		if f.Content == nil {
+			f.Content = []byte{} // SQLite reads an empty BLOB back as nil; the column is NOT NULL
+		}
 		if err := q.InsertBlob(ctx, pgdb.InsertBlobParams{Sha256: hashes[f.Path], Content: f.Content, Size: int64(len(f.Content))}); err != nil {
 			return pgdb.Version{}, false, err
 		}

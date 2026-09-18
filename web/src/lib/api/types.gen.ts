@@ -30,6 +30,169 @@ export type Problem = {
     code: string;
 };
 
+export type Bundle = {
+    id: string;
+    /**
+     * In local mode, the bundle folder relative to the served folder.
+     */
+    slug: string;
+    title: string;
+    /**
+     * The frontmatter type of the main doc.
+     */
+    profile_key: string;
+    source_kind: 'local' | 'db' | 'github';
+    /**
+     * The path of the main doc in the bundle.
+     */
+    main_doc: string;
+    current_version: Version;
+    updated_at: string;
+};
+
+export type BundleList = {
+    items: Array<Bundle>;
+    next_cursor?: string;
+    /**
+     * Folders that are not valid bundles, for example with two main docs (REQ-001).
+     */
+    problems: Array<BundleProblem>;
+};
+
+export type BundleProblem = {
+    path: string;
+    message: string;
+};
+
+export type BundleFile = {
+    path: string;
+    size: number;
+    sha256: string;
+    is_main_doc: boolean;
+};
+
+export type FileList = {
+    version: Version;
+    items: Array<BundleFile>;
+};
+
+export type Version = {
+    id: string;
+    number: number;
+    created_by: string;
+    message: string;
+    created_at: string;
+};
+
+export type VersionList = {
+    items: Array<Version>;
+    next_cursor?: string;
+};
+
+export type WriteResult = {
+    version: Version;
+    /**
+     * False when the write left the bundle unchanged, so no version was created.
+     */
+    changed: boolean;
+};
+
+export type RenameRequest = {
+    from: string;
+    to: string;
+    base_version: string;
+};
+
+export type ImportRequest = {
+    /**
+     * The bundle folder name. The default comes from the file name or the doc title.
+     */
+    name?: string;
+    /**
+     * A .md file or a .zip file.
+     */
+    file?: Blob | File;
+    /**
+     * Pasted markdown.
+     */
+    text?: string;
+};
+
+export type Diff = {
+    from: Version;
+    to: Version;
+    files: Array<FileDiff>;
+    /**
+     * The sections of the main doc, matched by heading path.
+     */
+    sections: Array<SectionDiff>;
+};
+
+export type ChangeStatus = 'added' | 'removed' | 'modified' | 'unchanged';
+
+export type FileDiff = {
+    path: string;
+    status: ChangeStatus;
+    binary: boolean;
+    /**
+     * Line operations for a modified text file. Empty otherwise.
+     */
+    lines: Array<LineOp>;
+};
+
+export type SectionDiff = {
+    heading_path: Array<string>;
+    status: ChangeStatus;
+    lines: Array<LineOp>;
+};
+
+export type LineOp = {
+    op: 'equal' | 'insert' | 'delete';
+    /**
+     * One or more whole lines, each ending with a newline except possibly the last line of the file.
+     */
+    text: string;
+};
+
+export type RenderRequest = {
+    markdown: string;
+    /**
+     * When set, relative image links resolve to files in this bundle.
+     */
+    bundle_id?: string;
+    /**
+     * The path of the file in the bundle, so relative links resolve from its folder.
+     */
+    path?: string;
+};
+
+export type RenderResult = {
+    /**
+     * HTML. Each block element has data-src-start and data-src-end (byte offsets into the markdown) and data-line (the 1-based first line). Mermaid blocks are <pre class="mermaid">.
+     *
+     */
+    html: string;
+};
+
+export type BundleId = string;
+
+/**
+ * A file path relative to the bundle folder, with / separators.
+ */
+export type PathQuery = string;
+
+export type VersionQuery = string;
+
+/**
+ * The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+ *
+ */
+export type BaseVersion = string;
+
+export type Cursor = string;
+
+export type Limit = number;
+
 export type GetMetaData = {
     body?: never;
     path?: never;
@@ -54,3 +217,360 @@ export type GetMetaResponses = {
 };
 
 export type GetMetaResponse = GetMetaResponses[keyof GetMetaResponses];
+
+export type ListBundlesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/bundles';
+};
+
+export type ListBundlesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListBundlesError = ListBundlesErrors[keyof ListBundlesErrors];
+
+export type ListBundlesResponses = {
+    /**
+     * One page of bundles.
+     */
+    200: BundleList;
+};
+
+export type ListBundlesResponse = ListBundlesResponses[keyof ListBundlesResponses];
+
+export type ImportBundleData = {
+    body: ImportRequest;
+    path?: never;
+    query?: never;
+    url: '/bundles/import';
+};
+
+export type ImportBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ImportBundleError = ImportBundleErrors[keyof ImportBundleErrors];
+
+export type ImportBundleResponses = {
+    /**
+     * The new bundle.
+     */
+    201: Bundle;
+};
+
+export type ImportBundleResponse = ImportBundleResponses[keyof ImportBundleResponses];
+
+export type GetBundleData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}';
+};
+
+export type GetBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetBundleError = GetBundleErrors[keyof GetBundleErrors];
+
+export type GetBundleResponses = {
+    /**
+     * The bundle.
+     */
+    200: Bundle;
+};
+
+export type GetBundleResponse = GetBundleResponses[keyof GetBundleResponses];
+
+export type DeleteFileData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query: {
+        /**
+         * A file path relative to the bundle folder, with / separators.
+         */
+        path: string;
+        /**
+         * The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+         *
+         */
+        base_version: string;
+    };
+    url: '/bundles/{bundleId}/files';
+};
+
+export type DeleteFileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteFileError = DeleteFileErrors[keyof DeleteFileErrors];
+
+export type DeleteFileResponses = {
+    /**
+     * The version that the change created.
+     */
+    200: WriteResult;
+};
+
+export type DeleteFileResponse = DeleteFileResponses[keyof DeleteFileResponses];
+
+export type ListFilesData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: {
+        version?: string;
+    };
+    url: '/bundles/{bundleId}/files';
+};
+
+export type ListFilesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListFilesError = ListFilesErrors[keyof ListFilesErrors];
+
+export type ListFilesResponses = {
+    /**
+     * The files, sorted by path.
+     */
+    200: FileList;
+};
+
+export type ListFilesResponse = ListFilesResponses[keyof ListFilesResponses];
+
+export type GetFileContentData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query: {
+        /**
+         * A file path relative to the bundle folder, with / separators.
+         */
+        path: string;
+        version?: string;
+    };
+    url: '/bundles/{bundleId}/files/content';
+};
+
+export type GetFileContentErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetFileContentError = GetFileContentErrors[keyof GetFileContentErrors];
+
+export type GetFileContentResponses = {
+    /**
+     * The file content.
+     */
+    200: Blob | File;
+};
+
+export type GetFileContentResponse = GetFileContentResponses[keyof GetFileContentResponses];
+
+export type PutFileContentData = {
+    body: Blob | File;
+    path: {
+        bundleId: string;
+    };
+    query: {
+        /**
+         * A file path relative to the bundle folder, with / separators.
+         */
+        path: string;
+        /**
+         * The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+         *
+         */
+        base_version: string;
+    };
+    url: '/bundles/{bundleId}/files/content';
+};
+
+export type PutFileContentErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PutFileContentError = PutFileContentErrors[keyof PutFileContentErrors];
+
+export type PutFileContentResponses = {
+    /**
+     * The version after the write.
+     */
+    200: WriteResult;
+};
+
+export type PutFileContentResponse = PutFileContentResponses[keyof PutFileContentResponses];
+
+export type RenameFileData = {
+    body: RenameRequest;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/files/rename';
+};
+
+export type RenameFileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RenameFileError = RenameFileErrors[keyof RenameFileErrors];
+
+export type RenameFileResponses = {
+    /**
+     * The version that the change created.
+     */
+    200: WriteResult;
+};
+
+export type RenameFileResponse = RenameFileResponses[keyof RenameFileResponses];
+
+export type ListVersionsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: {
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/bundles/{bundleId}/versions';
+};
+
+export type ListVersionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListVersionsError = ListVersionsErrors[keyof ListVersionsErrors];
+
+export type ListVersionsResponses = {
+    /**
+     * One page of versions.
+     */
+    200: VersionList;
+};
+
+export type ListVersionsResponse = ListVersionsResponses[keyof ListVersionsResponses];
+
+export type DiffVersionsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query: {
+        from: string;
+        to: string;
+    };
+    url: '/bundles/{bundleId}/diff';
+};
+
+export type DiffVersionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DiffVersionsError = DiffVersionsErrors[keyof DiffVersionsErrors];
+
+export type DiffVersionsResponses = {
+    /**
+     * The differences.
+     */
+    200: Diff;
+};
+
+export type DiffVersionsResponse = DiffVersionsResponses[keyof DiffVersionsResponses];
+
+export type ExportBundleData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: {
+        version?: string;
+    };
+    url: '/bundles/{bundleId}/export';
+};
+
+export type ExportBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ExportBundleError = ExportBundleErrors[keyof ExportBundleErrors];
+
+export type ExportBundleResponses = {
+    /**
+     * The .zip file.
+     */
+    200: Blob | File;
+};
+
+export type ExportBundleResponse = ExportBundleResponses[keyof ExportBundleResponses];
+
+export type RenderMarkdownData = {
+    body: RenderRequest;
+    path?: never;
+    query?: never;
+    url: '/render';
+};
+
+export type RenderMarkdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RenderMarkdownError = RenderMarkdownErrors[keyof RenderMarkdownErrors];
+
+export type RenderMarkdownResponses = {
+    /**
+     * The HTML.
+     */
+    200: RenderResult;
+};
+
+export type RenderMarkdownResponse = RenderMarkdownResponses[keyof RenderMarkdownResponses];

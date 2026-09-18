@@ -1,0 +1,272 @@
+import { useMutation } from "@tanstack/react-query";
+import { clsx } from "clsx";
+import {
+  ChevronRight,
+  Copy,
+  FilePlus2,
+  FileText,
+  Folder,
+  MoreHorizontal,
+  Pencil,
+  Star,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Input, Label } from "@/components/ui/input";
+import { Menu, MenuItem } from "@/components/ui/menu";
+import { ErrorState } from "@/components/ui/states";
+import type { BundleFile } from "@/lib/api";
+import { deleteFile, putFileContent, renameFile } from "@/lib/api";
+import { problemMessage } from "@/lib/problem";
+import { buildTree, markdownLink, type TreeNode } from "./file-tree";
+
+type Pending = { kind: "new" } | { kind: "rename"; path: string } | { kind: "delete"; path: string } | null;
+
+// Explorer lists the files of a bundle and changes them (REQ-002). Every change creates a version.
+export function Explorer({
+  bundleId,
+  baseVersion,
+  files,
+  selected,
+  onSelect,
+  onChanged,
+}: {
+  bundleId: string;
+  baseVersion: string;
+  files: BundleFile[];
+  selected: string;
+  onSelect: (path: string) => void;
+  onChanged: (select?: string) => void;
+}) {
+  const tree = useMemo(() => buildTree(files.map((f) => f.path)), [files]);
+  const main = files.find((f) => f.is_main_doc)?.path;
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [pending, setPending] = useState<Pending>(null);
+  const [name, setName] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+  const upload = useRef<HTMLInputElement>(null);
+
+  const change = useMutation({
+    mutationFn: async (op: () => Promise<unknown>) => op(),
+    onSuccess: () => setPending(null),
+  });
+
+  const run = (op: () => Promise<{ error?: unknown }>, select?: string) =>
+    change.mutate(async () => {
+      const res = await op();
+      if (res.error) throw res.error;
+      onChanged(select);
+    });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pending) return;
+    if (pending.kind === "new") {
+      const path = name.trim();
+      run(
+        () =>
+          putFileContent({
+            path: { bundleId },
+            query: { path, base_version: baseVersion },
+            body: new Blob([""]),
+          }),
+        path,
+      );
+    } else if (pending.kind === "rename") {
+      const to = name.trim();
+      run(
+        () => renameFile({ path: { bundleId }, body: { from: pending.path, to, base_version: baseVersion } }),
+        selected === pending.path ? to : undefined,
+      );
+    } else {
+      run(() => deleteFile({ path: { bundleId }, query: { path: pending.path, base_version: baseVersion } }), main);
+    }
+  };
+
+  const uploadFiles = (list: FileList | null) => {
+    // Copy now: the caller clears the input, which empties the live FileList.
+    const picked = list ? Array.from(list) : [];
+    if (picked.length === 0) return;
+    const folder = selected.includes("/") ? selected.slice(0, selected.lastIndexOf("/") + 1) : "assets/";
+    change.mutate(async () => {
+      // Each upload builds on the version the previous one made.
+      let base = baseVersion;
+      let last = "";
+      for (const f of picked) {
+        last = folder + f.name;
+        const res = await putFileContent({
+          path: { bundleId },
+          query: { path: last, base_version: base },
+          body: f,
+        });
+        if (res.error) throw res.error;
+        base = res.data!.version.id;
+      }
+      onChanged(last);
+    });
+  };
+
+  const copy = async (path: string) => {
+    await navigator.clipboard?.writeText(markdownLink(path));
+    setCopied(path);
+    setTimeout(() => setCopied(null), 1500);
+  };
+
+  const row = (n: TreeNode, depth: number): React.ReactNode => {
+    const pad = { paddingLeft: `calc(var(--space-2) + ${depth} * var(--space-4))` };
+    if (n.kind === "folder") {
+      const isOpen = open[n.path] ?? true;
+      return (
+        <li key={n.path}>
+          <button
+            type="button"
+            aria-expanded={isOpen}
+            onClick={() => setOpen((o) => ({ ...o, [n.path]: !isOpen }))}
+            className="flex h-7 w-full items-center gap-1.5 pr-2 text-left text-sm text-ink-2 hover:bg-sunken"
+            style={pad}
+          >
+            <ChevronRight aria-hidden className={clsx("size-3.5 transition-transform", isOpen && "rotate-90")} />
+            <Folder aria-hidden className="size-3.5" />
+            <span className="truncate">{n.name}</span>
+          </button>
+          {isOpen ? <ul>{n.children.map((c) => row(c, depth + 1))}</ul> : null}
+        </li>
+      );
+    }
+    const active = n.path === selected;
+    return (
+      <li key={n.path} className="group relative">
+        <button
+          type="button"
+          aria-current={active ? "true" : undefined}
+          onClick={() => onSelect(n.path)}
+          className={clsx(
+            "flex h-7 w-full items-center gap-1.5 pr-8 text-left text-sm",
+            active ? "bg-accent-soft text-ink" : "text-ink-2 hover:bg-sunken hover:text-ink",
+          )}
+          style={{ paddingLeft: `calc(var(--space-2) + ${depth} * var(--space-4) + var(--space-5))` }}
+        >
+          <FileText aria-hidden className="size-3.5 shrink-0" />
+          <span className="truncate">{n.name}</span>
+          {n.path === main ? <Star aria-label="Main doc" className="size-3 shrink-0 fill-accent text-accent" /> : null}
+          {copied === n.path ? <span className="ml-auto text-2xs text-accent">Copied</span> : null}
+        </button>
+        <div className="absolute top-0.5 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+          <Menu
+            trigger={
+              <button
+                type="button"
+                aria-label={`Actions for ${n.path}`}
+                className="grid size-6 place-items-center rounded-sm text-ink-3 hover:bg-line hover:text-ink"
+              >
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            }
+          >
+            <MenuItem icon={<Copy className="size-3.5" />} onSelect={() => copy(n.path)}>
+              Copy markdown link
+            </MenuItem>
+            <MenuItem
+              icon={<Pencil className="size-3.5" />}
+              onSelect={() => {
+                setName(n.path);
+                setPending({ kind: "rename", path: n.path });
+              }}
+            >
+              Rename or move
+            </MenuItem>
+            <MenuItem
+              danger
+              icon={<Trash2 className="size-3.5" />}
+              onSelect={() => setPending({ kind: "delete", path: n.path })}
+            >
+              Delete
+            </MenuItem>
+          </Menu>
+        </div>
+      </li>
+    );
+  };
+
+  return (
+    <nav aria-label="Bundle files" className="flex h-full min-h-0 flex-col">
+      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-line px-2">
+        <span className="px-1 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Files</span>
+        <div className="ml-auto flex gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="New file"
+            icon={<FilePlus2 className="size-3.5" />}
+            onClick={() => {
+              setName("assets/");
+              setPending({ kind: "new" });
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Upload files"
+            icon={<Upload className="size-3.5" />}
+            onClick={() => upload.current?.click()}
+          />
+          <input
+            ref={upload}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              uploadFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </div>
+      {change.isError && !pending ? (
+        <div className="p-2">
+          <ErrorState message={problemMessage(change.error)} />
+        </div>
+      ) : null}
+      <ul className="min-h-0 flex-1 overflow-y-auto py-1">{tree.map((n) => row(n, 0))}</ul>
+
+      <Dialog
+        open={pending !== null}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPending(null);
+            change.reset();
+          }
+        }}
+        title={pending?.kind === "new" ? "New file" : pending?.kind === "rename" ? "Rename or move" : "Delete file"}
+        description={
+          pending?.kind === "delete"
+            ? `Delete ${pending.path}? Speccy keeps it in the earlier versions.`
+            : "Use a path inside the bundle, with / between folders."
+        }
+      >
+        <form onSubmit={submit} className="space-y-4">
+          {pending?.kind !== "delete" ? (
+            <div>
+              <Label htmlFor="file-path">Path</Label>
+              <Input id="file-path" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+          ) : null}
+          {change.isError ? <ErrorState message={problemMessage(change.error)} /> : null}
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setPending(null)}>Cancel</Button>
+            <Button
+              type="submit"
+              variant={pending?.kind === "delete" ? "danger" : "primary"}
+              disabled={change.isPending || (pending?.kind !== "delete" && name.trim() === "")}
+            >
+              {pending?.kind === "new" ? "Create" : pending?.kind === "rename" ? "Rename" : "Delete"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    </nav>
+  );
+}

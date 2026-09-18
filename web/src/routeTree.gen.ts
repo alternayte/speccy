@@ -10,33 +10,53 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
+import { Route as BundlesBundleIdDiffRouteImport } from './routes/bundles/$bundleId/diff'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BundlesBundleIdIndexRoute = BundlesBundleIdIndexRouteImport.update({
+  id: '/bundles/$bundleId/',
+  path: '/bundles/$bundleId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BundlesBundleIdDiffRoute = BundlesBundleIdDiffRouteImport.update({
+  id: '/bundles/$bundleId/diff',
+  path: '/bundles/$bundleId/diff',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
+  '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
+  '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
+  '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/bundles/$bundleId/diff' | '/bundles/$bundleId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/bundles/$bundleId/diff' | '/bundles/$bundleId'
+  id: '__root__' | '/' | '/bundles/$bundleId/diff' | '/bundles/$bundleId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BundlesBundleIdDiffRoute: typeof BundlesBundleIdDiffRoute
+  BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +68,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bundles/$bundleId/': {
+      id: '/bundles/$bundleId/'
+      path: '/bundles/$bundleId'
+      fullPath: '/bundles/$bundleId/'
+      preLoaderRoute: typeof BundlesBundleIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bundles/$bundleId/diff': {
+      id: '/bundles/$bundleId/diff'
+      path: '/bundles/$bundleId/diff'
+      fullPath: '/bundles/$bundleId/diff'
+      preLoaderRoute: typeof BundlesBundleIdDiffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BundlesBundleIdDiffRoute: BundlesBundleIdDiffRoute,
+  BundlesBundleIdIndexRoute: BundlesBundleIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

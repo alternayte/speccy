@@ -224,12 +224,12 @@ func FindMainDoc(files []File) (MainDoc, error) {
 			paths[i] = m.Path
 		}
 		sort.Strings(paths)
-		return MainDoc{}, &MainDocError{Message: "the folder has more than one main doc (a markdown file with a type field in its frontmatter)", Files: paths}
+		return MainDoc{}, &MainDocError{Message: "more than one main doc", Files: paths}
 	case len(bad) > 0:
 		sort.Strings(bad)
-		return MainDoc{}, &MainDocError{Message: "the frontmatter does not parse as YAML", Files: bad}
+		return MainDoc{}, &MainDocError{Message: "frontmatter that does not parse as YAML", Files: bad}
 	default:
-		return MainDoc{}, &MainDocError{Message: "the folder has no main doc: add a type field to the frontmatter of one markdown file"}
+		return MainDoc{}, &MainDocError{Message: "no main doc"}
 	}
 }
 

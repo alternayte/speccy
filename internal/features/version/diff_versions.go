@@ -149,8 +149,15 @@ func DiffSections(from, to []byte) []api.SectionDiff {
 	return out
 }
 
-// LineDiff returns whole-line operations that turn a into b.
+// LineDiff returns whole-line operations that turn a into b. A missing newline at the end
+// does not count as a change, so an appended line does not also mark the old last line.
 func LineDiff(a, b string) []api.LineOp {
+	if a != "" && !strings.HasSuffix(a, "\n") {
+		a += "\n"
+	}
+	if b != "" && !strings.HasSuffix(b, "\n") {
+		b += "\n"
+	}
 	dmp := diffmatchpatch.New()
 	ca, cb, lines := dmp.DiffLinesToChars(a, b)
 	diffs := dmp.DiffCharsToLines(dmp.DiffMain(ca, cb, false), lines)

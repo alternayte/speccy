@@ -159,7 +159,7 @@ func (s *Service) Change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 	}
 	main, err := source.FindMainDoc(next)
 	if err != nil {
-		return pgdb.Version{}, false, kernel.Invalid("no_main_doc", "The change would break the bundle: %s. Keep exactly one markdown file with a type field in its frontmatter.", err.Error())
+		return pgdb.Version{}, false, kernel.Invalid("no_main_doc", "After this change the bundle would have %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
 	switch b.SourceKind {
 	case KindLocal:
@@ -189,7 +189,7 @@ func (s *Service) Change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File, by string) (pgdb.Bundle, error) {
 	main, err := source.FindMainDoc(files)
 	if err != nil {
-		return pgdb.Bundle{}, kernel.Invalid("no_main_doc", "%s.", err.Error())
+		return pgdb.Bundle{}, kernel.Invalid("no_main_doc", "The files have %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
 	if err := source.CheckLimits(files); err != nil {
 		return pgdb.Bundle{}, err

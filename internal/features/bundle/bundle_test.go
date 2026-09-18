@@ -196,3 +196,24 @@ func TestDBSource_Limits(t *testing.T) {
 		})
 	}
 }
+
+// An empty file reads back from SQLite as nil. Recording it again must still work.
+func TestChange_EmptyFileSurvivesRename(t *testing.T) {
+	for _, svc := range services() {
+		t.Run(svc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := svc.open(t)
+			b, err := s.CreateDB(ctx, "pay", []source.File{{Path: "SPEC.md", Content: []byte(mainDoc)}}, "u")
+			if err != nil {
+				t.Fatal(err)
+			}
+			v, _, err := s.Change(ctx, b.ID, b.CurrentVersionID.UUID, source.Op{Kind: source.OpWrite, Path: "a.sql", Content: []byte{}}, "u", "New")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := s.Change(ctx, b.ID, v.ID, source.Op{Kind: source.OpRename, Path: "a.sql", To: "db/a.sql"}, "u", "Move"); err != nil {
+				t.Fatalf("rename an empty file: %v", err)
+			}
+		})
+	}
+}
