@@ -264,6 +264,18 @@ paths:
   /bundles/{bundleId}/runs:
     parameters:
       - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: startRun
+      summary: Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+      responses:
+        "202":
+          description: The queued run. Follow its progress at /runs/{runId}/events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        default:
+          $ref: "#/components/responses/Problem"
     get:
       operationId: listRuns
       summary: List the review runs of a bundle, newest first.
@@ -276,6 +288,172 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/runs/estimate:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: estimateRun
+      summary: Estimate the tokens and cost of a full review before it starts (REQ-104).
+      responses:
+        "200":
+          description: The estimate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunEstimate"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/assumptions:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listAssumptions
+      summary: List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+      responses:
+        "200":
+          description: The assumptions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Anchor"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/events:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: runEvents
+      summary: Follow a run's progress by stage, as server-sent events (REQ-026).
+      responses:
+        "200":
+          description: A stream of events. Each data line is a RunEvent. The stream ends when the run ends.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/claims:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: listClaims
+      summary: List a run's factual claims and their labels (REQ-031).
+      responses:
+        "200":
+          description: The claims, in document order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Claim"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/mcp:
+    get:
+      operationId: listMCPConnections
+      summary: List the MCP connections (REQ-112).
+      responses:
+        "200":
+          description: The connections.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MCPConnection"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: createMCPConnection
+      summary: Add an MCP connection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPConnectionInput"
+      responses:
+        "201":
+          description: The connection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPConnection"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/mcp/{connectionId}:
+    parameters:
+      - $ref: "#/components/parameters/ConnectionId"
+    put:
+      operationId: updateMCPConnection
+      summary: Change an MCP connection. Leave the secret out to keep the stored one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPConnectionInput"
+      responses:
+        "200":
+          description: The connection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPConnection"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteMCPConnection
+      summary: Delete an MCP connection.
+      responses:
+        "204":
+          description: Deleted.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/mcp/{connectionId}/tools:
+    parameters:
+      - $ref: "#/components/parameters/ConnectionId"
+    get:
+      operationId: listMCPTools
+      summary: Connect and list the server's tools, to choose the allowlist.
+      responses:
+        "200":
+          description: The tools.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MCPTool"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -535,6 +713,13 @@ paths:
 
 components:
   parameters:
+    ConnectionId:
+      name: connectionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     BackendId:
       name: backendId
       in: path
@@ -759,8 +944,162 @@ components:
         finished_at:
           type: string
           format: date-time
+        tokens_in:
+          type: integer
+          format: int64
+        tokens_out:
+          type: integer
+          format: int64
+        cost_estimate:
+          type: number
+          description: USD, from the prices on the role assignments.
+        cache_hits:
+          type: integer
+          format: int64
+          description: Steps answered from the cache (REQ-021).
+        notes:
+          type: array
+          description: Notes for the run report, such as "no search source configured" (REQ-034).
+          items:
+            type: string
         verdict:
           $ref: "#/components/schemas/BundleVerdict"
+
+    RunEstimate:
+      type: object
+      required: [calls, cached_steps, tokens_in, tokens_out, priced]
+      properties:
+        calls:
+          type: integer
+        cached_steps:
+          type: integer
+        tokens_in:
+          type: integer
+          format: int64
+        tokens_out:
+          type: integer
+          format: int64
+        cost_usd:
+          type: number
+        priced:
+          type: boolean
+          description: False when the reviewer role has no prices, so there is no cost.
+
+    RunEvent:
+      type: object
+      required: [type, stage]
+      properties:
+        type:
+          type: string
+          enum: [stage, progress, done, failed]
+        stage:
+          type: string
+        message:
+          type: string
+        done:
+          type: integer
+        total:
+          type: integer
+        cache_hits:
+          type: integer
+
+    Claim:
+      type: object
+      required: [id, text, label, reason, sources, anchor]
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        label:
+          type: string
+          enum: [verified, contradicted, unverified]
+        reason:
+          type: string
+        sources:
+          type: array
+          items:
+            type: string
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+
+    MCPConnectionInput:
+      type: object
+      required: [name, transport, tool_allowlist, is_search]
+      properties:
+        name:
+          type: string
+        transport:
+          type: string
+          enum: [stdio, http]
+        command:
+          type: array
+          items:
+            type: string
+          description: For stdio, one argument per item.
+        url:
+          type: string
+          description: For http.
+        secret:
+          type: string
+          description: Write-only. An http server gets it as a bearer token; a stdio server as the variable in secret_env.
+        secret_env:
+          type: string
+        tool_allowlist:
+          type: array
+          items:
+            type: string
+        is_search:
+          type: boolean
+        search_tool:
+          type: string
+          description: The allowlisted tool that searches, when is_search is true.
+
+    MCPConnection:
+      type: object
+      required: [id, name, transport, has_secret, secret_last4, tool_allowlist, is_search, search_tool]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        transport:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        url:
+          type: string
+        secret_env:
+          type: string
+        has_secret:
+          type: boolean
+        secret_last4:
+          type: string
+        tool_allowlist:
+          type: array
+          items:
+            type: string
+        is_search:
+          type: boolean
+        search_tool:
+          type: string
+
+    MCPTool:
+      type: object
+      required: [name, description, read_only, destructive]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        read_only:
+          type: boolean
+        destructive:
+          type: boolean
 
     RunList:
       type: object

@@ -47,8 +47,9 @@ type Gateway struct {
 	DB        *store.DB
 	Workspace uuid.UUID
 	Sealer    *kernel.Sealer
-	// Fake is the fake backend that a "fake" backend row uses. Tests set it.
-	Fake *Fake
+	// Fake is the backend that a "fake" backend row uses: a scripted Fake or a BackendFunc.
+	// Tests set it; it is never reachable through the API.
+	Fake Backend
 
 	// now and backoff are fixed in tests.
 	now     func() time.Time

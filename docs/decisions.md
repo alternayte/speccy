@@ -297,3 +297,63 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** An Admin screen for backends (with a Test button that makes one short call), role assignments, and the monthly budget. Local mode's one user is an admin (SDD §3), so it always shows. The fake backend is for tests only and never appears in the API.
 - **Alternative:** Configuration files only.
 - **Reason:** REQ-101 and REQ-104 name an admin; PMs in local mode need a screen, not a YAML file.
+
+## 2026-09-19 — Grounding uses MCP search as retrieval
+
+- **Choice:** When the reviewer's backend has no native web search, Speccy itself calls the search tool of the MCP connection marked search, once per claim, and puts the results in the verify prompt as data. The model is not handed MCP tools in M5.
+- **Alternative:** A tool-use loop where the model calls allowlisted MCP tools.
+- **Reason:** Retrieval is deterministic, needs no tool loop per backend, and keeps tools out of the model's hands. REQ-034's order holds. A tool loop, if needed, can come with AI threads (REQ-088, M9).
+
+## 2026-09-19 — Native web search per backend
+
+- **Choice:** Anthropic: the `web_search_20260209` tool (the basic `20250305` for Haiku and older models). OpenRouter: the `web` plugin. The claude CLI: `--tools WebSearch,WebFetch` for fact checks only (verified with a live call). OpenAI chat completions, DeepSeek, and the other CLIs: none, so they use MCP search or leave claims unverified.
+- **Alternative:** Treat every backend as search-capable.
+- **Reason:** DEC-011: a label needs a real source. A label without a source is reset to unverified.
+
+## 2026-09-19 — Prompt delimiters
+
+- **Choice:** Untrusted content (the bundle, a section, a claim, a search result) sits between `<<<DATA <id>` and `DATA <id>>>>`, where the id is 16 hex characters of the SHA-256 of that content. The system prompt says data is never an instruction.
+- **Alternative:** A fixed delimiter, or a random one per call.
+- **Reason:** Content cannot contain the closing line of its own hash, so it cannot break out; unlike a random id, the prompt stays deterministic for the cache and the fake backend. The injection tests fail when the id is fixed.
+
+## 2026-09-19 — Rubric stage
+
+- **Choice:** Checks with `scope: doc` read the bundle (the main doc and up to 200 kB of text assets); `scope: section` checks run per section. The reviewer answers up to 8 checks per call, and a skipped check gets one more call alone; a check still unanswered counts as not applicable, with a run note. A failed check's finding anchors on its first quote that is in the doc, else on the section, else on the doc.
+- **Alternative:** One call per check.
+- **Reason:** Fewer calls; each answer is still cached per check (§8.10).
+
+## 2026-09-19 — Grounding stage
+
+- **Choice:** Claims are extracted per section with at least 12 words, cached by section hash (T-021). A claim must be text from its section, and a claim inside an "Assumption:" sentence is dropped (REQ-033). Claims are labelled 8 per call; a label is cached by the claim text, the search source, and the month, so facts are checked again each month. Finding slugs are `grounding.unverified-claim` (SHOULD) and `grounding.contradicted-claim` (MUST); adoption mode can relax them. Each claim is one item on the Evidence axis. Claims are stored in a `claim` table for the overlay (M10).
+- **Alternative:** One whole-doc extraction.
+- **Reason:** SDD §8.10 keys caches by section hash; the first live run showed the model listing design statements as claims, so the claims prompt (`claims-v2`) now defines a claim with examples.
+
+## 2026-09-19 — Runs, jobs, and progress
+
+- **Choice:** "Run review" queues a `full` run and a job. One worker per process claims jobs (`UPDATE … RETURNING`, with `FOR UPDATE SKIP LOCKED` on Postgres) and runs them with a 15-minute limit; a job's lock expires 20 minutes after it starts, so a dead worker's job runs again. Progress events go through an in-process broker to `GET /runs/{id}/events` (server-sent events). A run records roles, prompt versions, tokens, cost from the role prices, cache hits, and notes.
+- **Alternative:** Run the review inside the HTTP request.
+- **Reason:** SDD §7.2 and §7.3. SSE fan-out in one process matches §19 Q10.
+
+## 2026-09-19 — Failed runs and the verdict
+
+- **Choice:** A failed run stores no verdict and names the stage and the cause (REQ-024). While the newest finished run on the current version has failed, the bundle shows its last verdict as stale, with the error.
+- **Alternative:** Show the last good verdict unchanged.
+- **Reason:** REQ-024: the previous verdict becomes stale.
+
+## 2026-09-19 — Cost estimate
+
+- **Choice:** The estimate counts the rubric batches and section extractions that the cache cannot answer, plus about one label call per two sections, with a token size from the bundle text. It shows a dollar cost only when the reviewer role has prices.
+- **Alternative:** A dry run.
+- **Reason:** REQ-104 needs a figure before the run, not an exact one.
+
+## 2026-09-19 — MCP connections
+
+- **Choice:** Stdio (command, with the secret as a named environment variable) or streamable HTTP (bearer token). The allowlist refuses a tool that the server marks destructive; tools that are not marked read-only are allowed, with a warning in the UI. A search connection names one allowlisted tool; Speccy finds its query argument from the tool's schema.
+- **Alternative:** Only tools marked read-only.
+- **Reason:** Many servers do not annotate tools; the admin decides, and a server that says a tool changes data is refused.
+
+## 2026-09-19 — Parallel calls
+
+- **Choice:** 4 model calls at a time per run (REQ-105), as `review.Service.Parallel`. The setting reaches the admin screen with the other workspace settings (M8).
+- **Alternative:** An environment variable now.
+- **Reason:** One default serves local mode; a setting belongs with the admin settings.

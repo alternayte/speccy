@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M4. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save and gives a lint-only verdict. You can set up the models for the AI review in Admin; the AI review stages arrive next.
+Speccy is at milestone M5. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save. **Run review** adds the AI rubric checks and fact checks. The divergence test and linked-doc checks arrive next.
 
 ## Quick start
 
@@ -45,15 +45,24 @@ This table lists only the guarantees whose tests pass today.
 | A concurrent append with a stale version is rejected. | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go) |
 | Projections update in the same transaction as the append. | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go) |
 | Invalid model JSON is retried once, then the step fails. | [`TestModel_InvalidJSONRetryOnce`](internal/model/model_test.go) |
+| Injected instructions in a doc do not change the verdict. | [`TestInjection_DocCannotChangeVerdict`](internal/features/review/pipeline_test.go) |
+| Injected instructions in an MCP result do not change the verdict. | [`TestInjection_MCPResultIsData`](internal/features/review/pipeline_test.go) |
+| An unverified claim is a SHOULD finding; a contradicted claim is MUST. | [`TestGrounding_Labels`](internal/features/review/pipeline_test.go) |
+| An unchanged section is not sent to a model again. | [`TestCache_UnchangedSectionReused`](internal/features/review/pipeline_test.go) |
+| Every run records the profile version it used. | [`TestRun_PinsProfileVersion`](internal/features/review/pipeline_test.go) |
 | Secrets are not stored in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go) |
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
 
 ## How the verdict works
 
-A review has six stages: lint, rubric, grounding, divergence, coherence, and the verdict. Today only lint runs.
+A review has six stages: lint, rubric, grounding, divergence, coherence, and the verdict.
 
 - **Lint** checks the writing with fixed rules: placeholders, missing required sections, broken links, duplicate IDs, filler phrases, vague words, long sentences, and more. It runs on every save and takes well under a second.
-- **Rubric, grounding, divergence, and coherence** use AI readers. They are not built yet.
+- **Rubric** asks the reviewer model each yes-or-no check of the doc type, with quotes as evidence.
+- **Grounding** finds the doc's factual claims and checks each against a source: the model's web search, or an MCP search connection. A claim with no source is unverified. Start a sentence with "Assumption:" to state something you cannot source.
+- **Divergence and coherence** arrive in the next milestones.
+
+A model never sets the verdict. Speccy computes it from the checks. Doc text and search results go to the model as marked data, never as instructions.
 
 Each check has a level: MUST, SHOULD, or INFO. The doc is **Build Ready** only when no MUST finding is open and any required upstream link exists. SHOULD and INFO findings never change the verdict. A verdict for an old version is **stale**.
 

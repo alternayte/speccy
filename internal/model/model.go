@@ -55,6 +55,9 @@ type Call struct {
 	Schema    []byte
 	MaxTokens int64
 	Files     []File
+	// Search lets the model use its native web search (REQ-034). Only set it when
+	// SearchCapable says the backend has one.
+	Search bool
 }
 
 // Raw is what a backend returns: the answer text and the tokens it used.
@@ -69,6 +72,22 @@ type Raw struct {
 // Backend calls one kind of model service.
 type Backend interface {
 	Call(ctx context.Context, model string, c Call) (Raw, error)
+}
+
+// SearchCapable reports whether a backend kind (and agent CLI preset) has a native web search
+// tool for the model (REQ-034). OpenAI chat completions, DeepSeek, and the other CLIs have none
+// that Speccy can switch on, so their claims use an MCP search connection or stay unverified.
+func SearchCapable(kind, preset, model string) bool {
+	switch kind {
+	case KindAnthropic, KindOpenRouter:
+		return true
+	case KindAgentCLI:
+		return preset == "claude"
+	case KindFake:
+		// Tests pick a fake model name with "nosearch" to test the MCP path.
+		return !strings.Contains(model, "nosearch")
+	}
+	return false
 }
 
 // StatusError is an HTTP error from a backend.

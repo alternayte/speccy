@@ -22,27 +22,43 @@ import (
 type API struct {
 	DB        *store.DB
 	Workspace uuid.UUID
+	Service   *Service
 }
 
 // Summary returns the verdict to show for a bundle, and the error of the latest run when it
 // failed. The verdict is stale when its run is not on the current version (SDD §8.6).
 func Summary(ctx context.Context, q store.Querier, b pgdb.Bundle) (*api.BundleVerdict, *string, error) {
-	latest, err := q.LatestRun(ctx, b.ID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil, nil
-	}
+	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{BundleID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: 20})
 	if err != nil {
 		return nil, nil, err
 	}
 	var runErr *string
-	if latest.Status == "failed" && latest.VersionID == b.CurrentVersionID.UUID {
-		runErr = &latest.Error
+	failedAfter := false
+	for _, r := range runs {
+		switch r.Status {
+		case "queued", "running":
+			continue
+		case "failed":
+			// REQ-024: a failed run on the current version makes the previous verdict stale.
+			if r.VersionID == b.CurrentVersionID.UUID {
+				if runErr == nil {
+					e := r.Error
+					runErr = &e
+				}
+				failedAfter = true
+			}
+			continue
+		}
+		v, err := runVerdict(ctx, q, b, r)
+		if err != nil || v == nil {
+			return v, runErr, err
+		}
+		if failedAfter {
+			v.Result = api.VerdictResult(verdict.Stale)
+		}
+		return v, runErr, nil
 	}
-	if latest.Status != "complete" {
-		return nil, runErr, nil
-	}
-	v, err := runVerdict(ctx, q, b, latest)
-	return v, runErr, err
+	return nil, runErr, nil
 }
 
 func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.ReviewRun) (*api.BundleVerdict, error) {
@@ -108,6 +124,12 @@ func (a *API) toAPI(ctx context.Context, b pgdb.Bundle, run pgdb.ReviewRun) (api
 		t := run.FinishedAt.Time.UTC()
 		out.FinishedAt = &t
 	}
+	out.TokensIn, out.TokensOut, out.CacheHits = &run.TokensIn, &run.TokensOut, &run.CacheHits
+	cost := float32(run.CostEstimate)
+	out.CostEstimate = &cost
+	notes := []string{}
+	_ = json.Unmarshal(run.Notes, &notes)
+	out.Notes = &notes
 	if run.Status == "complete" {
 		if out.Verdict, err = runVerdict(ctx, q, b, run); err != nil {
 			return api.Run{}, err

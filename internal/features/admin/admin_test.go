@@ -6,10 +6,12 @@ import (
 	"crypto/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/mcpclient/mcptest"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/store"
 	"github.com/alternayte/speccy/internal/store/storetest"
@@ -119,3 +121,38 @@ func newAPI(t *testing.T, db *store.DB) *API {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// REQ-112, REQ-034: an MCP connection allowlists read-only tools only, keeps its secret
+// sealed, and serves as the search source.
+func TestMCP_AllowlistAndSearch(t *testing.T) {
+	ctx := context.Background()
+	db := storetest.Engines()[0].Open(t)
+	a := newAPI(t, db)
+	url := mcptest.SearchServer(t, func(q string) string { return "Found: " + q })
+	in := api.MCPConnectionInput{Name: "Search", Transport: api.Http, Url: &url, Secret: ptr(secret),
+		ToolAllowlist: []string{"search", "delete_page"}, IsSearch: true, SearchTool: ptr("search")}
+	if _, err := a.CreateMCPConnection(ctx, api.CreateMCPConnectionRequestObject{Body: &in}); err == nil || !strings.Contains(err.Error(), "read-only") {
+		t.Fatalf("a destructive tool on the allowlist: err = %v", err)
+	}
+	in.ToolAllowlist = []string{"search"}
+	res, err := a.CreateMCPConnection(ctx, api.CreateMCPConnectionRequestObject{Body: &in})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := res.(api.CreateMCPConnection201JSONResponse)
+	if !c.HasSecret || c.SecretLast4 != secret[len(secret)-4:] {
+		t.Errorf("connection secret shows %q", c.SecretLast4)
+	}
+	var sealed []byte
+	if err := db.SQL.QueryRowContext(ctx, `SELECT secret_encrypted FROM mcp_connection`).Scan(&sealed); err != nil || bytes.Contains(sealed, []byte(secret)) {
+		t.Errorf("the MCP secret is stored in plain text (%v)", err)
+	}
+	s, err := a.SearchSource(ctx)
+	if err != nil || s == nil {
+		t.Fatalf("search source: %v, %v", s, err)
+	}
+	out, err := s.Search(ctx, "stripe rate limits")
+	if err != nil || !strings.Contains(out, "Found: stripe rate limits") {
+		t.Errorf("search: %q, %v", out, err)
+	}
+}

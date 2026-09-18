@@ -1,6 +1,6 @@
 import { clsx } from "clsx";
 import { CircleAlert, CircleCheck, CircleDashed, Info, OctagonX, TriangleAlert } from "lucide-react";
-import type { BundleVerdict, VerdictResult } from "@/lib/api";
+import type { BundleVerdict, Run, VerdictResult } from "@/lib/api";
 
 const resultStyle: Record<VerdictResult, { label: string; tone: string; soft: string; icon: React.ReactNode }> = {
   build_ready: {
@@ -46,14 +46,17 @@ export function VerdictBar({
   verdict,
   runError,
   currentVersion,
+  report,
   onShowFindings,
 }: {
   verdict?: BundleVerdict;
   runError?: string;
   currentVersion: number;
+  // report is the run behind a full verdict: its tokens, cost, cache hits, and notes (REQ-022).
+  report?: Run;
   onShowFindings: () => void;
 }) {
-  if (runError) {
+  if (runError && !verdict) {
     return (
       <div role="status" className="flex items-start gap-3 border-b border-bad/30 bg-bad-soft px-4 py-3 sm:px-5">
         <CircleAlert aria-hidden className="mt-0.5 size-5 shrink-0 text-bad" />
@@ -73,15 +76,18 @@ export function VerdictBar({
   }
   const s = resultStyle[verdict.result];
   const next =
-    verdict.result === "stale"
-      ? `This verdict is for version ${verdict.version_number}. The current version is ${currentVersion}.`
-      : verdict.must > 0
-        ? `${verdict.must} MUST finding${verdict.must === 1 ? "" : "s"} to fix. SHOULD findings never block.`
-        : verdict.result === "not_build_ready"
-          ? "A required link or decision is missing."
-          : verdict.should > 0
-            ? `No blocking findings. ${verdict.should} SHOULD finding${verdict.should === 1 ? "" : "s"} can improve the doc.`
-            : "No findings. The doc passes every lint check.";
+    verdict.kind === "full" && verdict.result === "build_ready" && verdict.must === 0 && verdict.should === 0
+      ? "No findings. The doc passes every check."
+      : verdict.result === "stale"
+        ? `This verdict is for version ${verdict.version_number}. The current version is ${currentVersion}.`
+        : verdict.must > 0
+          ? `${verdict.must} MUST finding${verdict.must === 1 ? "" : "s"} to fix. SHOULD findings never block.`
+          : verdict.result === "not_build_ready"
+            ? "A required link or decision is missing."
+            : verdict.should > 0
+              ? `No blocking findings. ${verdict.should} SHOULD finding${verdict.should === 1 ? "" : "s"} can improve the doc.`
+              : "No findings. The doc passes every lint check.";
+  const lintOnly = verdict.kind === "lint";
   return (
     <div
       role="status"
@@ -105,7 +111,7 @@ export function VerdictBar({
         <span title="Passed checks divided by applicable checks. For metrics only; not a gate.">
           Score <span className="font-mono text-ink">{verdict.score}</span>
         </span>
-        {verdict.kind === "lint" ? <span className="text-ink-3">Lint checks only</span> : null}
+        {lintOnly ? <span className="text-ink-3">Lint checks only</span> : null}
         {verdict.relaxed_count > 0 ? (
           <span className="text-warn">
             Adoption mode: {verdict.relaxed_count} check{verdict.relaxed_count === 1 ? "" : "s"} relaxed
@@ -115,6 +121,34 @@ export function VerdictBar({
           Show findings
         </button>
       </div>
+      {runError || report?.notes?.length || report ? (
+        <div className="w-full space-y-1 text-xs text-ink-2">
+          {runError ? (
+            <p className="flex items-start gap-1.5 text-bad">
+              <CircleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+              The last review failed, so this verdict is stale. {runError}
+            </p>
+          ) : null}
+          {report?.notes?.map((n) => (
+            <p key={n} className="flex items-start gap-1.5">
+              <Info aria-hidden className="mt-px size-3.5 shrink-0 text-ink-3" />
+              {n}
+            </p>
+          ))}
+          {report && verdict.kind === "full" ? (
+            <p className="text-ink-3">
+              Full review of v{verdict.version_number}:{" "}
+              {((report.tokens_in ?? 0) + (report.tokens_out ?? 0)).toLocaleString()} tokens
+              {report.cost_estimate
+                ? report.cost_estimate < 0.01
+                  ? ", under $0.01"
+                  : `, about $${report.cost_estimate.toFixed(2)}`
+                : ""}
+              {report.cache_hits ? `, ${report.cache_hits} steps from the cache` : ""}.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
