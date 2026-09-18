@@ -71,4 +71,6 @@ func (f *Fake) Call(ctx context.Context, _ string, c Call) (Raw, error) {
 type BackendFunc func(ctx context.Context, model string, c Call) (Raw, error)
 
 // Call implements Backend.
-func (f BackendFunc) Call(ctx context.Context, model string, c Call) (Raw, error) { return f(ctx, model, c) }
+func (f BackendFunc) Call(ctx context.Context, model string, c Call) (Raw, error) {
+	return f(ctx, model, c)
+}

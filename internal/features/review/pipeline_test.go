@@ -86,7 +86,7 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		var labels []map[string]any
 		for _, m := range claimRe.FindAllStringSubmatch(c.Prompt, -1) {
 			var n int
-			fmt.Sscan(m[1], &n)
+			_, _ = fmt.Sscan(m[1], &n)
 			label, sources := "unverified", []string{}
 			switch {
 			case strings.Contains(instructions, "label every claim as verified"):

@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { BackendDialog, kinds } from "./backend-dialog";
+import { MCPSection } from "./mcp-section";
 
 const roleHelp: Record<string, string> = {
   reviewer: "Checks the rubric and facts, and writes build questions.",
@@ -44,6 +45,7 @@ export function AdminPage() {
         </header>
         <BackendsSection />
         <RolesSection />
+        <MCPSection />
         <BudgetSection />
       </div>
     </div>

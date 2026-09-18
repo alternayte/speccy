@@ -12,7 +12,7 @@ import (
 // key (SDD §8.10) and is recorded on the run (REQ-022).
 const (
 	PromptRubric = "rubric-v1"
-	PromptClaims = "claims-v1"
+	PromptClaims = "claims-v2"
 	PromptVerify = "verify-v1"
 )
 
@@ -97,11 +97,17 @@ func rubricSchema(slugs []string) []byte {
 // claimsPrompt asks for the factual claims in one section (REQ-030).
 func claimsPrompt(headingPath []string, section string) string {
 	var b strings.Builder
-	b.WriteString("List the factual claims in this section of a spec that a reader could check against a source:\n")
-	b.WriteString("- claims about the outside world: third-party behaviour, versions, limits, prices, laws, standards;\n")
-	b.WriteString("- claims about existing internal systems.\n")
-	b.WriteString("Do not list design decisions, requirements, plans, or opinions: those are the doc's own choices. Do not list sentences that start with \"Assumption:\".\n")
-	b.WriteString("Copy each claim word for word from the section, as one sentence or a clause of one. List at most 10. List none when there are none.\n\n")
+	b.WriteString("List the factual claims in this section of a spec. A factual claim is a statement about something this doc does not decide, which a reader could check against a source:\n")
+	b.WriteString("- another company's product or API: its limits, prices, versions, or behaviour;\n")
+	b.WriteString("- a law, a standard, or a measured fact about the world;\n")
+	b.WriteString("- an internal system that the doc says already exists.\n")
+	b.WriteString("What this design does, will do, requires, or chooses is not a claim, even with a number in it. Do not list sentences that start with \"Assumption:\".\n\n")
+	b.WriteString("Examples:\n")
+	b.WriteString("- \"Stripe allows 100 read requests per second in live mode.\" is a claim: Stripe decides it.\n")
+	b.WriteString("- \"The billing service already stores invoices in S3.\" is a claim: it describes a system that exists.\n")
+	b.WriteString("- \"The service retries a timeout up to 3 times.\" is not a claim: it is this design.\n")
+	b.WriteString("- \"The checkout service waits for the result.\" is not a claim: it is this design.\n\n")
+	b.WriteString("Copy each claim word for word from the section, as one sentence or a clause of one. List at most 10. Most sections have none; then list none.\n\n")
 	if len(headingPath) > 0 {
 		fmt.Fprintf(&b, "Section: %s\n\n", strings.Join(headingPath, " > "))
 	}

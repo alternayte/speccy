@@ -6,17 +6,21 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { EditorPane, type View } from "@/features/editor/editor-pane";
-import { getBundleOptions, listFilesOptions } from "@/lib/api/@tanstack/react-query.gen";
-import type { Finding } from "@/lib/api";
+import { getBundleOptions, getRunOptions, listFilesOptions } from "@/lib/api/@tanstack/react-query.gen";
+import type { Anchor, Finding } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
+import { EvidencePanel } from "./evidence-panel";
 import { Explorer } from "./explorer";
 import { FindingsPanel } from "./findings-panel";
 import type { BundleSearch } from "./search";
+import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VerdictBar } from "./verdict";
 import { VersionsPanel } from "./versions-panel";
 
 type Panel = "files" | "rail" | null;
-type RailTab = "findings" | "versions";
+type RailTab = "findings" | "evidence" | "versions";
+
+const railLabels: Record<RailTab, string> = { findings: "Findings", evidence: "Evidence", versions: "Versions" };
 
 export function BundlePage({ bundleId, search }: { bundleId: string; search: BundleSearch }) {
   const navigate = useNavigate();
@@ -59,15 +63,19 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
     return true;
   };
 
-  const openFinding = (f: Finding) => {
-    if (!select(f.anchor.file)) return;
+  const openAnchor = (a: Anchor) => {
+    if (!select(a.file)) return;
     setPanel(null);
-    setFocus((prev) => ({ start: f.anchor.start, end: f.anchor.end, seq: (prev?.seq ?? 0) + 1 }));
+    setFocus((prev) => ({ start: a.start, end: a.end, seq: (prev?.seq ?? 0) + 1 }));
   };
+  const openFinding = (f: Finding) => openAnchor(f.anchor);
 
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
   }, [qc, bundleId]);
+  const run = useActiveRun(bundleId, refresh);
+  const verdictRun = bundle.data?.verdict?.kind === "full" ? bundle.data.verdict.run_id : undefined;
+  const report = useQuery({ ...getRunOptions({ path: { runId: verdictRun ?? "" } }), enabled: !!verdictRun });
 
   if (bundle.isPending) return <Loading label="Loading the bundle" />;
   if (bundle.isError)
@@ -98,6 +106,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           </p>
         </div>
         <div className="flex items-center gap-1.5">
+          <RunReviewButton bundleId={bundleId} active={!!run.active} onStarted={() => run.refetch()} />
           <Button
             variant="ghost"
             size="sm"
@@ -128,10 +137,12 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
       </div>
 
       <div className="no-print">
+        {run.active ? <RunProgress events={run.events} /> : null}
         <VerdictBar
           verdict={b.verdict}
           runError={b.run_error}
           currentVersion={b.current_version.number}
+          report={report.data}
           onShowFindings={() => {
             setTab("findings");
             setPanel("rail");
@@ -208,9 +219,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             <div
               role="tablist"
               aria-label="Review"
-              className="flex h-10 shrink-0 items-end gap-4 border-b border-line px-3"
+              className="flex h-10 shrink-0 items-end gap-3 border-b border-line px-3 whitespace-nowrap"
             >
-              {(["findings", "versions"] as const).map((t) => (
+              {(["findings", "evidence", "versions"] as const).map((t) => (
                 <button
                   key={t}
                   role="tab"
@@ -222,15 +233,25 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                     tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink-2",
                   )}
                 >
-                  {t === "findings"
-                    ? `Findings${b.verdict ? ` (${b.verdict.must + b.verdict.should + b.verdict.info})` : ""}`
-                    : "Versions"}
+                  {railLabels[t]}
+                  {t === "findings" && b.verdict ? (
+                    <span className="ml-1 font-mono text-ink-3">
+                      {b.verdict.must + b.verdict.should + b.verdict.info}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {tab === "findings" ? (
                 <FindingsPanel runId={b.verdict?.run_id} onOpen={openFinding} />
+              ) : tab === "evidence" ? (
+                <EvidencePanel
+                  bundleId={bundleId}
+                  runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined}
+                  version={b.current_version.id}
+                  onOpen={openAnchor}
+                />
               ) : (
                 <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
               )}

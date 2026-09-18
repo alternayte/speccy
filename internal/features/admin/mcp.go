@@ -73,7 +73,7 @@ func validateMCP(in api.MCPConnectionInput) (mcpTarget, []string, error) {
 		}
 		t.Command = *in.Command
 	case api.Http:
-		if in.Url == nil || !(strings.HasPrefix(*in.Url, "https://") || strings.HasPrefix(*in.Url, "http://")) {
+		if in.Url == nil || !strings.HasPrefix(*in.Url, "https://") && !strings.HasPrefix(*in.Url, "http://") {
 			return t, nil, kernel.Invalid("bad_mcp", "An http connection needs a URL that starts with https:// or http://.")
 		}
 		t.URL = strings.TrimSpace(*in.Url)
