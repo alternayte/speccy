@@ -19,6 +19,7 @@ CREATE TABLE bundle (
     slug               TEXT NOT NULL,
     title              TEXT NOT NULL,
     profile_key        TEXT NOT NULL,
+    main_doc           TEXT NOT NULL,
     source_kind        TEXT NOT NULL CHECK (source_kind IN ('local', 'db', 'github')),
     source_ref         JSONTEXT NOT NULL DEFAULT '{}' CHECK (json_valid(source_ref)),
     current_version_id UUIDTEXT REFERENCES version (id),

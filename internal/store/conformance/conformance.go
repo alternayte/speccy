@@ -23,6 +23,9 @@ func Run(t *testing.T, open func(t *testing.T) *store.DB) {
 	t.Run("EventStoreStaleVersionConflicts", func(t *testing.T) { eventStoreStaleVersionConflicts(t, open(t)) })
 	t.Run("EventStoreNewStreamTwiceConflicts", func(t *testing.T) { eventStoreNewStreamTwiceConflicts(t, open(t)) })
 	t.Run("EventStoreMissingStream", func(t *testing.T) { eventStoreMissingStream(t, open(t)) })
+	t.Run("BundleHeadMovesOnlyFromExpected", func(t *testing.T) { bundleHeadMovesOnlyFromExpected(t, open(t)) })
+	t.Run("BlobsAreContentAddressed", func(t *testing.T) { blobsAreContentAddressed(t, open(t)) })
+	t.Run("ListsPage", func(t *testing.T) { listsPage(t, open(t)) })
 }
 
 func migrateIsIdempotent(t *testing.T, db *store.DB) {

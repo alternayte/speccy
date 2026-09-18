@@ -25,15 +25,15 @@ type Querier interface {
 	InsertVersion(ctx context.Context, arg InsertVersionParams) error
 	InsertVersionFile(ctx context.Context, arg InsertVersionFileParams) error
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error
-	ListBundles(ctx context.Context, workspaceID uuid.UUID) ([]Bundle, error)
+	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
-	ListVersions(ctx context.Context, bundleID uuid.UUID) ([]Version, error)
+	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
-	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) error
-	UpdateBundleMeta(ctx context.Context, arg UpdateBundleMetaParams) error
+	// The head moves only from the version the change was based on.
+	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error)
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 }
 

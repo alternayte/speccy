@@ -26,7 +26,7 @@ func (q *Queries) GetBlob(ctx context.Context, sha256 string) ([]byte, error) {
 }
 
 const getBundle = `-- name: GetBundle :one
-SELECT id, workspace_id, slug, title, profile_key, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetBundleParams struct {
@@ -43,6 +43,7 @@ func (q *Queries) GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, e
 		&i.Slug,
 		&i.Title,
 		&i.ProfileKey,
+		&i.MainDoc,
 		&i.SourceKind,
 		&i.SourceRef,
 		&i.CurrentVersionID,
@@ -54,7 +55,7 @@ func (q *Queries) GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, e
 }
 
 const getBundleBySlug = `-- name: GetBundleBySlug :one
-SELECT id, workspace_id, slug, title, profile_key, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = ?1 AND slug = ?2
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = ?1 AND slug = ?2
 `
 
 type GetBundleBySlugParams struct {
@@ -71,6 +72,7 @@ func (q *Queries) GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams
 		&i.Slug,
 		&i.Title,
 		&i.ProfileKey,
+		&i.MainDoc,
 		&i.SourceKind,
 		&i.SourceRef,
 		&i.CurrentVersionID,
@@ -162,9 +164,9 @@ func (q *Queries) InsertBlob(ctx context.Context, arg InsertBlobParams) error {
 }
 
 const insertBundle = `-- name: InsertBundle :exec
-INSERT INTO bundle (id, workspace_id, slug, title, profile_key, source_kind, source_ref, created_at, updated_at)
-VALUES (?1, ?2, ?3, ?4, ?5,
-        ?6, ?7, ?8, ?9)
+INSERT INTO bundle (id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+        ?7, ?8, ?9, ?10)
 `
 
 type InsertBundleParams struct {
@@ -173,6 +175,7 @@ type InsertBundleParams struct {
 	Slug        string
 	Title       string
 	ProfileKey  string
+	MainDoc     string
 	SourceKind  string
 	SourceRef   json.RawMessage
 	CreatedAt   time.Time
@@ -186,6 +189,7 @@ func (q *Queries) InsertBundle(ctx context.Context, arg InsertBundleParams) erro
 		arg.Slug,
 		arg.Title,
 		arg.ProfileKey,
+		arg.MainDoc,
 		arg.SourceKind,
 		arg.SourceRef,
 		arg.CreatedAt,
@@ -260,13 +264,20 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 }
 
 const listBundles = `-- name: ListBundles :many
-SELECT id, workspace_id, slug, title, profile_key, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle
-WHERE workspace_id = ?1 AND archived_at IS NULL
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle
+WHERE workspace_id = ?1 AND archived_at IS NULL AND slug > ?2
 ORDER BY slug
+LIMIT ?3
 `
 
-func (q *Queries) ListBundles(ctx context.Context, workspaceID uuid.UUID) ([]Bundle, error) {
-	rows, err := q.db.QueryContext(ctx, listBundles, workspaceID)
+type ListBundlesParams struct {
+	WorkspaceID uuid.UUID
+	AfterSlug   string
+	PageSize    int64
+}
+
+func (q *Queries) ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error) {
+	rows, err := q.db.QueryContext(ctx, listBundles, arg.WorkspaceID, arg.AfterSlug, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -280,6 +291,7 @@ func (q *Queries) ListBundles(ctx context.Context, workspaceID uuid.UUID) ([]Bun
 			&i.Slug,
 			&i.Title,
 			&i.ProfileKey,
+			&i.MainDoc,
 			&i.SourceKind,
 			&i.SourceRef,
 			&i.CurrentVersionID,
@@ -301,7 +313,7 @@ func (q *Queries) ListBundles(ctx context.Context, workspaceID uuid.UUID) ([]Bun
 }
 
 const listBundlesBySource = `-- name: ListBundlesBySource :many
-SELECT id, workspace_id, slug, title, profile_key, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle
 WHERE workspace_id = ?1 AND source_kind = ?2
 ORDER BY slug
 `
@@ -326,6 +338,7 @@ func (q *Queries) ListBundlesBySource(ctx context.Context, arg ListBundlesBySour
 			&i.Slug,
 			&i.Title,
 			&i.ProfileKey,
+			&i.MainDoc,
 			&i.SourceKind,
 			&i.SourceRef,
 			&i.CurrentVersionID,
@@ -383,11 +396,20 @@ func (q *Queries) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]
 }
 
 const listVersions = `-- name: ListVersions :many
-SELECT id, workspace_id, bundle_id, number, created_by, message, created_at FROM version WHERE bundle_id = ?1 ORDER BY number DESC
+SELECT id, workspace_id, bundle_id, number, created_by, message, created_at FROM version
+WHERE bundle_id = ?1 AND number < ?2
+ORDER BY number DESC
+LIMIT ?3
 `
 
-func (q *Queries) ListVersions(ctx context.Context, bundleID uuid.UUID) ([]Version, error) {
-	rows, err := q.db.QueryContext(ctx, listVersions, bundleID)
+type ListVersionsParams struct {
+	BundleID     uuid.UUID
+	BeforeNumber int64
+	PageSize     int64
+}
+
+func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error) {
+	rows, err := q.db.QueryContext(ctx, listVersions, arg.BundleID, arg.BeforeNumber, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -443,51 +465,36 @@ func (q *Queries) SetBundleArchived(ctx context.Context, arg SetBundleArchivedPa
 	return err
 }
 
-const updateBundleHead = `-- name: UpdateBundleHead :exec
+const updateBundleHead = `-- name: UpdateBundleHead :execrows
 UPDATE bundle
-SET title = ?1, profile_key = ?2, current_version_id = ?3,
-    updated_at = ?4
-WHERE id = ?5
+SET title = ?1, profile_key = ?2, main_doc = ?3, current_version_id = ?4,
+    archived_at = NULL, updated_at = ?5
+WHERE id = ?6 AND current_version_id IS ?7
 `
 
 type UpdateBundleHeadParams struct {
-	Title            string
-	ProfileKey       string
-	CurrentVersionID uuid.NullUUID
-	UpdatedAt        time.Time
-	ID               uuid.UUID
+	Title             string
+	ProfileKey        string
+	MainDoc           string
+	CurrentVersionID  uuid.NullUUID
+	UpdatedAt         time.Time
+	ID                uuid.UUID
+	ExpectedVersionID uuid.NullUUID
 }
 
-func (q *Queries) UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) error {
-	_, err := q.db.ExecContext(ctx, updateBundleHead,
+// The head moves only from the version the change was based on.
+func (q *Queries) UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateBundleHead,
 		arg.Title,
 		arg.ProfileKey,
+		arg.MainDoc,
 		arg.CurrentVersionID,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.ExpectedVersionID,
 	)
-	return err
-}
-
-const updateBundleMeta = `-- name: UpdateBundleMeta :exec
-UPDATE bundle
-SET title = ?1, profile_key = ?2, updated_at = ?3
-WHERE id = ?4
-`
-
-type UpdateBundleMetaParams struct {
-	Title      string
-	ProfileKey string
-	UpdatedAt  time.Time
-	ID         uuid.UUID
-}
-
-func (q *Queries) UpdateBundleMeta(ctx context.Context, arg UpdateBundleMetaParams) error {
-	_, err := q.db.ExecContext(ctx, updateBundleMeta,
-		arg.Title,
-		arg.ProfileKey,
-		arg.UpdatedAt,
-		arg.ID,
-	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

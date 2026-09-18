@@ -24,6 +24,7 @@ type Bundle struct {
 	Slug             string
 	Title            string
 	ProfileKey       string
+	MainDoc          string
 	SourceKind       string
 	SourceRef        json.RawMessage
 	CurrentVersionID uuid.NullUUID

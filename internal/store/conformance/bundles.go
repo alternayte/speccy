@@ -1,0 +1,115 @@
+package conformance
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+
+	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/store"
+)
+
+func newBundle(t *testing.T, db *store.DB, ws uuid.UUID, slug string) pgdb.Bundle {
+	t.Helper()
+	now := time.Now().UTC()
+	b := pgdb.InsertBundleParams{
+		ID: kernel.NewID(), WorkspaceID: ws, Slug: slug, Title: slug, ProfileKey: "sdd", MainDoc: "SPEC.md",
+		SourceKind: "db", SourceRef: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Queries().InsertBundle(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	return pgdb.Bundle{ID: b.ID, WorkspaceID: ws, Slug: slug}
+}
+
+func newVersion(t *testing.T, db *store.DB, b pgdb.Bundle, n int64) uuid.UUID {
+	t.Helper()
+	id := kernel.NewID()
+	err := db.Queries().InsertVersion(context.Background(), pgdb.InsertVersionParams{
+		ID: id, WorkspaceID: b.WorkspaceID, BundleID: b.ID, Number: n, CreatedBy: "u", Message: "m", CreatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// bundleHeadMovesOnlyFromExpected checks the optimistic head update. The SQL differs per engine
+// (IS against IS NOT DISTINCT FROM), so both must agree on NULL and on a mismatch.
+func bundleHeadMovesOnlyFromExpected(t *testing.T, db *store.DB) {
+	ctx := context.Background()
+	ws, err := db.Workspace(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := newBundle(t, db, ws, "pay")
+	v1, v2 := newVersion(t, db, b, 1), newVersion(t, db, b, 2)
+	move := func(to, expected uuid.NullUUID) int64 {
+		n, err := db.Queries().UpdateBundleHead(ctx, pgdb.UpdateBundleHeadParams{
+			ID: b.ID, Title: "t", ProfileKey: "sdd", MainDoc: "SPEC.md", CurrentVersionID: to, ExpectedVersionID: expected, UpdatedAt: time.Now().UTC(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	some := func(id uuid.UUID) uuid.NullUUID { return uuid.NullUUID{UUID: id, Valid: true} }
+	if n := move(some(v1), some(v2)); n != 0 {
+		t.Errorf("from no head, expecting v2: %d rows, want 0", n)
+	}
+	if n := move(some(v1), uuid.NullUUID{}); n != 1 {
+		t.Errorf("from no head, expecting none: %d rows, want 1", n)
+	}
+	if n := move(some(v2), uuid.NullUUID{}); n != 0 {
+		t.Errorf("from v1, expecting none: %d rows, want 0", n)
+	}
+	if n := move(some(v2), some(v1)); n != 1 {
+		t.Errorf("from v1, expecting v1: %d rows, want 1", n)
+	}
+	if err := db.Queries().InsertVersion(ctx, pgdb.InsertVersionParams{
+		ID: kernel.NewID(), WorkspaceID: ws, BundleID: b.ID, Number: 2, CreatedBy: "u", Message: "m", CreatedAt: time.Now().UTC(),
+	}); err == nil {
+		t.Error("a second version 2 of one bundle was inserted")
+	}
+}
+
+func blobsAreContentAddressed(t *testing.T, db *store.DB) {
+	ctx := context.Background()
+	q := db.Queries()
+	for range 2 {
+		if err := q.InsertBlob(ctx, pgdb.InsertBlobParams{Sha256: "abc", Content: []byte{0, 1, 2, 255}, Size: 4}); err != nil {
+			t.Fatalf("insert the same blob: %v", err)
+		}
+	}
+	got, err := q.GetBlob(ctx, "abc")
+	if err != nil || string(got) != string([]byte{0, 1, 2, 255}) {
+		t.Errorf("blob = %v, %v", got, err)
+	}
+}
+
+func listsPage(t *testing.T, db *store.DB) {
+	ctx := context.Background()
+	ws, err := db.Workspace(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{"c", "a", "b"} {
+		newBundle(t, db, ws, s)
+	}
+	page, err := db.Queries().ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: ws, AfterSlug: "a", PageSize: 1})
+	if err != nil || len(page) != 1 || page[0].Slug != "b" {
+		t.Errorf("bundles after a, 1 per page: %v, %v", page, err)
+	}
+	b := newBundle(t, db, ws, "v")
+	for n := int64(1); n <= 3; n++ {
+		newVersion(t, db, b, n)
+	}
+	vs, err := db.Queries().ListVersions(ctx, pgdb.ListVersionsParams{BundleID: b.ID, BeforeNumber: 3, PageSize: 5})
+	if err != nil || len(vs) != 2 || vs[0].Number != 2 || vs[1].Number != 1 {
+		t.Errorf("versions before 3: %v, %v", vs, err)
+	}
+}

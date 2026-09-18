@@ -20,12 +20,304 @@ paths:
               schema:
                 $ref: "#/components/schemas/Meta"
         default:
-          description: An error.
+          $ref: "#/components/responses/Problem"
+
+  /bundles:
+    get:
+      operationId: listBundles
+      summary: List bundles, and the folders that look like bundles but are not valid.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of bundles.
           content:
-            application/problem+json:
+            application/json:
               schema:
-                $ref: "#/components/schemas/Problem"
+                $ref: "#/components/schemas/BundleList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/import:
+    post:
+      operationId: importBundle
+      summary: Import a bundle from a .md file, a .zip file, or pasted markdown.
+      description: >
+        Send exactly one of `file` or `text`. In local mode, Speccy writes the bundle to a new
+        folder named `name` under the folder that Speccy serves (REQ-008).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+      responses:
+        "201":
+          description: The new bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: getBundle
+      summary: Get one bundle.
+      responses:
+        "200":
+          description: The bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/files:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listFiles
+      summary: List the files of a bundle version. The default is the current version.
+      parameters:
+        - $ref: "#/components/parameters/VersionQuery"
+      responses:
+        "200":
+          description: The files, sorted by path.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileList"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteFile
+      summary: Delete a file. Creates a version (REQ-005).
+      parameters:
+        - $ref: "#/components/parameters/PathQuery"
+        - $ref: "#/components/parameters/BaseVersion"
+      responses:
+        "200":
+          description: The version that the change created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/files/content:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/PathQuery"
+    get:
+      operationId: getFileContent
+      summary: Get the bytes of one file in a bundle version. The default is the current version.
+      parameters:
+        - $ref: "#/components/parameters/VersionQuery"
+      responses:
+        "200":
+          description: The file content.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                contentMediaType: application/octet-stream
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: putFileContent
+      summary: Create or replace a file. Creates a version when the content changed (REQ-005).
+      parameters:
+        - $ref: "#/components/parameters/BaseVersion"
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              contentMediaType: application/octet-stream
+      responses:
+        "200":
+          description: The version after the write.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/files/rename:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: renameFile
+      summary: Rename or move a file inside the bundle. Creates a version (REQ-005).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameRequest"
+      responses:
+        "200":
+          description: The version that the change created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/versions:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listVersions
+      summary: List the versions of a bundle, newest first.
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of versions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersionList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/diff:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: diffVersions
+      summary: Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The differences.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Diff"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/export:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: exportBundle
+      summary: Download a bundle version as a .zip file. The default is the current version (REQ-008).
+      parameters:
+        - $ref: "#/components/parameters/VersionQuery"
+      responses:
+        "200":
+          description: The .zip file.
+          content:
+            application/zip:
+              schema:
+                type: string
+                contentMediaType: application/zip
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /render:
+    post:
+      operationId: renderMarkdown
+      summary: Render markdown to HTML. Each block carries its source position (DEC-017).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenderRequest"
+      responses:
+        "200":
+          description: The HTML.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenderResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
 components:
+  parameters:
+    BundleId:
+      name: bundleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PathQuery:
+      name: path
+      in: query
+      required: true
+      description: A file path relative to the bundle folder, with / separators.
+      schema:
+        type: string
+    VersionQuery:
+      name: version
+      in: query
+      required: false
+      schema:
+        type: string
+        format: uuid
+    BaseVersion:
+      name: base_version
+      in: query
+      required: true
+      description: >
+        The version the change is based on. When the bundle has a newer version, the request
+        fails with code version_conflict, so a change never overwrites one it did not see.
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+
+  responses:
+    Problem:
+      description: An error.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
   schemas:
     Meta:
       type: object
@@ -39,6 +331,7 @@ components:
           type: string
           enum: [local]
           description: The mode the server runs in.
+
     Problem:
       type: object
       description: RFC 9457 problem details with a stable code.
@@ -57,3 +350,234 @@ components:
         code:
           type: string
           description: A stable machine-readable error code.
+
+    Bundle:
+      type: object
+      required: [id, slug, title, profile_key, source_kind, main_doc, current_version, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          description: In local mode, the bundle folder relative to the served folder.
+        title:
+          type: string
+        profile_key:
+          type: string
+          description: The frontmatter type of the main doc.
+        source_kind:
+          type: string
+          enum: [local, db, github]
+        main_doc:
+          type: string
+          description: The path of the main doc in the bundle.
+        current_version:
+          $ref: "#/components/schemas/Version"
+        updated_at:
+          type: string
+          format: date-time
+
+    BundleList:
+      type: object
+      required: [items, problems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bundle"
+        next_cursor:
+          type: string
+        problems:
+          type: array
+          description: Folders that are not valid bundles, for example with two main docs (REQ-001).
+          items:
+            $ref: "#/components/schemas/BundleProblem"
+
+    BundleProblem:
+      type: object
+      required: [path, message]
+      properties:
+        path:
+          type: string
+        message:
+          type: string
+
+    BundleFile:
+      type: object
+      required: [path, size, sha256, is_main_doc]
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        is_main_doc:
+          type: boolean
+
+    FileList:
+      type: object
+      required: [version, items]
+      properties:
+        version:
+          $ref: "#/components/schemas/Version"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BundleFile"
+
+    Version:
+      type: object
+      required: [id, number, created_by, message, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: integer
+          format: int64
+        created_by:
+          type: string
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    VersionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Version"
+        next_cursor:
+          type: string
+
+    WriteResult:
+      type: object
+      required: [version, changed]
+      properties:
+        version:
+          $ref: "#/components/schemas/Version"
+        changed:
+          type: boolean
+          description: False when the write left the bundle unchanged, so no version was created.
+
+    RenameRequest:
+      type: object
+      required: [from, to, base_version]
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        base_version:
+          type: string
+          format: uuid
+
+    ImportRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: The bundle folder name. The default comes from the file name or the doc title.
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          description: A .md file or a .zip file.
+        text:
+          type: string
+          description: Pasted markdown.
+
+    Diff:
+      type: object
+      required: [from, to, files, sections]
+      properties:
+        from:
+          $ref: "#/components/schemas/Version"
+        to:
+          $ref: "#/components/schemas/Version"
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileDiff"
+        sections:
+          type: array
+          description: The sections of the main doc, matched by heading path.
+          items:
+            $ref: "#/components/schemas/SectionDiff"
+
+    ChangeStatus:
+      type: string
+      enum: [added, removed, modified, unchanged]
+
+    FileDiff:
+      type: object
+      required: [path, status, binary, lines]
+      properties:
+        path:
+          type: string
+        status:
+          $ref: "#/components/schemas/ChangeStatus"
+        binary:
+          type: boolean
+        lines:
+          type: array
+          description: Line operations for a modified text file. Empty otherwise.
+          items:
+            $ref: "#/components/schemas/LineOp"
+
+    SectionDiff:
+      type: object
+      required: [heading_path, status, lines]
+      properties:
+        heading_path:
+          type: array
+          items:
+            type: string
+        status:
+          $ref: "#/components/schemas/ChangeStatus"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineOp"
+
+    LineOp:
+      type: object
+      required: [op, text]
+      properties:
+        op:
+          type: string
+          enum: [equal, insert, delete]
+        text:
+          type: string
+          description: One or more whole lines, each ending with a newline except possibly the last line of the file.
+
+    RenderRequest:
+      type: object
+      required: [markdown]
+      properties:
+        markdown:
+          type: string
+        bundle_id:
+          type: string
+          format: uuid
+          description: When set, relative image links resolve to files in this bundle.
+        path:
+          type: string
+          description: The path of the file in the bundle, so relative links resolve from its folder.
+
+    RenderResult:
+      type: object
+      required: [html]
+      properties:
+        html:
+          type: string
+          description: >
+            HTML. Each block element has data-src-start and data-src-end (byte offsets into the
+            markdown) and data-line (the 1-based first line). Mermaid blocks are
+            <pre class="mermaid">.

@@ -79,8 +79,8 @@ func (a Adapter) InsertWorkspace(ctx context.Context, arg pgdb.InsertWorkspacePa
 	return a.q.InsertWorkspace(ctx, InsertWorkspaceParams(arg))
 }
 
-func (a Adapter) ListBundles(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Bundle, error) {
-	rows, err := a.q.ListBundles(ctx, workspaceID)
+func (a Adapter) ListBundles(ctx context.Context, arg pgdb.ListBundlesParams) ([]pgdb.Bundle, error) {
+	rows, err := a.q.ListBundles(ctx, ListBundlesParams(arg))
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +127,8 @@ func (a Adapter) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]p
 	return out, nil
 }
 
-func (a Adapter) ListVersions(ctx context.Context, bundleID uuid.UUID) ([]pgdb.Version, error) {
-	rows, err := a.q.ListVersions(ctx, bundleID)
+func (a Adapter) ListVersions(ctx context.Context, arg pgdb.ListVersionsParams) ([]pgdb.Version, error) {
+	rows, err := a.q.ListVersions(ctx, ListVersionsParams(arg))
 	if err != nil {
 		return nil, err
 	}
@@ -147,12 +147,8 @@ func (a Adapter) SetBundleArchived(ctx context.Context, arg pgdb.SetBundleArchiv
 	return a.q.SetBundleArchived(ctx, SetBundleArchivedParams(arg))
 }
 
-func (a Adapter) UpdateBundleHead(ctx context.Context, arg pgdb.UpdateBundleHeadParams) error {
+func (a Adapter) UpdateBundleHead(ctx context.Context, arg pgdb.UpdateBundleHeadParams) (int64, error) {
 	return a.q.UpdateBundleHead(ctx, UpdateBundleHeadParams(arg))
-}
-
-func (a Adapter) UpdateBundleMeta(ctx context.Context, arg pgdb.UpdateBundleMetaParams) error {
-	return a.q.UpdateBundleMeta(ctx, UpdateBundleMetaParams(arg))
 }
 
 func (a Adapter) UpdateStream(ctx context.Context, arg pgdb.UpdateStreamParams) (int64, error) {

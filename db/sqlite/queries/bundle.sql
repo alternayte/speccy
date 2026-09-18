@@ -12,8 +12,8 @@ ON CONFLICT (sha256) DO NOTHING;
 SELECT content FROM blob WHERE sha256 = sqlc.arg(sha256);
 
 -- name: InsertBundle :exec
-INSERT INTO bundle (id, workspace_id, slug, title, profile_key, source_kind, source_ref, created_at, updated_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(slug), sqlc.arg(title), sqlc.arg(profile_key),
+INSERT INTO bundle (id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, created_at, updated_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(slug), sqlc.arg(title), sqlc.arg(profile_key), sqlc.arg(main_doc),
         sqlc.arg(source_kind), sqlc.arg(source_ref), sqlc.arg(created_at), sqlc.arg(updated_at));
 
 -- name: GetBundle :one
@@ -24,24 +24,21 @@ SELECT * FROM bundle WHERE workspace_id = sqlc.arg(workspace_id) AND slug = sqlc
 
 -- name: ListBundles :many
 SELECT * FROM bundle
-WHERE workspace_id = sqlc.arg(workspace_id) AND archived_at IS NULL
-ORDER BY slug;
+WHERE workspace_id = sqlc.arg(workspace_id) AND archived_at IS NULL AND slug > sqlc.arg(after_slug)
+ORDER BY slug
+LIMIT sqlc.arg(page_size);
 
 -- name: ListBundlesBySource :many
 SELECT * FROM bundle
 WHERE workspace_id = sqlc.arg(workspace_id) AND source_kind = sqlc.arg(source_kind)
 ORDER BY slug;
 
--- name: UpdateBundleHead :exec
+-- name: UpdateBundleHead :execrows
+-- The head moves only from the version the change was based on.
 UPDATE bundle
-SET title = sqlc.arg(title), profile_key = sqlc.arg(profile_key), current_version_id = sqlc.arg(current_version_id),
-    updated_at = sqlc.arg(updated_at)
-WHERE id = sqlc.arg(id);
-
--- name: UpdateBundleMeta :exec
-UPDATE bundle
-SET title = sqlc.arg(title), profile_key = sqlc.arg(profile_key), updated_at = sqlc.arg(updated_at)
-WHERE id = sqlc.arg(id);
+SET title = sqlc.arg(title), profile_key = sqlc.arg(profile_key), main_doc = sqlc.arg(main_doc), current_version_id = sqlc.arg(current_version_id),
+    archived_at = NULL, updated_at = sqlc.arg(updated_at)
+WHERE id = sqlc.arg(id) AND current_version_id IS sqlc.narg(expected_version_id);
 
 -- name: SetBundleArchived :exec
 UPDATE bundle SET archived_at = sqlc.narg(archived_at), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
@@ -64,7 +61,10 @@ SELECT * FROM version WHERE bundle_id = sqlc.arg(bundle_id) AND id = sqlc.arg(id
 SELECT * FROM version WHERE bundle_id = sqlc.arg(bundle_id) AND number = sqlc.arg(number);
 
 -- name: ListVersions :many
-SELECT * FROM version WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY number DESC;
+SELECT * FROM version
+WHERE bundle_id = sqlc.arg(bundle_id) AND number < sqlc.arg(before_number)
+ORDER BY number DESC
+LIMIT sqlc.arg(page_size);
 
 -- name: ListVersionFiles :many
 SELECT vf.path, vf.sha256, b.size
