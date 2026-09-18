@@ -19,10 +19,7 @@ func TestEventStore_ConcurrentAppendRejected(t *testing.T) {
 	for _, e := range storetest.Engines() {
 		t.Run(e.Name, func(t *testing.T) {
 			ctx := context.Background()
-			s, err := es.New(e.Open(t), nil)
-			if err != nil {
-				t.Fatal(err)
-			}
+			s := es.New(e.Open(t), nil)
 			id := uuid.Must(uuid.NewV7())
 			if _, err := s.Append(ctx, message(id, 0)); err != nil {
 				t.Fatal(err)
@@ -91,10 +88,7 @@ func TestEventStore_InlineProjectionAtomic(t *testing.T) {
 				}
 				return nil
 			}
-			s, err := es.New(db, map[string][]es.Projection{"thread": {project}})
-			if err != nil {
-				t.Fatal(err)
-			}
+			s := es.New(db, map[string][]es.Projection{"thread": {project}})
 			id := uuid.Must(uuid.NewV7())
 
 			if _, err := s.Append(ctx, message(id, 0)); err != nil {

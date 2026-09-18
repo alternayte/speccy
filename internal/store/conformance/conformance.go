@@ -46,11 +46,7 @@ func migrationsRollBackAndReapply(t *testing.T, db *store.DB) {
 }
 
 func newStore(t *testing.T, db *store.DB) *es.Store {
-	s, err := es.New(db, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return s
+	return es.New(db, nil)
 }
 
 func eventStoreRoundTrip(t *testing.T, db *store.DB) {

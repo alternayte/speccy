@@ -14,6 +14,8 @@ import (
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 
 	"github.com/alternayte/speccy/db"
+	pgdb "github.com/alternayte/speccy/db/postgres"
+	sqlitedb "github.com/alternayte/speccy/db/sqlite"
 )
 
 // Engine names a database engine.
@@ -69,6 +71,23 @@ func OpenPostgres(ctx context.Context, dsn string) (*DB, error) {
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
 	return &DB{SQL: sqldb, Engine: Postgres}, nil
+}
+
+// Querier is the sqlc query set. The Postgres queries implement it directly, and the SQLite
+// queries through the generated adapter (SDD §11.2: one store type, two implementations).
+type Querier = pgdb.Querier
+
+// Queries returns the queries for this engine on the database.
+func (d *DB) Queries() Querier { return queriesOn(d.Engine, d.SQL) }
+
+// Queries returns the queries for this engine in the transaction.
+func (t Tx) Queries() Querier { return queriesOn(t.Engine, t.Tx) }
+
+func queriesOn(e Engine, db pgdb.DBTX) Querier {
+	if e == SQLite {
+		return sqlitedb.NewAdapter(db)
+	}
+	return pgdb.New(db)
 }
 
 // Close closes the database.

@@ -25,6 +25,7 @@ dev: setup
 # Generate code: sqlc (both engines), oapi-codegen, and the TypeScript API client.
 gen: setup
     go tool sqlc generate
+    go run ./tools/buildtool sqladapter
     cd internal/http/api && go tool oapi-codegen -config oapi-codegen.yaml ../../../api/openapi.yaml
     cd web && {{pnpm}} run gen:api
 

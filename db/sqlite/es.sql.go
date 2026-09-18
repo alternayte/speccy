@@ -7,6 +7,7 @@ package sqlitedb
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,8 +41,8 @@ type InsertEventParams struct {
 	StreamID   uuid.UUID
 	Version    int64
 	EventType  string
-	Payload    string
-	Metadata   string
+	Payload    json.RawMessage
+	Metadata   json.RawMessage
 	OccurredAt time.Time
 }
 
@@ -67,7 +68,7 @@ type InsertStreamParams struct {
 	StreamID   uuid.UUID
 	StreamType string
 	Version    int64
-	State      string
+	State      json.RawMessage
 	UpdatedAt  time.Time
 }
 
@@ -130,7 +131,7 @@ WHERE stream_id = ?4 AND stream_type = ?5 AND version = ?6
 
 type UpdateStreamParams struct {
 	Version         int64
-	State           string
+	State           json.RawMessage
 	UpdatedAt       time.Time
 	StreamID        uuid.UUID
 	StreamType      string
