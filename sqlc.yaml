@@ -11,7 +11,7 @@ sql:
         emit_interface: true
         overrides:
           - db_type: jsonb
-            go_type: encoding/json.RawMessage
+            go_type: github.com/alternayte/speccy/db/dbtype.JSON
   # SQLite declares UUIDTEXT and JSONTEXT columns (TEXT affinity) so that its generated types
   # match the Postgres ones field for field. db/sqlite/adapter.gen.go relies on that.
   - engine: sqlite
@@ -30,4 +30,4 @@ sql:
               import: github.com/google/uuid
               type: NullUUID
           - db_type: JSONTEXT
-            go_type: encoding/json.RawMessage
+            go_type: github.com/alternayte/speccy/db/dbtype.JSON

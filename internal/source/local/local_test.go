@@ -36,7 +36,7 @@ func TestScan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := r.Scan()
+	s, err := r.Scan(source.RepoConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestScan(t *testing.T) {
 		for _, f := range b.Files {
 			paths = append(paths, f.Path)
 		}
-		got = append(got, b.Dir+"="+strings.Join(paths, ","))
+		got = append(got, b.Slug+"="+strings.Join(paths, ","))
 	}
 	want := []string{"docs/prd=PRD.md,assets/a.png", "docs/prd/child=SDD.md"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
@@ -69,7 +69,7 @@ func TestPersist_StaysInsideRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := r.Scan()
+	s, err := r.Scan(source.RepoConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,5 +83,48 @@ func TestPersist_StaysInsideRoot(t *testing.T) {
 	}
 	if err := r.Persist(s, "b", source.Op{Kind: source.OpWrite, Path: "assets/new/x.sql", Content: []byte("x")}); err != nil {
 		t.Errorf("write to a new folder: %v", err)
+	}
+}
+
+// REQ-130, REQ-131
+func TestScan_SingleFileBundles(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "docs/prd-pay.md", "# Pay\n\n![flow](prd-pay.assets/flow.png)\n")
+	write(t, dir, "docs/prd-pay.assets/flow.png", "png")
+	write(t, dir, "docs/sdd-pay.md", "---\ntype: sdd\n---\n# Pay design\n")
+	write(t, dir, "docs/notes.md", "# Notes\n")
+	write(t, dir, "specs/a/SPEC.md", "---\ntype: sdd\n---\n# A\n")
+	write(t, dir, "other/b/SPEC.md", "---\ntype: sdd\n---\n# B\n")
+	cfg, err := source.ParseRepoConfig([]byte("bundles:\n  - path: specs/*\nmap:\n  - glob: docs/**/prd-*.md\n    profile: prd\n  - glob: docs/**/sdd-*.md\n    profile: prd\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := r.Scan(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, b := range s.Bundles {
+		var paths []string
+		for _, f := range b.Files {
+			paths = append(paths, f.Path)
+		}
+		got = append(got, b.Slug+":"+b.Main.Frontmatter.Type+"="+strings.Join(paths, ","))
+	}
+	// The mapped files are single-file bundles; the frontmatter type wins over the mapping.
+	// other/b is not under a bundles glob, so it is not a bundle.
+	want := []string{"docs/prd-pay:prd=prd-pay.assets/flow.png,prd-pay.md", "docs/sdd-pay:sdd=sdd-pay.md", "specs/a:sdd=SPEC.md"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("bundles = %v, want %v", got, want)
+	}
+	for p, ok := range map[string]bool{"prd-pay.assets/new.sql": true, "other.md": false, "prd-pay.assets/../x.md": false} {
+		err := r.Persist(s, "docs/prd-pay", source.Op{Kind: source.OpWrite, Path: p, Content: []byte("x")})
+		if (err == nil) != ok {
+			t.Errorf("write %s: err = %v, want allowed %v", p, err, ok)
+		}
 	}
 }

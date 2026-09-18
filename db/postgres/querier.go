@@ -15,23 +15,38 @@ type Querier interface {
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
+	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
+	GetProfileVersion(ctx context.Context, arg GetProfileVersionParams) (ProfileVersion, error)
+	GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, error)
 	GetStream(ctx context.Context, streamID uuid.UUID) (EsStream, error)
+	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
 	GetVersion(ctx context.Context, arg GetVersionParams) (Version, error)
 	GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error)
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
+	InsertFinding(ctx context.Context, arg InsertFindingParams) error
+	InsertProfile(ctx context.Context, arg InsertProfileParams) error
+	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
+	InsertRun(ctx context.Context, arg InsertRunParams) error
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
+	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
 	InsertVersion(ctx context.Context, arg InsertVersionParams) error
 	InsertVersionFile(ctx context.Context, arg InsertVersionFileParams) error
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error
+	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
+	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
+	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
+	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
+	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
+	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
 	// The head moves only from the version the change was based on.
 	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error)
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)

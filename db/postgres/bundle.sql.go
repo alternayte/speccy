@@ -8,9 +8,9 @@ package pgdb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
 )
 
@@ -177,7 +177,7 @@ type InsertBundleParams struct {
 	ProfileKey  string
 	MainDoc     string
 	SourceKind  string
-	SourceRef   json.RawMessage
+	SourceRef   dbtype.JSON
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -249,7 +249,7 @@ INSERT INTO workspace (id, name, settings, created_at) VALUES ($1, $2, $3, $4)
 type InsertWorkspaceParams struct {
 	ID        uuid.UUID
 	Name      string
-	Settings  json.RawMessage
+	Settings  dbtype.JSON
 	CreatedAt time.Time
 }
 

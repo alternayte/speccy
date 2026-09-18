@@ -148,10 +148,25 @@ func Sort(files []File) {
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 }
 
-// Frontmatter is the part of a main doc's frontmatter that bundles use. M3 adds the rest.
+// Frontmatter is the part of a main doc's frontmatter that Speccy reads (SDD §10.2). Trace
+// acknowledgements and waivers arrive with coherence (M7) and waivers (M9).
 type Frontmatter struct {
-	Type  string `yaml:"type"`
-	Title string `yaml:"title"`
+	Type       string      `yaml:"type"`
+	Title      string      `yaml:"title"`
+	Links      []Link      `yaml:"links"`
+	Standalone *Standalone `yaml:"standalone"`
+}
+
+// Link is a frontmatter link to another bundle (REQ-050).
+type Link struct {
+	Kind   string `yaml:"kind"`
+	Target string `yaml:"target"`
+}
+
+// Standalone acknowledges that a doc has no upstream doc (REQ-057).
+type Standalone struct {
+	Reason         string `yaml:"reason"`
+	AcknowledgedBy string `yaml:"acknowledged_by"`
 }
 
 // MainDoc is the result of the REQ-001 rule.
@@ -231,6 +246,25 @@ func FindMainDoc(files []File) (MainDoc, error) {
 	default:
 		return MainDoc{}, &MainDocError{Message: "no main doc"}
 	}
+}
+
+// SingleFileMainDoc is the main doc of a single-file bundle (REQ-001 form b, REQ-130). Its
+// profile is the frontmatter type, or else the mapped profile (T-093).
+func SingleFileMainDoc(path string, content []byte, mapped string) (MainDoc, error) {
+	fm, _, err := ReadFrontmatter(content)
+	if err != nil {
+		return MainDoc{}, &MainDocError{Message: "frontmatter that does not parse as YAML", Files: []string{path}}
+	}
+	if fm.Type == "" {
+		fm.Type = mapped
+	}
+	return MainDoc{Path: path, Frontmatter: fm, Title: docTitle(fm, content)}, nil
+}
+
+// AssetsDir is the assets folder of a single-file bundle: "prd-payments.md" has
+// "prd-payments.assets/" (REQ-131).
+func AssetsDir(file string) string {
+	return strings.TrimSuffix(file, path.Ext(file)) + ".assets"
 }
 
 func docTitle(fm Frontmatter, content []byte) string {

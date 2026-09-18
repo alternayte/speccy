@@ -7,9 +7,9 @@ package sqlitedb
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
 )
 
@@ -41,8 +41,8 @@ type InsertEventParams struct {
 	StreamID   uuid.UUID
 	Version    int64
 	EventType  string
-	Payload    json.RawMessage
-	Metadata   json.RawMessage
+	Payload    dbtype.JSON
+	Metadata   dbtype.JSON
 	OccurredAt time.Time
 }
 
@@ -68,7 +68,7 @@ type InsertStreamParams struct {
 	StreamID   uuid.UUID
 	StreamType string
 	Version    int64
-	State      json.RawMessage
+	State      dbtype.JSON
 	UpdatedAt  time.Time
 }
 
@@ -131,7 +131,7 @@ WHERE stream_id = ?4 AND stream_type = ?5 AND version = ?6
 
 type UpdateStreamParams struct {
 	Version         int64
-	State           json.RawMessage
+	State           dbtype.JSON
 	UpdatedAt       time.Time
 	StreamID        uuid.UUID
 	StreamType      string

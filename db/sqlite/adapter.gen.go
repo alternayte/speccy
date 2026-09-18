@@ -36,9 +36,29 @@ func (a Adapter) GetFirstWorkspace(ctx context.Context) (pgdb.Workspace, error) 
 	return pgdb.Workspace(r), err
 }
 
+func (a Adapter) GetProfileByKey(ctx context.Context, arg pgdb.GetProfileByKeyParams) (pgdb.Profile, error) {
+	r, err := a.q.GetProfileByKey(ctx, GetProfileByKeyParams(arg))
+	return pgdb.Profile(r), err
+}
+
+func (a Adapter) GetProfileVersion(ctx context.Context, arg pgdb.GetProfileVersionParams) (pgdb.ProfileVersion, error) {
+	r, err := a.q.GetProfileVersion(ctx, GetProfileVersionParams(arg))
+	return pgdb.ProfileVersion(r), err
+}
+
+func (a Adapter) GetRun(ctx context.Context, arg pgdb.GetRunParams) (pgdb.ReviewRun, error) {
+	r, err := a.q.GetRun(ctx, GetRunParams(arg))
+	return pgdb.ReviewRun(r), err
+}
+
 func (a Adapter) GetStream(ctx context.Context, streamID uuid.UUID) (pgdb.EsStream, error) {
 	r, err := a.q.GetStream(ctx, streamID)
 	return pgdb.EsStream(r), err
+}
+
+func (a Adapter) GetVerdict(ctx context.Context, runID uuid.UUID) (pgdb.Verdict, error) {
+	r, err := a.q.GetVerdict(ctx, runID)
+	return pgdb.Verdict(r), err
 }
 
 func (a Adapter) GetVersion(ctx context.Context, arg pgdb.GetVersionParams) (pgdb.Version, error) {
@@ -63,8 +83,28 @@ func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) er
 	return a.q.InsertEvent(ctx, InsertEventParams(arg))
 }
 
+func (a Adapter) InsertFinding(ctx context.Context, arg pgdb.InsertFindingParams) error {
+	return a.q.InsertFinding(ctx, InsertFindingParams(arg))
+}
+
+func (a Adapter) InsertProfile(ctx context.Context, arg pgdb.InsertProfileParams) error {
+	return a.q.InsertProfile(ctx, InsertProfileParams(arg))
+}
+
+func (a Adapter) InsertProfileVersion(ctx context.Context, arg pgdb.InsertProfileVersionParams) error {
+	return a.q.InsertProfileVersion(ctx, InsertProfileVersionParams(arg))
+}
+
+func (a Adapter) InsertRun(ctx context.Context, arg pgdb.InsertRunParams) error {
+	return a.q.InsertRun(ctx, InsertRunParams(arg))
+}
+
 func (a Adapter) InsertStream(ctx context.Context, arg pgdb.InsertStreamParams) (int64, error) {
 	return a.q.InsertStream(ctx, InsertStreamParams(arg))
+}
+
+func (a Adapter) InsertVerdict(ctx context.Context, arg pgdb.InsertVerdictParams) error {
+	return a.q.InsertVerdict(ctx, InsertVerdictParams(arg))
 }
 
 func (a Adapter) InsertVersion(ctx context.Context, arg pgdb.InsertVersionParams) error {
@@ -77,6 +117,16 @@ func (a Adapter) InsertVersionFile(ctx context.Context, arg pgdb.InsertVersionFi
 
 func (a Adapter) InsertWorkspace(ctx context.Context, arg pgdb.InsertWorkspaceParams) error {
 	return a.q.InsertWorkspace(ctx, InsertWorkspaceParams(arg))
+}
+
+func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
+	r, err := a.q.LatestRun(ctx, bundleID)
+	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) (pgdb.ReviewRun, error) {
+	r, err := a.q.LatestRunFor(ctx, LatestRunForParams(arg))
+	return pgdb.ReviewRun(r), err
 }
 
 func (a Adapter) ListBundles(ctx context.Context, arg pgdb.ListBundlesParams) ([]pgdb.Bundle, error) {
@@ -115,6 +165,42 @@ func (a Adapter) ListEvents(ctx context.Context, streamID uuid.UUID) ([]pgdb.EsE
 	return out, nil
 }
 
+func (a Adapter) ListFindings(ctx context.Context, runID uuid.UUID) ([]pgdb.Finding, error) {
+	rows, err := a.q.ListFindings(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Finding, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Finding(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Profile, error) {
+	rows, err := a.q.ListProfiles(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Profile, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Profile(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListRuns(ctx context.Context, arg pgdb.ListRunsParams) ([]pgdb.ReviewRun, error) {
+	rows, err := a.q.ListRuns(ctx, ListRunsParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ReviewRun, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ReviewRun(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]pgdb.ListVersionFilesRow, error) {
 	rows, err := a.q.ListVersionFiles(ctx, versionID)
 	if err != nil {
@@ -145,6 +231,10 @@ func (a Adapter) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int
 
 func (a Adapter) SetBundleArchived(ctx context.Context, arg pgdb.SetBundleArchivedParams) error {
 	return a.q.SetBundleArchived(ctx, SetBundleArchivedParams(arg))
+}
+
+func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersionParams) error {
+	return a.q.SetProfileVersion(ctx, SetProfileVersionParams(arg))
 }
 
 func (a Adapter) UpdateBundleHead(ctx context.Context, arg pgdb.UpdateBundleHeadParams) (int64, error) {

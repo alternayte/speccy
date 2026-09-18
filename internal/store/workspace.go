@@ -3,12 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/kernel"
 )
@@ -29,7 +29,7 @@ func (d *DB) Workspace(ctx context.Context) (uuid.UUID, error) {
 		}
 		id = kernel.NewID()
 		return q.InsertWorkspace(ctx, pgdb.InsertWorkspaceParams{
-			ID: id, Name: "Workspace", Settings: json.RawMessage(`{}`), CreatedAt: time.Now().UTC(),
+			ID: id, Name: "Workspace", Settings: dbtype.JSON(`{}`), CreatedAt: time.Now().UTC(),
 		})
 	})
 	return id, err

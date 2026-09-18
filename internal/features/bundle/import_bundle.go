@@ -69,6 +69,9 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 		err = s.syncLocked(ctx)
 	}
 	s.mu.Unlock()
+	if err == nil {
+		err = s.afterChange(ctx)
+	}
 	if err != nil {
 		if _, ok := kernel.AsError(err); ok {
 			return nil, err

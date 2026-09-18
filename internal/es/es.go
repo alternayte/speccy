@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/store"
 )
@@ -107,11 +108,11 @@ func (s *Store) Append(ctx context.Context, a Append) ([]Recorded, error) {
 		// T-030: the version check and the write are one statement, so two writers cannot both pass.
 		if a.Expected == 0 {
 			n, err = q.InsertStream(ctx, pgdb.InsertStreamParams{
-				StreamID: snap.ID, StreamType: snap.Type, Version: snap.Version, State: snap.State, UpdatedAt: snap.UpdatedAt,
+				StreamID: snap.ID, StreamType: snap.Type, Version: snap.Version, State: dbtype.JSON(snap.State), UpdatedAt: snap.UpdatedAt,
 			})
 		} else {
 			n, err = q.UpdateStream(ctx, pgdb.UpdateStreamParams{
-				StreamID: snap.ID, StreamType: snap.Type, Version: snap.Version, State: snap.State, UpdatedAt: snap.UpdatedAt,
+				StreamID: snap.ID, StreamType: snap.Type, Version: snap.Version, State: dbtype.JSON(snap.State), UpdatedAt: snap.UpdatedAt,
 				ExpectedVersion: a.Expected,
 			})
 		}
@@ -124,7 +125,7 @@ func (s *Store) Append(ctx context.Context, a Append) ([]Recorded, error) {
 		for _, r := range recorded {
 			err := q.InsertEvent(ctx, pgdb.InsertEventParams{
 				StreamID: r.StreamID, Version: r.Version, EventType: r.Type,
-				Payload: r.Payload, Metadata: r.Metadata, OccurredAt: r.OccurredAt,
+				Payload: dbtype.JSON(r.Payload), Metadata: dbtype.JSON(r.Metadata), OccurredAt: r.OccurredAt,
 			})
 			if err != nil {
 				return err
@@ -153,7 +154,7 @@ func (s *Store) Load(ctx context.Context, id uuid.UUID) (Stream, error) {
 	if err != nil {
 		return Stream{}, err
 	}
-	return Stream{ID: row.StreamID, Type: row.StreamType, Version: row.Version, State: row.State, UpdatedAt: row.UpdatedAt.UTC()}, nil
+	return Stream{ID: row.StreamID, Type: row.StreamType, Version: row.Version, State: json.RawMessage(row.State), UpdatedAt: row.UpdatedAt.UTC()}, nil
 }
 
 // Events returns every event of a stream in version order.
@@ -166,7 +167,7 @@ func (s *Store) Events(ctx context.Context, id uuid.UUID) ([]Recorded, error) {
 	for i, r := range rows {
 		out[i] = Recorded{
 			StreamID: r.StreamID, Version: r.Version, Type: r.EventType,
-			Payload: r.Payload, Metadata: r.Metadata, OccurredAt: r.OccurredAt.UTC(),
+			Payload: json.RawMessage(r.Payload), Metadata: json.RawMessage(r.Metadata), OccurredAt: r.OccurredAt.UTC(),
 		}
 	}
 	return out, nil
