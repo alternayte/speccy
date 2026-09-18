@@ -19,7 +19,7 @@ import (
 // GitHub-flavoured markdown. Callers add renderer options only.
 func Markdown(opts ...goldmark.Option) goldmark.Markdown {
 	return goldmark.New(append([]goldmark.Option{
-		goldmark.WithExtensions(extension.GFM),
+		goldmark.WithExtensions(extension.GFM, placeholderExt{}),
 	}, opts...)...)
 }
 

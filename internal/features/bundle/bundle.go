@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -246,6 +247,31 @@ func (s *Service) mainDoc(b pgdb.Bundle, files []source.File) (source.MainDoc, e
 		}
 	}
 	return source.MainDoc{}, &source.MainDocError{Message: "no main doc"}
+}
+
+// createLocal writes files to the new folder name under the served folder, and returns the
+// bundle that the sync finds there.
+func (s *Service) createLocal(ctx context.Context, name string, files []source.File) (pgdb.Bundle, error) {
+	s.mu.Lock()
+	dir, err := s.Local.CreateBundle(name, files)
+	if err == nil {
+		err = s.syncLocked(ctx)
+	}
+	s.mu.Unlock()
+	if err == nil {
+		err = s.afterChange(ctx)
+	}
+	if err != nil {
+		if _, ok := kernel.AsError(err); ok {
+			return pgdb.Bundle{}, err
+		}
+		return pgdb.Bundle{}, kernel.Invalid("create_failed", "%s", sentence(err.Error()))
+	}
+	b, err := s.DB.Queries().GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: dir})
+	if err != nil {
+		return pgdb.Bundle{}, fmt.Errorf("find the new bundle %s: %w", dir, err)
+	}
+	return b, nil
 }
 
 // CreateDB creates a bundle in the db source from files.

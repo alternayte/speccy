@@ -41,6 +41,24 @@ func (e BundleSourceKind) Valid() bool {
 	}
 }
 
+// Defines values for BundleVerdictKind.
+const (
+	BundleVerdictKindFull BundleVerdictKind = "full"
+	BundleVerdictKindLint BundleVerdictKind = "lint"
+)
+
+// Valid indicates whether the value is a known member of the BundleVerdictKind enum.
+func (e BundleVerdictKind) Valid() bool {
+	switch e {
+	case BundleVerdictKindFull:
+		return true
+	case BundleVerdictKindLint:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChangeStatus.
 const (
 	Added     ChangeStatus = "added"
@@ -59,6 +77,27 @@ func (e ChangeStatus) Valid() bool {
 	case Removed:
 		return true
 	case Unchanged:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingLevel.
+const (
+	INFO   FindingLevel = "INFO"
+	MUST   FindingLevel = "MUST"
+	SHOULD FindingLevel = "SHOULD"
+)
+
+// Valid indicates whether the value is a known member of the FindingLevel enum.
+func (e FindingLevel) Valid() bool {
+	switch e {
+	case INFO:
+		return true
+	case MUST:
+		return true
+	case SHOULD:
 		return true
 	default:
 		return false
@@ -101,6 +140,82 @@ func (e MetaMode) Valid() bool {
 	}
 }
 
+// Defines values for RunKind.
+const (
+	RunKindFull RunKind = "full"
+	RunKindLint RunKind = "lint"
+)
+
+// Valid indicates whether the value is a known member of the RunKind enum.
+func (e RunKind) Valid() bool {
+	switch e {
+	case RunKindFull:
+		return true
+	case RunKindLint:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunStatus.
+const (
+	Complete RunStatus = "complete"
+	Failed   RunStatus = "failed"
+	Queued   RunStatus = "queued"
+	Running  RunStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the RunStatus enum.
+func (e RunStatus) Valid() bool {
+	switch e {
+	case Complete:
+		return true
+	case Failed:
+		return true
+	case Queued:
+		return true
+	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerdictResult.
+const (
+	BuildReady    VerdictResult = "build_ready"
+	NotBuildReady VerdictResult = "not_build_ready"
+	Stale         VerdictResult = "stale"
+)
+
+// Valid indicates whether the value is a known member of the VerdictResult enum.
+func (e VerdictResult) Valid() bool {
+	switch e {
+	case BuildReady:
+		return true
+	case NotBuildReady:
+		return true
+	case Stale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Anchor A range of text with context (SDD §8.8).
+type Anchor struct {
+	End         int      `json:"end"`
+	File        string   `json:"file"`
+	HeadingPath []string `json:"heading_path"`
+	Prefix      string   `json:"prefix"`
+	Quote       string   `json:"quote"`
+
+	// Start Byte offset of the quote in the file.
+	Start  int    `json:"start"`
+	Suffix string `json:"suffix"`
+}
+
 // Bundle defines model for Bundle.
 type Bundle struct {
 	CurrentVersion Version            `json:"current_version"`
@@ -112,11 +227,17 @@ type Bundle struct {
 	// ProfileKey The frontmatter type of the main doc.
 	ProfileKey string `json:"profile_key"`
 
+	// RunError Why the latest run on the current version failed, when it failed.
+	RunError *string `json:"run_error,omitempty"`
+
 	// Slug In local mode, the bundle folder relative to the served folder.
 	Slug       string           `json:"slug"`
 	SourceKind BundleSourceKind `json:"source_kind"`
 	Title      string           `json:"title"`
 	UpdatedAt  time.Time        `json:"updated_at"`
+
+	// Verdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
+	Verdict *BundleVerdict `json:"verdict,omitempty"`
 }
 
 // BundleSourceKind defines model for Bundle.SourceKind.
@@ -145,8 +266,42 @@ type BundleProblem struct {
 	Path    string `json:"path"`
 }
 
+// BundleVerdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
+type BundleVerdict struct {
+	Info int `json:"info"`
+
+	// Kind lint means only the lint stage ran.
+	Kind BundleVerdictKind `json:"kind"`
+
+	// Must Open MUST findings.
+	Must  int            `json:"must"`
+	Radar map[string]int `json:"radar"`
+
+	// RelaxedCount Checks in adoption mode (REQ-133).
+	RelaxedCount  int                `json:"relaxed_count"`
+	Result        VerdictResult      `json:"result"`
+	RunId         openapi_types.UUID `json:"run_id"`
+	Score         int                `json:"score"`
+	Should        int                `json:"should"`
+	VersionNumber int64              `json:"version_number"`
+	WaiverCount   int                `json:"waiver_count"`
+}
+
+// BundleVerdictKind lint means only the lint stage ran.
+type BundleVerdictKind string
+
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
+
+// CreateBundleRequest defines model for CreateBundleRequest.
+type CreateBundleRequest struct {
+	// Name The bundle folder name.
+	Name string `json:"name"`
+
+	// Profile The profile key.
+	Profile string  `json:"profile"`
+	Title   *string `json:"title,omitempty"`
+}
 
 // Diff defines model for Diff.
 type Diff struct {
@@ -172,6 +327,29 @@ type FileDiff struct {
 type FileList struct {
 	Items   []BundleFile `json:"items"`
 	Version Version      `json:"version"`
+}
+
+// Finding defines model for Finding.
+type Finding struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor    Anchor             `json:"anchor"`
+	CheckSlug string             `json:"check_slug"`
+	Fix       *string            `json:"fix,omitempty"`
+	Id        openapi_types.UUID `json:"id"`
+	Level     FindingLevel       `json:"level"`
+	Message   string             `json:"message"`
+
+	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
+	Relaxed bool   `json:"relaxed"`
+	Stage   string `json:"stage"`
+}
+
+// FindingLevel defines model for Finding.Level.
+type FindingLevel string
+
+// FindingList defines model for FindingList.
+type FindingList struct {
+	Items []Finding `json:"items"`
 }
 
 // ImportRequest defines model for ImportRequest.
@@ -220,6 +398,24 @@ type Problem struct {
 	Type     string  `json:"type"`
 }
 
+// Profile defines model for Profile.
+type Profile struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+
+	// Origin built-in, or the path of the profile file.
+	Origin  string `json:"origin"`
+	Version int64  `json:"version"`
+}
+
+// ProfileList defines model for ProfileList.
+type ProfileList struct {
+	Items []Profile `json:"items"`
+
+	// Problems Profile files that did not load, with the reason.
+	Problems []string `json:"problems"`
+}
+
 // RenameRequest defines model for RenameRequest.
 type RenameRequest struct {
 	BaseVersion openapi_types.UUID `json:"base_version"`
@@ -243,12 +439,45 @@ type RenderResult struct {
 	Html string `json:"html"`
 }
 
+// Run defines model for Run.
+type Run struct {
+	BundleId       openapi_types.UUID `json:"bundle_id"`
+	Error          string             `json:"error"`
+	FinishedAt     *time.Time         `json:"finished_at,omitempty"`
+	Id             openapi_types.UUID `json:"id"`
+	Kind           RunKind            `json:"kind"`
+	ProfileKey     string             `json:"profile_key"`
+	ProfileVersion int64              `json:"profile_version"`
+	Stage          string             `json:"stage"`
+	StartedAt      time.Time          `json:"started_at"`
+	Status         RunStatus          `json:"status"`
+
+	// Verdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
+	Verdict       *BundleVerdict     `json:"verdict,omitempty"`
+	VersionId     openapi_types.UUID `json:"version_id"`
+	VersionNumber int64              `json:"version_number"`
+}
+
+// RunKind defines model for Run.Kind.
+type RunKind string
+
+// RunStatus defines model for Run.Status.
+type RunStatus string
+
+// RunList defines model for RunList.
+type RunList struct {
+	Items []Run `json:"items"`
+}
+
 // SectionDiff defines model for SectionDiff.
 type SectionDiff struct {
 	HeadingPath []string     `json:"heading_path"`
 	Lines       []LineOp     `json:"lines"`
 	Status      ChangeStatus `json:"status"`
 }
+
+// VerdictResult defines model for VerdictResult.
+type VerdictResult string
 
 // Version defines model for Version.
 type Version struct {
@@ -286,6 +515,9 @@ type Limit = int
 
 // PathQuery defines model for PathQuery.
 type PathQuery = string
+
+// RunId defines model for RunId.
+type RunId = openapi_types.UUID
 
 // VersionQuery defines model for VersionQuery.
 type VersionQuery = openapi_types.UUID
@@ -338,11 +570,19 @@ type PutFileContentParams struct {
 	Path PathQuery `form:"path" json:"path"`
 }
 
+// ListRunsParams defines parameters for ListRuns.
+type ListRunsParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // ListVersionsParams defines parameters for ListVersions.
 type ListVersionsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
+
+// CreateBundleJSONRequestBody defines body for CreateBundle for application/json ContentType.
+type CreateBundleJSONRequestBody = CreateBundleRequest
 
 // ImportBundleMultipartRequestBody defines body for ImportBundle for multipart/form-data ContentType.
 type ImportBundleMultipartRequestBody = ImportRequest
@@ -358,6 +598,9 @@ type ServerInterface interface {
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(w http.ResponseWriter, r *http.Request, params ListBundlesParams)
+	// CreateBundle Create a bundle from a profile's template (REQ-016).
+	// (POST /bundles)
+	CreateBundle(w http.ResponseWriter, r *http.Request)
 	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
 	// (POST /bundles/import)
 	ImportBundle(w http.ResponseWriter, r *http.Request)
@@ -385,15 +628,27 @@ type ServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /bundles/{bundleId}/files/rename)
 	RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ListRuns List the review runs of a bundle, newest first.
+	// (GET /bundles/{bundleId}/runs)
+	ListRuns(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListRunsParams)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(w http.ResponseWriter, r *http.Request)
+	// ListProfiles List the profiles, with their current versions.
+	// (GET /profiles)
+	ListProfiles(w http.ResponseWriter, r *http.Request)
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(w http.ResponseWriter, r *http.Request)
+	// GetRun Get one review run and its verdict.
+	// (GET /runs/{runId})
+	GetRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// ListFindings List the findings of a run, in document order.
+	// (GET /runs/{runId}/findings)
+	ListFindings(w http.ResponseWriter, r *http.Request, runId RunId)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -442,6 +697,20 @@ func (siw *ServerInterfaceWrapper) ListBundles(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListBundles(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBundle operation middleware
+func (siw *ServerInterfaceWrapper) CreateBundle(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBundle(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -821,6 +1090,48 @@ func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// ListRuns operation middleware
+func (siw *ServerInterfaceWrapper) ListRuns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRunsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRuns(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListVersions operation middleware
 func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
 
@@ -890,11 +1201,77 @@ func (siw *ServerInterfaceWrapper) GetMeta(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// ListProfiles operation middleware
+func (siw *ServerInterfaceWrapper) ListProfiles(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListProfiles(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // RenderMarkdown operation middleware
 func (siw *ServerInterfaceWrapper) RenderMarkdown(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RenderMarkdown(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRun operation middleware
+func (siw *ServerInterfaceWrapper) GetRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRun(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFindings operation middleware
+func (siw *ServerInterfaceWrapper) ListFindings(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFindings(w, r, runId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1026,6 +1403,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/meta", wrapper.GetMeta)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles", wrapper.ListBundles)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles", wrapper.CreateBundle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import", wrapper.ImportBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.GetBundle)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.DeleteFile)
@@ -1036,6 +1414,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/versions", wrapper.ListVersions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/diff", wrapper.DiffVersions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/export", wrapper.ExportBundle)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.ListRuns)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles", wrapper.ListProfiles)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
 
 	return m
@@ -1071,6 +1453,45 @@ type ListBundlesdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListBundlesdefaultApplicationProblemPlusJSONResponse) VisitListBundlesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBundleRequestObject struct {
+	Body *CreateBundleJSONRequestBody
+}
+
+type CreateBundleResponseObject interface {
+	VisitCreateBundleResponse(w http.ResponseWriter) error
+}
+
+type CreateBundle201JSONResponse Bundle
+
+func (response CreateBundle201JSONResponse) VisitCreateBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateBundledefaultApplicationProblemPlusJSONResponse) VisitCreateBundleResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -1453,6 +1874,46 @@ func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameF
 	return err
 }
 
+type ListRunsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   ListRunsParams
+}
+
+type ListRunsResponseObject interface {
+	VisitListRunsResponse(w http.ResponseWriter) error
+}
+
+type ListRuns200JSONResponse RunList
+
+func (response ListRuns200JSONResponse) VisitListRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListRunsdefaultApplicationProblemPlusJSONResponse) VisitListRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListVersionsRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 	Params   ListVersionsParams
@@ -1531,6 +1992,44 @@ func (response GetMetadefaultApplicationProblemPlusJSONResponse) VisitGetMetaRes
 	return err
 }
 
+type ListProfilesRequestObject struct {
+}
+
+type ListProfilesResponseObject interface {
+	VisitListProfilesResponse(w http.ResponseWriter) error
+}
+
+type ListProfiles200JSONResponse ProfileList
+
+func (response ListProfiles200JSONResponse) VisitListProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListProfilesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListProfilesdefaultApplicationProblemPlusJSONResponse) VisitListProfilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RenderMarkdownRequestObject struct {
 	Body *RenderMarkdownJSONRequestBody
 }
@@ -1570,11 +2069,92 @@ func (response RenderMarkdowndefaultApplicationProblemPlusJSONResponse) VisitRen
 	return err
 }
 
+type GetRunRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type GetRunResponseObject interface {
+	VisitGetRunResponse(w http.ResponseWriter) error
+}
+
+type GetRun200JSONResponse Run
+
+func (response GetRun200JSONResponse) VisitGetRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRundefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetRundefaultApplicationProblemPlusJSONResponse) VisitGetRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFindingsRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type ListFindingsResponseObject interface {
+	VisitListFindingsResponse(w http.ResponseWriter) error
+}
+
+type ListFindings200JSONResponse FindingList
+
+func (response ListFindings200JSONResponse) VisitListFindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFindingsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListFindingsdefaultApplicationProblemPlusJSONResponse) VisitListFindingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(ctx context.Context, request ListBundlesRequestObject) (ListBundlesResponseObject, error)
+	// CreateBundle Create a bundle from a profile's template (REQ-016).
+	// (POST /bundles)
+	CreateBundle(ctx context.Context, request CreateBundleRequestObject) (CreateBundleResponseObject, error)
 	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
 	// (POST /bundles/import)
 	ImportBundle(ctx context.Context, request ImportBundleRequestObject) (ImportBundleResponseObject, error)
@@ -1602,15 +2182,27 @@ type StrictServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /bundles/{bundleId}/files/rename)
 	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
+	// ListRuns List the review runs of a bundle, newest first.
+	// (GET /bundles/{bundleId}/runs)
+	ListRuns(ctx context.Context, request ListRunsRequestObject) (ListRunsResponseObject, error)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(ctx context.Context, request GetMetaRequestObject) (GetMetaResponseObject, error)
+	// ListProfiles List the profiles, with their current versions.
+	// (GET /profiles)
+	ListProfiles(ctx context.Context, request ListProfilesRequestObject) (ListProfilesResponseObject, error)
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(ctx context.Context, request RenderMarkdownRequestObject) (RenderMarkdownResponseObject, error)
+	// GetRun Get one review run and its verdict.
+	// (GET /runs/{runId})
+	GetRun(ctx context.Context, request GetRunRequestObject) (GetRunResponseObject, error)
+	// ListFindings List the findings of a run, in document order.
+	// (GET /runs/{runId}/findings)
+	ListFindings(ctx context.Context, request ListFindingsRequestObject) (ListFindingsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -1671,6 +2263,37 @@ func (sh *strictHandler) ListBundles(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListBundlesResponseObject); ok {
 		if err := validResponse.VisitListBundlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateBundle operation middleware
+func (sh *strictHandler) CreateBundle(w http.ResponseWriter, r *http.Request) {
+	var request CreateBundleRequestObject
+
+	var body CreateBundleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBundle(ctx, request.(CreateBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBundleResponseObject); ok {
+		if err := validResponse.VisitCreateBundleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1932,6 +2555,33 @@ func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, bund
 	}
 }
 
+// ListRuns operation middleware
+func (sh *strictHandler) ListRuns(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListRunsParams) {
+	var request ListRunsRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRuns(ctx, request.(ListRunsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRuns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRunsResponseObject); ok {
+		if err := validResponse.VisitListRunsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListVersions operation middleware
 func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams) {
 	var request ListVersionsRequestObject
@@ -1983,6 +2633,30 @@ func (sh *strictHandler) GetMeta(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListProfiles operation middleware
+func (sh *strictHandler) ListProfiles(w http.ResponseWriter, r *http.Request) {
+	var request ListProfilesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListProfiles(ctx, request.(ListProfilesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListProfiles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListProfilesResponseObject); ok {
+		if err := validResponse.VisitListProfilesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RenderMarkdown operation middleware
 func (sh *strictHandler) RenderMarkdown(w http.ResponseWriter, r *http.Request) {
 	var request RenderMarkdownRequestObject
@@ -2007,6 +2681,58 @@ func (sh *strictHandler) RenderMarkdown(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RenderMarkdownResponseObject); ok {
 		if err := validResponse.VisitRenderMarkdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRun operation middleware
+func (sh *strictHandler) GetRun(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request GetRunRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRun(ctx, request.(GetRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRunResponseObject); ok {
+		if err := validResponse.VisitGetRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFindings operation middleware
+func (sh *strictHandler) ListFindings(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request ListFindingsRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFindings(ctx, request.(ListFindingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFindings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFindingsResponseObject); ok {
+		if err := validResponse.VisitListFindingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

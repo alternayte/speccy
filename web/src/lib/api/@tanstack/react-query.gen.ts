@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { deleteFile, diffVersions, exportBundle, getBundle, getFileContent, getMeta, importBundle, listBundles, listFiles, listVersions, type Options, putFileContent, renameFile, renderMarkdown } from '../sdk.gen';
-import type { DeleteFileData, DeleteFileError, DeleteFileResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListFilesData, ListFilesError, ListFilesResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse } from '../types.gen';
+import { createBundle, deleteFile, diffVersions, exportBundle, getBundle, getFileContent, getMeta, getRun, importBundle, listBundles, listFiles, listFindings, listProfiles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown } from '../sdk.gen';
+import type { CreateBundleData, CreateBundleError, CreateBundleResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -132,6 +132,25 @@ export const listBundlesInfiniteOptions = (options?: Options<ListBundlesData>) =
         queryKey: listBundlesInfiniteQueryKey(options)
     });
     return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Create a bundle from a profile's template (REQ-016).
+ *
+ * In local mode, Speccy writes the bundle to a new folder under the folder that Speccy serves.
+ */
+export const createBundleMutation = (options?: Partial<Options<CreateBundleData>>): UseMutationOptions<CreateBundleResponse, CreateBundleError, Options<CreateBundleData>> => {
+    const mutationOptions: UseMutationOptions<CreateBundleResponse, CreateBundleError, Options<CreateBundleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createBundle({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
 };
 
 /**
@@ -341,6 +360,78 @@ export const exportBundleOptions = (options: Options<ExportBundleData>) => query
         return data;
     },
     queryKey: exportBundleQueryKey(options)
+});
+
+export const listRunsQueryKey = (options: Options<ListRunsData>) => createQueryKey('listRuns', options);
+
+/**
+ * List the review runs of a bundle, newest first.
+ */
+export const listRunsOptions = (options: Options<ListRunsData>) => queryOptions<ListRunsResponse, ListRunsError, ListRunsResponse, ReturnType<typeof listRunsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listRuns({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listRunsQueryKey(options)
+});
+
+export const getRunQueryKey = (options: Options<GetRunData>) => createQueryKey('getRun', options);
+
+/**
+ * Get one review run and its verdict.
+ */
+export const getRunOptions = (options: Options<GetRunData>) => queryOptions<GetRunResponse, GetRunError, GetRunResponse, ReturnType<typeof getRunQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getRun({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getRunQueryKey(options)
+});
+
+export const listFindingsQueryKey = (options: Options<ListFindingsData>) => createQueryKey('listFindings', options);
+
+/**
+ * List the findings of a run, in document order.
+ */
+export const listFindingsOptions = (options: Options<ListFindingsData>) => queryOptions<ListFindingsResponse, ListFindingsError, ListFindingsResponse, ReturnType<typeof listFindingsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listFindings({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listFindingsQueryKey(options)
+});
+
+export const listProfilesQueryKey = (options?: Options<ListProfilesData>) => createQueryKey('listProfiles', options);
+
+/**
+ * List the profiles, with their current versions.
+ */
+export const listProfilesOptions = (options?: Options<ListProfilesData>) => queryOptions<ListProfilesResponse, ListProfilesError, ListProfilesResponse, ReturnType<typeof listProfilesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listProfiles({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listProfilesQueryKey(options)
 });
 
 /**

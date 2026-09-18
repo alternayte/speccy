@@ -48,26 +48,6 @@ func init() {
 	}
 }
 
-// htmlTags are HTML element names. "<table>" is markup; "<Product name>" is a placeholder.
-var htmlTags = map[string]bool{}
-
-func init() {
-	for _, t := range []string{
-		"a", "abbr", "address", "area", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote",
-		"body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data", "datalist",
-		"dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed", "fieldset", "figcaption",
-		"figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header", "hr", "html", "i",
-		"iframe", "img", "input", "ins", "kbd", "label", "legend", "li", "link", "main", "map", "mark", "meta",
-		"meter", "nav", "noscript", "object", "ol", "optgroup", "option", "output", "p", "param", "picture",
-		"pre", "progress", "q", "rp", "rt", "ruby", "s", "samp", "script", "section", "select", "small",
-		"source", "span", "strong", "style", "sub", "summary", "sup", "svg", "table", "tbody", "td",
-		"template", "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var",
-		"video", "wbr", "center", "font", "path", "g", "circle", "rect", "line",
-	} {
-		htmlTags[t] = true
-	}
-}
-
 // irregularParticiples are past participles that do not end in -ed (lint.passive-voice).
 const irregularParticiples = `known|made|done|given|taken|written|seen|built|sent|held|kept|set|shown|found|put|` +
 	`run|read|chosen|drawn|begun|broken|thrown|told|paid|left|lost|met|sold|stolen|understood|won|` +

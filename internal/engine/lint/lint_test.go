@@ -64,7 +64,7 @@ func TestRules(t *testing.T) {
 			"# T\n\nShort one. Word " + strings.Repeat("word ", 30) + "end. Another short one, e.g. this one.\n", nil,
 			[]string{"Word " + strings.Repeat("word ", 30) + "end."}},
 		{"acronyms", UndefinedAcronym,
-			"# T\n\nThe PSP sends a webhook. The API uses Payment Service Provider (PSP) terms. The RTO is low. The HTTP call uses REQ-001.\n",
+			"# T\n\nThe PSP sends a webhook. The API uses Payment Service Provider (PSP) terms. The RTO is low. The HTTP call uses REQ-001 and ticket PAY-231.\n",
 			nil, []string{"PSP", "RTO"}},
 		{"acronym defined first", UndefinedAcronym, "# T\n\nThe Recovery Time Objective (RTO) is 1 h. The RTO holds.\n", nil, nil},
 		{"rfc2119 case", RFC2119Case,

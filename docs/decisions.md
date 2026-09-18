@@ -197,3 +197,57 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** Components built from the design tokens on `radix-ui` primitives, with `lucide-react` icons and self-hosted Inter and JetBrains Mono (`@fontsource-variable`). No shadcn component is copied yet.
 - **Alternative:** shadcn/ui components as generated.
 - **Reason:** The design-direction rule forbids the default component look. The M2 screens need a button, a dialog, a menu, and an input; shadcn arrives when a component needs more than a primitive.
+
+## 2026-09-19 — Required headings in a template
+
+- **Choice:** A template heading line that ends with `<!-- required -->` is required (`lint.required-headings`). A title matches at any level, ignoring case. New docs from the template drop the marker.
+- **Alternative:** A list of required headings in the profile YAML.
+- **Reason:** The template stays the one place that shows the doc's shape, and the marker is invisible in rendered markdown.
+
+## 2026-09-19 — Profile versions in local mode
+
+- **Choice:** Profiles are the built-ins with `.speccy/profiles/*.yaml` over them. On each load, a profile whose YAML or template text differs from its latest stored version gets a new version. `profile_version` stores the template text and the origin as well as the YAML. A file that does not load is listed on the Profiles endpoint, and the last good set stays in use.
+- **Alternative:** Version by file modification time.
+- **Reason:** REQ-012: the content decides the version, so the same file gives the same version.
+
+## 2026-09-19 — Lint details
+
+- **Choice:** Prose is the text of paragraphs, list items, headings, and table cells; code, raw HTML, links' destinations, and placeholders are not prose. Requirement items (for `lint.rfc2119-case`) define a REQ or NFR ID, or an ID with a covered prefix. A reference with a covered prefix (REQ in an SDD) is never dangling here; linked bundles resolve it at M7. `WORD-123` is never an acronym. The slop and weasel lists are Speccy's own; no third-party list is imported.
+- **Alternative:** Lint the whole text with regular expressions.
+- **Reason:** Rules that read the parse tree do not fire on code and links, and the positions match the preview (DEC-017).
+
+## 2026-09-19 — Placeholders in the parser
+
+- **Choice:** The shared goldmark configuration has an inline parser for `<…>` text that is not an HTML tag, a URL, or an e-mail address. Lint finds placeholders by node type, and the preview shows them highlighted.
+- **Alternative:** Find placeholders in lint only, with a regular expression.
+- **Reason:** Without it, `<Product name>` parses as raw HTML, which the preview drops, so the author sees an empty line.
+
+## 2026-09-19 — The lint-only verdict
+
+- **Choice:** Each new version gets a run of kind `lint`. Items for the score are the lint rules, plus `links.has-upstream` when the profile requires an upstream link. M3 checks that link in the frontmatter (a link of a required kind, or a `standalone` reason); M7 resolves the target. Radar: structure (placeholder, required headings, broken links, IDs, limits, asset nudge) and clarity (slop, sentence length, weasel words, acronyms, RFC 2119 case, passive voice). A doc whose type has no profile gets a failed run that says how to add one.
+- **Alternative:** No verdict until the AI stages exist.
+- **Reason:** SDD §18 M3 asks for a lint-only verdict.
+
+## 2026-09-19 — Adoption mode
+
+- **Choice:** `.speccy.yaml` `adoption.relaxed` makes each listed check report at INFO. Findings keep a `relaxed` flag. A relaxed `links.has-upstream` also stops the upstream rule of §8.6 from blocking. The count shown is the relaxed slugs that are real checks of the profile.
+- **Alternative:** Hide relaxed findings.
+- **Reason:** REQ-133: relaxed checks still appear as findings.
+
+## 2026-09-19 — One JSON column type
+
+- **Choice:** `db/dbtype.JSON` scans text or bytes and writes text. sqlc maps `jsonb` (Postgres) and `JSONTEXT` (SQLite) to it.
+- **Alternative:** `json.RawMessage`.
+- **Reason:** SQLite returns a JSON default as a string, which `json.RawMessage` cannot scan, and `[]byte` values made SQLite store BLOBs. The conformance suite checks the default case.
+
+## 2026-09-19 — Golden files for the fixtures
+
+- **Choice:** `testdata/bundles/<slug>.golden.json` holds each fixture bundle's verdict, score, and findings (check, level, quote). `go test ./internal/features/review -run Golden -update` rewrites them.
+- **Alternative:** Assertions in code for each fixture.
+- **Reason:** BUILD §5 names the golden layer. A diff shows any change in lint output.
+
+## 2026-09-19 — `speccy profile validate` waits for M11
+
+- **Choice:** The profile schema and its path-by-path errors are built (REQ-014's logic). The command itself arrives with the CLI at M11.
+- **Alternative:** Add the command now.
+- **Reason:** SDD §18 puts all §12.2 commands at M11.

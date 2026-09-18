@@ -11,11 +11,13 @@ import (
 
 	"github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
+
+	"github.com/alternayte/speccy/internal/engine/section"
 )
 
 // placeholders finds TBD, TODO, XXX, FIXME, {{…}}, <…>, and lorem ipsum in prose, and
 // <…> placeholders that the parser took for raw HTML.
-var placeholderRe = regexp.MustCompile(`(?i)\b(TBD|TODO|XXX|FIXME)\b|\{\{[^{}]*\}\}|lorem ipsum|<[^<>\n]{1,200}>`)
+var placeholderRe = regexp.MustCompile(`(?i)\b(TBD|TODO|XXX|FIXME)\b|\{\{[^{}]*\}\}|lorem ipsum`)
 
 func placeholders(d *doc, _ Config, emit emitter) {
 	msg := "The text has a placeholder."
@@ -30,37 +32,27 @@ func placeholders(d *doc, _ Config, emit emitter) {
 			emit(Placeholder, s, e, msg, fix)
 		}
 	}
-	// "<Product name>" parses as an HTML tag with attributes. A tag that is not HTML is a placeholder.
+	// "<Product name>": the parser makes a Placeholder node, or an HTML block when it stands
+	// alone on a line with attribute-like words.
 	_ = ast.Walk(d.root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
 		}
-		var segs *textSegments
 		switch t := n.(type) {
-		case *ast.RawHTML:
-			segs = &textSegments{t.Segments.Len(), func(i int) (int, int) { s := t.Segments.At(i); return s.Start, s.Stop }}
+		case *section.Placeholder:
+			emit(Placeholder, t.Segment.Start, t.Segment.Stop, msg, fix)
 		case *ast.HTMLBlock:
-			segs = &textSegments{t.Lines().Len(), func(i int) (int, int) { s := t.Lines().At(i); return s.Start, s.Stop }}
-		default:
-			return ast.WalkContinue, nil
-		}
-		for i := 0; i < segs.n; i++ {
-			s, e := segs.at(i)
-			for _, m := range htmlPlaceholderRe.FindAllSubmatchIndex(d.body[s:e], -1) {
-				name := strings.ToLower(string(d.body[s+m[2] : s+m[3]]))
-				if htmlTags[name] {
-					continue
+			for i := 0; i < t.Lines().Len(); i++ {
+				seg := t.Lines().At(i)
+				for _, m := range htmlPlaceholderRe.FindAllSubmatchIndex(d.body[seg.Start:seg.Stop], -1) {
+					if !section.IsHTMLTag(string(d.body[seg.Start+m[2] : seg.Start+m[3]])) {
+						emit(Placeholder, seg.Start+m[0], seg.Start+m[1], msg, fix)
+					}
 				}
-				emit(Placeholder, s+m[0], s+m[1], msg, fix)
 			}
 		}
 		return ast.WalkContinue, nil
 	})
-}
-
-type textSegments struct {
-	n  int
-	at func(int) (int, int)
 }
 
 var htmlPlaceholderRe = regexp.MustCompile(`</?([A-Za-z][A-Za-z0-9-]*)[^<>]*>`)
@@ -94,7 +86,7 @@ func requiredHeadings(d *doc, cfg Config, emit emitter) {
 	for _, h := range cfg.Required {
 		if !have[normTitle(h.Title)] {
 			emit(RequiredHeadings, at, end,
-				fmt.Sprintf("The template requires a %q section, and the doc has none.", h.Title),
+				fmt.Sprintf("The template requires the %q section. The doc has none.", h.Title),
 				fmt.Sprintf("Add a heading %q with its content.", strings.Repeat("#", h.Level)+" "+h.Title))
 		}
 	}
@@ -400,7 +392,6 @@ func startsSentence(rest []byte) bool {
 var acronymRe = regexp.MustCompile(`\b([A-Z][A-Z0-9]{1,5})(s)?\b`)
 
 func acronyms(d *doc, cfg Config, emit emitter) {
-	prefixes := set(append(append([]string{}, cfg.Prefixes...), cfg.UpstreamPrefixes...))
 	defined := map[string]bool{}
 	reported := map[string]bool{}
 	for _, p := range d.blocks {
@@ -409,8 +400,8 @@ func acronyms(d *doc, cfg Config, emit emitter) {
 			if commonAcronyms[a] || defined[a] || reported[a] || !hasLetter(a, 2) {
 				continue
 			}
-			// A trace ID prefix before "-123" is not an acronym.
-			if prefixes[a] && m[1] < len(p.text) && p.text[m[1]] == '-' {
+			// An ID such as REQ-012 or a ticket such as PAY-231 is not an acronym.
+			if m[1]+1 < len(p.text) && p.text[m[1]] == '-' && p.text[m[1]+1] >= '0' && p.text[m[1]+1] <= '9' {
 				continue
 			}
 			if definesAcronym(p.text, m[0], m[1]) {

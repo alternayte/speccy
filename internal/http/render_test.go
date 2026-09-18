@@ -38,6 +38,16 @@ func TestRender_SourcePositions(t *testing.T) {
 	if strings.Contains(out, "<script") {
 		t.Error("raw HTML was rendered")
 	}
+
+	// A placeholder that parses as HTML shows as text; real HTML stays out.
+	out, err = Render([]byte("- <One thing this system will not do.>\n\n<Product name>\n\nA <b>bold</b> word.\n"), nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `<span class="placeholder">&lt;One thing this system will not do.&gt;</span>`) ||
+		!strings.Contains(out, `&lt;Product name&gt;`) || strings.Contains(out, "<b>") {
+		t.Errorf("placeholders:\n%s", out)
+	}
 }
 
 func atoi(s string) int {

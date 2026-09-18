@@ -1,4 +1,4 @@
-package review
+package review_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
@@ -17,7 +18,7 @@ import (
 type env struct {
 	dir     string
 	bundles *bundle.Service
-	reviews *Service
+	reviews *review.Service
 }
 
 func newEnv(t *testing.T, e storetest.Engine, files map[string]string) *env {
@@ -46,7 +47,7 @@ func newEnv(t *testing.T, e storetest.Engine, files map[string]string) *env {
 	}
 	en := &env{dir: dir}
 	en.bundles = &bundle.Service{DB: db, Workspace: ws, Local: root}
-	en.reviews = &Service{DB: db, Workspace: ws,
+	en.reviews = &review.Service{DB: db, Workspace: ws,
 		Profiles: func() map[string]profile.Versioned { return versions }, Repo: en.bundles.RepoConfig}
 	en.bundles.AfterChange = en.reviews.EnsureLinted
 	if err := en.bundles.Sync(ctx); err != nil {

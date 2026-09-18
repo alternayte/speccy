@@ -17,13 +17,8 @@ export function VersionsPanel({ bundleId, current }: { bundleId: string; current
     refetch();
   }, [current, refetch]);
   return (
-    <section aria-labelledby="versions" className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center border-b border-line px-3">
-        <h2 id="versions" className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
-          Versions
-        </h2>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+    <section aria-label="Versions">
+      <div>
         {versions.isPending ? (
           <Loading label="Loading versions" />
         ) : versions.isError ? (

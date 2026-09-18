@@ -181,7 +181,7 @@ func collectProse(root ast.Node, src []byte) []prose {
 				cur = nil
 			}
 			return ast.WalkContinue, nil
-		case ast.KindCodeSpan, ast.KindRawHTML, ast.KindAutoLink:
+		case ast.KindCodeSpan, ast.KindRawHTML, ast.KindAutoLink, section.KindPlaceholder:
 			return ast.WalkSkipChildren, nil
 		case ast.KindText:
 			if !entering || cur == nil {

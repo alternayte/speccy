@@ -5,14 +5,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"path"
 	"regexp"
 	"strings"
 
-	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
@@ -63,27 +61,11 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 		return api.ImportBundle201JSONResponse(out), nil
 	}
 
-	s.mu.Lock()
-	dir, err := s.Local.CreateBundle(name, files)
-	if err == nil {
-		err = s.syncLocked(ctx)
-	}
-	s.mu.Unlock()
-	if err == nil {
-		err = s.afterChange(ctx)
-	}
+	b, err := s.createLocal(ctx, name, files)
 	if err != nil {
-		if _, ok := kernel.AsError(err); ok {
-			return nil, err
-		}
-		return nil, kernel.Invalid("import_failed", "%s.", err.Error())
+		return nil, err
 	}
-	q := s.DB.Queries()
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: dir})
-	if err != nil {
-		return nil, fmt.Errorf("find imported bundle %s: %w", dir, err)
-	}
-	out, err := toAPI(ctx, q, b)
+	out, err := toAPI(ctx, s.DB.Queries(), b)
 	if err != nil {
 		return nil, err
 	}

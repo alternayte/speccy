@@ -1,4 +1,4 @@
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { Columns2, Eye, FileCode2, Save } from "lucide-react";
@@ -52,6 +52,7 @@ export function EditorPane({
   onOpenPath,
   onSaved,
   onDirtyChange,
+  focus,
 }: {
   bundleId: string;
   path: string;
@@ -63,6 +64,8 @@ export function EditorPane({
   onOpenPath: (path: string) => void;
   onSaved: () => void;
   onDirtyChange: (dirty: boolean) => void;
+  // focus asks the pane to show a byte range of the file; seq changes on every request.
+  focus?: { start: number; end: number; seq: number };
 }) {
   const qc = useQueryClient();
   // loadVersion is the version the editor text came from. base is the version a save builds on.
@@ -164,6 +167,39 @@ export function EditorPane({
     },
     [onEditorScroll],
   );
+
+  // Show the requested range: select it in the editor, and scroll the preview to its block.
+  useEffect(() => {
+    if (!focus || file.data?.kind !== "text") return;
+    const text = file.data.text;
+    const timer = setTimeout(() => {
+      const view = editorView.current;
+      if (view) {
+        const from = Math.min(byteToIndex(text, focus.start), view.state.doc.length);
+        const to = Math.min(byteToIndex(text, focus.end), view.state.doc.length);
+        view.dispatch({
+          selection: { anchor: from, head: to },
+          effects: EditorView.scrollIntoView(from, { y: "center" }),
+        });
+        view.focus();
+      }
+      const preview = previewRef.current;
+      if (preview) {
+        let target: HTMLElement | null = null;
+        preview.querySelectorAll<HTMLElement>("article [data-src-start]").forEach((el) => {
+          if (Number(el.dataset.srcStart) <= focus.start && focus.start < Number(el.dataset.srcEnd)) target = el;
+        });
+        const el = target as HTMLElement | null;
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+          el.classList.remove("flash");
+          void el.offsetWidth; // restart the animation
+          el.classList.add("flash");
+        }
+      }
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [focus, file.data]);
 
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
   if (imageExt.has(ext)) {
@@ -282,6 +318,18 @@ export function EditorPane({
       </div>
     </div>
   );
+}
+
+// byteToIndex converts a UTF-8 byte offset, as the server reports it, to a string index.
+function byteToIndex(text: string, byte: number): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (bytes >= byte) return i;
+    const c = text.codePointAt(i)!;
+    bytes += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+    if (c >= 0x10000) i++;
+  }
+  return text.length;
 }
 
 const wideQuery = "(min-width: 1024px)";

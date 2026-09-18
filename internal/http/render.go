@@ -7,6 +7,7 @@ import (
 	"html"
 	"net/url"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -220,6 +221,69 @@ type codeRenderer struct{}
 func (codeRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindFencedCodeBlock, renderCode)
 	reg.Register(ast.KindCodeBlock, renderCode)
+	reg.Register(ast.KindRawHTML, renderRawHTML)
+	reg.Register(section.KindPlaceholder, func(w util.BufWriter, src []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			seg := n.(*section.Placeholder).Segment
+			_, _ = w.WriteString(`<span class="placeholder">` + html.EscapeString(string(seg.Value(src))) + `</span>`)
+		}
+		return ast.WalkSkipChildren, nil
+	})
+	reg.Register(ast.KindHTMLBlock, renderHTMLBlock)
+}
+
+// placeholderTag matches "<Product name>": angle brackets around words that are not HTML.
+var placeholderTag = regexp.MustCompile(`<(/?)([A-Za-z][A-Za-z0-9-]*)([^<>]*)>`)
+
+// renderPlaceholders writes raw HTML as text when every tag in it is a placeholder, so an
+// author sees "<Product name>" in the preview. Real HTML stays out (SDD §14.3).
+func renderPlaceholders(w util.BufWriter, raw []byte, class string) bool {
+	tags := placeholderTag.FindAllSubmatch(raw, -1)
+	if len(tags) == 0 {
+		return false
+	}
+	for _, t := range tags {
+		if section.IsHTMLTag(string(t[2])) {
+			return false
+		}
+	}
+	_, _ = w.WriteString(`<span class="` + class + `">` + html.EscapeString(string(raw)) + `</span>`)
+	return true
+}
+
+func renderRawHTML(w util.BufWriter, src []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkSkipChildren, nil
+	}
+	var raw bytes.Buffer
+	segs := n.(*ast.RawHTML).Segments
+	for i := 0; i < segs.Len(); i++ {
+		s := segs.At(i)
+		raw.Write(s.Value(src))
+	}
+	if !renderPlaceholders(w, raw.Bytes(), "placeholder") {
+		_, _ = w.WriteString("<!-- raw HTML omitted -->")
+	}
+	return ast.WalkSkipChildren, nil
+}
+
+func renderHTMLBlock(w util.BufWriter, src []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	var raw bytes.Buffer
+	for i := 0; i < n.Lines().Len(); i++ {
+		s := n.Lines().At(i)
+		raw.Write(s.Value(src))
+	}
+	_, _ = w.WriteString("<p")
+	gmhtml.RenderAttributes(w, n, nil)
+	_, _ = w.WriteString(">")
+	if !renderPlaceholders(w, bytes.TrimSpace(raw.Bytes()), "placeholder") {
+		_, _ = w.WriteString("<!-- raw HTML omitted -->")
+	}
+	_, _ = w.WriteString("</p>\n")
+	return ast.WalkSkipChildren, nil
 }
 
 var chromaFormatter = chromahtml.New(chromahtml.WithClasses(true), chromahtml.PreventSurroundingPre(true))
