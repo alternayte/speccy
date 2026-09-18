@@ -1,0 +1,1 @@
+{"type":"result","subtype":"success","is_error":false,"num_turns":2,"result":"{\"answer\":\"Paris\"}","structured_output":{"answer":"Paris"},"usage":{"input_tokens":9,"cache_creation_input_tokens":9055,"cache_read_input_tokens":0,"output_tokens":1171},"total_cost_usd":0.023974}

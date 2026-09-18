@@ -17,8 +17,39 @@ func NewAdapter(db DBTX) Adapter { return Adapter{q: New(db)} }
 
 var _ pgdb.Querier = Adapter{}
 
+func (a Adapter) AddBudgetTokens(ctx context.Context, arg pgdb.AddBudgetTokensParams) error {
+	return a.q.AddBudgetTokens(ctx, AddBudgetTokensParams(arg))
+}
+
+func (a Adapter) CountAssignmentsForBackend(ctx context.Context, arg pgdb.CountAssignmentsForBackendParams) (int64, error) {
+	return a.q.CountAssignmentsForBackend(ctx, CountAssignmentsForBackendParams(arg))
+}
+
+func (a Adapter) DeleteAssignment(ctx context.Context, arg pgdb.DeleteAssignmentParams) error {
+	return a.q.DeleteAssignment(ctx, DeleteAssignmentParams(arg))
+}
+
+func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams) (int64, error) {
+	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
+}
+
+func (a Adapter) GetAssignment(ctx context.Context, arg pgdb.GetAssignmentParams) (pgdb.RoleAssignment, error) {
+	r, err := a.q.GetAssignment(ctx, GetAssignmentParams(arg))
+	return pgdb.RoleAssignment(r), err
+}
+
+func (a Adapter) GetBackend(ctx context.Context, arg pgdb.GetBackendParams) (pgdb.ModelBackend, error) {
+	r, err := a.q.GetBackend(ctx, GetBackendParams(arg))
+	return pgdb.ModelBackend(r), err
+}
+
 func (a Adapter) GetBlob(ctx context.Context, sha256 string) ([]byte, error) {
 	return a.q.GetBlob(ctx, sha256)
+}
+
+func (a Adapter) GetBudget(ctx context.Context, arg pgdb.GetBudgetParams) (pgdb.Budget, error) {
+	r, err := a.q.GetBudget(ctx, GetBudgetParams(arg))
+	return pgdb.Budget(r), err
 }
 
 func (a Adapter) GetBundle(ctx context.Context, arg pgdb.GetBundleParams) (pgdb.Bundle, error) {
@@ -71,8 +102,16 @@ func (a Adapter) GetVersionByNumber(ctx context.Context, arg pgdb.GetVersionByNu
 	return pgdb.Version(r), err
 }
 
+func (a Adapter) InsertBackend(ctx context.Context, arg pgdb.InsertBackendParams) error {
+	return a.q.InsertBackend(ctx, InsertBackendParams(arg))
+}
+
 func (a Adapter) InsertBlob(ctx context.Context, arg pgdb.InsertBlobParams) error {
 	return a.q.InsertBlob(ctx, InsertBlobParams(arg))
+}
+
+func (a Adapter) InsertBudget(ctx context.Context, arg pgdb.InsertBudgetParams) error {
+	return a.q.InsertBudget(ctx, InsertBudgetParams(arg))
 }
 
 func (a Adapter) InsertBundle(ctx context.Context, arg pgdb.InsertBundleParams) error {
@@ -119,6 +158,11 @@ func (a Adapter) InsertWorkspace(ctx context.Context, arg pgdb.InsertWorkspacePa
 	return a.q.InsertWorkspace(ctx, InsertWorkspaceParams(arg))
 }
 
+func (a Adapter) LatestBudget(ctx context.Context, workspaceID uuid.UUID) (pgdb.Budget, error) {
+	r, err := a.q.LatestBudget(ctx, workspaceID)
+	return pgdb.Budget(r), err
+}
+
 func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRun(ctx, bundleID)
 	return pgdb.ReviewRun(r), err
@@ -127,6 +171,30 @@ func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.Review
 func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRunFor(ctx, LatestRunForParams(arg))
 	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.RoleAssignment, error) {
+	rows, err := a.q.ListAssignments(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.RoleAssignment, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.RoleAssignment(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.ModelBackend, error) {
+	rows, err := a.q.ListBackends(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ModelBackend, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ModelBackend(r)
+	}
+	return out, nil
 }
 
 func (a Adapter) ListBundles(ctx context.Context, arg pgdb.ListBundlesParams) ([]pgdb.Bundle, error) {
@@ -229,6 +297,10 @@ func (a Adapter) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int
 	return a.q.NextVersionNumber(ctx, bundleID)
 }
 
+func (a Adapter) SetBudgetLimit(ctx context.Context, arg pgdb.SetBudgetLimitParams) error {
+	return a.q.SetBudgetLimit(ctx, SetBudgetLimitParams(arg))
+}
+
 func (a Adapter) SetBundleArchived(ctx context.Context, arg pgdb.SetBundleArchivedParams) error {
 	return a.q.SetBundleArchived(ctx, SetBundleArchivedParams(arg))
 }
@@ -237,10 +309,18 @@ func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersi
 	return a.q.SetProfileVersion(ctx, SetProfileVersionParams(arg))
 }
 
+func (a Adapter) UpdateBackend(ctx context.Context, arg pgdb.UpdateBackendParams) error {
+	return a.q.UpdateBackend(ctx, UpdateBackendParams(arg))
+}
+
 func (a Adapter) UpdateBundleHead(ctx context.Context, arg pgdb.UpdateBundleHeadParams) (int64, error) {
 	return a.q.UpdateBundleHead(ctx, UpdateBundleHeadParams(arg))
 }
 
 func (a Adapter) UpdateStream(ctx context.Context, arg pgdb.UpdateStreamParams) (int64, error) {
 	return a.q.UpdateStream(ctx, UpdateStreamParams(arg))
+}
+
+func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignmentParams) error {
+	return a.q.UpsertAssignment(ctx, UpsertAssignmentParams(arg))
 }

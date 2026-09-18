@@ -1,0 +1,3 @@
+{"type":"message_update","usage":{"input":0,"output":0},"assistantMessageEvent":{"type":"text_delta","contentIndex":0,"delta":"Paris"}}
+{"type":"agent_end","messages":[{"role":"user","content":[{"type":"text","text":"Reply with only this JSON"}]},{"role":"assistant","content":[{"type":"text","text":"{\"answer\": \"Paris\"}"}],"api":"openai-completions","provider":"deepseek","model":"deepseek-chat","usage":{"input":830,"output":7,"cacheRead":0,"cacheWrite":0,"totalTokens":837},"stopReason":"stop"}],"willRetry":false}
+{"type":"agent_settled"}

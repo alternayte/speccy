@@ -169,6 +169,104 @@ export type ProfileList = {
     problems: Array<string>;
 };
 
+export type BackendKind = 'openai' | 'anthropic' | 'openrouter' | 'deepseek' | 'agent_cli';
+
+export type BackendInput = {
+    kind: BackendKind;
+    name: string;
+    /**
+     * The API key. Write-only.
+     */
+    secret?: string;
+    /**
+     * Overrides the provider's API address.
+     */
+    base_url?: string;
+    /**
+     * For agent_cli: claude, cursor-agent, opencode, pi, or custom.
+     */
+    preset?: string;
+    /**
+     * For a custom agent CLI. {model}, {schema}, and {prompt_file} are replaced.
+     */
+    command?: Array<string>;
+    prompt_via?: 'stdin' | 'file';
+};
+
+export type Backend = {
+    id: string;
+    kind: BackendKind;
+    name: string;
+    has_secret: boolean;
+    secret_last4: string;
+    base_url?: string;
+    preset?: string;
+    command?: Array<string>;
+    prompt_via?: string;
+    /**
+     * The roles that use this backend.
+     */
+    roles: Array<string>;
+};
+
+export type BackendList = {
+    items: Array<Backend>;
+};
+
+export type BackendTest = {
+    ok: boolean;
+    answer?: string;
+    error?: string;
+    tokens_in?: number;
+    tokens_out?: number;
+    estimated?: boolean;
+    duration_ms: number;
+};
+
+export type Preset = {
+    name: string;
+    installed: boolean;
+    command: Array<string>;
+    verified: string;
+};
+
+export type PresetList = {
+    items: Array<Preset>;
+};
+
+export type RoleName = 'reviewer' | 'reader_1' | 'reader_2' | 'reader_3' | 'judge' | 'writer';
+
+export type RoleInput = {
+    backend_id: string;
+    model: string;
+    /**
+     * Price per million input tokens, for cost estimates.
+     */
+    price_in_per_mtok?: number;
+    price_out_per_mtok?: number;
+};
+
+export type Role = {
+    role: RoleName;
+    backend_id?: string;
+    model?: string;
+    price_in_per_mtok?: number;
+    price_out_per_mtok?: number;
+};
+
+export type RoleList = {
+    items: Array<Role>;
+};
+
+export type Budget = {
+    /**
+     * YYYY-MM, in UTC.
+     */
+    month: string;
+    token_limit?: number;
+    tokens_used: number;
+};
+
 export type BundleList = {
     items: Array<Bundle>;
     next_cursor?: string;
@@ -292,6 +390,8 @@ export type RenderResult = {
      */
     html: string;
 };
+
+export type BackendId = string;
 
 export type RunId = string;
 
@@ -803,6 +903,298 @@ export type ListProfilesResponses = {
 };
 
 export type ListProfilesResponse = ListProfilesResponses[keyof ListProfilesResponses];
+
+export type ListBackendsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/backends';
+};
+
+export type ListBackendsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListBackendsError = ListBackendsErrors[keyof ListBackendsErrors];
+
+export type ListBackendsResponses = {
+    /**
+     * The backends.
+     */
+    200: BackendList;
+};
+
+export type ListBackendsResponse = ListBackendsResponses[keyof ListBackendsResponses];
+
+export type CreateBackendData = {
+    body: BackendInput;
+    path?: never;
+    query?: never;
+    url: '/admin/backends';
+};
+
+export type CreateBackendErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateBackendError = CreateBackendErrors[keyof CreateBackendErrors];
+
+export type CreateBackendResponses = {
+    /**
+     * The backend.
+     */
+    201: Backend;
+};
+
+export type CreateBackendResponse = CreateBackendResponses[keyof CreateBackendResponses];
+
+export type DeleteBackendData = {
+    body?: never;
+    path: {
+        backendId: string;
+    };
+    query?: never;
+    url: '/admin/backends/{backendId}';
+};
+
+export type DeleteBackendErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteBackendError = DeleteBackendErrors[keyof DeleteBackendErrors];
+
+export type DeleteBackendResponses = {
+    /**
+     * Deleted.
+     */
+    204: void;
+};
+
+export type DeleteBackendResponse = DeleteBackendResponses[keyof DeleteBackendResponses];
+
+export type UpdateBackendData = {
+    body: BackendInput;
+    path: {
+        backendId: string;
+    };
+    query?: never;
+    url: '/admin/backends/{backendId}';
+};
+
+export type UpdateBackendErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UpdateBackendError = UpdateBackendErrors[keyof UpdateBackendErrors];
+
+export type UpdateBackendResponses = {
+    /**
+     * The backend.
+     */
+    200: Backend;
+};
+
+export type UpdateBackendResponse = UpdateBackendResponses[keyof UpdateBackendResponses];
+
+export type TestBackendData = {
+    body: {
+        model: string;
+    };
+    path: {
+        backendId: string;
+    };
+    query?: never;
+    url: '/admin/backends/{backendId}/test';
+};
+
+export type TestBackendErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type TestBackendError = TestBackendErrors[keyof TestBackendErrors];
+
+export type TestBackendResponses = {
+    /**
+     * The outcome.
+     */
+    200: BackendTest;
+};
+
+export type TestBackendResponse = TestBackendResponses[keyof TestBackendResponses];
+
+export type ListPresetsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/presets';
+};
+
+export type ListPresetsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListPresetsError = ListPresetsErrors[keyof ListPresetsErrors];
+
+export type ListPresetsResponses = {
+    /**
+     * The presets.
+     */
+    200: PresetList;
+};
+
+export type ListPresetsResponse = ListPresetsResponses[keyof ListPresetsResponses];
+
+export type ListRolesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/roles';
+};
+
+export type ListRolesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListRolesError = ListRolesErrors[keyof ListRolesErrors];
+
+export type ListRolesResponses = {
+    /**
+     * The roles.
+     */
+    200: RoleList;
+};
+
+export type ListRolesResponse = ListRolesResponses[keyof ListRolesResponses];
+
+export type UnassignRoleData = {
+    body?: never;
+    path: {
+        role: RoleName;
+    };
+    query?: never;
+    url: '/admin/roles/{role}';
+};
+
+export type UnassignRoleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UnassignRoleError = UnassignRoleErrors[keyof UnassignRoleErrors];
+
+export type UnassignRoleResponses = {
+    /**
+     * Removed.
+     */
+    204: void;
+};
+
+export type UnassignRoleResponse = UnassignRoleResponses[keyof UnassignRoleResponses];
+
+export type AssignRoleData = {
+    body: RoleInput;
+    path: {
+        role: RoleName;
+    };
+    query?: never;
+    url: '/admin/roles/{role}';
+};
+
+export type AssignRoleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AssignRoleError = AssignRoleErrors[keyof AssignRoleErrors];
+
+export type AssignRoleResponses = {
+    /**
+     * The role.
+     */
+    200: Role;
+};
+
+export type AssignRoleResponse = AssignRoleResponses[keyof AssignRoleResponses];
+
+export type GetBudgetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/budget';
+};
+
+export type GetBudgetErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetBudgetError = GetBudgetErrors[keyof GetBudgetErrors];
+
+export type GetBudgetResponses = {
+    /**
+     * The budget.
+     */
+    200: Budget;
+};
+
+export type GetBudgetResponse = GetBudgetResponses[keyof GetBudgetResponses];
+
+export type SetBudgetData = {
+    body: {
+        /**
+         * Leave it out for no limit.
+         */
+        token_limit?: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/admin/budget';
+};
+
+export type SetBudgetErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetBudgetError = SetBudgetErrors[keyof SetBudgetErrors];
+
+export type SetBudgetResponses = {
+    /**
+     * The budget.
+     */
+    200: Budget;
+};
+
+export type SetBudgetResponse = SetBudgetResponses[keyof SetBudgetResponses];
 
 export type RenderMarkdownData = {
     body: RenderRequest;

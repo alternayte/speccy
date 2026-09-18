@@ -251,3 +251,49 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** The profile schema and its path-by-path errors are built (REQ-014's logic). The command itself arrives with the CLI at M11.
 - **Alternative:** Add the command now.
 - **Reason:** SDD §18 puts all §12.2 commands at M11.
+
+## 2026-09-19 — Agent CLI presets (§19 Q4, resolved)
+
+- **Choice:** Four presets, each in a temporary folder that holds only the bundle and `prompt.md`:
+  - `claude` (2.1.277, live call): `claude -p --output-format json --json-schema {schema} --tools "" --no-session-persistence --strict-mcp-config --model {model}`; prompt on stdin; answer in `structured_output`; tokens in `usage`.
+  - `cursor-agent` (docs only, no subscription on the build machine): `cursor-agent -p --output-format json --mode ask --model {model} "<follow prompt.md>"`; answer in `result`; no token counts, so they are estimated.
+  - `opencode` (1.18.26, live call): `opencode run --format json --pure --agent plan -m {model} -f prompt.md -- "<follow prompt.md>"`; JSON lines; answer in `text` events; tokens in `step_finish`. Its plan agent adds about 12,000 input tokens per call.
+  - `pi` (0.85.1, live call): `pi -p --mode json --no-tools --no-session --no-context-files --no-extensions --no-skills --model {model}`; prompt on stdin; answer and tokens in the `agent_end` event.
+- **Alternative:** Presets for claude and cursor-agent only.
+- **Reason:** The owner asked for pi and opencode. SDD REQ-102 and §19 Q4 were changed with the owner's approval. `testdata` holds the real outputs, and the parser tests read them.
+
+## 2026-09-19 — Structured output per backend
+
+- **Choice:** Anthropic: `output_config.format` with the JSON schema, through the official Go SDK. OpenAI and OpenRouter: `response_format` `json_schema` (not strict). DeepSeek, cursor-agent, opencode, pi, and custom CLIs: the schema goes in the prompt. The gateway validates every answer against the schema in all cases.
+- **Alternative:** Trust the providers that enforce a schema.
+- **Reason:** DEC-014 needs one rule for all backends; the providers differ in what they enforce.
+
+## 2026-09-19 — One HTTP client for OpenAI-compatible APIs
+
+- **Choice:** OpenAI, OpenRouter, and DeepSeek use one small `net/http` client for `/chat/completions`, with a base URL per kind. Anthropic uses the official SDK.
+- **Alternative:** The official OpenAI Go SDK.
+- **Reason:** Three providers share the same endpoint; one small client covers them without a large dependency.
+
+## 2026-09-19 — Gateway rules
+
+- **Choice:** The gateway owns retries (the SDK's are off): 2 retries with 1 s and 2 s backoff (plus up to 25% jitter) for HTTP 429 and 5xx; 1 retry when the answer is not JSON or breaks the schema; a call that passes 120 s fails with no retry. Tokens count against the budget after every call, including a call whose answer fails the schema. The budget check runs before each attempt.
+- **Alternative:** Retry timeouts as well.
+- **Reason:** REQ-103 lists retries for 429 and 5xx only; a 120 s call that timed out is likely to time out again.
+
+## 2026-09-19 — Budget and prices
+
+- **Choice:** `budget` has one row per workspace and UTC month. A new month copies the last month's limit. No limit means no budget. Each role assignment has optional prices per million input and output tokens, for the cost estimate that arrives with full runs (M5).
+- **Alternative:** A built-in price table.
+- **Reason:** Prices change often and depend on the plan; a built-in table would go stale.
+
+## 2026-09-19 — Secrets
+
+- **Choice:** `kernel.Sealer` (AES-256-GCM, a random nonce in front of each ciphertext). Local mode keeps the key in `.speccy/state/key`, created with mode 0600; a looser mode is refused. Hosted mode will read `SPECCY_MASTER_KEY` (M8). The API returns only `has_secret` and the last 4 characters, and an update without a secret keeps the stored one.
+- **Alternative:** OS keychain.
+- **Reason:** SDD §14.1.
+
+## 2026-09-19 — Admin screen in local mode
+
+- **Choice:** An Admin screen for backends (with a Test button that makes one short call), role assignments, and the monthly budget. Local mode's one user is an admin (SDD §3), so it always shows. The fake backend is for tests only and never appears in the API.
+- **Alternative:** Configuration files only.
+- **Reason:** REQ-101 and REQ-104 name an admin; PMs in local mode need a screen, not a YAML file.

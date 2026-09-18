@@ -20,6 +20,51 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for BackendInputPromptVia.
+const (
+	File  BackendInputPromptVia = "file"
+	Stdin BackendInputPromptVia = "stdin"
+)
+
+// Valid indicates whether the value is a known member of the BackendInputPromptVia enum.
+func (e BackendInputPromptVia) Valid() bool {
+	switch e {
+	case File:
+		return true
+	case Stdin:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BackendKind.
+const (
+	AgentCli   BackendKind = "agent_cli"
+	Anthropic  BackendKind = "anthropic"
+	Deepseek   BackendKind = "deepseek"
+	Openai     BackendKind = "openai"
+	Openrouter BackendKind = "openrouter"
+)
+
+// Valid indicates whether the value is a known member of the BackendKind enum.
+func (e BackendKind) Valid() bool {
+	switch e {
+	case AgentCli:
+		return true
+	case Anthropic:
+		return true
+	case Deepseek:
+		return true
+	case Openai:
+		return true
+	case Openrouter:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BundleSourceKind.
 const (
 	BundleSourceKindDb     BundleSourceKind = "db"
@@ -140,6 +185,36 @@ func (e MetaMode) Valid() bool {
 	}
 }
 
+// Defines values for RoleName.
+const (
+	Judge    RoleName = "judge"
+	Reader1  RoleName = "reader_1"
+	Reader2  RoleName = "reader_2"
+	Reader3  RoleName = "reader_3"
+	Reviewer RoleName = "reviewer"
+	Writer   RoleName = "writer"
+)
+
+// Valid indicates whether the value is a known member of the RoleName enum.
+func (e RoleName) Valid() bool {
+	switch e {
+	case Judge:
+		return true
+	case Reader1:
+		return true
+	case Reader2:
+		return true
+	case Reader3:
+		return true
+	case Reviewer:
+		return true
+	case Writer:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RunKind.
 const (
 	RunKindFull RunKind = "full"
@@ -214,6 +289,70 @@ type Anchor struct {
 	// Start Byte offset of the quote in the file.
 	Start  int    `json:"start"`
 	Suffix string `json:"suffix"`
+}
+
+// Backend defines model for Backend.
+type Backend struct {
+	BaseUrl   *string            `json:"base_url,omitempty"`
+	Command   *[]string          `json:"command,omitempty"`
+	HasSecret bool               `json:"has_secret"`
+	Id        openapi_types.UUID `json:"id"`
+	Kind      BackendKind        `json:"kind"`
+	Name      string             `json:"name"`
+	Preset    *string            `json:"preset,omitempty"`
+	PromptVia *string            `json:"prompt_via,omitempty"`
+
+	// Roles The roles that use this backend.
+	Roles       []string `json:"roles"`
+	SecretLast4 string   `json:"secret_last4"`
+}
+
+// BackendInput defines model for BackendInput.
+type BackendInput struct {
+	// BaseUrl Overrides the provider's API address.
+	BaseUrl *string `json:"base_url,omitempty"`
+
+	// Command For a custom agent CLI. {model}, {schema}, and {prompt_file} are replaced.
+	Command *[]string   `json:"command,omitempty"`
+	Kind    BackendKind `json:"kind"`
+	Name    string      `json:"name"`
+
+	// Preset For agent_cli: claude, cursor-agent, opencode, pi, or custom.
+	Preset    *string                `json:"preset,omitempty"`
+	PromptVia *BackendInputPromptVia `json:"prompt_via,omitempty"`
+
+	// Secret The API key. Write-only.
+	Secret *string `json:"secret,omitempty"`
+}
+
+// BackendInputPromptVia defines model for BackendInput.PromptVia.
+type BackendInputPromptVia string
+
+// BackendKind defines model for BackendKind.
+type BackendKind string
+
+// BackendList defines model for BackendList.
+type BackendList struct {
+	Items []Backend `json:"items"`
+}
+
+// BackendTest defines model for BackendTest.
+type BackendTest struct {
+	Answer     *string `json:"answer,omitempty"`
+	DurationMs int64   `json:"duration_ms"`
+	Error      *string `json:"error,omitempty"`
+	Estimated  *bool   `json:"estimated,omitempty"`
+	Ok         bool    `json:"ok"`
+	TokensIn   *int64  `json:"tokens_in,omitempty"`
+	TokensOut  *int64  `json:"tokens_out,omitempty"`
+}
+
+// Budget defines model for Budget.
+type Budget struct {
+	// Month YYYY-MM, in UTC.
+	Month      string `json:"month"`
+	TokenLimit *int64 `json:"token_limit,omitempty"`
+	TokensUsed int64  `json:"tokens_used"`
 }
 
 // Bundle defines model for Bundle.
@@ -387,6 +526,19 @@ type Meta struct {
 // MetaMode The mode the server runs in.
 type MetaMode string
 
+// Preset defines model for Preset.
+type Preset struct {
+	Command   []string `json:"command"`
+	Installed bool     `json:"installed"`
+	Name      string   `json:"name"`
+	Verified  string   `json:"verified"`
+}
+
+// PresetList defines model for PresetList.
+type PresetList struct {
+	Items []Preset `json:"items"`
+}
+
 // Problem RFC 9457 problem details with a stable code.
 type Problem struct {
 	// Code A stable machine-readable error code.
@@ -438,6 +590,33 @@ type RenderResult struct {
 	// Html HTML. Each block element has data-src-start and data-src-end (byte offsets into the markdown) and data-line (the 1-based first line). Mermaid blocks are <pre class="mermaid">.
 	Html string `json:"html"`
 }
+
+// Role defines model for Role.
+type Role struct {
+	BackendId       *openapi_types.UUID `json:"backend_id,omitempty"`
+	Model           *string             `json:"model,omitempty"`
+	PriceInPerMtok  *float32            `json:"price_in_per_mtok,omitempty"`
+	PriceOutPerMtok *float32            `json:"price_out_per_mtok,omitempty"`
+	Role            RoleName            `json:"role"`
+}
+
+// RoleInput defines model for RoleInput.
+type RoleInput struct {
+	BackendId openapi_types.UUID `json:"backend_id"`
+	Model     string             `json:"model"`
+
+	// PriceInPerMtok Price per million input tokens, for cost estimates.
+	PriceInPerMtok  *float32 `json:"price_in_per_mtok,omitempty"`
+	PriceOutPerMtok *float32 `json:"price_out_per_mtok,omitempty"`
+}
+
+// RoleList defines model for RoleList.
+type RoleList struct {
+	Items []Role `json:"items"`
+}
+
+// RoleName defines model for RoleName.
+type RoleName string
 
 // Run defines model for Run.
 type Run struct {
@@ -501,6 +680,9 @@ type WriteResult struct {
 	Version Version `json:"version"`
 }
 
+// BackendId defines model for BackendId.
+type BackendId = openapi_types.UUID
+
 // BaseVersion defines model for BaseVersion.
 type BaseVersion = openapi_types.UUID
 
@@ -521,6 +703,17 @@ type RunId = openapi_types.UUID
 
 // VersionQuery defines model for VersionQuery.
 type VersionQuery = openapi_types.UUID
+
+// TestBackendJSONBody defines parameters for TestBackend.
+type TestBackendJSONBody struct {
+	Model string `json:"model"`
+}
+
+// SetBudgetJSONBody defines parameters for SetBudget.
+type SetBudgetJSONBody struct {
+	// TokenLimit Leave it out for no limit.
+	TokenLimit *int64 `json:"token_limit,omitempty"`
+}
 
 // ListBundlesParams defines parameters for ListBundles.
 type ListBundlesParams struct {
@@ -581,6 +774,21 @@ type ListVersionsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// CreateBackendJSONRequestBody defines body for CreateBackend for application/json ContentType.
+type CreateBackendJSONRequestBody = BackendInput
+
+// UpdateBackendJSONRequestBody defines body for UpdateBackend for application/json ContentType.
+type UpdateBackendJSONRequestBody = BackendInput
+
+// TestBackendJSONRequestBody defines body for TestBackend for application/json ContentType.
+type TestBackendJSONRequestBody TestBackendJSONBody
+
+// SetBudgetJSONRequestBody defines body for SetBudget for application/json ContentType.
+type SetBudgetJSONRequestBody SetBudgetJSONBody
+
+// AssignRoleJSONRequestBody defines body for AssignRole for application/json ContentType.
+type AssignRoleJSONRequestBody = RoleInput
+
 // CreateBundleJSONRequestBody defines body for CreateBundle for application/json ContentType.
 type CreateBundleJSONRequestBody = CreateBundleRequest
 
@@ -595,6 +803,39 @@ type RenderMarkdownJSONRequestBody = RenderRequest
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
+	// (GET /admin/backends)
+	ListBackends(w http.ResponseWriter, r *http.Request)
+	// CreateBackend Add a model backend (REQ-100).
+	// (POST /admin/backends)
+	CreateBackend(w http.ResponseWriter, r *http.Request)
+	// DeleteBackend Delete a backend that no role uses.
+	// (DELETE /admin/backends/{backendId})
+	DeleteBackend(w http.ResponseWriter, r *http.Request, backendId BackendId)
+	// UpdateBackend Change a backend. Leave the secret out to keep the stored one.
+	// (PUT /admin/backends/{backendId})
+	UpdateBackend(w http.ResponseWriter, r *http.Request, backendId BackendId)
+	// TestBackend Send one short call to a backend and model, to check the setup.
+	// (POST /admin/backends/{backendId}/test)
+	TestBackend(w http.ResponseWriter, r *http.Request, backendId BackendId)
+	// GetBudget Get this month's token budget and use (REQ-104).
+	// (GET /admin/budget)
+	GetBudget(w http.ResponseWriter, r *http.Request)
+	// SetBudget Set the monthly token limit. No limit means no budget.
+	// (PUT /admin/budget)
+	SetBudget(w http.ResponseWriter, r *http.Request)
+	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
+	// (GET /admin/presets)
+	ListPresets(w http.ResponseWriter, r *http.Request)
+	// ListRoles List the roles and their backend and model (REQ-101).
+	// (GET /admin/roles)
+	ListRoles(w http.ResponseWriter, r *http.Request)
+	// UnassignRole Remove a role's assignment.
+	// (DELETE /admin/roles/{role})
+	UnassignRole(w http.ResponseWriter, r *http.Request, role RoleName)
+	// AssignRole Assign a backend and model to a role.
+	// (PUT /admin/roles/{role})
+	AssignRole(w http.ResponseWriter, r *http.Request, role RoleName)
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(w http.ResponseWriter, r *http.Request, params ListBundlesParams)
@@ -659,6 +900,220 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListBackends operation middleware
+func (siw *ServerInterfaceWrapper) ListBackends(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBackends(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateBackend operation middleware
+func (siw *ServerInterfaceWrapper) CreateBackend(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateBackend(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteBackend operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBackend(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "backendId" -------------
+	var backendId BackendId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "backendId", r.PathValue("backendId"), &backendId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "backendId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteBackend(w, r, backendId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateBackend operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBackend(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "backendId" -------------
+	var backendId BackendId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "backendId", r.PathValue("backendId"), &backendId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "backendId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateBackend(w, r, backendId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TestBackend operation middleware
+func (siw *ServerInterfaceWrapper) TestBackend(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "backendId" -------------
+	var backendId BackendId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "backendId", r.PathValue("backendId"), &backendId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "backendId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TestBackend(w, r, backendId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBudget operation middleware
+func (siw *ServerInterfaceWrapper) GetBudget(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBudget(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetBudget operation middleware
+func (siw *ServerInterfaceWrapper) SetBudget(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetBudget(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPresets operation middleware
+func (siw *ServerInterfaceWrapper) ListPresets(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPresets(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRoles operation middleware
+func (siw *ServerInterfaceWrapper) ListRoles(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRoles(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnassignRole operation middleware
+func (siw *ServerInterfaceWrapper) UnassignRole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "role" -------------
+	var role RoleName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "role", r.PathValue("role"), &role, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "role", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnassignRole(w, r, role)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AssignRole operation middleware
+func (siw *ServerInterfaceWrapper) AssignRole(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "role" -------------
+	var role RoleName
+
+	err = runtime.BindStyledParameterWithOptions("simple", "role", r.PathValue("role"), &role, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "role", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AssignRole(w, r, role)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // ListBundles operation middleware
 func (siw *ServerInterfaceWrapper) ListBundles(w http.ResponseWriter, r *http.Request) {
@@ -1418,12 +1873,439 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles", wrapper.ListProfiles)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/backends", wrapper.ListBackends)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/backends", wrapper.CreateBackend)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/backends/{backendId}", wrapper.DeleteBackend)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/backends/{backendId}", wrapper.UpdateBackend)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/backends/{backendId}/test", wrapper.TestBackend)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/presets", wrapper.ListPresets)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/roles", wrapper.ListRoles)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/roles/{role}", wrapper.UnassignRole)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/roles/{role}", wrapper.AssignRole)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/budget", wrapper.GetBudget)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/budget", wrapper.SetBudget)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
 
 	return m
 }
 
 type ProblemApplicationProblemPlusJSONResponse Problem
+
+type ListBackendsRequestObject struct {
+}
+
+type ListBackendsResponseObject interface {
+	VisitListBackendsResponse(w http.ResponseWriter) error
+}
+
+type ListBackends200JSONResponse BackendList
+
+func (response ListBackends200JSONResponse) VisitListBackendsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBackendsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBackendsdefaultApplicationProblemPlusJSONResponse) VisitListBackendsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBackendRequestObject struct {
+	Body *CreateBackendJSONRequestBody
+}
+
+type CreateBackendResponseObject interface {
+	VisitCreateBackendResponse(w http.ResponseWriter) error
+}
+
+type CreateBackend201JSONResponse Backend
+
+func (response CreateBackend201JSONResponse) VisitCreateBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateBackenddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateBackenddefaultApplicationProblemPlusJSONResponse) VisitCreateBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteBackendRequestObject struct {
+	BackendId BackendId `json:"backendId"`
+}
+
+type DeleteBackendResponseObject interface {
+	VisitDeleteBackendResponse(w http.ResponseWriter) error
+}
+
+type DeleteBackend204Response struct {
+}
+
+func (response DeleteBackend204Response) VisitDeleteBackendResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteBackenddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteBackenddefaultApplicationProblemPlusJSONResponse) VisitDeleteBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBackendRequestObject struct {
+	BackendId BackendId `json:"backendId"`
+	Body      *UpdateBackendJSONRequestBody
+}
+
+type UpdateBackendResponseObject interface {
+	VisitUpdateBackendResponse(w http.ResponseWriter) error
+}
+
+type UpdateBackend200JSONResponse Backend
+
+func (response UpdateBackend200JSONResponse) VisitUpdateBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBackenddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateBackenddefaultApplicationProblemPlusJSONResponse) VisitUpdateBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestBackendRequestObject struct {
+	BackendId BackendId `json:"backendId"`
+	Body      *TestBackendJSONRequestBody
+}
+
+type TestBackendResponseObject interface {
+	VisitTestBackendResponse(w http.ResponseWriter) error
+}
+
+type TestBackend200JSONResponse BackendTest
+
+func (response TestBackend200JSONResponse) VisitTestBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestBackenddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response TestBackenddefaultApplicationProblemPlusJSONResponse) VisitTestBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBudgetRequestObject struct {
+}
+
+type GetBudgetResponseObject interface {
+	VisitGetBudgetResponse(w http.ResponseWriter) error
+}
+
+type GetBudget200JSONResponse Budget
+
+func (response GetBudget200JSONResponse) VisitGetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBudgetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBudgetdefaultApplicationProblemPlusJSONResponse) VisitGetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBudgetRequestObject struct {
+	Body *SetBudgetJSONRequestBody
+}
+
+type SetBudgetResponseObject interface {
+	VisitSetBudgetResponse(w http.ResponseWriter) error
+}
+
+type SetBudget200JSONResponse Budget
+
+func (response SetBudget200JSONResponse) VisitSetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBudgetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetBudgetdefaultApplicationProblemPlusJSONResponse) VisitSetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPresetsRequestObject struct {
+}
+
+type ListPresetsResponseObject interface {
+	VisitListPresetsResponse(w http.ResponseWriter) error
+}
+
+type ListPresets200JSONResponse PresetList
+
+func (response ListPresets200JSONResponse) VisitListPresetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPresetsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListPresetsdefaultApplicationProblemPlusJSONResponse) VisitListPresetsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRolesRequestObject struct {
+}
+
+type ListRolesResponseObject interface {
+	VisitListRolesResponse(w http.ResponseWriter) error
+}
+
+type ListRoles200JSONResponse RoleList
+
+func (response ListRoles200JSONResponse) VisitListRolesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRolesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListRolesdefaultApplicationProblemPlusJSONResponse) VisitListRolesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UnassignRoleRequestObject struct {
+	Role RoleName `json:"role"`
+}
+
+type UnassignRoleResponseObject interface {
+	VisitUnassignRoleResponse(w http.ResponseWriter) error
+}
+
+type UnassignRole204Response struct {
+}
+
+func (response UnassignRole204Response) VisitUnassignRoleResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnassignRoledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UnassignRoledefaultApplicationProblemPlusJSONResponse) VisitUnassignRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignRoleRequestObject struct {
+	Role RoleName `json:"role"`
+	Body *AssignRoleJSONRequestBody
+}
+
+type AssignRoleResponseObject interface {
+	VisitAssignRoleResponse(w http.ResponseWriter) error
+}
+
+type AssignRole200JSONResponse Role
+
+func (response AssignRole200JSONResponse) VisitAssignRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AssignRoledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AssignRoledefaultApplicationProblemPlusJSONResponse) VisitAssignRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type ListBundlesRequestObject struct {
 	Params ListBundlesParams
@@ -2149,6 +3031,39 @@ func (response ListFindingsdefaultApplicationProblemPlusJSONResponse) VisitListF
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
+	// (GET /admin/backends)
+	ListBackends(ctx context.Context, request ListBackendsRequestObject) (ListBackendsResponseObject, error)
+	// CreateBackend Add a model backend (REQ-100).
+	// (POST /admin/backends)
+	CreateBackend(ctx context.Context, request CreateBackendRequestObject) (CreateBackendResponseObject, error)
+	// DeleteBackend Delete a backend that no role uses.
+	// (DELETE /admin/backends/{backendId})
+	DeleteBackend(ctx context.Context, request DeleteBackendRequestObject) (DeleteBackendResponseObject, error)
+	// UpdateBackend Change a backend. Leave the secret out to keep the stored one.
+	// (PUT /admin/backends/{backendId})
+	UpdateBackend(ctx context.Context, request UpdateBackendRequestObject) (UpdateBackendResponseObject, error)
+	// TestBackend Send one short call to a backend and model, to check the setup.
+	// (POST /admin/backends/{backendId}/test)
+	TestBackend(ctx context.Context, request TestBackendRequestObject) (TestBackendResponseObject, error)
+	// GetBudget Get this month's token budget and use (REQ-104).
+	// (GET /admin/budget)
+	GetBudget(ctx context.Context, request GetBudgetRequestObject) (GetBudgetResponseObject, error)
+	// SetBudget Set the monthly token limit. No limit means no budget.
+	// (PUT /admin/budget)
+	SetBudget(ctx context.Context, request SetBudgetRequestObject) (SetBudgetResponseObject, error)
+	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
+	// (GET /admin/presets)
+	ListPresets(ctx context.Context, request ListPresetsRequestObject) (ListPresetsResponseObject, error)
+	// ListRoles List the roles and their backend and model (REQ-101).
+	// (GET /admin/roles)
+	ListRoles(ctx context.Context, request ListRolesRequestObject) (ListRolesResponseObject, error)
+	// UnassignRole Remove a role's assignment.
+	// (DELETE /admin/roles/{role})
+	UnassignRole(ctx context.Context, request UnassignRoleRequestObject) (UnassignRoleResponseObject, error)
+	// AssignRole Assign a backend and model to a role.
+	// (PUT /admin/roles/{role})
+	AssignRole(ctx context.Context, request AssignRoleRequestObject) (AssignRoleResponseObject, error)
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(ctx context.Context, request ListBundlesRequestObject) (ListBundlesResponseObject, error)
@@ -2242,6 +3157,315 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListBackends operation middleware
+func (sh *strictHandler) ListBackends(w http.ResponseWriter, r *http.Request) {
+	var request ListBackendsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBackends(ctx, request.(ListBackendsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBackends")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBackendsResponseObject); ok {
+		if err := validResponse.VisitListBackendsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateBackend operation middleware
+func (sh *strictHandler) CreateBackend(w http.ResponseWriter, r *http.Request) {
+	var request CreateBackendRequestObject
+
+	var body CreateBackendJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateBackend(ctx, request.(CreateBackendRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateBackend")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateBackendResponseObject); ok {
+		if err := validResponse.VisitCreateBackendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteBackend operation middleware
+func (sh *strictHandler) DeleteBackend(w http.ResponseWriter, r *http.Request, backendId BackendId) {
+	var request DeleteBackendRequestObject
+
+	request.BackendId = backendId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteBackend(ctx, request.(DeleteBackendRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteBackend")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteBackendResponseObject); ok {
+		if err := validResponse.VisitDeleteBackendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateBackend operation middleware
+func (sh *strictHandler) UpdateBackend(w http.ResponseWriter, r *http.Request, backendId BackendId) {
+	var request UpdateBackendRequestObject
+
+	request.BackendId = backendId
+
+	var body UpdateBackendJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateBackend(ctx, request.(UpdateBackendRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateBackend")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateBackendResponseObject); ok {
+		if err := validResponse.VisitUpdateBackendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TestBackend operation middleware
+func (sh *strictHandler) TestBackend(w http.ResponseWriter, r *http.Request, backendId BackendId) {
+	var request TestBackendRequestObject
+
+	request.BackendId = backendId
+
+	var body TestBackendJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TestBackend(ctx, request.(TestBackendRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TestBackend")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TestBackendResponseObject); ok {
+		if err := validResponse.VisitTestBackendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBudget operation middleware
+func (sh *strictHandler) GetBudget(w http.ResponseWriter, r *http.Request) {
+	var request GetBudgetRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBudget(ctx, request.(GetBudgetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBudget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBudgetResponseObject); ok {
+		if err := validResponse.VisitGetBudgetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetBudget operation middleware
+func (sh *strictHandler) SetBudget(w http.ResponseWriter, r *http.Request) {
+	var request SetBudgetRequestObject
+
+	var body SetBudgetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetBudget(ctx, request.(SetBudgetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetBudget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetBudgetResponseObject); ok {
+		if err := validResponse.VisitSetBudgetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPresets operation middleware
+func (sh *strictHandler) ListPresets(w http.ResponseWriter, r *http.Request) {
+	var request ListPresetsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPresets(ctx, request.(ListPresetsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPresets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPresetsResponseObject); ok {
+		if err := validResponse.VisitListPresetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRoles operation middleware
+func (sh *strictHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
+	var request ListRolesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRoles(ctx, request.(ListRolesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRoles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRolesResponseObject); ok {
+		if err := validResponse.VisitListRolesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnassignRole operation middleware
+func (sh *strictHandler) UnassignRole(w http.ResponseWriter, r *http.Request, role RoleName) {
+	var request UnassignRoleRequestObject
+
+	request.Role = role
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnassignRole(ctx, request.(UnassignRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnassignRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnassignRoleResponseObject); ok {
+		if err := validResponse.VisitUnassignRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AssignRole operation middleware
+func (sh *strictHandler) AssignRole(w http.ResponseWriter, r *http.Request, role RoleName) {
+	var request AssignRoleRequestObject
+
+	request.Role = role
+
+	var body AssignRoleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AssignRole(ctx, request.(AssignRoleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AssignRole")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AssignRoleResponseObject); ok {
+		if err := validResponse.VisitAssignRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // ListBundles operation middleware

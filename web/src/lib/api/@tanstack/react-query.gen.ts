@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { createBundle, deleteFile, diffVersions, exportBundle, getBundle, getFileContent, getMeta, getRun, importBundle, listBundles, listFiles, listFindings, listProfiles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown } from '../sdk.gen';
-import type { CreateBundleData, CreateBundleError, CreateBundleResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse } from '../types.gen';
+import { assignRole, createBackend, createBundle, deleteBackend, deleteFile, diffVersions, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, importBundle, listBackends, listBundles, listFiles, listFindings, listPresets, listProfiles, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, testBackend, unassignRole, updateBackend } from '../sdk.gen';
+import type { AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -433,6 +433,197 @@ export const listProfilesOptions = (options?: Options<ListProfilesData>) => quer
     },
     queryKey: listProfilesQueryKey(options)
 });
+
+export const listBackendsQueryKey = (options?: Options<ListBackendsData>) => createQueryKey('listBackends', options);
+
+/**
+ * List the model backends. Secrets show their last 4 characters only (SDD §14.1).
+ */
+export const listBackendsOptions = (options?: Options<ListBackendsData>) => queryOptions<ListBackendsResponse, ListBackendsError, ListBackendsResponse, ReturnType<typeof listBackendsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listBackends({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listBackendsQueryKey(options)
+});
+
+/**
+ * Add a model backend (REQ-100).
+ */
+export const createBackendMutation = (options?: Partial<Options<CreateBackendData>>): UseMutationOptions<CreateBackendResponse, CreateBackendError, Options<CreateBackendData>> => {
+    const mutationOptions: UseMutationOptions<CreateBackendResponse, CreateBackendError, Options<CreateBackendData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createBackend({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a backend that no role uses.
+ */
+export const deleteBackendMutation = (options?: Partial<Options<DeleteBackendData>>): UseMutationOptions<DeleteBackendResponse, DeleteBackendError, Options<DeleteBackendData>> => {
+    const mutationOptions: UseMutationOptions<DeleteBackendResponse, DeleteBackendError, Options<DeleteBackendData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteBackend({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change a backend. Leave the secret out to keep the stored one.
+ */
+export const updateBackendMutation = (options?: Partial<Options<UpdateBackendData>>): UseMutationOptions<UpdateBackendResponse, UpdateBackendError, Options<UpdateBackendData>> => {
+    const mutationOptions: UseMutationOptions<UpdateBackendResponse, UpdateBackendError, Options<UpdateBackendData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateBackend({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Send one short call to a backend and model, to check the setup.
+ */
+export const testBackendMutation = (options?: Partial<Options<TestBackendData>>): UseMutationOptions<TestBackendResponse, TestBackendError, Options<TestBackendData>> => {
+    const mutationOptions: UseMutationOptions<TestBackendResponse, TestBackendError, Options<TestBackendData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await testBackend({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listPresetsQueryKey = (options?: Options<ListPresetsData>) => createQueryKey('listPresets', options);
+
+/**
+ * List the agent CLI presets and whether each CLI is installed (REQ-102).
+ */
+export const listPresetsOptions = (options?: Options<ListPresetsData>) => queryOptions<ListPresetsResponse, ListPresetsError, ListPresetsResponse, ReturnType<typeof listPresetsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listPresets({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listPresetsQueryKey(options)
+});
+
+export const listRolesQueryKey = (options?: Options<ListRolesData>) => createQueryKey('listRoles', options);
+
+/**
+ * List the roles and their backend and model (REQ-101).
+ */
+export const listRolesOptions = (options?: Options<ListRolesData>) => queryOptions<ListRolesResponse, ListRolesError, ListRolesResponse, ReturnType<typeof listRolesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listRoles({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listRolesQueryKey(options)
+});
+
+/**
+ * Remove a role's assignment.
+ */
+export const unassignRoleMutation = (options?: Partial<Options<UnassignRoleData>>): UseMutationOptions<UnassignRoleResponse, UnassignRoleError, Options<UnassignRoleData>> => {
+    const mutationOptions: UseMutationOptions<UnassignRoleResponse, UnassignRoleError, Options<UnassignRoleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await unassignRole({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Assign a backend and model to a role.
+ */
+export const assignRoleMutation = (options?: Partial<Options<AssignRoleData>>): UseMutationOptions<AssignRoleResponse, AssignRoleError, Options<AssignRoleData>> => {
+    const mutationOptions: UseMutationOptions<AssignRoleResponse, AssignRoleError, Options<AssignRoleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await assignRole({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getBudgetQueryKey = (options?: Options<GetBudgetData>) => createQueryKey('getBudget', options);
+
+/**
+ * Get this month's token budget and use (REQ-104).
+ */
+export const getBudgetOptions = (options?: Options<GetBudgetData>) => queryOptions<GetBudgetResponse, GetBudgetError, GetBudgetResponse, ReturnType<typeof getBudgetQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getBudget({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getBudgetQueryKey(options)
+});
+
+/**
+ * Set the monthly token limit. No limit means no budget.
+ */
+export const setBudgetMutation = (options?: Partial<Options<SetBudgetData>>): UseMutationOptions<SetBudgetResponse, SetBudgetError, Options<SetBudgetData>> => {
+    const mutationOptions: UseMutationOptions<SetBudgetResponse, SetBudgetError, Options<SetBudgetData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setBudget({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * Render markdown to HTML. Each block carries its source position (DEC-017).

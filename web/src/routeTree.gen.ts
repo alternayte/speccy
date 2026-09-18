@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
 import { Route as BundlesBundleIdDiffRouteImport } from './routes/bundles/$bundleId/diff'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BundlesBundleIdIndexRoute = BundlesBundleIdIndexRouteImport.update({
@@ -31,30 +37,39 @@ const BundlesBundleIdDiffRoute = BundlesBundleIdDiffRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
   '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bundles/$bundleId/diff' | '/bundles/$bundleId/'
+  fullPaths: '/' | '/admin' | '/bundles/$bundleId/diff' | '/bundles/$bundleId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bundles/$bundleId/diff' | '/bundles/$bundleId'
-  id: '__root__' | '/' | '/bundles/$bundleId/diff' | '/bundles/$bundleId/'
+  to: '/' | '/admin' | '/bundles/$bundleId/diff' | '/bundles/$bundleId'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/bundles/$bundleId/diff'
+    | '/bundles/$bundleId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   BundlesBundleIdDiffRoute: typeof BundlesBundleIdDiffRoute
   BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
 }
@@ -66,6 +81,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bundles/$bundleId/': {
@@ -87,6 +109,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   BundlesBundleIdDiffRoute: BundlesBundleIdDiffRoute,
   BundlesBundleIdIndexRoute: BundlesBundleIdIndexRoute,
 }
