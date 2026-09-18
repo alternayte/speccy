@@ -7,31 +7,72 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net"
 	nethttp "net/http"
 	"strings"
 	"time"
 
+	"github.com/alternayte/speccy/internal/features/bundle"
+	"github.com/alternayte/speccy/internal/features/export"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 )
 
+// maxRequestBytes bounds every API request body: one bundle import (50 MB) and form overhead.
+const maxRequestBytes = 60 << 20
+
+// API is every endpoint in api/openapi.yaml. Each feature serves its own operations.
+type API struct {
+	core
+	*BundleAPI
+	*VersionAPI
+	*ExportAPI
+}
+
+// The aliases give each embedded feature API its own field name.
+type (
+	BundleAPI  = bundle.API
+	VersionAPI = version.API
+	ExportAPI  = export.API
+)
+
+// core serves the operations that belong to no feature.
+type core struct{}
+
 // Handler returns the root handler: /healthz, /api/v1, and the SPA for every other path.
-func Handler(spa fs.FS) nethttp.Handler {
+func Handler(spa fs.FS, a API) nethttp.Handler {
 	mux := nethttp.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok\n"))
 	})
-	strict := api.NewStrictHandlerWithOptions(apiServer{}, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(a, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w nethttp.ResponseWriter, _ *nethttp.Request, err error) {
 			writeProblem(w, nethttp.StatusBadRequest, "bad_request", err.Error())
 		},
-		ResponseErrorHandlerFunc: func(w nethttp.ResponseWriter, _ *nethttp.Request, err error) {
-			writeProblem(w, nethttp.StatusInternalServerError, "internal", err.Error())
+		ResponseErrorHandlerFunc: func(w nethttp.ResponseWriter, r *nethttp.Request, err error) {
+			if ke, ok := kernel.AsError(err); ok {
+				writeProblem(w, ke.Status, ke.Code, ke.Detail)
+				return
+			}
+			slog.ErrorContext(r.Context(), "request failed", "method", r.Method, "path", r.URL.Path, "err", err)
+			writeProblem(w, nethttp.StatusInternalServerError, "internal", "Speccy hit an unexpected error. The server log has the details.")
 		},
 	})
-	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{BaseURL: "/api/v1", BaseRouter: mux})
+	api.HandlerWithOptions(strict, api.StdHTTPServerOptions{
+		BaseURL: "/api/v1", BaseRouter: mux,
+		ErrorHandlerFunc: func(w nethttp.ResponseWriter, _ *nethttp.Request, err error) {
+			writeProblem(w, nethttp.StatusBadRequest, "bad_request", err.Error())
+		},
+		Middlewares: []api.MiddlewareFunc{func(next nethttp.Handler) nethttp.Handler {
+			return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+				r.Body = nethttp.MaxBytesReader(w, r.Body, maxRequestBytes)
+				next.ServeHTTP(w, r)
+			})
+		}},
+	})
 	mux.HandleFunc("/api/", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		writeProblem(w, nethttp.StatusNotFound, "not_found", "No API endpoint matches "+r.Method+" "+r.URL.Path+".")
 	})
@@ -39,10 +80,8 @@ func Handler(spa fs.FS) nethttp.Handler {
 	return mux
 }
 
-type apiServer struct{}
-
-func (apiServer) GetMeta(context.Context, api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
-	return api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.Local}, nil
+func (core) GetMeta(context.Context, api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
+	return api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.MetaModeLocal}, nil
 }
 
 // writeProblem writes an RFC 9457 problem details response with a stable code.

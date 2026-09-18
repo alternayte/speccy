@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/store"
 )
 
@@ -67,23 +68,13 @@ type Projection func(ctx context.Context, tx store.Tx, events []Recorded) error
 // Store appends to and reads streams.
 type Store struct {
 	db          *store.DB
-	q           queries
 	now         func() time.Time
 	projections map[string][]Projection
 }
 
 // New returns a store on db. projections maps a stream type to the projections for its events.
-func New(db *store.DB, projections map[string][]Projection) (*Store, error) {
-	var q queries
-	switch db.Engine {
-	case store.SQLite:
-		q = sqliteQueries{}
-	case store.Postgres:
-		q = postgresQueries{}
-	default:
-		return nil, fmt.Errorf("event store: unknown engine %q", db.Engine)
-	}
-	return &Store{db: db, q: q, now: func() time.Time { return time.Now().UTC() }, projections: projections}, nil
+func New(db *store.DB, projections map[string][]Projection) *Store {
+	return &Store{db: db, now: func() time.Time { return time.Now().UTC() }, projections: projections}
 }
 
 // Append writes the events, updates the snapshot, and runs the inline projections in one
@@ -110,13 +101,19 @@ func (s *Store) Append(ctx context.Context, a Append) ([]Recorded, error) {
 		}
 	}
 	err := s.db.InTx(ctx, func(tx store.Tx) error {
+		q := tx.Queries()
 		var n int64
 		var err error
 		// T-030: the version check and the write are one statement, so two writers cannot both pass.
 		if a.Expected == 0 {
-			n, err = s.q.insertStream(ctx, tx, snap)
+			n, err = q.InsertStream(ctx, pgdb.InsertStreamParams{
+				StreamID: snap.ID, StreamType: snap.Type, Version: snap.Version, State: snap.State, UpdatedAt: snap.UpdatedAt,
+			})
 		} else {
-			n, err = s.q.updateStream(ctx, tx, snap, a.Expected)
+			n, err = q.UpdateStream(ctx, pgdb.UpdateStreamParams{
+				StreamID: snap.ID, StreamType: snap.Type, Version: snap.Version, State: snap.State, UpdatedAt: snap.UpdatedAt,
+				ExpectedVersion: a.Expected,
+			})
 		}
 		if err != nil {
 			return err
@@ -125,7 +122,11 @@ func (s *Store) Append(ctx context.Context, a Append) ([]Recorded, error) {
 			return ErrConflict
 		}
 		for _, r := range recorded {
-			if err := s.q.insertEvent(ctx, tx, r); err != nil {
+			err := q.InsertEvent(ctx, pgdb.InsertEventParams{
+				StreamID: r.StreamID, Version: r.Version, EventType: r.Type,
+				Payload: r.Payload, Metadata: r.Metadata, OccurredAt: r.OccurredAt,
+			})
+			if err != nil {
 				return err
 			}
 		}
@@ -145,14 +146,28 @@ func (s *Store) Append(ctx context.Context, a Append) ([]Recorded, error) {
 
 // Load returns the snapshot row of a stream.
 func (s *Store) Load(ctx context.Context, id uuid.UUID) (Stream, error) {
-	st, err := s.q.getStream(ctx, s.db.SQL, id)
+	row, err := s.db.Queries().GetStream(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Stream{}, ErrNotFound
 	}
-	return st, err
+	if err != nil {
+		return Stream{}, err
+	}
+	return Stream{ID: row.StreamID, Type: row.StreamType, Version: row.Version, State: row.State, UpdatedAt: row.UpdatedAt.UTC()}, nil
 }
 
 // Events returns every event of a stream in version order.
 func (s *Store) Events(ctx context.Context, id uuid.UUID) ([]Recorded, error) {
-	return s.q.listEvents(ctx, s.db.SQL, id)
+	rows, err := s.db.Queries().ListEvents(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Recorded, len(rows))
+	for i, r := range rows {
+		out[i] = Recorded{
+			StreamID: r.StreamID, Version: r.Version, Type: r.EventType,
+			Payload: r.Payload, Metadata: r.Metadata, OccurredAt: r.OccurredAt.UTC(),
+		}
+	}
+	return out, nil
 }

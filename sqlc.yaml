@@ -8,10 +8,12 @@ sql:
         package: pgdb
         out: db/postgres
         sql_package: database/sql
-        emit_json_tags: false
+        emit_interface: true
         overrides:
           - db_type: jsonb
             go_type: encoding/json.RawMessage
+  # SQLite declares UUIDTEXT and JSONTEXT columns (TEXT affinity) so that its generated types
+  # match the Postgres ones field for field. db/sqlite/adapter.gen.go relies on that.
   - engine: sqlite
     schema: db/sqlite/migrations
     queries: db/sqlite/queries
@@ -20,7 +22,12 @@ sql:
         package: sqlitedb
         out: db/sqlite
         overrides:
-          - column: es_streams.stream_id
+          - db_type: UUIDTEXT
             go_type: github.com/google/uuid.UUID
-          - column: es_events.stream_id
-            go_type: github.com/google/uuid.UUID
+          - db_type: UUIDTEXT
+            nullable: true
+            go_type:
+              import: github.com/google/uuid
+              type: NullUUID
+          - db_type: JSONTEXT
+            go_type: encoding/json.RawMessage

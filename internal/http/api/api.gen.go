@@ -9,24 +9,193 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
+	"time"
+
+	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for MetaMode.
+// Defines values for BundleSourceKind.
 const (
-	Local MetaMode = "local"
+	BundleSourceKindDb     BundleSourceKind = "db"
+	BundleSourceKindGithub BundleSourceKind = "github"
+	BundleSourceKindLocal  BundleSourceKind = "local"
 )
 
-// Valid indicates whether the value is a known member of the MetaMode enum.
-func (e MetaMode) Valid() bool {
+// Valid indicates whether the value is a known member of the BundleSourceKind enum.
+func (e BundleSourceKind) Valid() bool {
 	switch e {
-	case Local:
+	case BundleSourceKindDb:
+		return true
+	case BundleSourceKindGithub:
+		return true
+	case BundleSourceKindLocal:
 		return true
 	default:
 		return false
 	}
 }
+
+// Defines values for ChangeStatus.
+const (
+	Added     ChangeStatus = "added"
+	Modified  ChangeStatus = "modified"
+	Removed   ChangeStatus = "removed"
+	Unchanged ChangeStatus = "unchanged"
+)
+
+// Valid indicates whether the value is a known member of the ChangeStatus enum.
+func (e ChangeStatus) Valid() bool {
+	switch e {
+	case Added:
+		return true
+	case Modified:
+		return true
+	case Removed:
+		return true
+	case Unchanged:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LineOpOp.
+const (
+	Delete LineOpOp = "delete"
+	Equal  LineOpOp = "equal"
+	Insert LineOpOp = "insert"
+)
+
+// Valid indicates whether the value is a known member of the LineOpOp enum.
+func (e LineOpOp) Valid() bool {
+	switch e {
+	case Delete:
+		return true
+	case Equal:
+		return true
+	case Insert:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MetaMode.
+const (
+	MetaModeLocal MetaMode = "local"
+)
+
+// Valid indicates whether the value is a known member of the MetaMode enum.
+func (e MetaMode) Valid() bool {
+	switch e {
+	case MetaModeLocal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Bundle defines model for Bundle.
+type Bundle struct {
+	CurrentVersion Version            `json:"current_version"`
+	Id             openapi_types.UUID `json:"id"`
+
+	// MainDoc The path of the main doc in the bundle.
+	MainDoc string `json:"main_doc"`
+
+	// ProfileKey The frontmatter type of the main doc.
+	ProfileKey string `json:"profile_key"`
+
+	// Slug In local mode, the bundle folder relative to the served folder.
+	Slug       string           `json:"slug"`
+	SourceKind BundleSourceKind `json:"source_kind"`
+	Title      string           `json:"title"`
+	UpdatedAt  time.Time        `json:"updated_at"`
+}
+
+// BundleSourceKind defines model for Bundle.SourceKind.
+type BundleSourceKind string
+
+// BundleFile defines model for BundleFile.
+type BundleFile struct {
+	IsMainDoc bool   `json:"is_main_doc"`
+	Path      string `json:"path"`
+	Sha256    string `json:"sha256"`
+	Size      int64  `json:"size"`
+}
+
+// BundleList defines model for BundleList.
+type BundleList struct {
+	Items      []Bundle `json:"items"`
+	NextCursor *string  `json:"next_cursor,omitempty"`
+
+	// Problems Folders that are not valid bundles, for example with two main docs (REQ-001).
+	Problems []BundleProblem `json:"problems"`
+}
+
+// BundleProblem defines model for BundleProblem.
+type BundleProblem struct {
+	Message string `json:"message"`
+	Path    string `json:"path"`
+}
+
+// ChangeStatus defines model for ChangeStatus.
+type ChangeStatus string
+
+// Diff defines model for Diff.
+type Diff struct {
+	Files []FileDiff `json:"files"`
+	From  Version    `json:"from"`
+
+	// Sections The sections of the main doc, matched by heading path.
+	Sections []SectionDiff `json:"sections"`
+	To       Version       `json:"to"`
+}
+
+// FileDiff defines model for FileDiff.
+type FileDiff struct {
+	Binary bool `json:"binary"`
+
+	// Lines Line operations for a modified text file. Empty otherwise.
+	Lines  []LineOp     `json:"lines"`
+	Path   string       `json:"path"`
+	Status ChangeStatus `json:"status"`
+}
+
+// FileList defines model for FileList.
+type FileList struct {
+	Items   []BundleFile `json:"items"`
+	Version Version      `json:"version"`
+}
+
+// ImportRequest defines model for ImportRequest.
+type ImportRequest struct {
+	// File A .md file or a .zip file.
+	File *openapi_types.File `json:"file,omitempty"`
+
+	// Name The bundle folder name. The default comes from the file name or the doc title.
+	Name *string `json:"name,omitempty"`
+
+	// Text Pasted markdown.
+	Text *string `json:"text,omitempty"`
+}
+
+// LineOp defines model for LineOp.
+type LineOp struct {
+	Op LineOpOp `json:"op"`
+
+	// Text One or more whole lines, each ending with a newline except possibly the last line of the file.
+	Text string `json:"text"`
+}
+
+// LineOpOp defines model for LineOp.Op.
+type LineOpOp string
 
 // Meta defines model for Meta.
 type Meta struct {
@@ -51,11 +220,180 @@ type Problem struct {
 	Type     string  `json:"type"`
 }
 
+// RenameRequest defines model for RenameRequest.
+type RenameRequest struct {
+	BaseVersion openapi_types.UUID `json:"base_version"`
+	From        string             `json:"from"`
+	To          string             `json:"to"`
+}
+
+// RenderRequest defines model for RenderRequest.
+type RenderRequest struct {
+	// BundleId When set, relative image links resolve to files in this bundle.
+	BundleId *openapi_types.UUID `json:"bundle_id,omitempty"`
+	Markdown string              `json:"markdown"`
+
+	// Path The path of the file in the bundle, so relative links resolve from its folder.
+	Path *string `json:"path,omitempty"`
+}
+
+// RenderResult defines model for RenderResult.
+type RenderResult struct {
+	// Html HTML. Each block element has data-src-start and data-src-end (byte offsets into the markdown) and data-line (the 1-based first line). Mermaid blocks are <pre class="mermaid">.
+	Html string `json:"html"`
+}
+
+// SectionDiff defines model for SectionDiff.
+type SectionDiff struct {
+	HeadingPath []string     `json:"heading_path"`
+	Lines       []LineOp     `json:"lines"`
+	Status      ChangeStatus `json:"status"`
+}
+
+// Version defines model for Version.
+type Version struct {
+	CreatedAt time.Time          `json:"created_at"`
+	CreatedBy string             `json:"created_by"`
+	Id        openapi_types.UUID `json:"id"`
+	Message   string             `json:"message"`
+	Number    int64              `json:"number"`
+}
+
+// VersionList defines model for VersionList.
+type VersionList struct {
+	Items      []Version `json:"items"`
+	NextCursor *string   `json:"next_cursor,omitempty"`
+}
+
+// WriteResult defines model for WriteResult.
+type WriteResult struct {
+	// Changed False when the write left the bundle unchanged, so no version was created.
+	Changed bool    `json:"changed"`
+	Version Version `json:"version"`
+}
+
+// BaseVersion defines model for BaseVersion.
+type BaseVersion = openapi_types.UUID
+
+// BundleId defines model for BundleId.
+type BundleId = openapi_types.UUID
+
+// Cursor defines model for Cursor.
+type Cursor = string
+
+// Limit defines model for Limit.
+type Limit = int
+
+// PathQuery defines model for PathQuery.
+type PathQuery = string
+
+// VersionQuery defines model for VersionQuery.
+type VersionQuery = openapi_types.UUID
+
+// ListBundlesParams defines parameters for ListBundles.
+type ListBundlesParams struct {
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// DiffVersionsParams defines parameters for DiffVersions.
+type DiffVersionsParams struct {
+	From openapi_types.UUID `form:"from" json:"from"`
+	To   openapi_types.UUID `form:"to" json:"to"`
+}
+
+// ExportBundleParams defines parameters for ExportBundle.
+type ExportBundleParams struct {
+	Version *VersionQuery `form:"version,omitempty" json:"version,omitempty"`
+}
+
+// DeleteFileParams defines parameters for DeleteFile.
+type DeleteFileParams struct {
+	// Path A file path relative to the bundle folder, with / separators.
+	Path PathQuery `form:"path" json:"path"`
+
+	// BaseVersion The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+	BaseVersion BaseVersion `form:"base_version" json:"base_version"`
+}
+
+// ListFilesParams defines parameters for ListFiles.
+type ListFilesParams struct {
+	Version *VersionQuery `form:"version,omitempty" json:"version,omitempty"`
+}
+
+// GetFileContentParams defines parameters for GetFileContent.
+type GetFileContentParams struct {
+	Version *VersionQuery `form:"version,omitempty" json:"version,omitempty"`
+
+	// Path A file path relative to the bundle folder, with / separators.
+	Path PathQuery `form:"path" json:"path"`
+}
+
+// PutFileContentParams defines parameters for PutFileContent.
+type PutFileContentParams struct {
+	// BaseVersion The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+	BaseVersion BaseVersion `form:"base_version" json:"base_version"`
+
+	// Path A file path relative to the bundle folder, with / separators.
+	Path PathQuery `form:"path" json:"path"`
+}
+
+// ListVersionsParams defines parameters for ListVersions.
+type ListVersionsParams struct {
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ImportBundleMultipartRequestBody defines body for ImportBundle for multipart/form-data ContentType.
+type ImportBundleMultipartRequestBody = ImportRequest
+
+// RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
+type RenameFileJSONRequestBody = RenameRequest
+
+// RenderMarkdownJSONRequestBody defines body for RenderMarkdown for application/json ContentType.
+type RenderMarkdownJSONRequestBody = RenderRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListBundles List bundles, and the folders that look like bundles but are not valid.
+	// (GET /bundles)
+	ListBundles(w http.ResponseWriter, r *http.Request, params ListBundlesParams)
+	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
+	// (POST /bundles/import)
+	ImportBundle(w http.ResponseWriter, r *http.Request)
+	// GetBundle Get one bundle.
+	// (GET /bundles/{bundleId})
+	GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+	// (GET /bundles/{bundleId}/diff)
+	DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams)
+	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
+	// (GET /bundles/{bundleId}/export)
+	ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams)
+	// DeleteFile Delete a file. Creates a version (REQ-005).
+	// (DELETE /bundles/{bundleId}/files)
+	DeleteFile(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteFileParams)
+	// ListFiles List the files of a bundle version. The default is the current version.
+	// (GET /bundles/{bundleId}/files)
+	ListFiles(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListFilesParams)
+	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
+	// (GET /bundles/{bundleId}/files/content)
+	GetFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params GetFileContentParams)
+	// PutFileContent Create or replace a file. Creates a version when the content changed (REQ-005).
+	// (PUT /bundles/{bundleId}/files/content)
+	PutFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params PutFileContentParams)
+	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
+	// (POST /bundles/{bundleId}/files/rename)
+	RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ListVersions List the versions of a bundle, newest first.
+	// (GET /bundles/{bundleId}/versions)
+	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(w http.ResponseWriter, r *http.Request)
+	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
+	// (POST /render)
+	RenderMarkdown(w http.ResponseWriter, r *http.Request)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -67,11 +405,496 @@ type ServerInterfaceWrapper struct {
 
 type MiddlewareFunc func(http.Handler) http.Handler
 
+// ListBundles operation middleware
+func (siw *ServerInterfaceWrapper) ListBundles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListBundlesParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBundles(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ImportBundle operation middleware
+func (siw *ServerInterfaceWrapper) ImportBundle(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ImportBundle(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBundle operation middleware
+func (siw *ServerInterfaceWrapper) GetBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBundle(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiffVersions operation middleware
+func (siw *ServerInterfaceWrapper) DiffVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DiffVersionsParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiffVersions(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportBundle operation middleware
+func (siw *ServerInterfaceWrapper) ExportBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportBundleParams
+
+	// ------------- Optional query parameter "version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportBundle(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteFileParams
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFile(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFiles operation middleware
+func (siw *ServerInterfaceWrapper) ListFiles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFilesParams
+
+	// ------------- Optional query parameter "version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFiles(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFileContent operation middleware
+func (siw *ServerInterfaceWrapper) GetFileContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFileContentParams
+
+	// ------------- Optional query parameter "version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFileContent(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutFileContent operation middleware
+func (siw *ServerInterfaceWrapper) PutFileContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutFileContentParams
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutFileContent(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameFile operation middleware
+func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameFile(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListVersions operation middleware
+func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListVersionsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListVersions(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMeta operation middleware
 func (siw *ServerInterfaceWrapper) GetMeta(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMeta(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenderMarkdown operation middleware
+func (siw *ServerInterfaceWrapper) RenderMarkdown(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenderMarkdown(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -202,8 +1025,472 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/meta", wrapper.GetMeta)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles", wrapper.ListBundles)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import", wrapper.ImportBundle)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.GetBundle)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.DeleteFile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.ListFiles)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/files/content", wrapper.GetFileContent)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/files/content", wrapper.PutFileContent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/files/rename", wrapper.RenameFile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/versions", wrapper.ListVersions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/diff", wrapper.DiffVersions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/export", wrapper.ExportBundle)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
 
 	return m
+}
+
+type ProblemApplicationProblemPlusJSONResponse Problem
+
+type ListBundlesRequestObject struct {
+	Params ListBundlesParams
+}
+
+type ListBundlesResponseObject interface {
+	VisitListBundlesResponse(w http.ResponseWriter) error
+}
+
+type ListBundles200JSONResponse BundleList
+
+func (response ListBundles200JSONResponse) VisitListBundlesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBundlesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBundlesdefaultApplicationProblemPlusJSONResponse) VisitListBundlesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportBundleRequestObject struct {
+	Body *multipart.Reader
+}
+
+type ImportBundleResponseObject interface {
+	VisitImportBundleResponse(w http.ResponseWriter) error
+}
+
+type ImportBundle201JSONResponse Bundle
+
+func (response ImportBundle201JSONResponse) VisitImportBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ImportBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ImportBundledefaultApplicationProblemPlusJSONResponse) VisitImportBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBundleRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type GetBundleResponseObject interface {
+	VisitGetBundleResponse(w http.ResponseWriter) error
+}
+
+type GetBundle200JSONResponse Bundle
+
+func (response GetBundle200JSONResponse) VisitGetBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBundledefaultApplicationProblemPlusJSONResponse) VisitGetBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiffVersionsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   DiffVersionsParams
+}
+
+type DiffVersionsResponseObject interface {
+	VisitDiffVersionsResponse(w http.ResponseWriter) error
+}
+
+type DiffVersions200JSONResponse Diff
+
+func (response DiffVersions200JSONResponse) VisitDiffVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiffVersionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DiffVersionsdefaultApplicationProblemPlusJSONResponse) VisitDiffVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportBundleRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   ExportBundleParams
+}
+
+type ExportBundleResponseObject interface {
+	VisitExportBundleResponse(w http.ResponseWriter) error
+}
+
+type ExportBundle200ApplicationzipResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportBundle200ApplicationzipResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/zip")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ExportBundledefaultApplicationProblemPlusJSONResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFileRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   DeleteFileParams
+}
+
+type DeleteFileResponseObject interface {
+	VisitDeleteFileResponse(w http.ResponseWriter) error
+}
+
+type DeleteFile200JSONResponse WriteResult
+
+func (response DeleteFile200JSONResponse) VisitDeleteFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteFiledefaultApplicationProblemPlusJSONResponse) VisitDeleteFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFilesRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   ListFilesParams
+}
+
+type ListFilesResponseObject interface {
+	VisitListFilesResponse(w http.ResponseWriter) error
+}
+
+type ListFiles200JSONResponse FileList
+
+func (response ListFiles200JSONResponse) VisitListFilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFilesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListFilesdefaultApplicationProblemPlusJSONResponse) VisitListFilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFileContentRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   GetFileContentParams
+}
+
+type GetFileContentResponseObject interface {
+	VisitGetFileContentResponse(w http.ResponseWriter) error
+}
+
+type GetFileContent200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetFileContent200ApplicationoctetStreamResponse) VisitGetFileContentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetFileContentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetFileContentdefaultApplicationProblemPlusJSONResponse) VisitGetFileContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFileContentRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   PutFileContentParams
+	Body     io.Reader
+}
+
+type PutFileContentResponseObject interface {
+	VisitPutFileContentResponse(w http.ResponseWriter) error
+}
+
+type PutFileContent200JSONResponse WriteResult
+
+func (response PutFileContent200JSONResponse) VisitPutFileContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFileContentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutFileContentdefaultApplicationProblemPlusJSONResponse) VisitPutFileContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameFileRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *RenameFileJSONRequestBody
+}
+
+type RenameFileResponseObject interface {
+	VisitRenameFileResponse(w http.ResponseWriter) error
+}
+
+type RenameFile200JSONResponse WriteResult
+
+func (response RenameFile200JSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameFiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVersionsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   ListVersionsParams
+}
+
+type ListVersionsResponseObject interface {
+	VisitListVersionsResponse(w http.ResponseWriter) error
+}
+
+type ListVersions200JSONResponse VersionList
+
+func (response ListVersions200JSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVersionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListVersionsdefaultApplicationProblemPlusJSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
 }
 
 type GetMetaRequestObject struct {
@@ -244,11 +1531,86 @@ func (response GetMetadefaultApplicationProblemPlusJSONResponse) VisitGetMetaRes
 	return err
 }
 
+type RenderMarkdownRequestObject struct {
+	Body *RenderMarkdownJSONRequestBody
+}
+
+type RenderMarkdownResponseObject interface {
+	VisitRenderMarkdownResponse(w http.ResponseWriter) error
+}
+
+type RenderMarkdown200JSONResponse RenderResult
+
+func (response RenderMarkdown200JSONResponse) VisitRenderMarkdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenderMarkdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RenderMarkdowndefaultApplicationProblemPlusJSONResponse) VisitRenderMarkdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListBundles List bundles, and the folders that look like bundles but are not valid.
+	// (GET /bundles)
+	ListBundles(ctx context.Context, request ListBundlesRequestObject) (ListBundlesResponseObject, error)
+	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
+	// (POST /bundles/import)
+	ImportBundle(ctx context.Context, request ImportBundleRequestObject) (ImportBundleResponseObject, error)
+	// GetBundle Get one bundle.
+	// (GET /bundles/{bundleId})
+	GetBundle(ctx context.Context, request GetBundleRequestObject) (GetBundleResponseObject, error)
+	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+	// (GET /bundles/{bundleId}/diff)
+	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
+	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
+	// (GET /bundles/{bundleId}/export)
+	ExportBundle(ctx context.Context, request ExportBundleRequestObject) (ExportBundleResponseObject, error)
+	// DeleteFile Delete a file. Creates a version (REQ-005).
+	// (DELETE /bundles/{bundleId}/files)
+	DeleteFile(ctx context.Context, request DeleteFileRequestObject) (DeleteFileResponseObject, error)
+	// ListFiles List the files of a bundle version. The default is the current version.
+	// (GET /bundles/{bundleId}/files)
+	ListFiles(ctx context.Context, request ListFilesRequestObject) (ListFilesResponseObject, error)
+	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
+	// (GET /bundles/{bundleId}/files/content)
+	GetFileContent(ctx context.Context, request GetFileContentRequestObject) (GetFileContentResponseObject, error)
+	// PutFileContent Create or replace a file. Creates a version when the content changed (REQ-005).
+	// (PUT /bundles/{bundleId}/files/content)
+	PutFileContent(ctx context.Context, request PutFileContentRequestObject) (PutFileContentResponseObject, error)
+	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
+	// (POST /bundles/{bundleId}/files/rename)
+	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
+	// ListVersions List the versions of a bundle, newest first.
+	// (GET /bundles/{bundleId}/versions)
+	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(ctx context.Context, request GetMetaRequestObject) (GetMetaResponseObject, error)
+	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
+	// (POST /render)
+	RenderMarkdown(ctx context.Context, request RenderMarkdownRequestObject) (RenderMarkdownResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -290,6 +1652,313 @@ type strictHandler struct {
 	options     StrictHTTPServerOptions
 }
 
+// ListBundles operation middleware
+func (sh *strictHandler) ListBundles(w http.ResponseWriter, r *http.Request, params ListBundlesParams) {
+	var request ListBundlesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBundles(ctx, request.(ListBundlesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBundles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBundlesResponseObject); ok {
+		if err := validResponse.VisitListBundlesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ImportBundle operation middleware
+func (sh *strictHandler) ImportBundle(w http.ResponseWriter, r *http.Request) {
+	var request ImportBundleRequestObject
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ImportBundle(ctx, request.(ImportBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ImportBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ImportBundleResponseObject); ok {
+		if err := validResponse.VisitImportBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBundle operation middleware
+func (sh *strictHandler) GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request GetBundleRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBundle(ctx, request.(GetBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBundleResponseObject); ok {
+		if err := validResponse.VisitGetBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiffVersions operation middleware
+func (sh *strictHandler) DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams) {
+	var request DiffVersionsRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiffVersions(ctx, request.(DiffVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiffVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiffVersionsResponseObject); ok {
+		if err := validResponse.VisitDiffVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportBundle operation middleware
+func (sh *strictHandler) ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams) {
+	var request ExportBundleRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportBundle(ctx, request.(ExportBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportBundleResponseObject); ok {
+		if err := validResponse.VisitExportBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFile operation middleware
+func (sh *strictHandler) DeleteFile(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteFileParams) {
+	var request DeleteFileRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFile(ctx, request.(DeleteFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFileResponseObject); ok {
+		if err := validResponse.VisitDeleteFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFiles operation middleware
+func (sh *strictHandler) ListFiles(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListFilesParams) {
+	var request ListFilesRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFiles(ctx, request.(ListFilesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFiles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFilesResponseObject); ok {
+		if err := validResponse.VisitListFilesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFileContent operation middleware
+func (sh *strictHandler) GetFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params GetFileContentParams) {
+	var request GetFileContentRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFileContent(ctx, request.(GetFileContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFileContent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFileContentResponseObject); ok {
+		if err := validResponse.VisitGetFileContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutFileContent operation middleware
+func (sh *strictHandler) PutFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params PutFileContentParams) {
+	var request PutFileContentRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutFileContent(ctx, request.(PutFileContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutFileContent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutFileContentResponseObject); ok {
+		if err := validResponse.VisitPutFileContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameFile operation middleware
+func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request RenameFileRequestObject
+
+	request.BundleId = bundleId
+
+	var body RenameFileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameFile(ctx, request.(RenameFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameFileResponseObject); ok {
+		if err := validResponse.VisitRenameFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListVersions operation middleware
+func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams) {
+	var request ListVersionsRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListVersions(ctx, request.(ListVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListVersionsResponseObject); ok {
+		if err := validResponse.VisitListVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMeta operation middleware
 func (sh *strictHandler) GetMeta(w http.ResponseWriter, r *http.Request) {
 	var request GetMetaRequestObject
@@ -307,6 +1976,37 @@ func (sh *strictHandler) GetMeta(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetMetaResponseObject); ok {
 		if err := validResponse.VisitGetMetaResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenderMarkdown operation middleware
+func (sh *strictHandler) RenderMarkdown(w http.ResponseWriter, r *http.Request) {
+	var request RenderMarkdownRequestObject
+
+	var body RenderMarkdownJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenderMarkdown(ctx, request.(RenderMarkdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenderMarkdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenderMarkdownResponseObject); ok {
+		if err := validResponse.VisitRenderMarkdownResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

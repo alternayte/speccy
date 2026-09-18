@@ -1,5 +1,6 @@
 // Command buildtool runs the repository checks that are not a linter rule:
-// the JavaScript budget (SDD §13.4) and the code organisation conventions (SDD §17).
+// the JavaScript budget (SDD §13.4), the code organisation conventions (SDD §17), and the
+// SQLite query adapter (SDD §11.2).
 package main
 
 import (
@@ -9,7 +10,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: buildtool budget|conventions")
+		fmt.Fprintln(os.Stderr, "usage: buildtool budget|conventions|sqladapter")
 		os.Exit(2)
 	}
 	var err error
@@ -18,6 +19,8 @@ func main() {
 		err = cmdBudget()
 	case "conventions":
 		err = cmdConventions()
+	case "sqladapter":
+		err = cmdSQLAdapter()
 	default:
 		err = fmt.Errorf("unknown command %q", os.Args[1])
 	}

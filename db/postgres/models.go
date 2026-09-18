@@ -5,11 +5,33 @@
 package pgdb
 
 import (
+	"database/sql"
 	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type Blob struct {
+	Sha256  string
+	Content []byte
+	Size    int64
+}
+
+type Bundle struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	Slug             string
+	Title            string
+	ProfileKey       string
+	MainDoc          string
+	SourceKind       string
+	SourceRef        json.RawMessage
+	CurrentVersionID uuid.NullUUID
+	ArchivedAt       sql.NullTime
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
 
 type EsEvent struct {
 	StreamID   uuid.UUID
@@ -26,4 +48,27 @@ type EsStream struct {
 	Version    int64
 	State      json.RawMessage
 	UpdatedAt  time.Time
+}
+
+type Version struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	BundleID    uuid.UUID
+	Number      int64
+	CreatedBy   string
+	Message     string
+	CreatedAt   time.Time
+}
+
+type VersionFile struct {
+	VersionID uuid.UUID
+	Path      string
+	Sha256    string
+}
+
+type Workspace struct {
+	ID        uuid.UUID
+	Name      string
+	Settings  json.RawMessage
+	CreatedAt time.Time
 }

@@ -3,7 +3,7 @@ tmp_dir = "build/air"
 
 [build]
   cmd = "go build -o build/air/speccy ./cmd/speccy"
-  full_bin = "build/air/speccy serve"
+  full_bin = "build/air/speccy serve --dir build/dev-bundles"
   include_ext = ["go", "yaml"]
   exclude_dir = ["web", "build", "bin", "docs", "node_modules", "testdata"]
   delay = 300

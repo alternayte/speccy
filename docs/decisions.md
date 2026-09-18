@@ -107,3 +107,93 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** testcontainers-go with `postgres:17-alpine`. One container per test binary, and one fresh database per test. The `postgres` build tag turns it on.
 - **Alternative:** A `docker compose` Postgres that `just test-pg` starts.
 - **Reason:** The tests own their database. CI and a clean clone need only Docker.
+
+## 2026-09-18 — Bundle discovery in local mode
+
+- **Choice:** `speccy` walks the served folder. Each folder with exactly one markdown file that has a frontmatter `type` is a bundle. A folder with two or more is listed as a problem that names the files. Hidden folders and `node_modules` are skipped. Symlinks are not followed. Files over 10 MB are skipped and listed as a problem. Confirmed by the owner.
+- **Alternative:** Require `.speccy.yaml` `bundles:` globs at M2, or treat only the served folder as one bundle.
+- **Reason:** Discovery works with no config. M3 adds `.speccy.yaml`, which can narrow the scan.
+
+## 2026-09-18 — The db source at M2, and imports in local mode
+
+- **Choice:** The db source (files as blobs, a version per change, REQ-009 limits) is built and tested on both engines. No server exposes it until hosted mode (M8). In local mode, an import writes a new folder under the served folder. Confirmed by the owner.
+- **Alternative:** Hosted mode without auth on loopback, or local bundles that live only in SQLite.
+- **Reason:** In local mode a bundle is always a folder the user can commit (DEC-003, DEC-018).
+
+## 2026-09-18 — REQ-009 limits are constants until M8
+
+- **Choice:** 10 MB per file and 50 MB per bundle, as constants in `internal/source/limits.go`. Imports in local mode use the same limits. Confirmed by the owner.
+- **Alternative:** Environment variables now.
+- **Reason:** Admin settings arrive at M8, which completes REQ-009.
+
+## 2026-09-18 — One query interface for both engines
+
+- **Choice:** sqlc emits `pgdb.Querier` for Postgres. `tools/buildtool sqladapter` generates `db/sqlite/adapter.gen.go`, which implements the same interface on the SQLite queries by struct conversion. SQLite columns use the type names `UUIDTEXT` and `JSONTEXT` (TEXT affinity), so the generated types match Postgres field for field. `store.DB.Queries()` and `store.Tx.Queries()` return the interface for the engine.
+- **Alternative:** A hand-written adapter per feature.
+- **Reason:** SDD §11.2 allows the interface. Generation removes the duplicate code, and a schema drift between engines fails the build.
+
+## 2026-09-18 — Bundles table additions
+
+- **Choice:** `bundle` has `main_doc` and `archived_at` columns beyond SDD §11.1. `archived_at` is set when a local bundle's folder is gone. Share and visibility columns arrive at M8.
+- **Alternative:** Derive the main doc from the files on each read; delete rows of gone folders.
+- **Reason:** The bundle list needs the main doc without reading blobs. Archiving keeps the versions of a folder that comes back.
+
+## 2026-09-18 — Optimistic version check on every change
+
+- **Choice:** Every file change sends `base_version`. The server moves the bundle head only from that version (`UpdateBundleHead ... WHERE current_version_id IS base`). In local mode, the server scans the disk before the check, so an edit on disk that the watcher has not seen yet also counts. A mismatch is a 409 with code `version_conflict`.
+- **Alternative:** Last write wins.
+- **Reason:** DEC-004: one editor at a time. A save never overwrites a change it did not see.
+
+## 2026-09-18 — Reads come from versions
+
+- **Choice:** File lists and file content come from the version blobs in the store, in local mode too. The watcher keeps versions in step with the disk (full rescan, 300 ms quiet period).
+- **Alternative:** Read local files from disk on each request.
+- **Reason:** One read path for both sources, and old versions stay readable for diffs.
+
+## 2026-09-18 — Section hash details
+
+- **Choice:** A section's own content starts after the heading line (after the underline for a setext heading). Only top-level headings start sections; headings in lists, quotes, and code do not. Normalization also trims leading and trailing blank lines. The text before the first heading is a level-0 section with an empty path.
+- **Alternative:** Include the heading line in the hash.
+- **Reason:** A waiver keys on the heading path and the hash. Renaming a heading changes the path, not the content.
+
+## 2026-09-18 — Preview rendering
+
+- **Choice:** `POST /render` returns HTML where each block has `data-src-start`, `data-src-end` (byte offsets into the file), and `data-line`. Raw HTML is dropped, and dangerous URLs are emptied. Code is highlighted on the server with chroma CSS classes. Mermaid blocks are `<pre class="mermaid">`, drawn by the client with `securityLevel: strict`. Relative images load through the file content endpoint, which sends a sandbox CSP.
+- **Alternative:** Client-side highlighting.
+- **Reason:** DEC-017 and SDD §14.3.
+
+## 2026-09-18 — Markdown in the editor
+
+- **Choice:** The editor uses `@lezer/markdown` with GFM directly, plus a small list-continuation command.
+- **Alternative:** `@codemirror/lang-markdown`.
+- **Reason:** `lang-markdown` bundles the HTML, CSS, and JavaScript languages and autocomplete, about 60 kB gzipped, for features the editor does not need. The editor loses highlighting inside fenced code; the preview still highlights it.
+
+## 2026-09-18 — JavaScript budget measures the bundle route
+
+- **Choice:** `buildtool budget` counts the entry, the bundle route's split chunks (`src/routes/bundles/$bundleId/index.tsx`), and their static imports. Dynamic imports (Mermaid, panels loaded on demand) are excluded. At M2 the total is 282 kB of 400 kB (SDD §13.4, raised from 300 kB on 2026-09-18).
+- **Alternative:** Count the entry only.
+- **Reason:** SDD §13.4 sets the budget for the bundle route.
+
+## 2026-09-18 — New versions reach the UI by polling
+
+- **Choice:** The bundle page polls the bundle every 2 seconds. A new version reloads a clean editor, or shows a banner over unsaved edits.
+- **Alternative:** Server-sent events now.
+- **Reason:** SSE arrives with run progress (REQ-026). Polling a local server is cheap.
+
+## 2026-09-18 — Export and print at M2
+
+- **Choice:** M2 has the `.zip` export and PDF through print CSS (the preview only). The HTML report arrives with the verdict (M12).
+- **Alternative:** An HTML export without a verdict.
+- **Reason:** SDD §18 puts HTML export at M12.
+
+## 2026-09-18 — Development data
+
+- **Choice:** `just dev` serves `build/dev-bundles`, a copy of `testdata/bundles` made on first run.
+- **Alternative:** Serve `testdata/bundles` directly.
+- **Reason:** Edits in dev must not change the fixtures that tests use.
+
+## 2026-09-18 — UI building blocks
+
+- **Choice:** Components built from the design tokens on `radix-ui` primitives, with `lucide-react` icons and self-hosted Inter and JetBrains Mono (`@fontsource-variable`). No shadcn component is copied yet.
+- **Alternative:** shadcn/ui components as generated.
+- **Reason:** The design-direction rule forbids the default component look. The M2 screens need a button, a dialog, a menu, and an input; shadcn arrives when a component needs more than a primitive.
