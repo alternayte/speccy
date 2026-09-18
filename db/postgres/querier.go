@@ -11,7 +11,14 @@ import (
 )
 
 type Querier interface {
+	AddBudgetTokens(ctx context.Context, arg AddBudgetTokensParams) error
+	CountAssignmentsForBackend(ctx context.Context, arg CountAssignmentsForBackendParams) (int64, error)
+	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
+	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
+	GetBackend(ctx context.Context, arg GetBackendParams) (ModelBackend, error)
 	GetBlob(ctx context.Context, sha256 string) ([]byte, error)
+	GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error)
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
@@ -22,7 +29,9 @@ type Querier interface {
 	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
 	GetVersion(ctx context.Context, arg GetVersionParams) (Version, error)
 	GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error)
+	InsertBackend(ctx context.Context, arg InsertBackendParams) error
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
+	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
@@ -34,8 +43,11 @@ type Querier interface {
 	InsertVersion(ctx context.Context, arg InsertVersionParams) error
 	InsertVersionFile(ctx context.Context, arg InsertVersionFileParams) error
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error
+	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
+	ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]RoleAssignment, error)
+	ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]ModelBackend, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
@@ -45,11 +57,14 @@ type Querier interface {
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
+	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
+	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
 	// The head moves only from the version the change was based on.
 	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error)
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
+	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -18,6 +18,13 @@ type Blob struct {
 	Size    int64
 }
 
+type Budget struct {
+	WorkspaceID uuid.UUID
+	Month       string
+	TokenLimit  sql.NullInt64
+	TokensUsed  int64
+}
+
 type Bundle struct {
 	ID               uuid.UUID
 	WorkspaceID      uuid.UUID
@@ -63,6 +70,17 @@ type Finding struct {
 	Suggestion dbtype.JSON
 }
 
+type ModelBackend struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	Kind            string
+	Name            string
+	Config          dbtype.JSON
+	SecretEncrypted []byte
+	SecretLast4     string
+	CreatedAt       time.Time
+}
+
 type Profile struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
@@ -100,6 +118,15 @@ type ReviewRun struct {
 	Error          string
 	StartedAt      time.Time
 	FinishedAt     sql.NullTime
+}
+
+type RoleAssignment struct {
+	WorkspaceID     uuid.UUID
+	Role            string
+	BackendID       uuid.UUID
+	Model           string
+	PriceInPerMtok  float64
+	PriceOutPerMtok float64
 }
 
 type Verdict struct {

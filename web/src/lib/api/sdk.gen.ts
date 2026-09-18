@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateBundleData, CreateBundleErrors, CreateBundleResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetRunData, GetRunErrors, GetRunResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses } from './types.gen';
+import type { AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetRunData, GetRunErrors, GetRunResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -137,6 +137,96 @@ export const listFindings = <ThrowOnError extends boolean = false>(options: Opti
  * List the profiles, with their current versions.
  */
 export const listProfiles = <ThrowOnError extends boolean = false>(options?: Options<ListProfilesData, ThrowOnError>): RequestResult<ListProfilesResponses, ListProfilesErrors, ThrowOnError> => (options?.client ?? client).get<ListProfilesResponses, ListProfilesErrors, ThrowOnError>({ url: '/profiles', ...options });
+
+/**
+ * List the model backends. Secrets show their last 4 characters only (SDD §14.1).
+ */
+export const listBackends = <ThrowOnError extends boolean = false>(options?: Options<ListBackendsData, ThrowOnError>): RequestResult<ListBackendsResponses, ListBackendsErrors, ThrowOnError> => (options?.client ?? client).get<ListBackendsResponses, ListBackendsErrors, ThrowOnError>({ url: '/admin/backends', ...options });
+
+/**
+ * Add a model backend (REQ-100).
+ */
+export const createBackend = <ThrowOnError extends boolean = false>(options: Options<CreateBackendData, ThrowOnError>): RequestResult<CreateBackendResponses, CreateBackendErrors, ThrowOnError> => (options.client ?? client).post<CreateBackendResponses, CreateBackendErrors, ThrowOnError>({
+    url: '/admin/backends',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a backend that no role uses.
+ */
+export const deleteBackend = <ThrowOnError extends boolean = false>(options: Options<DeleteBackendData, ThrowOnError>): RequestResult<DeleteBackendResponses, DeleteBackendErrors, ThrowOnError> => (options.client ?? client).delete<DeleteBackendResponses, DeleteBackendErrors, ThrowOnError>({ url: '/admin/backends/{backendId}', ...options });
+
+/**
+ * Change a backend. Leave the secret out to keep the stored one.
+ */
+export const updateBackend = <ThrowOnError extends boolean = false>(options: Options<UpdateBackendData, ThrowOnError>): RequestResult<UpdateBackendResponses, UpdateBackendErrors, ThrowOnError> => (options.client ?? client).put<UpdateBackendResponses, UpdateBackendErrors, ThrowOnError>({
+    url: '/admin/backends/{backendId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Send one short call to a backend and model, to check the setup.
+ */
+export const testBackend = <ThrowOnError extends boolean = false>(options: Options<TestBackendData, ThrowOnError>): RequestResult<TestBackendResponses, TestBackendErrors, ThrowOnError> => (options.client ?? client).post<TestBackendResponses, TestBackendErrors, ThrowOnError>({
+    url: '/admin/backends/{backendId}/test',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the agent CLI presets and whether each CLI is installed (REQ-102).
+ */
+export const listPresets = <ThrowOnError extends boolean = false>(options?: Options<ListPresetsData, ThrowOnError>): RequestResult<ListPresetsResponses, ListPresetsErrors, ThrowOnError> => (options?.client ?? client).get<ListPresetsResponses, ListPresetsErrors, ThrowOnError>({ url: '/admin/presets', ...options });
+
+/**
+ * List the roles and their backend and model (REQ-101).
+ */
+export const listRoles = <ThrowOnError extends boolean = false>(options?: Options<ListRolesData, ThrowOnError>): RequestResult<ListRolesResponses, ListRolesErrors, ThrowOnError> => (options?.client ?? client).get<ListRolesResponses, ListRolesErrors, ThrowOnError>({ url: '/admin/roles', ...options });
+
+/**
+ * Remove a role's assignment.
+ */
+export const unassignRole = <ThrowOnError extends boolean = false>(options: Options<UnassignRoleData, ThrowOnError>): RequestResult<UnassignRoleResponses, UnassignRoleErrors, ThrowOnError> => (options.client ?? client).delete<UnassignRoleResponses, UnassignRoleErrors, ThrowOnError>({ url: '/admin/roles/{role}', ...options });
+
+/**
+ * Assign a backend and model to a role.
+ */
+export const assignRole = <ThrowOnError extends boolean = false>(options: Options<AssignRoleData, ThrowOnError>): RequestResult<AssignRoleResponses, AssignRoleErrors, ThrowOnError> => (options.client ?? client).put<AssignRoleResponses, AssignRoleErrors, ThrowOnError>({
+    url: '/admin/roles/{role}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get this month's token budget and use (REQ-104).
+ */
+export const getBudget = <ThrowOnError extends boolean = false>(options?: Options<GetBudgetData, ThrowOnError>): RequestResult<GetBudgetResponses, GetBudgetErrors, ThrowOnError> => (options?.client ?? client).get<GetBudgetResponses, GetBudgetErrors, ThrowOnError>({ url: '/admin/budget', ...options });
+
+/**
+ * Set the monthly token limit. No limit means no budget.
+ */
+export const setBudget = <ThrowOnError extends boolean = false>(options: Options<SetBudgetData, ThrowOnError>): RequestResult<SetBudgetResponses, SetBudgetErrors, ThrowOnError> => (options.client ?? client).put<SetBudgetResponses, SetBudgetErrors, ThrowOnError>({
+    url: '/admin/budget',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Render markdown to HTML. Each block carries its source position (DEC-017).

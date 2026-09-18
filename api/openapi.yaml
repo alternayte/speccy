@@ -325,6 +325,194 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /admin/backends:
+    get:
+      operationId: listBackends
+      summary: List the model backends. Secrets show their last 4 characters only (SDD §14.1).
+      responses:
+        "200":
+          description: The backends.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackendList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: createBackend
+      summary: Add a model backend (REQ-100).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackendInput"
+      responses:
+        "201":
+          description: The backend.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Backend"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/backends/{backendId}:
+    parameters:
+      - $ref: "#/components/parameters/BackendId"
+    put:
+      operationId: updateBackend
+      summary: Change a backend. Leave the secret out to keep the stored one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackendInput"
+      responses:
+        "200":
+          description: The backend.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Backend"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteBackend
+      summary: Delete a backend that no role uses.
+      responses:
+        "204":
+          description: Deleted.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/backends/{backendId}/test:
+    parameters:
+      - $ref: "#/components/parameters/BackendId"
+    post:
+      operationId: testBackend
+      summary: Send one short call to a backend and model, to check the setup.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model:
+                  type: string
+      responses:
+        "200":
+          description: The outcome.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackendTest"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/presets:
+    get:
+      operationId: listPresets
+      summary: List the agent CLI presets and whether each CLI is installed (REQ-102).
+      responses:
+        "200":
+          description: The presets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresetList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/roles:
+    get:
+      operationId: listRoles
+      summary: List the roles and their backend and model (REQ-101).
+      responses:
+        "200":
+          description: The roles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/roles/{role}:
+    parameters:
+      - name: role
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/RoleName"
+    put:
+      operationId: assignRole
+      summary: Assign a backend and model to a role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleInput"
+      responses:
+        "200":
+          description: The role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: unassignRole
+      summary: Remove a role's assignment.
+      responses:
+        "204":
+          description: Removed.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/budget:
+    get:
+      operationId: getBudget
+      summary: Get this month's token budget and use (REQ-104).
+      responses:
+        "200":
+          description: The budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: setBudget
+      summary: Set the monthly token limit. No limit means no budget.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token_limit:
+                  type: integer
+                  format: int64
+                  minimum: 0
+                  description: Leave it out for no limit.
+      responses:
+        "200":
+          description: The budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Budget"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /render:
     post:
       operationId: renderMarkdown
@@ -347,6 +535,13 @@ paths:
 
 components:
   parameters:
+    BackendId:
+      name: backendId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     RunId:
       name: runId
       in: path
@@ -660,6 +855,180 @@ components:
           description: Profile files that did not load, with the reason.
           items:
             type: string
+
+    BackendKind:
+      type: string
+      enum: [openai, anthropic, openrouter, deepseek, agent_cli]
+
+    BackendInput:
+      type: object
+      required: [kind, name]
+      properties:
+        kind:
+          $ref: "#/components/schemas/BackendKind"
+        name:
+          type: string
+        secret:
+          type: string
+          description: The API key. Write-only.
+        base_url:
+          type: string
+          description: Overrides the provider's API address.
+        preset:
+          type: string
+          description: "For agent_cli: claude, cursor-agent, opencode, pi, or custom."
+        command:
+          type: array
+          items:
+            type: string
+          description: For a custom agent CLI. {model}, {schema}, and {prompt_file} are replaced.
+        prompt_via:
+          type: string
+          enum: [stdin, file]
+
+    Backend:
+      type: object
+      required: [id, kind, name, has_secret, secret_last4, roles]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          $ref: "#/components/schemas/BackendKind"
+        name:
+          type: string
+        has_secret:
+          type: boolean
+        secret_last4:
+          type: string
+        base_url:
+          type: string
+        preset:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        prompt_via:
+          type: string
+        roles:
+          type: array
+          description: The roles that use this backend.
+          items:
+            type: string
+
+    BackendList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Backend"
+
+    BackendTest:
+      type: object
+      required: [ok, duration_ms]
+      properties:
+        ok:
+          type: boolean
+        answer:
+          type: string
+        error:
+          type: string
+        tokens_in:
+          type: integer
+          format: int64
+        tokens_out:
+          type: integer
+          format: int64
+        estimated:
+          type: boolean
+        duration_ms:
+          type: integer
+          format: int64
+
+    Preset:
+      type: object
+      required: [name, installed, command, verified]
+      properties:
+        name:
+          type: string
+        installed:
+          type: boolean
+        command:
+          type: array
+          items:
+            type: string
+        verified:
+          type: string
+
+    PresetList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Preset"
+
+    RoleName:
+      type: string
+      enum: [reviewer, reader_1, reader_2, reader_3, judge, writer]
+
+    RoleInput:
+      type: object
+      required: [backend_id, model]
+      properties:
+        backend_id:
+          type: string
+          format: uuid
+        model:
+          type: string
+        price_in_per_mtok:
+          type: number
+          description: Price per million input tokens, for cost estimates.
+        price_out_per_mtok:
+          type: number
+
+    Role:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: "#/components/schemas/RoleName"
+        backend_id:
+          type: string
+          format: uuid
+        model:
+          type: string
+        price_in_per_mtok:
+          type: number
+        price_out_per_mtok:
+          type: number
+
+    RoleList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+
+    Budget:
+      type: object
+      required: [month, tokens_used]
+      properties:
+        month:
+          type: string
+          description: YYYY-MM, in UTC.
+        token_limit:
+          type: integer
+          format: int64
+        tokens_used:
+          type: integer
+          format: int64
 
     BundleList:
       type: object

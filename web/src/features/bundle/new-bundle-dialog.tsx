@@ -45,7 +45,7 @@ export function NewBundleDialog({ open, onOpenChange }: { open: boolean; onOpenC
           create.mutate({ body: { profile: chosen, name: folder, title: title.trim() || undefined } });
         }}
       >
-        <fieldset>
+        <fieldset className="min-w-0">
           <legend className="mb-1 block text-xs font-medium text-ink-2">Doc type</legend>
           {profiles.isPending ? (
             <Loading label="Loading doc types" />

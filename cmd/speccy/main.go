@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alternayte/speccy/internal/features/admin"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -25,6 +26,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/store"
 	"github.com/alternayte/speccy/web"
@@ -143,6 +145,12 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	if err != nil {
 		return nil, err
 	}
+	// SDD §14.1: local mode keeps the secret key in .speccy/state/key, mode 0600.
+	sealer, err := kernel.LocalSealer(filepath.Join(stateDir, "key"))
+	if err != nil {
+		return nil, err
+	}
+	gateway := &model.Gateway{DB: db, Workspace: ws, Sealer: sealer}
 	profiles := &profile.Registry{DB: db, Workspace: ws, Dir: filepath.Join(root.Dir(), ".speccy", "profiles")}
 	if err := profiles.Reload(ctx); err != nil {
 		return nil, err
@@ -170,6 +178,7 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 		ExportAPI:  &export.API{DB: db, Workspace: ws},
 		ProfileAPI: &profile.API{Registry: profiles},
 		ReviewAPI:  &review.API{DB: db, Workspace: ws},
+		AdminAPI:   &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway},
 	}
 	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, api) }, nil
 }

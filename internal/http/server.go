@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alternayte/speccy/internal/features/admin"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -33,6 +34,7 @@ type API struct {
 	*ExportAPI
 	*ProfileAPI
 	*ReviewAPI
+	*AdminAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -42,6 +44,7 @@ type (
 	ExportAPI  = export.API
 	ProfileAPI = profile.API
 	ReviewAPI  = review.API
+	AdminAPI   = admin.API
 )
 
 // core serves the operations that belong to no feature.

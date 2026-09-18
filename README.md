@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M3. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save and gives a lint-only verdict. The AI review stages do not exist yet.
+Speccy is at milestone M4. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save and gives a lint-only verdict. You can set up the models for the AI review in Admin; the AI review stages arrive next.
 
 ## Quick start
 
@@ -44,6 +44,8 @@ This table lists only the guarantees whose tests pass today.
 | Both store engines pass the same conformance suite. | [`TestStoreConformance`](internal/store/conformance/conformance_test.go) |
 | A concurrent append with a stale version is rejected. | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go) |
 | Projections update in the same transaction as the append. | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go) |
+| Invalid model JSON is retried once, then the step fails. | [`TestModel_InvalidJSONRetryOnce`](internal/model/model_test.go) |
+| Secrets are not stored in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go) |
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
 
 ## How the verdict works
@@ -84,6 +86,15 @@ adoption:                 # these checks report as INFO for now
 ## GitHub Action
 
 The GitHub Action does not exist yet.
+
+## Models
+
+Open **Admin** to add a backend and assign it to the review roles. A backend is one of:
+
+- An API key for Anthropic, OpenAI, OpenRouter, or DeepSeek. Speccy encrypts it with a key in `.speccy/state/key`.
+- An agent CLI you already use, on your subscription: `claude`, `cursor-agent`, `opencode`, or `pi`, or your own command. Speccy runs it in a temporary folder that holds only the bundle.
+
+Use **Test** to check a backend and model with one short call. Set a monthly token budget to cap spend; when it is spent, AI stages stop and lint still runs.
 
 ## Configuration
 

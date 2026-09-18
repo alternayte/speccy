@@ -12,10 +12,18 @@ export function AppShell() {
         <nav className="flex items-center gap-1 text-sm">
           <Link
             to="/"
+            activeOptions={{ exact: true }}
             className="rounded-md px-2 py-1 text-ink-2 hover:bg-sunken hover:text-ink"
             activeProps={{ className: "text-ink" }}
           >
             Bundles
+          </Link>
+          <Link
+            to="/admin"
+            className="rounded-md px-2 py-1 text-ink-2 hover:bg-sunken hover:text-ink"
+            activeProps={{ className: "text-ink" }}
+          >
+            Admin
           </Link>
         </nav>
         <div className="ml-auto">
