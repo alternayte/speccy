@@ -1,0 +1,108 @@
+key: prd
+name: Product Requirements Document
+template: templates/prd.md
+limits:
+  max_words: 6000
+  max_section_words: 800
+  max_sentence_words: 25
+  max_code_block_lines: 40
+  max_table_rows: 15
+trace:
+  prefixes: [REQ, NFR]
+waivers: { should: non_author, must: maintainer }
+approvals: { required: 1 }
+divergence:
+  readers: 3
+  questions: { min: 10, max: 20 }
+  themes: [users, scope, acceptance, priorities, dependencies, edge cases]
+checks:
+  - slug: prd.problem.evidence
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does the problem statement have evidence?
+    pass_when: The problem has evidence, such as a metric, a ticket, or a user quote.
+  - slug: prd.problem.who
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does the doc name who has the problem?
+    pass_when: The doc names the people or the role that has the problem.
+  - slug: prd.goals.measurable
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Is each goal measurable?
+    pass_when: Each goal has a metric and a target value.
+  - slug: prd.goals.baseline
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Does each metric have a baseline?
+    pass_when: Each metric has a current baseline value.
+  - slug: prd.non-goals
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does the doc list what the product will not do?
+    pass_when: A section lists at least one thing the product will not do.
+  - slug: prd.req.ids
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does every requirement have a trace ID?
+    pass_when: Every requirement has a trace ID.
+  - slug: prd.req.acceptance
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does every requirement have an acceptance criterion?
+    pass_when: Every requirement has an acceptance criterion that a tester can check.
+  - slug: prd.req.priority
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Does every requirement have a priority?
+    pass_when: Every requirement has a priority (MUST, SHOULD, or COULD).
+  - slug: prd.req.what-not-how
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Do the requirements state what users need, not a technical design?
+    pass_when: Requirements state what users need, not a technical design.
+  - slug: prd.nfr
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Are performance, security, accessibility, and privacy needs addressed?
+    pass_when: Performance, security, accessibility, and privacy needs are stated or marked not applicable.
+  - slug: prd.dependencies
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Are dependencies on other teams or systems listed?
+    pass_when: Dependencies on other teams or systems are listed, or the doc says "none".
+  - slug: prd.risks
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Are risks listed with a mitigation or an owner?
+    pass_when: Risks are listed, each with a mitigation or an owner.
+  - slug: prd.release-scope
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Does the doc state what ships first?
+    pass_when: The doc states what ships first.
+  - slug: prd.open-questions
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Are open questions listed with an owner?
+    pass_when: Open questions are listed with an owner each, or the doc says "none".
+  - slug: prd.consistency
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Do any two statements in the doc contradict each other?
+    pass_when: No two statements in the doc contradict each other.

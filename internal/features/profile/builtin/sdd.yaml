@@ -1,0 +1,141 @@
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+limits:
+  max_words: 8000
+  max_section_words: 900
+  max_sentence_words: 25
+  max_code_block_lines: 40
+  max_table_rows: 15
+links:
+  upstream: { kinds: [implements], types: [prd], required: true }
+trace:
+  prefixes: [REQ, DEC, NFR]
+  cover: [REQ, NFR]
+waivers: { should: non_author, must: maintainer }
+approvals: { required: 1 }
+divergence:
+  readers: 3
+  questions: { min: 10, max: 20 }
+  themes: [error handling, limits, data ownership, state changes, security, migration]
+checks:
+  - slug: links.has-upstream
+    level: MUST
+    stage: coherence
+    scope: doc
+    question: Does the doc link to the PRD it implements?
+    pass_when: An implements link to a PRD exists, or a standalone acknowledgement exists.
+  - slug: trace.coverage
+    level: MUST
+    stage: coherence
+    scope: doc
+    question: Is every upstream REQ and NFR referenced or acknowledged?
+    pass_when: Every upstream REQ and NFR is referenced or acknowledged.
+  - slug: sdd.non-goals
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does the doc list what the system will not do?
+    pass_when: A section lists at least one thing the system will not do.
+  - slug: sdd.decisions.ids
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does every design decision have a trace ID?
+    pass_when: Every design decision has a trace ID.
+  - slug: sdd.decisions.alternatives
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Does each decision list a rejected alternative?
+    pass_when: Each decision lists at least one rejected alternative with a reason.
+  - slug: sdd.components
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does each component have a stated responsibility?
+    pass_when: Each component has a stated responsibility.
+  - slug: sdd.data.model
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Is each stored entity described with fields, types, and constraints?
+    pass_when: Each stored entity has fields, types, and constraints, in the doc or a linked asset.
+  - slug: sdd.data.ownership
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Does each entity have one owning component?
+    pass_when: Each entity has exactly one owning component.
+  - slug: sdd.interfaces
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does each interface have inputs, outputs, and errors?
+    pass_when: Each interface has inputs, outputs, and errors, in the doc or a linked asset.
+  - slug: sdd.failure-modes
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does each external dependency have a stated failure behaviour?
+    pass_when: Each external dependency has a stated failure behaviour.
+  - slug: sdd.state
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Does each stateful entity have its states and transitions?
+    pass_when: Each stateful entity has its states and transitions.
+  - slug: sdd.limits
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Do sizes, rates, and timeouts have numbers?
+    pass_when: Sizes, rates, and timeouts have numbers.
+  - slug: sdd.security
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Are authentication, authorisation, secrets, and untrusted input addressed?
+    pass_when: Authentication, authorisation, secrets, and untrusted input are addressed.
+  - slug: sdd.observability
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Are logs, metrics, and alerts stated?
+    pass_when: Logs, metrics, and alerts are stated.
+  - slug: sdd.testing
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Does the test strategy name what proves each MUST requirement?
+    pass_when: The test strategy names what proves each MUST requirement.
+  - slug: sdd.migration
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Are data and rollout migration described?
+    pass_when: Data and rollout migration are described, or marked not applicable.
+  - slug: sdd.performance
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Do performance targets have numbers?
+    pass_when: Performance targets have numbers.
+  - slug: sdd.delivery
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    question: Are milestones ordered with exit criteria?
+    pass_when: Milestones are ordered and each has exit criteria.
+  - slug: sdd.open-questions
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Are open questions listed?
+    pass_when: Open questions are listed, or the doc says "none".
+  - slug: sdd.consistency
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Do any two statements in the doc contradict each other?
+    pass_when: No two statements in the doc contradict each other.
