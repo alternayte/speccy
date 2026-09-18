@@ -1,0 +1,26 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/postgres/migrations
+    queries: db/postgres/queries
+    gen:
+      go:
+        package: pgdb
+        out: db/postgres
+        sql_package: database/sql
+        emit_json_tags: false
+        overrides:
+          - db_type: jsonb
+            go_type: encoding/json.RawMessage
+  - engine: sqlite
+    schema: db/sqlite/migrations
+    queries: db/sqlite/queries
+    gen:
+      go:
+        package: sqlitedb
+        out: db/sqlite
+        overrides:
+          - column: es_streams.stream_id
+            go_type: github.com/google/uuid.UUID
+          - column: es_events.stream_id
+            go_type: github.com/google/uuid.UUID
