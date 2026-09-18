@@ -15,6 +15,8 @@ import (
 
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
+	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -29,6 +31,8 @@ type API struct {
 	*BundleAPI
 	*VersionAPI
 	*ExportAPI
+	*ProfileAPI
+	*ReviewAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -36,6 +40,8 @@ type (
 	BundleAPI  = bundle.API
 	VersionAPI = version.API
 	ExportAPI  = export.API
+	ProfileAPI = profile.API
+	ReviewAPI  = review.API
 )
 
 // core serves the operations that belong to no feature.

@@ -37,9 +37,10 @@ gen-check: gen
     git diff --exit-code -- db/postgres db/sqlite internal/http/api web/src/lib/api
     test -z "$(git ls-files --others --exclude-standard -- db/postgres db/sqlite internal/http/api web/src/lib/api)"
 
-# Go tests (SQLite engine) and web unit tests.
+# Go tests (SQLite engine), the lint speed check (T-081), and web unit tests.
 test: setup
     go tool gotestsum --format pkgname-and-test-fails -- -race -count=1 ./...
+    go test -run '^$' -bench BenchmarkLint_10kWords -benchtime 3x ./internal/engine/lint
     cd web && {{pnpm}} run test
 
 # Go tests against Postgres in a test container (Docker must run). The postgres build tag

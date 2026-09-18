@@ -3,7 +3,9 @@ package local
 import (
 	"context"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -29,7 +31,7 @@ func (r *Root) Watch(ctx context.Context, quiet time.Duration, onChange func()) 
 			if !ok {
 				return nil
 			}
-			if isOwnTemp(ev.Name) {
+			if isOwnTemp(ev.Name) || r.isState(ev.Name) {
 				continue
 			}
 			if timer != nil {
@@ -52,7 +54,20 @@ func (r *Root) Watch(ctx context.Context, quiet time.Duration, onChange func()) 
 	}
 }
 
+// isState reports whether p is in .speccy/state, where Speccy writes its own database.
+func (r *Root) isState(p string) bool {
+	state := filepath.Join(r.dir, ".speccy", "state")
+	return p == state || strings.HasPrefix(p, state+string(filepath.Separator))
+}
+
+// addWatches watches every folder that a scan reads, and .speccy and .speccy/profiles for
+// profile changes. .speccy.yaml is in the root, which is watched.
 func (r *Root) addWatches(w *fsnotify.Watcher) {
+	for _, extra := range []string{filepath.Join(r.dir, ".speccy"), filepath.Join(r.dir, ".speccy", "profiles")} {
+		if info, err := os.Stat(extra); err == nil && info.IsDir() {
+			_ = w.Add(extra)
+		}
+	}
 	_ = filepath.WalkDir(r.dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil //nolint:nilerr // an unreadable folder is skipped; the scan reports it

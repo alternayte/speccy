@@ -1,0 +1,11 @@
+{
+  "verdict": "build_ready",
+  "score": 100,
+  "findings": [
+    {
+      "check": "lint.passive-voice",
+      "level": "INFO",
+      "quote": "is paid"
+    }
+  ]
+}

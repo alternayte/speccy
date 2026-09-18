@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M2. You can open, edit, import, compare, and export bundles in local mode. The review does not exist yet.
+Speccy is at milestone M3. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save and gives a lint-only verdict. The AI review stages do not exist yet.
 
 ## Quick start
 
@@ -35,6 +35,12 @@ This table lists only the guarantees whose tests pass today.
 
 | Guarantee | Test |
 |---|---|
+| An open MUST finding gives Not Build Ready. | [`TestVerdict_OpenMustBlocks`](internal/engine/verdict/verdict_test.go) |
+| SHOULD findings never change the verdict. | [`TestVerdict_ShouldNeverBlocks`](internal/engine/verdict/verdict_test.go) |
+| The verdict function is pure: same input, same output. | [`TestVerdict_Deterministic`](internal/engine/verdict/verdict_test.go) |
+| Lint finishes a 10,000-word doc in under 1 second. | [`BenchmarkLint_10kWords`](internal/engine/lint/lint_test.go) |
+| A mapped file with no frontmatter is reviewed with the mapped profile; frontmatter `type` wins. | [`TestConfig_PathMapping`](internal/features/review/review_test.go) |
+| A relaxed check reports as INFO and never blocks; removing it restores its level. | [`TestAdoption_RelaxedCheck`](internal/features/review/review_test.go) |
 | Both store engines pass the same conformance suite. | [`TestStoreConformance`](internal/store/conformance/conformance_test.go) |
 | A concurrent append with a stale version is rejected. | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go) |
 | Projections update in the same transaction as the append. | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go) |
@@ -42,7 +48,14 @@ This table lists only the guarantees whose tests pass today.
 
 ## How the verdict works
 
-The review pipeline does not exist yet. This section describes it when milestone M3 is done.
+A review has six stages: lint, rubric, grounding, divergence, coherence, and the verdict. Today only lint runs.
+
+- **Lint** checks the writing with fixed rules: placeholders, missing required sections, broken links, duplicate IDs, filler phrases, vague words, long sentences, and more. It runs on every save and takes well under a second.
+- **Rubric, grounding, divergence, and coherence** use AI readers. They are not built yet.
+
+Each check has a level: MUST, SHOULD, or INFO. The doc is **Build Ready** only when no MUST finding is open and any required upstream link exists. SHOULD and INFO findings never change the verdict. A verdict for an old version is **stale**.
+
+The **score** is passed checks divided by applicable checks. It is for tracking, not a gate.
 
 ## Modes
 
@@ -54,7 +67,19 @@ The review pipeline does not exist yet. This section describes it when milestone
 
 ## Try it on your existing specs
 
-`speccy review docs/ --summary` does not exist yet. This section shows the command and a `.speccy.yaml` example when it exists.
+Run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
+
+```yaml
+map:                      # single files, with assets in <name>.assets/
+  - glob: docs/**/prd-*.md
+    profile: prd
+  - glob: docs/**/sdd-*.md
+    profile: sdd
+adoption:                 # these checks report as INFO for now
+  relaxed: [links.has-upstream, lint.required-headings]
+```
+
+`speccy review docs/ --summary` arrives with the CLI (M11).
 
 ## GitHub Action
 

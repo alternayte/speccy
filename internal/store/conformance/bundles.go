@@ -2,12 +2,12 @@ package conformance
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -18,7 +18,7 @@ func newBundle(t *testing.T, db *store.DB, ws uuid.UUID, slug string) pgdb.Bundl
 	now := time.Now().UTC()
 	b := pgdb.InsertBundleParams{
 		ID: kernel.NewID(), WorkspaceID: ws, Slug: slug, Title: slug, ProfileKey: "sdd", MainDoc: "SPEC.md",
-		SourceKind: "db", SourceRef: json.RawMessage(`{}`), CreatedAt: now, UpdatedAt: now,
+		SourceKind: "db", SourceRef: dbtype.JSON(`{}`), CreatedAt: now, UpdatedAt: now,
 	}
 	if err := db.Queries().InsertBundle(context.Background(), b); err != nil {
 		t.Fatal(err)
@@ -111,5 +111,30 @@ func listsPage(t *testing.T, db *store.DB) {
 	vs, err := db.Queries().ListVersions(ctx, pgdb.ListVersionsParams{BundleID: b.ID, BeforeNumber: 3, PageSize: 5})
 	if err != nil || len(vs) != 2 || vs[0].Number != 2 || vs[1].Number != 1 {
 		t.Errorf("versions before 3: %v, %v", vs, err)
+	}
+}
+
+// jsonDefaultsScan checks that a JSON column filled by its SQL default reads back as JSON.
+// SQLite returns default text as a string, which a []byte-only scanner rejects.
+func jsonDefaultsScan(t *testing.T, db *store.DB) {
+	ctx := context.Background()
+	ws, err := db.Workspace(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := newBundle(t, db, ws, "j")
+	v := newVersion(t, db, b, 1)
+	now := time.Now().UTC()
+	run := pgdb.InsertRunParams{ID: kernel.NewID(), WorkspaceID: ws, BundleID: b.ID, VersionID: v, ProfileKey: "sdd",
+		ProfileVersion: 1, Kind: "lint", Status: "complete", Stage: "lint", StartedAt: now}
+	if err := db.Queries().InsertRun(ctx, run); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.Queries().LatestRun(ctx, b.ID)
+	if err != nil {
+		t.Fatalf("read a run with default JSON columns: %v", err)
+	}
+	if string(got.Roles) != "{}" || string(got.PromptVersions) != "{}" {
+		t.Errorf("roles %q, prompt_versions %q; want {}", got.Roles, got.PromptVersions)
 	}
 }

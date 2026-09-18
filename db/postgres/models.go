@@ -6,9 +6,9 @@ package pgdb
 
 import (
 	"database/sql"
-	"encoding/json"
 	"time"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +26,7 @@ type Bundle struct {
 	ProfileKey       string
 	MainDoc          string
 	SourceKind       string
-	SourceRef        json.RawMessage
+	SourceRef        dbtype.JSON
 	CurrentVersionID uuid.NullUUID
 	ArchivedAt       sql.NullTime
 	CreatedAt        time.Time
@@ -37,8 +37,8 @@ type EsEvent struct {
 	StreamID   uuid.UUID
 	Version    int64
 	EventType  string
-	Payload    json.RawMessage
-	Metadata   json.RawMessage
+	Payload    dbtype.JSON
+	Metadata   dbtype.JSON
 	OccurredAt time.Time
 }
 
@@ -46,8 +46,70 @@ type EsStream struct {
 	StreamID   uuid.UUID
 	StreamType string
 	Version    int64
-	State      json.RawMessage
+	State      dbtype.JSON
 	UpdatedAt  time.Time
+}
+
+type Finding struct {
+	ID         uuid.UUID
+	RunID      uuid.UUID
+	CheckSlug  string
+	Level      string
+	Stage      string
+	Relaxed    bool
+	Anchor     dbtype.JSON
+	Message    string
+	Evidence   dbtype.JSON
+	Suggestion dbtype.JSON
+}
+
+type Profile struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	Key            string
+	Name           string
+	CurrentVersion int64
+}
+
+type ProfileVersion struct {
+	ProfileID uuid.UUID
+	Version   int64
+	Yaml      string
+	Template  string
+	Origin    string
+	CreatedBy string
+	CreatedAt time.Time
+}
+
+type ReviewRun struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	BundleID       uuid.UUID
+	VersionID      uuid.UUID
+	ProfileKey     string
+	ProfileVersion int64
+	Kind           string
+	Status         string
+	Stage          string
+	Roles          dbtype.JSON
+	PromptVersions dbtype.JSON
+	TokensIn       int64
+	TokensOut      int64
+	CostEstimate   float64
+	CacheHits      int64
+	Error          string
+	StartedAt      time.Time
+	FinishedAt     sql.NullTime
+}
+
+type Verdict struct {
+	RunID              uuid.UUID
+	Result             string
+	Score              int64
+	Radar              dbtype.JSON
+	WaiverCount        int64
+	RelaxedCount       int64
+	BlockingFindingIds dbtype.JSON
 }
 
 type Version struct {
@@ -69,6 +131,6 @@ type VersionFile struct {
 type Workspace struct {
 	ID        uuid.UUID
 	Name      string
-	Settings  json.RawMessage
+	Settings  dbtype.JSON
 	CreatedAt time.Time
 }

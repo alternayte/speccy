@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -39,41 +41,69 @@ type Service struct {
 	Workspace uuid.UUID
 	// Local is the served folder in local mode, and nil otherwise.
 	Local *local.Root
+	// AfterChange runs after a sync, a change, or an import creates versions. Lint on save
+	// (DEC-027) hooks in here.
+	AfterChange func(context.Context) error
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan
+	repo     source.RepoConfig
 	problems []local.Problem
+}
+
+// RepoConfig returns the .speccy.yaml of the last local scan.
+func (s *Service) RepoConfig() source.RepoConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.repo
 }
 
 // Sync scans the local folder and records a version for each bundle whose files changed.
 // Bundles whose folder is gone are archived.
 func (s *Service) Sync(ctx context.Context) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.syncLocked(ctx)
+	err := s.syncLocked(ctx)
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	return s.afterChange(ctx)
+}
+
+func (s *Service) afterChange(ctx context.Context) error {
+	if s.AfterChange == nil {
+		return nil
+	}
+	return s.AfterChange(ctx)
 }
 
 func (s *Service) syncLocked(ctx context.Context) error {
 	if s.Local == nil {
 		return nil
 	}
-	scan, err := s.Local.Scan()
+	var problems []local.Problem
+	repo, err := source.LoadRepoConfig(s.Local.Dir())
+	if err != nil {
+		problems = append(problems, local.Problem{Path: source.RepoConfigFile, Message: err.Error() + ". Speccy ignores the file until you fix it."})
+		repo = source.RepoConfig{}
+	}
+	scan, err := s.Local.Scan(repo)
 	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
 	found := map[string]bool{}
 	for _, fb := range scan.Bundles {
-		found[fb.Dir] = true
+		found[fb.Slug] = true
 		err := s.DB.InTx(ctx, func(tx store.Tx) error {
 			q := tx.Queries()
-			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Dir})
+			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug})
 			message := "Changed on disk"
 			if errors.Is(err, sql.ErrNoRows) {
-				ref, _ := json.Marshal(map[string]string{"dir": fb.Dir})
+				ref, _ := json.Marshal(localRef{Dir: fb.Dir, File: fb.File})
 				b = pgdb.Bundle{
-					ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: fb.Dir, Title: s.title(fb.Main, fb.Dir),
-					ProfileKey: fb.Main.Frontmatter.Type, MainDoc: fb.Main.Path, SourceKind: KindLocal, SourceRef: ref,
+					ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: fb.Slug, Title: s.title(fb.Main, fb.Slug),
+					ProfileKey: fb.Main.Frontmatter.Type, MainDoc: fb.Main.Path, SourceKind: KindLocal, SourceRef: dbtype.JSON(ref),
 					CreatedAt: now, UpdatedAt: now,
 				}
 				if err := q.InsertBundle(ctx, insertParams(b)); err != nil {
@@ -89,7 +119,7 @@ func (s *Service) syncLocked(ctx context.Context) error {
 				}
 			}
 			_, _, err = version.Record(ctx, tx, version.Change{
-				Bundle: b, Files: fb.Files, Title: s.title(fb.Main, fb.Dir), Profile: fb.Main.Frontmatter.Type,
+				Bundle: b, Files: fb.Files, Title: s.title(fb.Main, fb.Slug), Profile: fb.Main.Frontmatter.Type,
 				MainDoc: fb.Main.Path, CreatedBy: LocalUser, Message: message,
 			})
 			return err
@@ -113,8 +143,15 @@ func (s *Service) syncLocked(ctx context.Context) error {
 		}
 	}
 	s.scan = scan
-	s.problems = scan.Problems
+	s.repo = repo
+	s.problems = append(problems, scan.Problems...)
 	return nil
+}
+
+// localRef is source_ref for a local bundle: its folder, and the file of a single-file bundle.
+type localRef struct {
+	Dir  string `json:"dir"`
+	File string `json:"file,omitempty"`
 }
 
 // Problems returns the problems of the last local scan.
@@ -127,6 +164,14 @@ func (s *Service) Problems() []local.Problem {
 // Change applies op to bundle id and records a version. base is the version the change is
 // based on; when the bundle has a newer version, Change fails with version.ErrConflict.
 func (s *Service) Change(ctx context.Context, id, base uuid.UUID, op source.Op, by, message string) (pgdb.Version, bool, error) {
+	v, changed, err := s.change(ctx, id, base, op, by, message)
+	if err != nil || !changed {
+		return v, changed, err
+	}
+	return v, changed, s.afterChange(ctx)
+}
+
+func (s *Service) change(ctx context.Context, id, base uuid.UUID, op source.Op, by, message string) (pgdb.Version, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	q := s.DB.Queries()
@@ -157,7 +202,7 @@ func (s *Service) Change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 	if err != nil {
 		return pgdb.Version{}, false, applyError(err)
 	}
-	main, err := source.FindMainDoc(next)
+	main, err := s.mainDoc(b, next)
 	if err != nil {
 		return pgdb.Version{}, false, kernel.Invalid("no_main_doc", "After this change the bundle would have %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
@@ -185,6 +230,50 @@ func (s *Service) Change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 	return v, changed, err
 }
 
+// mainDoc finds the main doc of b in files: the mapped file of a single-file bundle, or the
+// REQ-001 rule for a folder.
+func (s *Service) mainDoc(b pgdb.Bundle, files []source.File) (source.MainDoc, error) {
+	var ref localRef
+	if b.SourceKind == KindLocal {
+		_ = json.Unmarshal(b.SourceRef, &ref)
+	}
+	if ref.File == "" {
+		return source.FindMainDoc(files)
+	}
+	for _, f := range files {
+		if f.Path == ref.File {
+			mapped, _ := s.repo.MappedProfile(path.Join(ref.Dir, ref.File))
+			return source.SingleFileMainDoc(f.Path, f.Content, mapped)
+		}
+	}
+	return source.MainDoc{}, &source.MainDocError{Message: "no main doc"}
+}
+
+// createLocal writes files to the new folder name under the served folder, and returns the
+// bundle that the sync finds there.
+func (s *Service) createLocal(ctx context.Context, name string, files []source.File) (pgdb.Bundle, error) {
+	s.mu.Lock()
+	dir, err := s.Local.CreateBundle(name, files)
+	if err == nil {
+		err = s.syncLocked(ctx)
+	}
+	s.mu.Unlock()
+	if err == nil {
+		err = s.afterChange(ctx)
+	}
+	if err != nil {
+		if _, ok := kernel.AsError(err); ok {
+			return pgdb.Bundle{}, err
+		}
+		return pgdb.Bundle{}, kernel.Invalid("create_failed", "%s", sentence(err.Error()))
+	}
+	b, err := s.DB.Queries().GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: dir})
+	if err != nil {
+		return pgdb.Bundle{}, fmt.Errorf("find the new bundle %s: %w", dir, err)
+	}
+	return b, nil
+}
+
 // CreateDB creates a bundle in the db source from files.
 func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File, by string) (pgdb.Bundle, error) {
 	main, err := source.FindMainDoc(files)
@@ -197,7 +286,7 @@ func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File
 	now := time.Now().UTC()
 	b := pgdb.Bundle{
 		ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: slug, Title: s.title(main, slug),
-		ProfileKey: main.Frontmatter.Type, MainDoc: main.Path, SourceKind: KindDB, SourceRef: json.RawMessage(`{}`),
+		ProfileKey: main.Frontmatter.Type, MainDoc: main.Path, SourceKind: KindDB, SourceRef: dbtype.JSON(`{}`),
 		CreatedAt: now, UpdatedAt: now,
 	}
 	err = s.DB.InTx(ctx, func(tx store.Tx) error {
@@ -216,6 +305,9 @@ func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File
 		return err
 	})
 	if err != nil {
+		return pgdb.Bundle{}, err
+	}
+	if err := s.afterChange(ctx); err != nil {
 		return pgdb.Bundle{}, err
 	}
 	return version.Bundle(ctx, s.DB.Queries(), s.Workspace, b.ID)

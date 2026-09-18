@@ -1,18 +1,22 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { Download, FolderTree, History, Printer } from "lucide-react";
+import { Download, FolderTree, ListChecks, Printer } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { EditorPane, type View } from "@/features/editor/editor-pane";
 import { getBundleOptions, listFilesOptions } from "@/lib/api/@tanstack/react-query.gen";
+import type { Finding } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 import { Explorer } from "./explorer";
+import { FindingsPanel } from "./findings-panel";
 import type { BundleSearch } from "./search";
+import { VerdictBar } from "./verdict";
 import { VersionsPanel } from "./versions-panel";
 
-type Panel = "files" | "versions" | null;
+type Panel = "files" | "rail" | null;
+type RailTab = "findings" | "versions";
 
 export function BundlePage({ bundleId, search }: { bundleId: string; search: BundleSearch }) {
   const navigate = useNavigate();
@@ -28,6 +32,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   });
   const [dirty, setDirty] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
+  const [tab, setTab] = useState<RailTab>("findings");
+  const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
 
   useEffect(() => {
     if (!dirty) return;
@@ -45,11 +51,18 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   );
 
   const select = (path: string) => {
-    if (path === selected) return;
-    if (dirty && !window.confirm("This file has unsaved edits. Leave it and discard them?")) return;
+    if (path === selected) return true;
+    if (dirty && !window.confirm("This file has unsaved edits. Leave it and discard them?")) return false;
     setDirty(false);
     setPanel(null);
     setSearch({ ...search, file: path });
+    return true;
+  };
+
+  const openFinding = (f: Finding) => {
+    if (!select(f.anchor.file)) return;
+    setPanel(null);
+    setFocus((prev) => ({ start: f.anchor.start, end: f.anchor.end, seq: (prev?.seq ?? 0) + 1 }));
   };
 
   const refresh = useCallback(() => {
@@ -89,9 +102,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             variant="ghost"
             size="sm"
             className="xl:hidden"
-            aria-label="Versions"
-            icon={<History className="size-4" />}
-            onClick={() => setPanel(panel === "versions" ? null : "versions")}
+            aria-label="Findings and versions"
+            icon={<ListChecks className="size-4" />}
+            onClick={() => setPanel(panel === "rail" ? null : "rail")}
           />
           <a
             href={`/api/v1/bundles/${bundleId}/export`}
@@ -112,6 +125,18 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             <span className="hidden sm:inline">PDF</span>
           </Button>
         </div>
+      </div>
+
+      <div className="no-print">
+        <VerdictBar
+          verdict={b.verdict}
+          runError={b.run_error}
+          currentVersion={b.current_version.number}
+          onShowFindings={() => {
+            setTab("findings");
+            setPanel("rail");
+          }}
+        />
       </div>
 
       <div className="relative flex min-h-0 flex-1">
@@ -166,6 +191,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               onOpenPath={select}
               onSaved={refresh}
               onDirtyChange={setDirty}
+              focus={focus}
             />
           ) : (
             <Loading />
@@ -175,10 +201,41 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         <aside
           className={clsx(
             "no-print w-[var(--rail)] shrink-0 border-l border-line bg-surface",
-            panel === "versions" ? "absolute inset-y-0 right-0 z-20 shadow-pop" : "hidden xl:block",
+            panel === "rail" ? "absolute inset-y-0 right-0 z-20 w-[min(100%,360px)] shadow-pop" : "hidden xl:block",
           )}
         >
-          <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
+          <div className="flex h-full min-h-0 flex-col">
+            <div
+              role="tablist"
+              aria-label="Review"
+              className="flex h-10 shrink-0 items-end gap-4 border-b border-line px-3"
+            >
+              {(["findings", "versions"] as const).map((t) => (
+                <button
+                  key={t}
+                  role="tab"
+                  type="button"
+                  aria-selected={tab === t}
+                  onClick={() => setTab(t)}
+                  className={clsx(
+                    "-mb-px border-b-2 pb-2 text-2xs font-semibold tracking-[var(--tracking-caps)] uppercase transition-colors",
+                    tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink-2",
+                  )}
+                >
+                  {t === "findings"
+                    ? `Findings${b.verdict ? ` (${b.verdict.must + b.verdict.should + b.verdict.info})` : ""}`
+                    : "Versions"}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {tab === "findings" ? (
+                <FindingsPanel runId={b.verdict?.run_id} onOpen={openFinding} />
+              ) : (
+                <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
+              )}
+            </div>
+          </div>
         </aside>
       </div>
     </div>

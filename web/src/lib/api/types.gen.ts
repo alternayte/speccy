@@ -48,6 +48,125 @@ export type Bundle = {
     main_doc: string;
     current_version: Version;
     updated_at: string;
+    verdict?: BundleVerdict;
+    /**
+     * Why the latest run on the current version failed, when it failed.
+     */
+    run_error?: string;
+};
+
+/**
+ * The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
+ */
+export type BundleVerdict = {
+    run_id: string;
+    version_number: number;
+    /**
+     * lint means only the lint stage ran.
+     */
+    kind: 'lint' | 'full';
+    result: VerdictResult;
+    score: number;
+    radar: {
+        [key: string]: number;
+    };
+    waiver_count: number;
+    /**
+     * Checks in adoption mode (REQ-133).
+     */
+    relaxed_count: number;
+    /**
+     * Open MUST findings.
+     */
+    must: number;
+    should: number;
+    info: number;
+};
+
+export type VerdictResult = 'build_ready' | 'not_build_ready' | 'stale';
+
+export type CreateBundleRequest = {
+    /**
+     * The profile key.
+     */
+    profile: string;
+    /**
+     * The bundle folder name.
+     */
+    name: string;
+    title?: string;
+};
+
+export type Run = {
+    id: string;
+    bundle_id: string;
+    version_id: string;
+    version_number: number;
+    profile_key: string;
+    profile_version: number;
+    kind: 'lint' | 'full';
+    status: 'queued' | 'running' | 'complete' | 'failed';
+    stage: string;
+    error: string;
+    started_at: string;
+    finished_at?: string;
+    verdict?: BundleVerdict;
+};
+
+export type RunList = {
+    items: Array<Run>;
+};
+
+/**
+ * A range of text with context (SDD §8.8).
+ */
+export type Anchor = {
+    file: string;
+    heading_path: Array<string>;
+    quote: string;
+    prefix: string;
+    suffix: string;
+    /**
+     * Byte offset of the quote in the file.
+     */
+    start: number;
+    end: number;
+};
+
+export type Finding = {
+    id: string;
+    check_slug: string;
+    level: 'MUST' | 'SHOULD' | 'INFO';
+    stage: string;
+    /**
+     * The check is in adoption mode, so it reports at INFO (REQ-133).
+     */
+    relaxed: boolean;
+    message: string;
+    fix?: string;
+    anchor: Anchor;
+};
+
+export type FindingList = {
+    items: Array<Finding>;
+};
+
+export type Profile = {
+    key: string;
+    name: string;
+    version: number;
+    /**
+     * built-in, or the path of the profile file.
+     */
+    origin: string;
+};
+
+export type ProfileList = {
+    items: Array<Profile>;
+    /**
+     * Profile files that did not load, with the reason.
+     */
+    problems: Array<string>;
 };
 
 export type BundleList = {
@@ -174,6 +293,8 @@ export type RenderResult = {
     html: string;
 };
 
+export type RunId = string;
+
 export type BundleId = string;
 
 /**
@@ -245,6 +366,31 @@ export type ListBundlesResponses = {
 };
 
 export type ListBundlesResponse = ListBundlesResponses[keyof ListBundlesResponses];
+
+export type CreateBundleData = {
+    body: CreateBundleRequest;
+    path?: never;
+    query?: never;
+    url: '/bundles';
+};
+
+export type CreateBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateBundleError = CreateBundleErrors[keyof CreateBundleErrors];
+
+export type CreateBundleResponses = {
+    /**
+     * The new bundle.
+     */
+    201: Bundle;
+};
+
+export type CreateBundleResponse = CreateBundleResponses[keyof CreateBundleResponses];
 
 export type ImportBundleData = {
     body: ImportRequest;
@@ -549,6 +695,114 @@ export type ExportBundleResponses = {
 };
 
 export type ExportBundleResponse = ExportBundleResponses[keyof ExportBundleResponses];
+
+export type ListRunsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: {
+        limit?: number;
+    };
+    url: '/bundles/{bundleId}/runs';
+};
+
+export type ListRunsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListRunsError = ListRunsErrors[keyof ListRunsErrors];
+
+export type ListRunsResponses = {
+    /**
+     * The runs.
+     */
+    200: RunList;
+};
+
+export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
+
+export type GetRunData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}';
+};
+
+export type GetRunErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetRunError = GetRunErrors[keyof GetRunErrors];
+
+export type GetRunResponses = {
+    /**
+     * The run.
+     */
+    200: Run;
+};
+
+export type GetRunResponse = GetRunResponses[keyof GetRunResponses];
+
+export type ListFindingsData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/findings';
+};
+
+export type ListFindingsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListFindingsError = ListFindingsErrors[keyof ListFindingsErrors];
+
+export type ListFindingsResponses = {
+    /**
+     * The findings.
+     */
+    200: FindingList;
+};
+
+export type ListFindingsResponse = ListFindingsResponses[keyof ListFindingsResponses];
+
+export type ListProfilesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/profiles';
+};
+
+export type ListProfilesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListProfilesError = ListProfilesErrors[keyof ListProfilesErrors];
+
+export type ListProfilesResponses = {
+    /**
+     * The profiles.
+     */
+    200: ProfileList;
+};
+
+export type ListProfilesResponse = ListProfilesResponses[keyof ListProfilesResponses];
 
 export type RenderMarkdownData = {
     body: RenderRequest;

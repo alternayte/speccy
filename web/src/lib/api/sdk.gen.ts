@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteFileData, DeleteFileErrors, DeleteFileResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMetaData, GetMetaErrors, GetMetaResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses } from './types.gen';
+import type { CreateBundleData, CreateBundleErrors, CreateBundleResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetRunData, GetRunErrors, GetRunResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -27,6 +27,20 @@ export const getMeta = <ThrowOnError extends boolean = false>(options?: Options<
  * List bundles, and the folders that look like bundles but are not valid.
  */
 export const listBundles = <ThrowOnError extends boolean = false>(options?: Options<ListBundlesData, ThrowOnError>): RequestResult<ListBundlesResponses, ListBundlesErrors, ThrowOnError> => (options?.client ?? client).get<ListBundlesResponses, ListBundlesErrors, ThrowOnError>({ url: '/bundles', ...options });
+
+/**
+ * Create a bundle from a profile's template (REQ-016).
+ *
+ * In local mode, Speccy writes the bundle to a new folder under the folder that Speccy serves.
+ */
+export const createBundle = <ThrowOnError extends boolean = false>(options: Options<CreateBundleData, ThrowOnError>): RequestResult<CreateBundleResponses, CreateBundleErrors, ThrowOnError> => (options.client ?? client).post<CreateBundleResponses, CreateBundleErrors, ThrowOnError>({
+    url: '/bundles',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Import a bundle from a .md file, a .zip file, or pasted markdown.
@@ -103,6 +117,26 @@ export const diffVersions = <ThrowOnError extends boolean = false>(options: Opti
  * Download a bundle version as a .zip file. The default is the current version (REQ-008).
  */
 export const exportBundle = <ThrowOnError extends boolean = false>(options: Options<ExportBundleData, ThrowOnError>): RequestResult<ExportBundleResponses, ExportBundleErrors, ThrowOnError> => (options.client ?? client).get<ExportBundleResponses, ExportBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}/export', ...options });
+
+/**
+ * List the review runs of a bundle, newest first.
+ */
+export const listRuns = <ThrowOnError extends boolean = false>(options: Options<ListRunsData, ThrowOnError>): RequestResult<ListRunsResponses, ListRunsErrors, ThrowOnError> => (options.client ?? client).get<ListRunsResponses, ListRunsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/runs', ...options });
+
+/**
+ * Get one review run and its verdict.
+ */
+export const getRun = <ThrowOnError extends boolean = false>(options: Options<GetRunData, ThrowOnError>): RequestResult<GetRunResponses, GetRunErrors, ThrowOnError> => (options.client ?? client).get<GetRunResponses, GetRunErrors, ThrowOnError>({ url: '/runs/{runId}', ...options });
+
+/**
+ * List the findings of a run, in document order.
+ */
+export const listFindings = <ThrowOnError extends boolean = false>(options: Options<ListFindingsData, ThrowOnError>): RequestResult<ListFindingsResponses, ListFindingsErrors, ThrowOnError> => (options.client ?? client).get<ListFindingsResponses, ListFindingsErrors, ThrowOnError>({ url: '/runs/{runId}/findings', ...options });
+
+/**
+ * List the profiles, with their current versions.
+ */
+export const listProfiles = <ThrowOnError extends boolean = false>(options?: Options<ListProfilesData, ThrowOnError>): RequestResult<ListProfilesResponses, ListProfilesErrors, ThrowOnError> => (options?.client ?? client).get<ListProfilesResponses, ListProfilesErrors, ThrowOnError>({ url: '/profiles', ...options });
 
 /**
  * Render markdown to HTML. Each block carries its source position (DEC-017).

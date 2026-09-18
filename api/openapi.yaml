@@ -39,6 +39,26 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+    post:
+      operationId: createBundle
+      summary: Create a bundle from a profile's template (REQ-016).
+      description: In local mode, Speccy writes the bundle to a new folder under the folder that Speccy serves.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBundleRequest"
+      responses:
+        "201":
+          description: The new bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/import:
     post:
       operationId: importBundle
@@ -241,6 +261,70 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/runs:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listRuns
+      summary: List the review runs of a bundle, newest first.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: The runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: getRun
+      summary: Get one review run and its verdict.
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/findings:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: listFindings
+      summary: List the findings of a run, in document order.
+      responses:
+        "200":
+          description: The findings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FindingList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles:
+    get:
+      operationId: listProfiles
+      summary: List the profiles, with their current versions.
+      responses:
+        "200":
+          description: The profiles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileList"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /render:
     post:
       operationId: renderMarkdown
@@ -263,6 +347,13 @@ paths:
 
 components:
   parameters:
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     BundleId:
       name: bundleId
       in: path
@@ -377,6 +468,198 @@ components:
         updated_at:
           type: string
           format: date-time
+        verdict:
+          $ref: "#/components/schemas/BundleVerdict"
+        run_error:
+          type: string
+          description: Why the latest run on the current version failed, when it failed.
+
+    BundleVerdict:
+      type: object
+      description: The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
+      required: [run_id, version_number, result, score, radar, waiver_count, relaxed_count, must, should, info, kind]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [lint, full]
+          description: lint means only the lint stage ran.
+        result:
+          $ref: "#/components/schemas/VerdictResult"
+        score:
+          type: integer
+        radar:
+          type: object
+          additionalProperties:
+            type: integer
+        waiver_count:
+          type: integer
+        relaxed_count:
+          type: integer
+          description: Checks in adoption mode (REQ-133).
+        must:
+          type: integer
+          description: Open MUST findings.
+        should:
+          type: integer
+        info:
+          type: integer
+
+    VerdictResult:
+      type: string
+      enum: [build_ready, not_build_ready, stale]
+
+    CreateBundleRequest:
+      type: object
+      required: [profile, name]
+      properties:
+        profile:
+          type: string
+          description: The profile key.
+        name:
+          type: string
+          description: The bundle folder name.
+        title:
+          type: string
+
+    Run:
+      type: object
+      required: [id, bundle_id, version_id, version_number, profile_key, profile_version, kind, status, stage, error, started_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+        version_id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+          format: int64
+        profile_key:
+          type: string
+        profile_version:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [lint, full]
+        status:
+          type: string
+          enum: [queued, running, complete, failed]
+        stage:
+          type: string
+        error:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        verdict:
+          $ref: "#/components/schemas/BundleVerdict"
+
+    RunList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Run"
+
+    Anchor:
+      type: object
+      description: A range of text with context (SDD §8.8).
+      required: [file, heading_path, quote, prefix, suffix, start, end]
+      properties:
+        file:
+          type: string
+        heading_path:
+          type: array
+          items:
+            type: string
+        quote:
+          type: string
+        prefix:
+          type: string
+        suffix:
+          type: string
+        start:
+          type: integer
+          description: Byte offset of the quote in the file.
+        end:
+          type: integer
+
+    Finding:
+      type: object
+      required: [id, check_slug, level, stage, relaxed, message, anchor]
+      properties:
+        id:
+          type: string
+          format: uuid
+        check_slug:
+          type: string
+        level:
+          type: string
+          enum: [MUST, SHOULD, INFO]
+        stage:
+          type: string
+        relaxed:
+          type: boolean
+          description: The check is in adoption mode, so it reports at INFO (REQ-133).
+        message:
+          type: string
+        fix:
+          type: string
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+
+    FindingList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+
+    Profile:
+      type: object
+      required: [key, name, version, origin]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+          format: int64
+        origin:
+          type: string
+          description: built-in, or the path of the profile file.
+
+    ProfileList:
+      type: object
+      required: [items, problems]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Profile"
+        problems:
+          type: array
+          description: Profile files that did not load, with the reason.
+          items:
+            type: string
 
     BundleList:
       type: object

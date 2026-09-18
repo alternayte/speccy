@@ -1,0 +1,198 @@
+package review
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"sort"
+	"time"
+
+	"github.com/google/uuid"
+
+	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/engine/anchor"
+	"github.com/alternayte/speccy/internal/engine/verdict"
+	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/store"
+)
+
+// API serves the run endpoints.
+type API struct {
+	DB        *store.DB
+	Workspace uuid.UUID
+}
+
+// Summary returns the verdict to show for a bundle, and the error of the latest run when it
+// failed. The verdict is stale when its run is not on the current version (SDD §8.6).
+func Summary(ctx context.Context, q store.Querier, b pgdb.Bundle) (*api.BundleVerdict, *string, error) {
+	latest, err := q.LatestRun(ctx, b.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	var runErr *string
+	if latest.Status == "failed" && latest.VersionID == b.CurrentVersionID.UUID {
+		runErr = &latest.Error
+	}
+	if latest.Status != "complete" {
+		return nil, runErr, nil
+	}
+	v, err := runVerdict(ctx, q, b, latest)
+	return v, runErr, err
+}
+
+func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.ReviewRun) (*api.BundleVerdict, error) {
+	vd, err := q.GetVerdict(ctx, run.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: run.VersionID})
+	if err != nil {
+		return nil, err
+	}
+	fs, err := q.ListFindings(ctx, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := &api.BundleVerdict{
+		RunId: run.ID, VersionNumber: ver.Number, Kind: api.BundleVerdictKind(run.Kind),
+		Result: api.VerdictResult(verdict.For(verdict.Result(vd.Result), run.VersionID == b.CurrentVersionID.UUID)),
+		Score:  int(vd.Score), WaiverCount: int(vd.WaiverCount), RelaxedCount: int(vd.RelaxedCount), Radar: map[string]int{},
+	}
+	_ = json.Unmarshal(vd.Radar, &out.Radar)
+	for _, f := range fs {
+		switch kernel.Level(f.Level) {
+		case kernel.Must:
+			out.Must++
+		case kernel.Should:
+			out.Should++
+		default:
+			out.Info++
+		}
+	}
+	return out, nil
+}
+
+func (a *API) run(ctx context.Context, id uuid.UUID) (pgdb.ReviewRun, pgdb.Bundle, error) {
+	q := a.DB.Queries()
+	run, err := q.GetRun(ctx, pgdb.GetRunParams{WorkspaceID: a.Workspace, ID: id})
+	if errors.Is(err, sql.ErrNoRows) {
+		return run, pgdb.Bundle{}, kernel.NotFound("run_not_found", "No review run has the ID %s.", id)
+	}
+	if err != nil {
+		return run, pgdb.Bundle{}, err
+	}
+	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: run.BundleID})
+	return run, b, err
+}
+
+func (a *API) toAPI(ctx context.Context, b pgdb.Bundle, run pgdb.ReviewRun) (api.Run, error) {
+	q := a.DB.Queries()
+	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: run.VersionID})
+	if err != nil {
+		return api.Run{}, err
+	}
+	out := api.Run{
+		Id: run.ID, BundleId: run.BundleID, VersionId: run.VersionID, VersionNumber: ver.Number,
+		ProfileKey: run.ProfileKey, ProfileVersion: run.ProfileVersion, Kind: api.RunKind(run.Kind),
+		Status: api.RunStatus(run.Status), Stage: run.Stage, Error: run.Error, StartedAt: run.StartedAt.UTC(),
+	}
+	if run.FinishedAt.Valid {
+		t := run.FinishedAt.Time.UTC()
+		out.FinishedAt = &t
+	}
+	if run.Status == "complete" {
+		if out.Verdict, err = runVerdict(ctx, q, b, run); err != nil {
+			return api.Run{}, err
+		}
+	}
+	return out, nil
+}
+
+// ListRuns lists the runs of a bundle, newest first.
+func (a *API) ListRuns(ctx context.Context, req api.ListRunsRequestObject) (api.ListRunsResponseObject, error) {
+	q := a.DB.Queries()
+	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", req.BundleId)
+	}
+	if err != nil {
+		return nil, err
+	}
+	limit := int64(20)
+	if req.Params.Limit != nil {
+		limit = int64(*req.Params.Limit)
+	}
+	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{BundleID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: limit})
+	if err != nil {
+		return nil, err
+	}
+	out := api.RunList{Items: []api.Run{}}
+	for _, r := range runs {
+		ar, err := a.toAPI(ctx, b, r)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, ar)
+	}
+	return api.ListRuns200JSONResponse(out), nil
+}
+
+// GetRun returns one run with its verdict.
+func (a *API) GetRun(ctx context.Context, req api.GetRunRequestObject) (api.GetRunResponseObject, error) {
+	run, b, err := a.run(ctx, req.RunId)
+	if err != nil {
+		return nil, err
+	}
+	out, err := a.toAPI(ctx, b, run)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetRun200JSONResponse(out), nil
+}
+
+// ListFindings returns the findings of a run in document order.
+func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObject) (api.ListFindingsResponseObject, error) {
+	run, _, err := a.run(ctx, req.RunId)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := a.DB.Queries().ListFindings(ctx, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := api.FindingList{Items: make([]api.Finding, 0, len(rows))}
+	for _, f := range rows {
+		var an anchor.Anchor
+		_ = json.Unmarshal(f.Anchor, &an)
+		var sugg struct {
+			Fix string `json:"fix"`
+		}
+		_ = json.Unmarshal(f.Suggestion, &sugg)
+		af := api.Finding{
+			Id: f.ID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message,
+			Anchor: api.Anchor{File: an.File, HeadingPath: an.HeadingPath, Quote: an.Quote, Prefix: an.Prefix, Suffix: an.Suffix, Start: an.Start, End: an.End},
+		}
+		if af.Anchor.HeadingPath == nil {
+			af.Anchor.HeadingPath = []string{}
+		}
+		if sugg.Fix != "" {
+			af.Fix = &sugg.Fix
+		}
+		out.Items = append(out.Items, af)
+	}
+	sort.SliceStable(out.Items, func(i, j int) bool {
+		if out.Items[i].Anchor.File != out.Items[j].Anchor.File {
+			return out.Items[i].Anchor.File < out.Items[j].Anchor.File
+		}
+		return out.Items[i].Anchor.Start < out.Items[j].Anchor.Start
+	})
+	return api.ListFindings200JSONResponse(out), nil
+}

@@ -297,6 +297,39 @@ body {
   max-width: 100%;
 }
 
+/* A template placeholder such as <Product name>: visible, and clearly not content. */
+.doc .placeholder {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px dashed var(--warn);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+/* A block the user jumped to from a finding: a short accent wash that fades. */
+@keyframes flash {
+  from {
+    background-color: var(--accent-soft);
+    box-shadow: 0 0 0 var(--space-2) var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+    box-shadow: 0 0 0 var(--space-2) transparent;
+  }
+}
+.doc .flash {
+  border-radius: var(--radius-sm);
+  animation: flash 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc .flash {
+    animation: none;
+    outline: 2px solid var(--accent);
+  }
+}
+
 /* Code highlighting: chroma classes. */
 .chroma :is(.k, .kd, .kn, .kr, .kt) {
   color: var(--code-kw);

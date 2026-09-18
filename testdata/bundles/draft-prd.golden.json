@@ -1,0 +1,76 @@
+{
+  "verdict": "not_build_ready",
+  "score": 42,
+  "findings": [
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Loyalty points"
+    },
+    {
+      "check": "lint.slop-phrase",
+      "level": "SHOULD",
+      "quote": "It's worth noting"
+    },
+    {
+      "check": "lint.slop-phrase",
+      "level": "SHOULD",
+      "quote": "robust"
+    },
+    {
+      "check": "lint.slop-phrase",
+      "level": "SHOULD",
+      "quote": "seamless"
+    },
+    {
+      "check": "lint.slop-phrase",
+      "level": "SHOULD",
+      "quote": "leverages"
+    },
+    {
+      "check": "lint.weasel",
+      "level": "SHOULD",
+      "quote": "various"
+    },
+    {
+      "check": "lint.weasel",
+      "level": "SHOULD",
+      "quote": "etc."
+    },
+    {
+      "check": "lint.placeholder",
+      "level": "MUST",
+      "quote": "TBD"
+    },
+    {
+      "check": "lint.weasel",
+      "level": "SHOULD",
+      "quote": "Some"
+    },
+    {
+      "check": "lint.rfc2119-case",
+      "level": "SHOULD",
+      "quote": "must"
+    },
+    {
+      "check": "lint.duplicate-id",
+      "level": "MUST",
+      "quote": "REQ-001"
+    },
+    {
+      "check": "lint.rfc2119-case",
+      "level": "SHOULD",
+      "quote": "should"
+    },
+    {
+      "check": "lint.undefined-acronym",
+      "level": "SHOULD",
+      "quote": "CRM"
+    },
+    {
+      "check": "lint.placeholder",
+      "level": "MUST",
+      "quote": "\u003cOwner for each question\u003e"
+    }
+  ]
+}

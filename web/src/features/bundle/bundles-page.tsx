@@ -1,17 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, FolderPlus } from "lucide-react";
+import { AlertTriangle, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import { listBundlesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { ImportDialog } from "./import-dialog";
+import { NewBundleDialog } from "./new-bundle-dialog";
 import { relativeTime } from "./time";
+import { VerdictPill } from "./verdict";
 
 export function BundlesPage() {
   const bundles = useQuery({ ...listBundlesOptions({ query: { limit: 100 } }), refetchInterval: 3000 });
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -21,9 +24,14 @@ export function BundlesPage() {
             <h1 className="text-xl font-semibold tracking-tight">Bundles</h1>
             <p className="mt-1 text-sm text-ink-2">Each bundle is a folder with one main doc and its assets.</p>
           </div>
-          <Button variant="primary" icon={<FolderPlus className="size-4" />} onClick={() => setImporting(true)}>
-            Import
-          </Button>
+          <div className="flex gap-2">
+            <Button icon={<FolderPlus className="size-4" />} onClick={() => setImporting(true)}>
+              Import
+            </Button>
+            <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
+              New
+            </Button>
+          </div>
         </div>
 
         <div className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
@@ -43,7 +51,7 @@ export function BundlesPage() {
           ) : bundles.data.items.length === 0 ? (
             <Empty title="No bundles yet">
               Speccy found no folder with a main doc. A main doc is a markdown file with a <code>type</code> field in
-              its frontmatter. Add one on disk, or import a file.
+              its frontmatter. Create a bundle from a template, add one on disk, or import a file.
             </Empty>
           ) : (
             <ul className="divide-y divide-line">
@@ -52,16 +60,26 @@ export function BundlesPage() {
                   <Link
                     to="/bundles/$bundleId"
                     params={{ bundleId: b.id }}
-                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-0.5 px-4 py-3 hover:bg-sunken sm:grid-cols-[1fr_7rem_5rem_7rem]"
+                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-sunken sm:grid-cols-[1fr_11rem_4rem_3rem_3rem_6rem]"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink">{b.title}</span>
                       <span className="block truncate font-mono text-xs text-ink-3">{b.slug}</span>
                     </span>
-                    <span className="justify-self-end sm:justify-self-start">
+                    <span className="col-start-1 sm:col-start-auto">
+                      {b.run_error ? (
+                        <span className="text-xs text-bad">Cannot review</span>
+                      ) : (
+                        <VerdictPill verdict={b.verdict} />
+                      )}
+                    </span>
+                    <span className="row-start-1 justify-self-end sm:row-start-auto sm:justify-self-start">
                       <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-2xs tracking-wide text-ink-2 uppercase">
                         {b.profile_key}
                       </span>
+                    </span>
+                    <span className="hidden font-mono text-xs text-ink-2 sm:block" title="Score: for metrics only">
+                      {b.verdict ? b.verdict.score : "–"}
                     </span>
                     <span className="hidden text-xs text-ink-2 sm:block">v{b.current_version.number}</span>
                     <span className="hidden text-xs text-ink-3 sm:block">{relativeTime(b.updated_at)}</span>
@@ -95,6 +113,7 @@ export function BundlesPage() {
         ) : null}
       </div>
       <ImportDialog open={importing} onOpenChange={setImporting} />
+      <NewBundleDialog open={creating} onOpenChange={setCreating} />
     </div>
   );
 }

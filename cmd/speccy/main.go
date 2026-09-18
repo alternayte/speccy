@@ -20,6 +20,8 @@ import (
 
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
+	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/version"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -141,21 +143,33 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	if err != nil {
 		return nil, err
 	}
+	profiles := &profile.Registry{DB: db, Workspace: ws, Dir: filepath.Join(root.Dir(), ".speccy", "profiles")}
+	if err := profiles.Reload(ctx); err != nil {
+		return nil, err
+	}
 	svc := &bundle.Service{DB: db, Workspace: ws, Local: root}
+	reviews := &review.Service{DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig}
+	// DEC-027: lint runs on every new version.
+	svc.AfterChange = reviews.EnsureLinted
 	if err := svc.Sync(ctx); err != nil {
 		return nil, err
 	}
 	go func() {
 		_ = root.Watch(ctx, 300*time.Millisecond, func() {
+			if err := profiles.Reload(ctx); err != nil && ctx.Err() == nil {
+				slog.Error("reload of the profiles failed", "err", err)
+			}
 			if err := svc.Sync(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("sync after a change on disk failed", "err", err)
 			}
 		})
 	}()
 	api := speccyhttp.API{
-		BundleAPI:  &bundle.API{Service: svc},
+		BundleAPI:  &bundle.API{Service: svc, Profiles: profiles.Current},
 		VersionAPI: &version.API{DB: db, Workspace: ws},
 		ExportAPI:  &export.API{DB: db, Workspace: ws},
+		ProfileAPI: &profile.API{Registry: profiles},
+		ReviewAPI:  &review.API{DB: db, Workspace: ws},
 	}
 	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, api) }, nil
 }
