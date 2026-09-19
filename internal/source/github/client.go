@@ -81,7 +81,7 @@ func (c *Client) do(ctx context.Context, method, p string, in, out any) error {
 	}
 	res, err := hc.Do(req)
 	if err != nil {
-		return fmt.Errorf("Speccy could not reach GitHub: %w", err)
+		return fmt.Errorf("could not reach GitHub: %w", err)
 	}
 	defer func() { _ = res.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(res.Body, 200<<20))

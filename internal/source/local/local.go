@@ -455,11 +455,6 @@ func (r *Root) CreateBundle(name string, files []source.File) (string, error) {
 
 func (r *Root) abs(rel string) string { return filepath.Join(r.dir, filepath.FromSlash(rel)) }
 
-func (r *Root) rel(abs string) string {
-	rel, err := filepath.Rel(r.dir, abs)
-	if err != nil {
-		return abs
-	}
 	return filepath.ToSlash(rel)
 }
 

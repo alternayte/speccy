@@ -142,7 +142,9 @@ type treeDir struct {
 	pos     int
 }
 
-func (d *treeDir) Stat() (fs.FileInfo, error) { return dirEntry{name: path.Base(d.name), dir: true}, nil }
+func (d *treeDir) Stat() (fs.FileInfo, error) {
+	return dirEntry{name: path.Base(d.name), dir: true}, nil
+}
 func (d *treeDir) Read([]byte) (int, error) {
 	return 0, &fs.PathError{Op: "read", Path: d.name, Err: fs.ErrInvalid}
 }
