@@ -271,9 +271,38 @@ func nonNilQuotes(q []quoteEvidence) []quoteEvidence {
 // pinQuestions returns the build questions of the version: the pinned set when one exists
 // (REQ-047), else a new set from the reviewer, which is then pinned.
 func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex, reviewerFP string) ([]buildQuestion, error) {
-	rows, err := s.DB.Queries().ListQuestions(ctx, in.version)
+	q := s.DB.Queries()
+	rows, err := q.ListQuestions(ctx, in.version)
 	if err != nil {
 		return nil, err
+	}
+	inputHash := bundleHash(in)
+	if len(rows) == 0 {
+		// A version with the same input as an earlier one (a waiver approval) reuses its
+		// questions, copied to this version.
+		earlier, err := q.ListQuestionsByInput(ctx, pgdb.ListQuestionsByInputParams{BundleID: in.bundle.ID, InputHash: inputHash})
+		if err != nil {
+			return nil, err
+		}
+		if len(earlier) > 0 {
+			err = s.DB.InTx(ctx, func(tx store.Tx) error {
+				for _, e := range earlier {
+					if err := tx.Queries().InsertQuestion(ctx, pgdb.InsertQuestionParams{
+						ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: in.bundle.ID, VersionID: in.version, Number: e.Number,
+						Text: e.Text, Level: e.Level, Cites: e.Cites, Anchor: e.Anchor, InputHash: inputHash,
+					}); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			if rows, err = q.ListQuestions(ctx, in.version); err != nil {
+				return nil, err
+			}
+		}
 	}
 	if len(rows) > 0 {
 		rc.hit()
@@ -339,6 +368,7 @@ func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 			if err := q.InsertQuestion(ctx, pgdb.InsertQuestionParams{
 				ID: bq.id, WorkspaceID: s.Workspace, BundleID: in.bundle.ID, VersionID: in.version,
 				Number: int64(bq.number), Text: bq.text, Level: string(bq.level), Cites: dbtype.JSON(cites), Anchor: dbtype.JSON(an),
+				InputHash: inputHash,
 			}); err != nil {
 				return err
 			}

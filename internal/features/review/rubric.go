@@ -17,6 +17,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/source"
 )
 
 // maxAssetText bounds the text assets that go into a prompt with the main doc.
@@ -89,11 +90,17 @@ func (rc *runCtx) publish(e Event) {
 	rc.progress.Publish(rc.id, e)
 }
 
-// bundleHash is the input hash of a doc-scope step: every file's path and content hash.
+// bundleHash is the input hash of a doc-scope step: every file's path and content hash. The
+// main doc's frontmatter waivers are left out: approving a waiver writes them, and changes no
+// text that a model reviews, so the cache and the pinned questions stay (REQ-021, REQ-047).
 func bundleHash(in input) string {
 	parts := make([]string, 0, len(in.files)*2)
 	for _, f := range in.files {
-		parts = append(parts, f.Path, version.Hash(f.Content))
+		content := f.Content
+		if f.Path == in.bundle.MainDoc {
+			content = source.WithoutWaivers(content)
+		}
+		parts = append(parts, f.Path, version.Hash(content))
 	}
 	return hashOf(parts...)
 }

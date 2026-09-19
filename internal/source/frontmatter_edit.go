@@ -71,3 +71,29 @@ func AddWaiver(content []byte, w Waiver) ([]byte, error) {
 	}
 	return append(out, content[bodyStart:]...), nil
 }
+
+// WithoutWaivers returns the main doc without the waivers key of its frontmatter, for the input
+// hashes of review steps: approving a waiver changes no text that a model reviews. A doc with
+// no waivers comes back unchanged.
+func WithoutWaivers(content []byte) []byte {
+	raw, bodyStart := section.SplitFrontmatter(content)
+	if raw == nil || !bytes.Contains(raw, []byte("waivers")) {
+		return content
+	}
+	var doc yaml.Node
+	if yaml.Unmarshal(raw, &doc) != nil || doc.Kind == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return content
+	}
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "waivers" {
+			root.Content = append(root.Content[:i], root.Content[i+2:]...)
+			break
+		}
+	}
+	out, err := yaml.Marshal(&doc)
+	if err != nil {
+		return content
+	}
+	return append(append(append([]byte("---\n"), out...), "---\n"...), content[bodyStart:]...)
+}
