@@ -911,6 +911,10 @@ components:
           type: integer
         info:
           type: integer
+        stale_reason:
+          type: string
+          enum: [upstream_changed]
+          description: Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
 
     VerdictResult:
       type: string

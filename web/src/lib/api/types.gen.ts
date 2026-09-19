@@ -81,6 +81,10 @@ export type BundleVerdict = {
     must: number;
     should: number;
     info: number;
+    /**
+     * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+     */
+    stale_reason?: 'upstream_changed';
 };
 
 export type VerdictResult = 'build_ready' | 'not_build_ready' | 'stale';

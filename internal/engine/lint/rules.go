@@ -222,6 +222,10 @@ func traceIDs(d *doc, cfg Config, emit emitter) {
 	for _, r := range refs {
 		// A covered prefix (REQ in an SDD) names upstream items: linked bundles resolve those.
 		if upstream[r.id[:strings.IndexByte(r.id, '-')]] {
+			if cfg.UpstreamIDs != nil && !cfg.UpstreamIDs[r.id] {
+				emit(DanglingRef, r.start, r.end, fmt.Sprintf("%s is referenced, but no linked upstream bundle defines it.", r.id),
+					fmt.Sprintf("Fix the reference, or link the bundle that defines %s.", r.id))
+			}
 			continue
 		}
 		if _, ok := defs[r.id]; !ok {

@@ -67,9 +67,11 @@ type Config struct {
 	MaxCodeBlockLines int
 	MaxTableRows      int
 	Prefixes          []string // trace ID prefixes this doc uses (REQ-051)
-	// UpstreamPrefixes are resolved against linked bundles, not this doc, so a reference to
-	// one is never dangling here.
+	// UpstreamPrefixes are resolved against linked bundles, not this doc. UpstreamIDs holds the
+	// IDs that the linked upstream bundles define; when it is nil (no upstream bundle), a
+	// reference with an upstream prefix is never dangling.
 	UpstreamPrefixes []string
+	UpstreamIDs      map[string]bool
 	Required         []Heading
 	SlopExtra        []string
 	// Levels overrides a rule's default level. "off" turns the rule off (REQ-062).
@@ -222,22 +224,60 @@ type Definition struct {
 	Text  string
 }
 
+// References returns every occurrence of a trace ID with one of prefixes that is not a
+// definition (REQ-051), in order.
+func References(src []byte, prefixes []string) []Definition {
+	_, refs := traceUses(src, prefixes)
+	return refs
+}
+
 // Definitions returns the trace ID definitions in src with one of prefixes, in order.
 func Definitions(src []byte, prefixes []string) []Definition {
+	defs, _ := traceUses(src, prefixes)
+	return defs
+}
+
+func traceUses(src []byte, prefixes []string) (defs, refs []Definition) {
 	sd := section.Parse(src)
 	body := src[sd.BodyStart:]
 	own := set(prefixes)
-	var out []Definition
 	for _, p := range collectProse(section.Markdown().Parser().Parse(text.NewReader(body)), body) {
-		if p.kind == kindCell || !isDefinitionBlock(p.node) {
+		isDef := p.kind != kindCell && isDefinitionBlock(p.node)
+		for i, m := range idRe.FindAllSubmatchIndex(p.text, -1) {
+			if !own[string(p.text[m[2]:m[3]])] {
+				continue
+			}
+			s, e := p.span(m[0], m[1])
+			d := Definition{ID: string(p.text[m[0]:m[1]]), Start: s + sd.BodyStart, End: e + sd.BodyStart, Text: string(p.text)}
+			if i == 0 && isDef && definitionAt(p.text, m[0], m[1]) {
+				defs = append(defs, d)
+			} else {
+				refs = append(refs, d)
+			}
+		}
+	}
+	return defs, refs
+}
+
+// Paragraph is the plain text of one paragraph or list item paragraph, with its offsets in
+// the file.
+type Paragraph struct {
+	Start int
+	End   int
+	Text  string
+}
+
+// Paragraphs returns the prose paragraphs of src, without headings and table cells.
+func Paragraphs(src []byte) []Paragraph {
+	sd := section.Parse(src)
+	body := src[sd.BodyStart:]
+	var out []Paragraph
+	for _, p := range collectProse(section.Markdown().Parser().Parse(text.NewReader(body)), body) {
+		if p.kind != kindParagraph || len(p.text) == 0 {
 			continue
 		}
-		m := idRe.FindSubmatchIndex(p.text)
-		if m == nil || !own[string(p.text[m[2]:m[3]])] || !definitionAt(p.text, m[0], m[1]) {
-			continue
-		}
-		s, e := p.span(m[0], m[1])
-		out = append(out, Definition{ID: string(p.text[m[0]:m[1]]), Start: s + sd.BodyStart, End: e + sd.BodyStart, Text: string(p.text)})
+		s, e := p.span(0, len(p.text))
+		out = append(out, Paragraph{Start: s + sd.BodyStart, End: e + sd.BodyStart, Text: string(p.text)})
 	}
 	return out
 }

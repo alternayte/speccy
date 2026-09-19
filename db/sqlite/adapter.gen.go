@@ -39,6 +39,10 @@ func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams
 	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
 }
 
+func (a Adapter) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
+	return a.q.DeleteLinksFrom(ctx, fromBundleID)
+}
+
 func (a Adapter) DeleteMCPConnection(ctx context.Context, arg pgdb.DeleteMCPConnectionParams) error {
 	return a.q.DeleteMCPConnection(ctx, DeleteMCPConnectionParams(arg))
 }
@@ -170,6 +174,10 @@ func (a Adapter) InsertJob(ctx context.Context, arg pgdb.InsertJobParams) error 
 	return a.q.InsertJob(ctx, InsertJobParams(arg))
 }
 
+func (a Adapter) InsertLink(ctx context.Context, arg pgdb.InsertLinkParams) error {
+	return a.q.InsertLink(ctx, InsertLinkParams(arg))
+}
+
 func (a Adapter) InsertMCPConnection(ctx context.Context, arg pgdb.InsertMCPConnectionParams) error {
 	return a.q.InsertMCPConnection(ctx, InsertMCPConnectionParams(arg))
 }
@@ -192,6 +200,10 @@ func (a Adapter) InsertQuestionResult(ctx context.Context, arg pgdb.InsertQuesti
 
 func (a Adapter) InsertRun(ctx context.Context, arg pgdb.InsertRunParams) error {
 	return a.q.InsertRun(ctx, InsertRunParams(arg))
+}
+
+func (a Adapter) InsertRunLink(ctx context.Context, arg pgdb.InsertRunLinkParams) error {
+	return a.q.InsertRunLink(ctx, InsertRunLinkParams(arg))
 }
 
 func (a Adapter) InsertStream(ctx context.Context, arg pgdb.InsertStreamParams) (int64, error) {
@@ -325,6 +337,30 @@ func (a Adapter) ListFindings(ctx context.Context, runID uuid.UUID) ([]pgdb.Find
 	return out, nil
 }
 
+func (a Adapter) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]pgdb.Link, error) {
+	rows, err := a.q.ListLinksFrom(ctx, fromBundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Link, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Link(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]pgdb.Link, error) {
+	rows, err := a.q.ListLinksTo(ctx, targetBundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Link, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Link(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.McpConnection, error) {
 	rows, err := a.q.ListMCPConnections(ctx, workspaceID)
 	if err != nil {
@@ -369,6 +405,18 @@ func (a Adapter) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]pgdb
 	out := make([]pgdb.Question, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Question(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]pgdb.RunLink, error) {
+	rows, err := a.q.ListRunLinks(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.RunLink, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.RunLink(r)
 	}
 	return out, nil
 }

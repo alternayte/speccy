@@ -18,6 +18,7 @@ type Querier interface {
 	CountAssignmentsForBackend(ctx context.Context, arg CountAssignmentsForBackendParams) (int64, error)
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
@@ -47,12 +48,14 @@ type Querier interface {
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
 	InsertJob(ctx context.Context, arg InsertJobParams) error
+	InsertLink(ctx context.Context, arg InsertLinkParams) error
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
 	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
 	InsertQuestion(ctx context.Context, arg InsertQuestionParams) error
 	InsertQuestionResult(ctx context.Context, arg InsertQuestionResultParams) error
 	InsertRun(ctx context.Context, arg InsertRunParams) error
+	InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
 	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
 	InsertVersion(ctx context.Context, arg InsertVersionParams) error
@@ -69,10 +72,13 @@ type Querier interface {
 	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
+	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
+	ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error)
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
 	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
 	ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]QuestionResult, error)
 	ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error)
+	ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)

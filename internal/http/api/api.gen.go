@@ -143,6 +143,21 @@ func (e BundleVerdictKind) Valid() bool {
 	}
 }
 
+// Defines values for BundleVerdictStaleReason.
+const (
+	UpstreamChanged BundleVerdictStaleReason = "upstream_changed"
+)
+
+// Valid indicates whether the value is a known member of the BundleVerdictStaleReason enum.
+func (e BundleVerdictStaleReason) Valid() bool {
+	switch e {
+	case UpstreamChanged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChangeStatus.
 const (
 	Added     ChangeStatus = "added"
@@ -537,17 +552,23 @@ type BundleVerdict struct {
 	Radar map[string]int `json:"radar"`
 
 	// RelaxedCount Checks in adoption mode (REQ-133).
-	RelaxedCount  int                `json:"relaxed_count"`
-	Result        VerdictResult      `json:"result"`
-	RunId         openapi_types.UUID `json:"run_id"`
-	Score         int                `json:"score"`
-	Should        int                `json:"should"`
-	VersionNumber int64              `json:"version_number"`
-	WaiverCount   int                `json:"waiver_count"`
+	RelaxedCount int                `json:"relaxed_count"`
+	Result       VerdictResult      `json:"result"`
+	RunId        openapi_types.UUID `json:"run_id"`
+	Score        int                `json:"score"`
+	Should       int                `json:"should"`
+
+	// StaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+	StaleReason   *BundleVerdictStaleReason `json:"stale_reason,omitempty"`
+	VersionNumber int64                     `json:"version_number"`
+	WaiverCount   int                       `json:"waiver_count"`
 }
 
 // BundleVerdictKind lint means only the lint stage ran.
 type BundleVerdictKind string
+
+// BundleVerdictStaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+type BundleVerdictStaleReason string
 
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string

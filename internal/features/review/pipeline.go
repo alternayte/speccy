@@ -237,7 +237,7 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 	rc.publish(Event{Type: "stage", Stage: stage})
 	run.Status, run.Stage = "complete", StageVerdict
 	s.fillRun(&run, rc)
-	if err := s.save(ctx, run, ev, p.Profile, true); err != nil {
+	if err := s.save(ctx, run, in, ev, p.Profile, true); err != nil {
 		return fail(err)
 	}
 	rc.publish(Event{Type: "done", Stage: stage})
