@@ -43,7 +43,7 @@ func (a *API) CreateBundle(ctx context.Context, req api.CreateBundleRequestObjec
 
 	s := a.Service
 	if s.Local == nil {
-		b, err := s.CreateDB(ctx, name, files, a.user())
+		b, err := s.CreateDB(ctx, name, files, a.user(ctx))
 		if err != nil {
 			return nil, err
 		}

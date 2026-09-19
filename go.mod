@@ -32,6 +32,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/air-verse/air v1.67.4 // indirect
+	github.com/alternayte/auth-all v0.5.1 // indirect
 	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/anthropics/anthropic-sdk-go v1.74.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect

@@ -302,6 +302,48 @@ func (e FindingLevel) Valid() bool {
 	}
 }
 
+// Defines values for InviteRole.
+const (
+	InviteRoleAdmin  InviteRole = "admin"
+	InviteRoleMember InviteRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the InviteRole enum.
+func (e InviteRole) Valid() bool {
+	switch e {
+	case InviteRoleAdmin:
+		return true
+	case InviteRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InviteStatus.
+const (
+	Expired InviteStatus = "expired"
+	Pending InviteStatus = "pending"
+	Revoked InviteStatus = "revoked"
+	Used    InviteStatus = "used"
+)
+
+// Valid indicates whether the value is a known member of the InviteStatus enum.
+func (e InviteStatus) Valid() bool {
+	switch e {
+	case Expired:
+		return true
+	case Pending:
+		return true
+	case Revoked:
+		return true
+	case Used:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LineOpOp.
 const (
 	Delete LineOpOp = "delete"
@@ -341,14 +383,53 @@ func (e MCPConnectionInputTransport) Valid() bool {
 	}
 }
 
+// Defines values for MeMode.
+const (
+	MeModeHosted MeMode = "hosted"
+	MeModeLocal  MeMode = "local"
+)
+
+// Valid indicates whether the value is a known member of the MeMode enum.
+func (e MeMode) Valid() bool {
+	switch e {
+	case MeModeHosted:
+		return true
+	case MeModeLocal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MeRole.
+const (
+	MeRoleAdmin  MeRole = "admin"
+	MeRoleMember MeRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the MeRole enum.
+func (e MeRole) Valid() bool {
+	switch e {
+	case MeRoleAdmin:
+		return true
+	case MeRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MetaMode.
 const (
-	MetaModeLocal MetaMode = "local"
+	MetaModeHosted MetaMode = "hosted"
+	MetaModeLocal  MetaMode = "local"
 )
 
 // Valid indicates whether the value is a known member of the MetaMode enum.
 func (e MetaMode) Valid() bool {
 	switch e {
+	case MetaModeHosted:
+		return true
 	case MetaModeLocal:
 		return true
 	default:
@@ -467,6 +548,45 @@ func (e VerdictResult) Valid() bool {
 	case NotBuildReady:
 		return true
 	case Stale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Visibility.
+const (
+	Internal Visibility = "internal"
+	Link     Visibility = "link"
+	Private  Visibility = "private"
+)
+
+// Valid indicates whether the value is a known member of the Visibility enum.
+func (e Visibility) Valid() bool {
+	switch e {
+	case Internal:
+		return true
+	case Link:
+		return true
+	case Private:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateInviteJSONBodyRole.
+const (
+	CreateInviteJSONBodyRoleAdmin  CreateInviteJSONBodyRole = "admin"
+	CreateInviteJSONBodyRoleMember CreateInviteJSONBodyRole = "member"
+)
+
+// Valid indicates whether the value is a known member of the CreateInviteJSONBodyRole enum.
+func (e CreateInviteJSONBodyRole) Valid() bool {
+	switch e {
+	case CreateInviteJSONBodyRoleAdmin:
+		return true
+	case CreateInviteJSONBodyRoleMember:
 		return true
 	default:
 		return false
@@ -595,11 +715,25 @@ type Bundle struct {
 	UpdatedAt  time.Time        `json:"updated_at"`
 
 	// Verdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
-	Verdict *BundleVerdict `json:"verdict,omitempty"`
+	Verdict    *BundleVerdict `json:"verdict,omitempty"`
+	Visibility *Visibility    `json:"visibility,omitempty"`
 }
 
 // BundleSourceKind defines model for Bundle.SourceKind.
 type BundleSourceKind string
+
+// BundleAccess defines model for BundleAccess.
+type BundleAccess struct {
+	// Authors Author user IDs.
+	Authors []string `json:"authors"`
+
+	// CanEdit Whether the caller can change the bundle and its access.
+	CanEdit        bool       `json:"can_edit"`
+	Reviewers      []string   `json:"reviewers"`
+	ShareActive    bool       `json:"share_active"`
+	ShareExpiresAt *time.Time `json:"share_expires_at,omitempty"`
+	Visibility     Visibility `json:"visibility"`
+}
 
 // BundleFile defines model for BundleFile.
 type BundleFile struct {
@@ -789,6 +923,23 @@ type ImportRequest struct {
 	Text *string `json:"text,omitempty"`
 }
 
+// Invite defines model for Invite.
+type Invite struct {
+	CreatedAt time.Time          `json:"created_at"`
+	CreatedBy string             `json:"created_by"`
+	ExpiresAt time.Time          `json:"expires_at"`
+	Id        openapi_types.UUID `json:"id"`
+	Role      InviteRole         `json:"role"`
+	Status    InviteStatus       `json:"status"`
+	UsedBy    *string            `json:"used_by,omitempty"`
+}
+
+// InviteRole defines model for Invite.Role.
+type InviteRole string
+
+// InviteStatus defines model for Invite.Status.
+type InviteStatus string
+
 // LineOp defines model for LineOp.
 type LineOp struct {
 	Op LineOpOp `json:"op"`
@@ -845,6 +996,25 @@ type MCPTool struct {
 	Name        string `json:"name"`
 	ReadOnly    bool   `json:"read_only"`
 }
+
+// Me defines model for Me.
+type Me struct {
+	Email *string `json:"email,omitempty"`
+	Guest *struct {
+		BundleId openapi_types.UUID `json:"bundle_id"`
+		Name     string             `json:"name"`
+	} `json:"guest,omitempty"`
+	Mode     MeMode  `json:"mode"`
+	Role     *MeRole `json:"role,omitempty"`
+	SignedIn bool    `json:"signed_in"`
+	UserId   *string `json:"user_id,omitempty"`
+}
+
+// MeMode defines model for Me.Mode.
+type MeMode string
+
+// MeRole defines model for Me.Role.
+type MeRole string
 
 // Meta defines model for Meta.
 type Meta struct {
@@ -1026,6 +1196,27 @@ type SectionDiff struct {
 	Status      ChangeStatus `json:"status"`
 }
 
+// Settings defines model for Settings.
+type Settings struct {
+	// InviteTtlDays REQ-081. Default 7.
+	InviteTtlDays int `json:"invite_ttl_days"`
+
+	// MaxBundleMb REQ-009. Default 50.
+	MaxBundleMb int `json:"max_bundle_mb"`
+
+	// MaxFileMb REQ-009. Default 10.
+	MaxFileMb int `json:"max_file_mb"`
+
+	// ParallelCalls REQ-105. Model calls at a time per run. Default 4.
+	ParallelCalls int `json:"parallel_calls"`
+}
+
+// ShareInfo defines model for ShareInfo.
+type ShareInfo struct {
+	BundleId openapi_types.UUID `json:"bundle_id"`
+	Title    string             `json:"title"`
+}
+
 // Standalone defines model for Standalone.
 type Standalone struct {
 	AcknowledgedBy string `json:"acknowledged_by"`
@@ -1092,6 +1283,9 @@ type VersionList struct {
 	NextCursor *string   `json:"next_cursor,omitempty"`
 }
 
+// Visibility defines model for Visibility.
+type Visibility string
+
 // WriteResult defines model for WriteResult.
 type WriteResult struct {
 	// Changed False when the write left the bundle unchanged, so no version was created.
@@ -1135,6 +1329,19 @@ type TestBackendJSONBody struct {
 type SetBudgetJSONBody struct {
 	// TokenLimit Leave it out for no limit.
 	TokenLimit *int64 `json:"token_limit,omitempty"`
+}
+
+// CreateInviteJSONBody defines parameters for CreateInvite.
+type CreateInviteJSONBody struct {
+	Role CreateInviteJSONBodyRole `json:"role"`
+}
+
+// CreateInviteJSONBodyRole defines parameters for CreateInvite.
+type CreateInviteJSONBodyRole string
+
+// CreateResetLinkJSONBody defines parameters for CreateResetLink.
+type CreateResetLinkJSONBody struct {
+	Email string `json:"email"`
 }
 
 // ListBundlesParams defines parameters for ListBundles.
@@ -1190,6 +1397,11 @@ type ListRunsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// CreateShareLinkJSONBody defines parameters for CreateShareLink.
+type CreateShareLinkJSONBody struct {
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
 // AddTraceIdsJSONBody defines parameters for AddTraceIds.
 type AddTraceIdsJSONBody struct {
 	// Ids The suggested IDs to insert, from GET /trace.
@@ -1208,6 +1420,16 @@ type ListVersionsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// SetVisibilityJSONBody defines parameters for SetVisibility.
+type SetVisibilityJSONBody struct {
+	Visibility Visibility `json:"visibility"`
+}
+
+// JoinShareJSONBody defines parameters for JoinShare.
+type JoinShareJSONBody struct {
+	DisplayName string `json:"display_name"`
+}
+
 // CreateBackendJSONRequestBody defines body for CreateBackend for application/json ContentType.
 type CreateBackendJSONRequestBody = BackendInput
 
@@ -1220,14 +1442,23 @@ type TestBackendJSONRequestBody TestBackendJSONBody
 // SetBudgetJSONRequestBody defines body for SetBudget for application/json ContentType.
 type SetBudgetJSONRequestBody SetBudgetJSONBody
 
+// CreateInviteJSONRequestBody defines body for CreateInvite for application/json ContentType.
+type CreateInviteJSONRequestBody CreateInviteJSONBody
+
 // CreateMCPConnectionJSONRequestBody defines body for CreateMCPConnection for application/json ContentType.
 type CreateMCPConnectionJSONRequestBody = MCPConnectionInput
 
 // UpdateMCPConnectionJSONRequestBody defines body for UpdateMCPConnection for application/json ContentType.
 type UpdateMCPConnectionJSONRequestBody = MCPConnectionInput
 
+// CreateResetLinkJSONRequestBody defines body for CreateResetLink for application/json ContentType.
+type CreateResetLinkJSONRequestBody CreateResetLinkJSONBody
+
 // AssignRoleJSONRequestBody defines body for AssignRole for application/json ContentType.
 type AssignRoleJSONRequestBody = RoleInput
+
+// SetSettingsJSONRequestBody defines body for SetSettings for application/json ContentType.
+type SetSettingsJSONRequestBody = Settings
 
 // CreateBundleJSONRequestBody defines body for CreateBundle for application/json ContentType.
 type CreateBundleJSONRequestBody = CreateBundleRequest
@@ -1238,11 +1469,20 @@ type ImportBundleMultipartRequestBody = ImportRequest
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
 
+// CreateShareLinkJSONRequestBody defines body for CreateShareLink for application/json ContentType.
+type CreateShareLinkJSONRequestBody CreateShareLinkJSONBody
+
 // AddTraceIdsJSONRequestBody defines body for AddTraceIds for application/json ContentType.
 type AddTraceIdsJSONRequestBody AddTraceIdsJSONBody
 
+// SetVisibilityJSONRequestBody defines body for SetVisibility for application/json ContentType.
+type SetVisibilityJSONRequestBody SetVisibilityJSONBody
+
 // RenderMarkdownJSONRequestBody defines body for RenderMarkdown for application/json ContentType.
 type RenderMarkdownJSONRequestBody = RenderRequest
+
+// JoinShareJSONRequestBody defines body for JoinShare for application/json ContentType.
+type JoinShareJSONRequestBody JoinShareJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1267,6 +1507,15 @@ type ServerInterface interface {
 	// SetBudget Set the monthly token limit. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(w http.ResponseWriter, r *http.Request)
+	// ListInvites List invite links, newest first (REQ-081).
+	// (GET /admin/invites)
+	ListInvites(w http.ResponseWriter, r *http.Request)
+	// CreateInvite Make a single-use invite link with a role (REQ-081). The URL appears one time.
+	// (POST /admin/invites)
+	CreateInvite(w http.ResponseWriter, r *http.Request)
+	// RevokeInvite Revoke an unused invite link.
+	// (POST /admin/invites/{inviteId}/revoke)
+	RevokeInvite(w http.ResponseWriter, r *http.Request, inviteId openapi_types.UUID)
 	// ListMCPConnections List the MCP connections (REQ-112).
 	// (GET /admin/mcp)
 	ListMCPConnections(w http.ResponseWriter, r *http.Request)
@@ -1285,6 +1534,9 @@ type ServerInterface interface {
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	// (GET /admin/presets)
 	ListPresets(w http.ResponseWriter, r *http.Request)
+	// CreateResetLink Make a one-time password reset link for a user (REQ-082). The URL appears one time.
+	// (POST /admin/reset-links)
+	CreateResetLink(w http.ResponseWriter, r *http.Request)
 	// ListRoles List the roles and their backend and model (REQ-101).
 	// (GET /admin/roles)
 	ListRoles(w http.ResponseWriter, r *http.Request)
@@ -1294,6 +1546,12 @@ type ServerInterface interface {
 	// AssignRole Assign a backend and model to a role.
 	// (PUT /admin/roles/{role})
 	AssignRole(w http.ResponseWriter, r *http.Request, role RoleName)
+	// GetSettings The workspace settings (REQ-009, REQ-081, REQ-105).
+	// (GET /admin/settings)
+	GetSettings(w http.ResponseWriter, r *http.Request)
+	// SetSettings Change the workspace settings.
+	// (PUT /admin/settings)
+	SetSettings(w http.ResponseWriter, r *http.Request)
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(w http.ResponseWriter, r *http.Request, params ListBundlesParams)
@@ -1306,6 +1564,9 @@ type ServerInterface interface {
 	// GetBundle Get one bundle.
 	// (GET /bundles/{bundleId})
 	GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// GetBundleAccess Who can see the bundle, and its share link state (REQ-084, REQ-085).
+	// (GET /bundles/{bundleId}/access)
+	GetBundleAccess(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
 	// (GET /bundles/{bundleId}/assumptions)
 	ListAssumptions(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -1339,6 +1600,12 @@ type ServerInterface interface {
 	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
 	// (GET /bundles/{bundleId}/runs/estimate)
 	EstimateRun(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// RevokeShareLink Revoke the share link (REQ-085).
+	// (DELETE /bundles/{bundleId}/share)
+	RevokeShareLink(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// CreateShareLink Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
+	// (POST /bundles/{bundleId}/share)
+	CreateShareLink(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /bundles/{bundleId}/trace)
 	GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -1348,6 +1615,12 @@ type ServerInterface interface {
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
+	// SetVisibility Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
+	// (PUT /bundles/{bundleId}/visibility)
+	SetVisibility(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// GetMe Who the caller is (SDD §3). Anonymous callers get signed_in false.
+	// (GET /me)
+	GetMe(w http.ResponseWriter, r *http.Request)
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(w http.ResponseWriter, r *http.Request)
@@ -1372,6 +1645,12 @@ type ServerInterface interface {
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	// (GET /runs/{runId}/questions)
 	ListQuestions(w http.ResponseWriter, r *http.Request, runId RunId)
+	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
+	// (GET /share/{token})
+	GetShare(w http.ResponseWriter, r *http.Request, token string)
+	// JoinShare Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
+	// (POST /share/{token})
+	JoinShare(w http.ResponseWriter, r *http.Request, token string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -1517,6 +1796,60 @@ func (siw *ServerInterfaceWrapper) SetBudget(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListInvites operation middleware
+func (siw *ServerInterfaceWrapper) ListInvites(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListInvites(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateInvite operation middleware
+func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateInvite(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeInvite operation middleware
+func (siw *ServerInterfaceWrapper) RevokeInvite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "inviteId" -------------
+	var inviteId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "inviteId", r.PathValue("inviteId"), &inviteId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "inviteId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeInvite(w, r, inviteId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListMCPConnections operation middleware
 func (siw *ServerInterfaceWrapper) ListMCPConnections(w http.ResponseWriter, r *http.Request) {
 
@@ -1637,6 +1970,20 @@ func (siw *ServerInterfaceWrapper) ListPresets(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// CreateResetLink operation middleware
+func (siw *ServerInterfaceWrapper) CreateResetLink(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateResetLink(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListRoles operation middleware
 func (siw *ServerInterfaceWrapper) ListRoles(w http.ResponseWriter, r *http.Request) {
 
@@ -1694,6 +2041,34 @@ func (siw *ServerInterfaceWrapper) AssignRole(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AssignRole(w, r, role)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSettings operation middleware
+func (siw *ServerInterfaceWrapper) GetSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetSettings operation middleware
+func (siw *ServerInterfaceWrapper) SetSettings(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetSettings(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1794,6 +2169,32 @@ func (siw *ServerInterfaceWrapper) GetBundle(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetBundle(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBundleAccess operation middleware
+func (siw *ServerInterfaceWrapper) GetBundleAccess(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBundleAccess(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2253,6 +2654,58 @@ func (siw *ServerInterfaceWrapper) EstimateRun(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// RevokeShareLink operation middleware
+func (siw *ServerInterfaceWrapper) RevokeShareLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeShareLink(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateShareLink operation middleware
+func (siw *ServerInterfaceWrapper) CreateShareLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateShareLink(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetTrace operation middleware
 func (siw *ServerInterfaceWrapper) GetTrace(w http.ResponseWriter, r *http.Request) {
 
@@ -2367,6 +2820,46 @@ func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListVersions(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetVisibility operation middleware
+func (siw *ServerInterfaceWrapper) SetVisibility(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetVisibility(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMe operation middleware
+func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMe(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2548,6 +3041,58 @@ func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetShare operation middleware
+func (siw *ServerInterfaceWrapper) GetShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", r.PathValue("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetShare(w, r, token)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// JoinShare operation middleware
+func (siw *ServerInterfaceWrapper) JoinShare(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "token" -------------
+	var token string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "token", r.PathValue("token"), &token, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.JoinShare(w, r, token)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -2669,6 +3214,19 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	}
 
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/meta", wrapper.GetMeta)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/share/{token}", wrapper.GetShare)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/share/{token}", wrapper.JoinShare)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/access", wrapper.GetBundleAccess)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/visibility", wrapper.SetVisibility)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.RevokeShareLink)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.CreateShareLink)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/invites", wrapper.ListInvites)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/invites", wrapper.CreateInvite)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/invites/{inviteId}/revoke", wrapper.RevokeInvite)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/reset-links", wrapper.CreateResetLink)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/settings", wrapper.GetSettings)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/settings", wrapper.SetSettings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles", wrapper.ListBundles)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles", wrapper.CreateBundle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import", wrapper.ImportBundle)
@@ -2983,6 +3541,121 @@ func (response SetBudgetdefaultApplicationProblemPlusJSONResponse) VisitSetBudge
 	return err
 }
 
+type ListInvitesRequestObject struct {
+}
+
+type ListInvitesResponseObject interface {
+	VisitListInvitesResponse(w http.ResponseWriter) error
+}
+
+type ListInvites200JSONResponse struct {
+	Items []Invite `json:"items"`
+}
+
+func (response ListInvites200JSONResponse) VisitListInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListInvitesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListInvitesdefaultApplicationProblemPlusJSONResponse) VisitListInvitesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateInviteRequestObject struct {
+	Body *CreateInviteJSONRequestBody
+}
+
+type CreateInviteResponseObject interface {
+	VisitCreateInviteResponse(w http.ResponseWriter) error
+}
+
+type CreateInvite200JSONResponse struct {
+	Invite Invite `json:"invite"`
+	Url    string `json:"url"`
+}
+
+func (response CreateInvite200JSONResponse) VisitCreateInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateInvitedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateInvitedefaultApplicationProblemPlusJSONResponse) VisitCreateInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeInviteRequestObject struct {
+	InviteId openapi_types.UUID `json:"inviteId"`
+}
+
+type RevokeInviteResponseObject interface {
+	VisitRevokeInviteResponse(w http.ResponseWriter) error
+}
+
+type RevokeInvite204Response struct {
+}
+
+func (response RevokeInvite204Response) VisitRevokeInviteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RevokeInvitedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RevokeInvitedefaultApplicationProblemPlusJSONResponse) VisitRevokeInviteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListMCPConnectionsRequestObject struct {
 }
 
@@ -3214,6 +3887,47 @@ func (response ListPresetsdefaultApplicationProblemPlusJSONResponse) VisitListPr
 	return err
 }
 
+type CreateResetLinkRequestObject struct {
+	Body *CreateResetLinkJSONRequestBody
+}
+
+type CreateResetLinkResponseObject interface {
+	VisitCreateResetLinkResponse(w http.ResponseWriter) error
+}
+
+type CreateResetLink200JSONResponse struct {
+	Url string `json:"url"`
+}
+
+func (response CreateResetLink200JSONResponse) VisitCreateResetLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateResetLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateResetLinkdefaultApplicationProblemPlusJSONResponse) VisitCreateResetLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListRolesRequestObject struct {
 }
 
@@ -3314,6 +4028,83 @@ type AssignRoledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response AssignRoledefaultApplicationProblemPlusJSONResponse) VisitAssignRoleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSettingsRequestObject struct {
+}
+
+type GetSettingsResponseObject interface {
+	VisitGetSettingsResponse(w http.ResponseWriter) error
+}
+
+type GetSettings200JSONResponse Settings
+
+func (response GetSettings200JSONResponse) VisitGetSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSettingsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSettingsdefaultApplicationProblemPlusJSONResponse) VisitGetSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetSettingsRequestObject struct {
+	Body *SetSettingsJSONRequestBody
+}
+
+type SetSettingsResponseObject interface {
+	VisitSetSettingsResponse(w http.ResponseWriter) error
+}
+
+type SetSettings200JSONResponse Settings
+
+func (response SetSettings200JSONResponse) VisitSetSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetSettingsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetSettingsdefaultApplicationProblemPlusJSONResponse) VisitSetSettingsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3470,6 +4261,45 @@ type GetBundledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetBundledefaultApplicationProblemPlusJSONResponse) VisitGetBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBundleAccessRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type GetBundleAccessResponseObject interface {
+	VisitGetBundleAccessResponse(w http.ResponseWriter) error
+}
+
+type GetBundleAccess200JSONResponse BundleAccess
+
+func (response GetBundleAccess200JSONResponse) VisitGetBundleAccessResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBundleAccessdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBundleAccessdefaultApplicationProblemPlusJSONResponse) VisitGetBundleAccessResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -3933,6 +4763,88 @@ func (response EstimateRundefaultApplicationProblemPlusJSONResponse) VisitEstima
 	return err
 }
 
+type RevokeShareLinkRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type RevokeShareLinkResponseObject interface {
+	VisitRevokeShareLinkResponse(w http.ResponseWriter) error
+}
+
+type RevokeShareLink200JSONResponse BundleAccess
+
+func (response RevokeShareLink200JSONResponse) VisitRevokeShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RevokeShareLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RevokeShareLinkdefaultApplicationProblemPlusJSONResponse) VisitRevokeShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShareLinkRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *CreateShareLinkJSONRequestBody
+}
+
+type CreateShareLinkResponseObject interface {
+	VisitCreateShareLinkResponse(w http.ResponseWriter) error
+}
+
+type CreateShareLink200JSONResponse struct {
+	Access BundleAccess `json:"access"`
+	Url    string       `json:"url"`
+}
+
+func (response CreateShareLink200JSONResponse) VisitCreateShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateShareLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateShareLinkdefaultApplicationProblemPlusJSONResponse) VisitCreateShareLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetTraceRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 }
@@ -4042,6 +4954,84 @@ type ListVersionsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListVersionsdefaultApplicationProblemPlusJSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetVisibilityRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *SetVisibilityJSONRequestBody
+}
+
+type SetVisibilityResponseObject interface {
+	VisitSetVisibilityResponse(w http.ResponseWriter) error
+}
+
+type SetVisibility200JSONResponse BundleAccess
+
+func (response SetVisibility200JSONResponse) VisitSetVisibilityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetVisibilitydefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetVisibilitydefaultApplicationProblemPlusJSONResponse) VisitSetVisibilityResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMeRequestObject struct {
+}
+
+type GetMeResponseObject interface {
+	VisitGetMeResponse(w http.ResponseWriter) error
+}
+
+type GetMe200JSONResponse Me
+
+func (response GetMe200JSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetMedefaultApplicationProblemPlusJSONResponse) VisitGetMeResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -4396,6 +5386,85 @@ func (response ListQuestionsdefaultApplicationProblemPlusJSONResponse) VisitList
 	return err
 }
 
+type GetShareRequestObject struct {
+	Token string `json:"token"`
+}
+
+type GetShareResponseObject interface {
+	VisitGetShareResponse(w http.ResponseWriter) error
+}
+
+type GetShare200JSONResponse ShareInfo
+
+func (response GetShare200JSONResponse) VisitGetShareResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSharedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSharedefaultApplicationProblemPlusJSONResponse) VisitGetShareResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinShareRequestObject struct {
+	Token string `json:"token"`
+	Body  *JoinShareJSONRequestBody
+}
+
+type JoinShareResponseObject interface {
+	VisitJoinShareResponse(w http.ResponseWriter) error
+}
+
+type JoinShare200JSONResponse ShareInfo
+
+func (response JoinShare200JSONResponse) VisitJoinShareResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type JoinSharedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response JoinSharedefaultApplicationProblemPlusJSONResponse) VisitJoinShareResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
@@ -4419,6 +5488,15 @@ type StrictServerInterface interface {
 	// SetBudget Set the monthly token limit. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(ctx context.Context, request SetBudgetRequestObject) (SetBudgetResponseObject, error)
+	// ListInvites List invite links, newest first (REQ-081).
+	// (GET /admin/invites)
+	ListInvites(ctx context.Context, request ListInvitesRequestObject) (ListInvitesResponseObject, error)
+	// CreateInvite Make a single-use invite link with a role (REQ-081). The URL appears one time.
+	// (POST /admin/invites)
+	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
+	// RevokeInvite Revoke an unused invite link.
+	// (POST /admin/invites/{inviteId}/revoke)
+	RevokeInvite(ctx context.Context, request RevokeInviteRequestObject) (RevokeInviteResponseObject, error)
 	// ListMCPConnections List the MCP connections (REQ-112).
 	// (GET /admin/mcp)
 	ListMCPConnections(ctx context.Context, request ListMCPConnectionsRequestObject) (ListMCPConnectionsResponseObject, error)
@@ -4437,6 +5515,9 @@ type StrictServerInterface interface {
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	// (GET /admin/presets)
 	ListPresets(ctx context.Context, request ListPresetsRequestObject) (ListPresetsResponseObject, error)
+	// CreateResetLink Make a one-time password reset link for a user (REQ-082). The URL appears one time.
+	// (POST /admin/reset-links)
+	CreateResetLink(ctx context.Context, request CreateResetLinkRequestObject) (CreateResetLinkResponseObject, error)
 	// ListRoles List the roles and their backend and model (REQ-101).
 	// (GET /admin/roles)
 	ListRoles(ctx context.Context, request ListRolesRequestObject) (ListRolesResponseObject, error)
@@ -4446,6 +5527,12 @@ type StrictServerInterface interface {
 	// AssignRole Assign a backend and model to a role.
 	// (PUT /admin/roles/{role})
 	AssignRole(ctx context.Context, request AssignRoleRequestObject) (AssignRoleResponseObject, error)
+	// GetSettings The workspace settings (REQ-009, REQ-081, REQ-105).
+	// (GET /admin/settings)
+	GetSettings(ctx context.Context, request GetSettingsRequestObject) (GetSettingsResponseObject, error)
+	// SetSettings Change the workspace settings.
+	// (PUT /admin/settings)
+	SetSettings(ctx context.Context, request SetSettingsRequestObject) (SetSettingsResponseObject, error)
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(ctx context.Context, request ListBundlesRequestObject) (ListBundlesResponseObject, error)
@@ -4458,6 +5545,9 @@ type StrictServerInterface interface {
 	// GetBundle Get one bundle.
 	// (GET /bundles/{bundleId})
 	GetBundle(ctx context.Context, request GetBundleRequestObject) (GetBundleResponseObject, error)
+	// GetBundleAccess Who can see the bundle, and its share link state (REQ-084, REQ-085).
+	// (GET /bundles/{bundleId}/access)
+	GetBundleAccess(ctx context.Context, request GetBundleAccessRequestObject) (GetBundleAccessResponseObject, error)
 	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
 	// (GET /bundles/{bundleId}/assumptions)
 	ListAssumptions(ctx context.Context, request ListAssumptionsRequestObject) (ListAssumptionsResponseObject, error)
@@ -4491,6 +5581,12 @@ type StrictServerInterface interface {
 	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
 	// (GET /bundles/{bundleId}/runs/estimate)
 	EstimateRun(ctx context.Context, request EstimateRunRequestObject) (EstimateRunResponseObject, error)
+	// RevokeShareLink Revoke the share link (REQ-085).
+	// (DELETE /bundles/{bundleId}/share)
+	RevokeShareLink(ctx context.Context, request RevokeShareLinkRequestObject) (RevokeShareLinkResponseObject, error)
+	// CreateShareLink Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
+	// (POST /bundles/{bundleId}/share)
+	CreateShareLink(ctx context.Context, request CreateShareLinkRequestObject) (CreateShareLinkResponseObject, error)
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /bundles/{bundleId}/trace)
 	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
@@ -4500,6 +5596,12 @@ type StrictServerInterface interface {
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
+	// SetVisibility Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
+	// (PUT /bundles/{bundleId}/visibility)
+	SetVisibility(ctx context.Context, request SetVisibilityRequestObject) (SetVisibilityResponseObject, error)
+	// GetMe Who the caller is (SDD §3). Anonymous callers get signed_in false.
+	// (GET /me)
+	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(ctx context.Context, request GetMetaRequestObject) (GetMetaResponseObject, error)
@@ -4524,6 +5626,12 @@ type StrictServerInterface interface {
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	// (GET /runs/{runId}/questions)
 	ListQuestions(ctx context.Context, request ListQuestionsRequestObject) (ListQuestionsResponseObject, error)
+	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
+	// (GET /share/{token})
+	GetShare(ctx context.Context, request GetShareRequestObject) (GetShareResponseObject, error)
+	// JoinShare Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
+	// (POST /share/{token})
+	JoinShare(ctx context.Context, request JoinShareRequestObject) (JoinShareResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -4767,6 +5875,87 @@ func (sh *strictHandler) SetBudget(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListInvites operation middleware
+func (sh *strictHandler) ListInvites(w http.ResponseWriter, r *http.Request) {
+	var request ListInvitesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListInvites(ctx, request.(ListInvitesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListInvites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListInvitesResponseObject); ok {
+		if err := validResponse.VisitListInvitesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateInvite operation middleware
+func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request) {
+	var request CreateInviteRequestObject
+
+	var body CreateInviteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateInvite(ctx, request.(CreateInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateInviteResponseObject); ok {
+		if err := validResponse.VisitCreateInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeInvite operation middleware
+func (sh *strictHandler) RevokeInvite(w http.ResponseWriter, r *http.Request, inviteId openapi_types.UUID) {
+	var request RevokeInviteRequestObject
+
+	request.InviteId = inviteId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeInvite(ctx, request.(RevokeInviteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeInvite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeInviteResponseObject); ok {
+		if err := validResponse.VisitRevokeInviteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListMCPConnections operation middleware
 func (sh *strictHandler) ListMCPConnections(w http.ResponseWriter, r *http.Request) {
 	var request ListMCPConnectionsRequestObject
@@ -4931,6 +6120,37 @@ func (sh *strictHandler) ListPresets(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// CreateResetLink operation middleware
+func (sh *strictHandler) CreateResetLink(w http.ResponseWriter, r *http.Request) {
+	var request CreateResetLinkRequestObject
+
+	var body CreateResetLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateResetLink(ctx, request.(CreateResetLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateResetLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateResetLinkResponseObject); ok {
+		if err := validResponse.VisitCreateResetLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListRoles operation middleware
 func (sh *strictHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
 	var request ListRolesRequestObject
@@ -5007,6 +6227,61 @@ func (sh *strictHandler) AssignRole(w http.ResponseWriter, r *http.Request, role
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AssignRoleResponseObject); ok {
 		if err := validResponse.VisitAssignRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSettings operation middleware
+func (sh *strictHandler) GetSettings(w http.ResponseWriter, r *http.Request) {
+	var request GetSettingsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSettings(ctx, request.(GetSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSettingsResponseObject); ok {
+		if err := validResponse.VisitGetSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetSettings operation middleware
+func (sh *strictHandler) SetSettings(w http.ResponseWriter, r *http.Request) {
+	var request SetSettingsRequestObject
+
+	var body SetSettingsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetSettings(ctx, request.(SetSettingsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetSettings")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetSettingsResponseObject); ok {
+		if err := validResponse.VisitSetSettingsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -5121,6 +6396,32 @@ func (sh *strictHandler) GetBundle(w http.ResponseWriter, r *http.Request, bundl
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetBundleResponseObject); ok {
 		if err := validResponse.VisitGetBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBundleAccess operation middleware
+func (sh *strictHandler) GetBundleAccess(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request GetBundleAccessRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBundleAccess(ctx, request.(GetBundleAccessRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBundleAccess")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBundleAccessResponseObject); ok {
+		if err := validResponse.VisitGetBundleAccessResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -5430,6 +6731,65 @@ func (sh *strictHandler) EstimateRun(w http.ResponseWriter, r *http.Request, bun
 	}
 }
 
+// RevokeShareLink operation middleware
+func (sh *strictHandler) RevokeShareLink(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request RevokeShareLinkRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeShareLink(ctx, request.(RevokeShareLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeShareLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeShareLinkResponseObject); ok {
+		if err := validResponse.VisitRevokeShareLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateShareLink operation middleware
+func (sh *strictHandler) CreateShareLink(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request CreateShareLinkRequestObject
+
+	request.BundleId = bundleId
+
+	var body CreateShareLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateShareLink(ctx, request.(CreateShareLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateShareLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateShareLinkResponseObject); ok {
+		if err := validResponse.VisitCreateShareLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetTrace operation middleware
 func (sh *strictHandler) GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
 	var request GetTraceRequestObject
@@ -5510,6 +6870,63 @@ func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, bu
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListVersionsResponseObject); ok {
 		if err := validResponse.VisitListVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetVisibility operation middleware
+func (sh *strictHandler) SetVisibility(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request SetVisibilityRequestObject
+
+	request.BundleId = bundleId
+
+	var body SetVisibilityJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetVisibility(ctx, request.(SetVisibilityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetVisibility")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetVisibilityResponseObject); ok {
+		if err := validResponse.VisitSetVisibilityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMe operation middleware
+func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	var request GetMeRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMe(ctx, request.(GetMeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMe")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMeResponseObject); ok {
+		if err := validResponse.VisitGetMeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -5719,6 +7136,65 @@ func (sh *strictHandler) ListQuestions(w http.ResponseWriter, r *http.Request, r
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListQuestionsResponseObject); ok {
 		if err := validResponse.VisitListQuestionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetShare operation middleware
+func (sh *strictHandler) GetShare(w http.ResponseWriter, r *http.Request, token string) {
+	var request GetShareRequestObject
+
+	request.Token = token
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetShare(ctx, request.(GetShareRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetShare")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetShareResponseObject); ok {
+		if err := validResponse.VisitGetShareResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// JoinShare operation middleware
+func (sh *strictHandler) JoinShare(w http.ResponseWriter, r *http.Request, token string) {
+	var request JoinShareRequestObject
+
+	request.Token = token
+
+	var body JoinShareJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.JoinShare(ctx, request.(JoinShareRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "JoinShare")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(JoinShareResponseObject); ok {
+		if err := validResponse.VisitJoinShareResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

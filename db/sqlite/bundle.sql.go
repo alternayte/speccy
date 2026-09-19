@@ -26,7 +26,7 @@ func (q *Queries) GetBlob(ctx context.Context, sha256 string) ([]byte, error) {
 }
 
 const getBundle = `-- name: GetBundle :one
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetBundleParams struct {
@@ -50,12 +50,15 @@ func (q *Queries) GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, e
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Visibility,
+		&i.ShareTokenHash,
+		&i.ShareExpiresAt,
 	)
 	return i, err
 }
 
 const getBundleBySlug = `-- name: GetBundleBySlug :one
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = ?1 AND slug = ?2
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle WHERE workspace_id = ?1 AND slug = ?2
 `
 
 type GetBundleBySlugParams struct {
@@ -79,6 +82,9 @@ func (q *Queries) GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams
 		&i.ArchivedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Visibility,
+		&i.ShareTokenHash,
+		&i.ShareExpiresAt,
 	)
 	return i, err
 }
@@ -264,7 +270,7 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 }
 
 const listBundles = `-- name: ListBundles :many
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle
 WHERE workspace_id = ?1 AND archived_at IS NULL AND slug > ?2
 ORDER BY slug
 LIMIT ?3
@@ -298,6 +304,9 @@ func (q *Queries) ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bun
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Visibility,
+			&i.ShareTokenHash,
+			&i.ShareExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -313,7 +322,7 @@ func (q *Queries) ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bun
 }
 
 const listBundlesBySource = `-- name: ListBundlesBySource :many
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at FROM bundle
+SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle
 WHERE workspace_id = ?1 AND source_kind = ?2
 ORDER BY slug
 `
@@ -345,6 +354,9 @@ func (q *Queries) ListBundlesBySource(ctx context.Context, arg ListBundlesBySour
 			&i.ArchivedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Visibility,
+			&i.ShareTokenHash,
+			&i.ShareExpiresAt,
 		); err != nil {
 			return nil, err
 		}

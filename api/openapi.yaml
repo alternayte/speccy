@@ -22,6 +22,276 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /me:
+    get:
+      operationId: getMe
+      summary: Who the caller is (SDD §3). Anonymous callers get signed_in false.
+      responses:
+        "200":
+          description: The caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /share/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getShare
+      summary: Look up a share link (REQ-085). A revoked or expired link is not found.
+      responses:
+        "200":
+          description: The shared bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareInfo"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: joinShare
+      summary: Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [display_name]
+              properties:
+                display_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 60
+      responses:
+        "200":
+          description: The guest may now read the bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareInfo"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/access:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: getBundleAccess
+      summary: Who can see the bundle, and its share link state (REQ-084, REQ-085).
+      responses:
+        "200":
+          description: The access of the bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BundleAccess"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/visibility:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    put:
+      operationId: setVisibility
+      summary: Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [visibility]
+              properties:
+                visibility:
+                  $ref: "#/components/schemas/Visibility"
+      responses:
+        "200":
+          description: The access of the bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BundleAccess"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/share:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: createShareLink
+      summary: Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expires_at:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: The new link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, access]
+                properties:
+                  url:
+                    type: string
+                  access:
+                    $ref: "#/components/schemas/BundleAccess"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: revokeShareLink
+      summary: Revoke the share link (REQ-085).
+      responses:
+        "200":
+          description: The access of the bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BundleAccess"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/invites:
+    get:
+      operationId: listInvites
+      summary: List invite links, newest first (REQ-081).
+      responses:
+        "200":
+          description: The invites. A list never carries a token.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Invite"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: createInvite
+      summary: Make a single-use invite link with a role (REQ-081). The URL appears one time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [admin, member]
+      responses:
+        "200":
+          description: The invite and its link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, invite]
+                properties:
+                  url:
+                    type: string
+                  invite:
+                    $ref: "#/components/schemas/Invite"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/invites/{inviteId}/revoke:
+    parameters:
+      - name: inviteId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: revokeInvite
+      summary: Revoke an unused invite link.
+      responses:
+        "204":
+          description: Revoked.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/reset-links:
+    post:
+      operationId: createResetLink
+      summary: Make a one-time password reset link for a user (REQ-082). The URL appears one time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+      responses:
+        "200":
+          description: The link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url:
+                    type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/settings:
+    get:
+      operationId: getSettings
+      summary: The workspace settings (REQ-009, REQ-081, REQ-105).
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: setSettings
+      summary: Change the workspace settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Settings"
+      responses:
+        "200":
+          description: The settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles:
     get:
       operationId: listBundles
@@ -869,8 +1139,121 @@ components:
           description: The build version of the binary.
         mode:
           type: string
-          enum: [local]
+          enum: [local, hosted]
           description: The mode the server runs in.
+
+    Me:
+      type: object
+      required: [signed_in, mode]
+      properties:
+        signed_in:
+          type: boolean
+        mode:
+          type: string
+          enum: [local, hosted]
+        user_id:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+        guest:
+          type: object
+          required: [name, bundle_id]
+          properties:
+            name:
+              type: string
+            bundle_id:
+              type: string
+              format: uuid
+
+    Visibility:
+      type: string
+      enum: [private, internal, link]
+
+    ShareInfo:
+      type: object
+      required: [bundle_id, title]
+      properties:
+        bundle_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+
+    BundleAccess:
+      type: object
+      required: [visibility, authors, reviewers, share_active, can_edit]
+      properties:
+        visibility:
+          $ref: "#/components/schemas/Visibility"
+        authors:
+          type: array
+          items:
+            type: string
+          description: Author user IDs.
+        reviewers:
+          type: array
+          items:
+            type: string
+        share_active:
+          type: boolean
+        share_expires_at:
+          type: string
+          format: date-time
+        can_edit:
+          type: boolean
+          description: Whether the caller can change the bundle and its access.
+
+    Invite:
+      type: object
+      required: [id, role, expires_at, created_by, created_at, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [admin, member]
+        expires_at:
+          type: string
+          format: date-time
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        used_by:
+          type: string
+        status:
+          type: string
+          enum: [pending, used, revoked, expired]
+
+    Settings:
+      type: object
+      required: [max_file_mb, max_bundle_mb, invite_ttl_days, parallel_calls]
+      properties:
+        max_file_mb:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: REQ-009. Default 10.
+        max_bundle_mb:
+          type: integer
+          minimum: 1
+          maximum: 500
+          description: REQ-009. Default 50.
+        invite_ttl_days:
+          type: integer
+          minimum: 1
+          maximum: 90
+          description: REQ-081. Default 7.
+        parallel_calls:
+          type: integer
+          minimum: 1
+          maximum: 16
+          description: REQ-105. Model calls at a time per run. Default 4.
 
     Problem:
       type: object
@@ -922,6 +1305,8 @@ components:
         run_error:
           type: string
           description: Why the latest run on the current version failed, when it failed.
+        visibility:
+          $ref: "#/components/schemas/Visibility"
 
     BundleVerdict:
       type: object

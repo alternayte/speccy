@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { addTraceIds, assignRole, createBackend, createBundle, createMcpConnection, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, getTrace, importBundle, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listMcpConnections, listMcpTools, listPresets, listProfiles, listQuestions, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
-import type { AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
+import { addTraceIds, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createResetLink, createShareLink, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getFileContent, getMe, getMeta, getRun, getSettings, getShare, getTrace, importBundle, joinShare, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listInvites, listMcpConnections, listMcpTools, listPresets, listProfiles, listQuestions, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, revokeInvite, revokeShareLink, setBudget, setSettings, setVisibility, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
+import type { AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -56,6 +56,232 @@ export const getMetaOptions = (options?: Options<GetMetaData>) => queryOptions<G
     },
     queryKey: getMetaQueryKey(options)
 });
+
+export const getMeQueryKey = (options?: Options<GetMeData>) => createQueryKey('getMe', options);
+
+/**
+ * Who the caller is (SDD §3). Anonymous callers get signed_in false.
+ */
+export const getMeOptions = (options?: Options<GetMeData>) => queryOptions<GetMeResponse, GetMeError, GetMeResponse, ReturnType<typeof getMeQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getMe({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getMeQueryKey(options)
+});
+
+export const getShareQueryKey = (options: Options<GetShareData>) => createQueryKey('getShare', options);
+
+/**
+ * Look up a share link (REQ-085). A revoked or expired link is not found.
+ */
+export const getShareOptions = (options: Options<GetShareData>) => queryOptions<GetShareResponse, GetShareError, GetShareResponse, ReturnType<typeof getShareQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getShare({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getShareQueryKey(options)
+});
+
+/**
+ * Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
+ */
+export const joinShareMutation = (options?: Partial<Options<JoinShareData>>): UseMutationOptions<JoinShareResponse, JoinShareError, Options<JoinShareData>> => {
+    const mutationOptions: UseMutationOptions<JoinShareResponse, JoinShareError, Options<JoinShareData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await joinShare({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getBundleAccessQueryKey = (options: Options<GetBundleAccessData>) => createQueryKey('getBundleAccess', options);
+
+/**
+ * Who can see the bundle, and its share link state (REQ-084, REQ-085).
+ */
+export const getBundleAccessOptions = (options: Options<GetBundleAccessData>) => queryOptions<GetBundleAccessResponse, GetBundleAccessError, GetBundleAccessResponse, ReturnType<typeof getBundleAccessQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getBundleAccess({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getBundleAccessQueryKey(options)
+});
+
+/**
+ * Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
+ */
+export const setVisibilityMutation = (options?: Partial<Options<SetVisibilityData>>): UseMutationOptions<SetVisibilityResponse, SetVisibilityError, Options<SetVisibilityData>> => {
+    const mutationOptions: UseMutationOptions<SetVisibilityResponse, SetVisibilityError, Options<SetVisibilityData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setVisibility({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Revoke the share link (REQ-085).
+ */
+export const revokeShareLinkMutation = (options?: Partial<Options<RevokeShareLinkData>>): UseMutationOptions<RevokeShareLinkResponse, RevokeShareLinkError, Options<RevokeShareLinkData>> => {
+    const mutationOptions: UseMutationOptions<RevokeShareLinkResponse, RevokeShareLinkError, Options<RevokeShareLinkData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await revokeShareLink({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
+ */
+export const createShareLinkMutation = (options?: Partial<Options<CreateShareLinkData>>): UseMutationOptions<CreateShareLinkResponse, CreateShareLinkError, Options<CreateShareLinkData>> => {
+    const mutationOptions: UseMutationOptions<CreateShareLinkResponse, CreateShareLinkError, Options<CreateShareLinkData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createShareLink({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listInvitesQueryKey = (options?: Options<ListInvitesData>) => createQueryKey('listInvites', options);
+
+/**
+ * List invite links, newest first (REQ-081).
+ */
+export const listInvitesOptions = (options?: Options<ListInvitesData>) => queryOptions<ListInvitesResponse, ListInvitesError, ListInvitesResponse, ReturnType<typeof listInvitesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listInvites({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listInvitesQueryKey(options)
+});
+
+/**
+ * Make a single-use invite link with a role (REQ-081). The URL appears one time.
+ */
+export const createInviteMutation = (options?: Partial<Options<CreateInviteData>>): UseMutationOptions<CreateInviteResponse, CreateInviteError, Options<CreateInviteData>> => {
+    const mutationOptions: UseMutationOptions<CreateInviteResponse, CreateInviteError, Options<CreateInviteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createInvite({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Revoke an unused invite link.
+ */
+export const revokeInviteMutation = (options?: Partial<Options<RevokeInviteData>>): UseMutationOptions<RevokeInviteResponse, RevokeInviteError, Options<RevokeInviteData>> => {
+    const mutationOptions: UseMutationOptions<RevokeInviteResponse, RevokeInviteError, Options<RevokeInviteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await revokeInvite({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Make a one-time password reset link for a user (REQ-082). The URL appears one time.
+ */
+export const createResetLinkMutation = (options?: Partial<Options<CreateResetLinkData>>): UseMutationOptions<CreateResetLinkResponse, CreateResetLinkError, Options<CreateResetLinkData>> => {
+    const mutationOptions: UseMutationOptions<CreateResetLinkResponse, CreateResetLinkError, Options<CreateResetLinkData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createResetLink({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getSettingsQueryKey = (options?: Options<GetSettingsData>) => createQueryKey('getSettings', options);
+
+/**
+ * The workspace settings (REQ-009, REQ-081, REQ-105).
+ */
+export const getSettingsOptions = (options?: Options<GetSettingsData>) => queryOptions<GetSettingsResponse, GetSettingsError, GetSettingsResponse, ReturnType<typeof getSettingsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getSettings({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getSettingsQueryKey(options)
+});
+
+/**
+ * Change the workspace settings.
+ */
+export const setSettingsMutation = (options?: Partial<Options<SetSettingsData>>): UseMutationOptions<SetSettingsResponse, SetSettingsError, Options<SetSettingsData>> => {
+    const mutationOptions: UseMutationOptions<SetSettingsResponse, SetSettingsError, Options<SetSettingsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setSettings({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const listBundlesQueryKey = (options?: Options<ListBundlesData>) => createQueryKey('listBundles', options);
 

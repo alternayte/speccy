@@ -276,6 +276,9 @@ func LoadLocal(dir string) (map[string]Loaded, error) {
 	for _, l := range builtins {
 		out[l.Profile.Key] = l
 	}
+	if dir == "" {
+		return out, nil // hosted mode: built-ins only (REQ-013 profile editing comes later)
+	}
 	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
 	if err != nil {
 		return nil, err

@@ -50,3 +50,13 @@ func Conflict(code, format string, args ...any) *Error {
 func TooLarge(code, format string, args ...any) *Error {
 	return &Error{Status: http.StatusRequestEntityTooLarge, Code: code, Detail: fmt.Sprintf(format, args...)}
 }
+
+// Forbidden is a 403 error: the actor may not do this.
+func Forbidden(code, format string, args ...any) *Error {
+	return &Error{Status: http.StatusForbidden, Code: code, Detail: fmt.Sprintf(format, args...)}
+}
+
+// Unauthorized is a 401 error: the request has no valid sign-in.
+func Unauthorized(code, format string, args ...any) *Error {
+	return &Error{Status: http.StatusUnauthorized, Code: code, Detail: fmt.Sprintf(format, args...)}
+}

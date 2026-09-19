@@ -30,6 +30,8 @@ func toAPI(ctx context.Context, q store.Querier, b pgdb.Bundle) (api.Bundle, err
 	return api.Bundle{
 		Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey, MainDoc: b.MainDoc,
 		SourceKind: api.BundleSourceKind(b.SourceKind), CurrentVersion: version.ToAPI(v), UpdatedAt: b.UpdatedAt.UTC(),
-		Verdict: verdict, RunError: runErr,
+		Verdict: verdict, RunError: runErr, Visibility: ptr(api.Visibility(b.Visibility)),
 	}, nil
 }
+
+func ptr[T any](v T) *T { return &v }
