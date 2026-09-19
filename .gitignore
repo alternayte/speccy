@@ -13,3 +13,6 @@ web/dist/*
 
 # Third-party reference screenshots for the UI gauntlet (BUILD.md §6.1). Kept local only.
 docs/gauntlet/reference/
+
+# goreleaser output (just release-check).
+/dist/

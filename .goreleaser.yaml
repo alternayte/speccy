@@ -1,0 +1,59 @@
+# Release config (BUILD.md §3: just release). The Action downloads the archives by the name
+# speccy_<version>_<os>_<arch>.tar.gz; keep that name.
+version: 2
+project_name: speccy
+
+before:
+  hooks:
+    - just build-web
+
+builds:
+  - id: speccy
+    main: ./cmd/speccy
+    binary: speccy
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/alternayte/speccy/internal/kernel.Version={{ .Version }}
+
+archives:
+  - id: speccy
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+# SDD §15.1: the image runs as a non-root user and needs no volume.
+dockers_v2:
+  - id: speccy
+    ids: [speccy]
+    images:
+      - ghcr.io/alternayte/speccy
+    tags:
+      - "{{ .Version }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: https://github.com/alternayte/speccy
+      org.opencontainers.image.licenses: AGPL-3.0-only
+
+changelog:
+  use: github
+  sort: asc
+
+release:
+  github:
+    owner: alternayte
+    name: speccy
