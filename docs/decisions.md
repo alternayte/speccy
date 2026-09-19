@@ -585,3 +585,15 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** The diff summary sends the section diff of the main doc and the diff of other text files to the writer role, cached by the content of both versions. The finding change compares the full reviews of both versions, or their lint runs when one has no full review; findings match by check, message, and quote. Runs record when each stage started and ended in `review_run.stages`.
 - **Alternative:** Compare a full review with a lint run.
 - **Reason:** A lint run has no model findings, so the comparison would report them as fixed.
+
+## 2026-09-19 — Gauntlet capture
+
+- **Choice:** `just gauntlet <run>` builds the binary and runs `buildtool gauntlet`. It runs local mode over a copy of `testdata/bundles` plus a PRD with one SHOULD finding, and hosted mode on a fresh `speccy_gauntlet` database in the compose Postgres. It seeds each state of BUILD.md §6.2 through the API and captures it with agent-browser. The full reviews and the diff summary call the local claude CLI; `GAUNTLET_MODEL` sets the model (default haiku). The empty and loading states come from a `fetch` override in the page, and the error state from an aborted request.
+- **Alternative:** Seed a database by hand and commit it.
+- **Reason:** The states must come from the current code; a stored database goes stale with each migration.
+
+## 2026-09-19 — Contrast fixes from the gauntlet
+
+- **Choice:** The light `--ink-3` is #686863, and the tour mutes other sections with `--ink-3`, not with opacity.
+- **Alternative:** Keep #75756f and opacity 0.32.
+- **Reason:** axe measured 4.05 to 4.47 for #75756f on the light surfaces, and 2.0 for the dimmed tour text; AA needs 4.5.

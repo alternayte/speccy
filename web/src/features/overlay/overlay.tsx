@@ -120,7 +120,9 @@ export function useOverlay(
         const block = innermost(blocks, f.anchor.start);
         if (!block) continue;
         byBlock.set(block, [...(byBlock.get(block) ?? []), f]);
-        const r = findText(block, f.anchor.quote);
+        // A finding on a whole heading (a section) gets its gutter icon only: an underlined
+        // heading competes with the text the reader came for.
+        const r = /^\s*#{1,6}\s/.test(f.anchor.quote) ? null : findText(block, f.anchor.quote);
         if (r) (ranges[f.layer] ??= []).push(r);
       }
     }

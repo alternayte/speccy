@@ -52,7 +52,7 @@
   --sunken: #f3f3f1;
   --ink: #1b1b1a;
   --ink-2: #4a4a47;
-  --ink-3: #75756f;
+  --ink-3: #686863;
   --line: #e6e6e2;
   --line-strong: #d4d4ce;
   --accent: #00794f;
@@ -386,15 +386,12 @@ body {
    signal. The highlights come from the CSS Custom Highlight API (features/overlay). */
 ::highlight(ov-risk) {
   text-decoration: underline solid var(--layer-risk) 2px;
-  background-color: color-mix(in srgb, var(--layer-risk) 10%, transparent);
 }
 ::highlight(ov-ambiguous) {
   text-decoration: underline wavy var(--layer-ambiguous) 1.5px;
-  background-color: color-mix(in srgb, var(--layer-ambiguous) 10%, transparent);
 }
 ::highlight(ov-contradicted) {
   text-decoration: underline double var(--layer-contradicted) 1.5px;
-  background-color: color-mix(in srgb, var(--layer-contradicted) 10%, transparent);
 }
 ::highlight(ov-unverified) {
   text-decoration: underline dotted var(--layer-unverified) 2px;
@@ -432,13 +429,16 @@ body {
   }
 }
 
-/* Tour (SDD §13.3): the rest of the doc is dimmed around the current section. */
-.doc .tour-dim {
-  opacity: 0.32;
-  transition: opacity 0.25s ease;
+/* Tour (SDD §13.3): the rest of the doc is muted around the current section. The muted colour
+   keeps AA contrast; opacity would not. */
+.doc .tour-dim:not(.placeholder),
+.doc .tour-dim *:not(.placeholder) {
+  color: var(--ink-3);
+  transition: color 0.25s ease;
 }
 @media (prefers-reduced-motion: reduce) {
-  .doc .tour-dim {
+  .doc .tour-dim,
+  .doc .tour-dim *:not(.placeholder) {
     transition: none;
   }
 }

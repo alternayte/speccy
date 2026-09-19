@@ -91,3 +91,8 @@ build: build-web
 
 # Everything that gates a PR.
 verify: gen-check lint test test-pg budget
+
+# Screenshot the gauntlet screens (BUILD.md §6.2) into docs/gauntlet/<run>/. Needs agent-browser,
+# Docker for hosted mode, and the claude CLI for the full reviews (model: GAUNTLET_MODEL, default haiku).
+gauntlet run: build
+    go run ./tools/buildtool gauntlet {{run}}
