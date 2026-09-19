@@ -29,7 +29,9 @@ func TestRender_SourcePositions(t *testing.T) {
 
 	id := uuid.MustParse("01a0b65d-8f0a-7b1b-b8bc-b89126821393")
 	out, err = HTML([]byte("![d](../img/a.png)\n![e](img/b.png)\n<script>alert(1)</script>\n"), Links{Dir: "docs", MarkFiles: true,
-		Image: func(p string) string { return "/api/v1/bundles/" + id.String() + "/files/content?path=" + url.QueryEscape(p) }})
+		Image: func(p string) string {
+			return "/api/v1/bundles/" + id.String() + "/files/content?path=" + url.QueryEscape(p)
+		}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -115,7 +115,7 @@ func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.Bundle, err
 		if res.JSON200.NextCursor == nil || *res.JSON200.NextCursor == "" {
 			return out, nil
 		}
-		next := api.Cursor(*res.JSON200.NextCursor)
+		next := *res.JSON200.NextCursor
 		cursor = &next
 	}
 }

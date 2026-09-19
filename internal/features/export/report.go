@@ -3,9 +3,9 @@ package export
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
-	_ "embed"
 	"fmt"
 	"html/template"
 	"mime"
