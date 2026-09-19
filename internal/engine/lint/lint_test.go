@@ -48,6 +48,8 @@ func TestRules(t *testing.T) {
 			[]string{"<Who has the problem, and why.>"}},
 		{"required headings", RequiredHeadings, "# T\n\n## Goals\n\nx\n",
 			func(c *Config) { c.Required = []Heading{{2, "Goals"}, {2, "Non-goals"}} }, []string{"# T"}},
+		{"numbered headings count", RequiredHeadings, "# T\n\n## 5. Goals\n\n### 5.1 Non-goals\n\n## Appendix A — Checks\n",
+			func(c *Config) { c.Required = []Heading{{2, "Goals"}, {2, "Non-goals"}, {2, "Checks"}} }, nil},
 		{"broken links", BrokenLink,
 			"# T\n\n[ok](assets/api.yaml) ![ok](assets/flow.png) [web](https://x.dev) [anchor](#t) [gone](assets/gone.yaml) [out](../x.md) [dir](assets)\n",
 			nil, []string{"gone", "out"}},

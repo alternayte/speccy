@@ -72,7 +72,7 @@ func requiredHeadings(d *doc, cfg Config, emit emitter) {
 	have := map[string]bool{}
 	for _, s := range d.sections.Sections {
 		if s.Level > 0 {
-			have[normTitle(s.Title)] = true
+			have[NormTitle(s.Title)] = true
 		}
 	}
 	at := 0
@@ -84,7 +84,7 @@ func requiredHeadings(d *doc, cfg Config, emit emitter) {
 	}
 	end := lineEnd(d.body, at)
 	for _, h := range cfg.Required {
-		if !have[normTitle(h.Title)] {
+		if !have[NormTitle(h.Title)] {
 			emit(RequiredHeadings, at, end,
 				fmt.Sprintf("The template requires the %q section. The doc has none.", h.Title),
 				fmt.Sprintf("Add a heading %q with its content.", strings.Repeat("#", h.Level)+" "+h.Title))
@@ -92,8 +92,14 @@ func requiredHeadings(d *doc, cfg Config, emit emitter) {
 	}
 }
 
-func normTitle(s string) string {
-	return strings.ToLower(strings.Join(strings.Fields(s), " "))
+// sectionNumber is a heading's own number: "5.", "7.2", "A.1", or "Appendix A".
+var sectionNumber = regexp.MustCompile(`^(?:appendix\s+[a-z](?:\.\d+)*\.?|\d+(?:\.\d+)*\.?|[a-z](?:\.\d+)+\.?)\s+(?:[—–-]\s+)?`)
+
+// NormTitle compares headings without case, extra spaces, or a section number, so "## 5.
+// Decisions" has the template's "## Decisions".
+func NormTitle(s string) string {
+	t := strings.ToLower(strings.Join(strings.Fields(s), " "))
+	return sectionNumber.ReplaceAllString(t, "")
 }
 
 func lineEnd(src []byte, off int) int {

@@ -633,3 +633,15 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** `action.yml` is a composite action: it downloads the release archive `speccy_<version>_<os>_<arch>.tar.gz`, restores `SPECCY_STATE_DIR` from the Actions cache, runs `speccy action`, and uploads the HTML reports. `speccy action` selects the bundles that hold the pull request's changed files. An inline comment carries a hidden key from the bundle, check, message, and quote, so a moved line does not duplicate it; a push skips keys of open threads and resolves Speccy's threads whose keys are gone (GraphQL, which REST cannot do). Inline comments are MUST findings, and findings with a certain fix at any level, MUST first, up to `pr.inline_limit`. The summary comment has a hidden marker and is updated; a pull request that changes no bundle gets no new one. In advisory mode a Not Build Ready check is `neutral`. CI models come from `SPECCY_MODELS` and `SPECCY_<BACKEND>_API_KEY`; Speccy picks no default model (§19 Q3).
 - **Alternative:** A JavaScript action that calls the API.
 - **Reason:** One binary does the review and the GitHub calls, and the same command runs on any CI.
+
+## 2026-09-19 — Findings from the dogfood gate
+
+- **Choice:** A required heading matches with or without its section number ("## 5. Decisions" has "Decisions"), in lint and in the divergence levels. A waiver of a doc-scope check (`scope: doc`) is for the whole doc: the model can point the finding at another section on each run, and a section-bound waiver would not follow it. Such a waiver ends on any edit of the body, as REQ-074 says for its section.
+- **Alternative:** Ask authors to write template headings without numbers, and to waive per section.
+- **Reason:** The SDD of Speccy itself, reviewed with the SDD profile, failed on both: numbered headings are common, and doc-scope findings moved between sections from run to run.
+
+## 2026-09-19 — Release
+
+- **Choice:** goreleaser builds static binaries (`CGO_ENABLED=0`; SQLite is pure Go) for Linux, macOS, and Windows on amd64 and arm64, archives named `speccy_<version>_<os>_<arch>`, and images `ghcr.io/alternayte/speccy` on distroless static as `nonroot`, running `speccy serve --hosted` (SDD §15.1). A pushed `v*` tag runs `.github/workflows/release.yml`. `just release-check` builds a snapshot without publishing.
+- **Alternative:** A hand-written build script.
+- **Reason:** One config builds the archives the Action downloads and the image, with checksums.

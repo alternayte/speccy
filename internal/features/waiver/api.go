@@ -106,7 +106,7 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	var an anchor.Anchor
 	_ = json.Unmarshal(f.Anchor, &an)
 	path := an.HeadingPath
-	if path == nil {
+	if path == nil || p.Profile.DocScope(f.CheckSlug) {
 		path = []string{}
 	}
 	main, doc, err := a.mainDoc(ctx, b)
