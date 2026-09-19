@@ -412,6 +412,10 @@ export type Anchor = {
      */
     start: number;
     end: number;
+    /**
+     * The text changed, and Speccy cannot find the quote in the current version (SDD §8.8).
+     */
+    detached?: boolean;
 };
 
 export type Finding = {
@@ -429,7 +433,113 @@ export type Finding = {
     relaxed: boolean;
     message: string;
     fix?: string;
+    /**
+     * The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
+     */
+    layer?: 'ambiguous' | 'unverified' | 'contradicted' | 'risk' | 'slop';
+    /**
+     * The anchor in the bundle's current version, re-anchored when the run read an older version.
+     */
     anchor: Anchor;
+};
+
+export type Tour = {
+    /**
+     * The run whose findings the tour uses. Absent before the first review.
+     */
+    run_id?: string;
+    points: Array<TourPoint>;
+};
+
+/**
+ * One point that needs a human decision. The ask states one explicit decision.
+ */
+export type TourPoint = {
+    key: string;
+    kind: 'blocking_thread' | 'finding' | 'waiver' | 'open_decision';
+    ask: string;
+    /**
+     * Why the point needs a decision, in one or two sentences.
+     */
+    context: string;
+    level?: 'MUST' | 'SHOULD' | 'INFO';
+    check_slug?: string;
+    anchor?: Anchor;
+    finding_id?: string;
+    thread_id?: string;
+    waiver_id?: string;
+    /**
+     * For a waiver, the caller can approve or reject it now.
+     */
+    can_approve?: boolean;
+};
+
+export type RunReport = {
+    stages: Array<StageTiming>;
+    readers?: ReaderDiversity;
+    /**
+     * Open findings by radar category (SDD §8.7), in radar order.
+     */
+    categories: Array<CategoryCount>;
+};
+
+export type StageTiming = {
+    stage: string;
+    started_at: string;
+    finished_at?: string;
+};
+
+/**
+ * How many readers answered, and how many distinct models served them (REQ-046). Models are not named (DEC-013).
+ */
+export type ReaderDiversity = {
+    readers: number;
+    distinct_models: number;
+    low: boolean;
+};
+
+export type CategoryCount = {
+    category: string;
+    score?: number;
+    must: number;
+    should: number;
+    info: number;
+};
+
+/**
+ * A patch that replaces one exact text in one file (REQ-025).
+ */
+export type FixSuggestion = {
+    finding_id: string;
+    file: string;
+    old: string;
+    new: string;
+    explanation: string;
+    /**
+     * The version the patch was written for.
+     */
+    version_id: string;
+};
+
+export type DiffSummary = {
+    /**
+     * What changed in meaning, in one or two sentences.
+     */
+    summary: string;
+    changes: Array<string>;
+    from_verdict?: VerdictResult;
+    to_verdict?: VerdictResult;
+    /**
+     * Findings of the older version that the newer version no longer has.
+     */
+    fixed: Array<FindingBrief>;
+    added: Array<FindingBrief>;
+};
+
+export type FindingBrief = {
+    check_slug: string;
+    level: 'MUST' | 'SHOULD' | 'INFO';
+    message: string;
 };
 
 export type FindingList = {
@@ -864,6 +974,8 @@ export type ConnectionId = string;
 export type BackendId = string;
 
 export type RunId = string;
+
+export type FindingId = string;
 
 export type ThreadId = string;
 
@@ -2054,6 +2166,146 @@ export type GetRunResponses = {
 };
 
 export type GetRunResponse = GetRunResponses[keyof GetRunResponses];
+
+export type GetTourData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/tour';
+};
+
+export type GetTourErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetTourError = GetTourErrors[keyof GetTourErrors];
+
+export type GetTourResponses = {
+    /**
+     * The tour.
+     */
+    200: Tour;
+};
+
+export type GetTourResponse = GetTourResponses[keyof GetTourResponses];
+
+export type SummarizeDiffData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query: {
+        from: string;
+        to: string;
+    };
+    url: '/bundles/{bundleId}/diff/summary';
+};
+
+export type SummarizeDiffErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SummarizeDiffError = SummarizeDiffErrors[keyof SummarizeDiffErrors];
+
+export type SummarizeDiffResponses = {
+    /**
+     * The summary.
+     */
+    200: DiffSummary;
+};
+
+export type SummarizeDiffResponse = SummarizeDiffResponses[keyof SummarizeDiffResponses];
+
+export type GetRunReportData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/report';
+};
+
+export type GetRunReportErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetRunReportError = GetRunReportErrors[keyof GetRunReportErrors];
+
+export type GetRunReportResponses = {
+    /**
+     * The report.
+     */
+    200: RunReport;
+};
+
+export type GetRunReportResponse = GetRunReportResponses[keyof GetRunReportResponses];
+
+export type SuggestFixData = {
+    body?: never;
+    path: {
+        runId: string;
+        findingId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/findings/{findingId}/fix';
+};
+
+export type SuggestFixErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SuggestFixError = SuggestFixErrors[keyof SuggestFixErrors];
+
+export type SuggestFixResponses = {
+    /**
+     * The suggested patch.
+     */
+    200: FixSuggestion;
+};
+
+export type SuggestFixResponse = SuggestFixResponses[keyof SuggestFixResponses];
+
+export type AcceptFixData = {
+    body?: never;
+    path: {
+        runId: string;
+        findingId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/findings/{findingId}/fix/accept';
+};
+
+export type AcceptFixErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AcceptFixError = AcceptFixErrors[keyof AcceptFixErrors];
+
+export type AcceptFixResponses = {
+    /**
+     * The new version.
+     */
+    200: WriteResult;
+};
+
+export type AcceptFixResponse = AcceptFixResponses[keyof AcceptFixResponses];
 
 export type ListFindingsData = {
     body?: never;

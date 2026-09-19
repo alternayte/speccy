@@ -204,6 +204,8 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			groups = append(groups, byText[t])
 		}
 		out = map[string]any{"analysis": "Grouped by text.", "groups": groups}
+	case review.PromptFix:
+		out = map[string]any{"old": "at 999 kilobytes for every endpoint", "new": "at 1 megabyte for every endpoint", "explanation": "Uses the provider's limit."}
 	default:
 		return model.Raw{}, fmt.Errorf("unexpected prompt %s", c.PromptVersion)
 	}
@@ -262,7 +264,7 @@ func newPipeline(t *testing.T, e storetest.Engine, files map[string]string, mode
 		t.Fatal(err)
 	}
 	// Each reader and the judge get a model of their own, so reader diversity is high.
-	for _, role := range []string{model.RoleReader1, model.RoleReader2, model.RoleReader3, model.RoleJudge} {
+	for _, role := range []string{model.RoleReader1, model.RoleReader2, model.RoleReader3, model.RoleJudge, model.RoleWriter} {
 		if err := q.UpsertAssignment(ctx, pgdb.UpsertAssignmentParams{WorkspaceID: ws, Role: role, BackendID: id, Model: "fake-" + role}); err != nil {
 			t.Fatal(err)
 		}

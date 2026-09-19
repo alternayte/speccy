@@ -1,5 +1,5 @@
-// Package anchor points findings and threads at text in a doc (SDD §8.8). M10 adds
-// re-anchoring after edits.
+// Package anchor points findings and threads at text in a doc, and finds that text again
+// after an edit (SDD §8.8).
 package anchor
 
 import (

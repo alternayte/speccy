@@ -158,6 +158,7 @@ type hostedEnv struct {
 	run     pgdb.ReviewRun
 	thread  string
 	waiver  string
+	finding string
 }
 
 type actorKey struct{}
@@ -207,6 +208,7 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 	var w struct{ ID string }
 	_ = json.Unmarshal(body, &w)
 	env.waiver = w.ID
+	env.finding = fs[0].ID.String()
 	if env.thread == "" || env.waiver == "" {
 		t.Fatalf("fixture thread %q, waiver %q", env.thread, env.waiver)
 	}
@@ -228,7 +230,7 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 	path := strings.NewReplacer(
 		"{bundleId}", env.bundle.ID.String(), "{runId}", env.run.ID.String(), "{token}", "not-a-token",
 		"{connectionId}", uuid.NewString(), "{backendId}", uuid.NewString(), "{inviteId}", uuid.NewString(), "{role}", "reviewer",
-		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd",
+		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding,
 	).Replace(op.path)
 	query := "?path=SPEC.md&base_version=" + env.bundle.CurrentVersionID.UUID.String() +
 		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String()

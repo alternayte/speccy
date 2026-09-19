@@ -94,8 +94,8 @@ UPDATE review_run
 SET status = $1, stage = $2, error = $3, roles = $4,
     prompt_versions = $5, tokens_in = $6, tokens_out = $7,
     cost_estimate = $8, cache_hits = $9, notes = $10,
-    finished_at = $11
-WHERE id = $12
+    stages = $11, finished_at = $12
+WHERE id = $13
 `
 
 type FinishRunParams struct {
@@ -109,6 +109,7 @@ type FinishRunParams struct {
 	CostEstimate   float64
 	CacheHits      int64
 	Notes          dbtype.JSON
+	Stages         dbtype.JSON
 	FinishedAt     sql.NullTime
 	ID             uuid.UUID
 }
@@ -125,6 +126,7 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) error {
 		arg.CostEstimate,
 		arg.CacheHits,
 		arg.Notes,
+		arg.Stages,
 		arg.FinishedAt,
 		arg.ID,
 	)
@@ -171,7 +173,7 @@ func (q *Queries) GetMCPConnection(ctx context.Context, arg GetMCPConnectionPara
 }
 
 const getRunByID = `-- name: GetRunByID :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes FROM review_run WHERE id = $1
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run WHERE id = $1
 `
 
 func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error) {
@@ -197,6 +199,7 @@ func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, erro
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.Notes,
+		&i.Stages,
 	)
 	return i, err
 }
@@ -767,7 +770,7 @@ func (q *Queries) PutCache(ctx context.Context, arg PutCacheParams) error {
 }
 
 const runningRunFor = `-- name: RunningRunFor :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes FROM review_run
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run
 WHERE bundle_id = $1 AND kind = 'full' AND status IN ('queued', 'running')
 ORDER BY started_at DESC
 LIMIT 1
@@ -796,6 +799,7 @@ func (q *Queries) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (Review
 		&i.StartedAt,
 		&i.FinishedAt,
 		&i.Notes,
+		&i.Stages,
 	)
 	return i, err
 }

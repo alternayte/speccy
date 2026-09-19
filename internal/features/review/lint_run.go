@@ -480,7 +480,7 @@ func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished 
 }
 
 func finishRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished time.Time) error {
-	roles, prompts, notes := r.Roles, r.PromptVersions, r.Notes
+	roles, prompts, notes, stages := r.Roles, r.PromptVersions, r.Notes, r.Stages
 	if len(roles) == 0 {
 		roles = dbtype.JSON(`{}`)
 	}
@@ -490,8 +490,11 @@ func finishRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished 
 	if len(notes) == 0 {
 		notes = dbtype.JSON(`[]`)
 	}
+	if len(stages) == 0 {
+		stages = dbtype.JSON(`[]`)
+	}
 	return q.FinishRun(ctx, pgdb.FinishRunParams{
-		ID: r.ID, Status: r.Status, Stage: r.Stage, Error: r.Error, Roles: roles, PromptVersions: prompts, Notes: notes,
+		ID: r.ID, Status: r.Status, Stage: r.Stage, Error: r.Error, Roles: roles, PromptVersions: prompts, Notes: notes, Stages: stages,
 		TokensIn: r.TokensIn, TokensOut: r.TokensOut, CostEstimate: r.CostEstimate, CacheHits: r.CacheHits,
 		FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})

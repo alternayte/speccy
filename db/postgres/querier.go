@@ -88,6 +88,8 @@ type Querier interface {
 	IsBundleMember(ctx context.Context, arg IsBundleMemberParams) (bool, error)
 	IsProfileMaintainer(ctx context.Context, arg IsProfileMaintainerParams) (bool, error)
 	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
+	// REQ-007: the latest finished run of a kind on a version.
+	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	// For insights: every finished run of the workspace, oldest first.
@@ -139,6 +141,7 @@ type Querier interface {
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
+	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
 	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
