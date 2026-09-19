@@ -58,6 +58,16 @@ func Summary(ctx context.Context, q store.Querier, b pgdb.Bundle) (*api.BundleVe
 		if failedAfter {
 			v.Result = api.VerdictResult(verdict.Stale)
 		}
+		// §8.6 rule 2 holds now, not only when the run ended: a thread marked blocking after the
+		// run makes the verdict Not Build Ready at once, and resolving it restores the run's result.
+		n, err := q.CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: b.ID, Valid: true})
+		if err != nil {
+			return nil, nil, err
+		}
+		v.BlockingThreads = ptrInt(int(n))
+		if n > 0 && v.Result == api.VerdictResult(verdict.BuildReady) {
+			v.Result = api.VerdictResult(verdict.NotBuildReady)
+		}
 		return v, runErr, nil
 	}
 	return nil, runErr, nil
@@ -96,6 +106,9 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.Re
 	}
 	_ = json.Unmarshal(vd.Radar, &out.Radar)
 	for _, f := range fs {
+		if f.Waived {
+			continue
+		}
 		switch kernel.Level(f.Level) {
 		case kernel.Must:
 			out.Must++
@@ -211,7 +224,7 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		}
 		_ = json.Unmarshal(f.Suggestion, &sugg)
 		af := api.Finding{
-			Id: f.ID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message,
+			Id: f.ID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
 			Anchor: api.Anchor{File: an.File, HeadingPath: an.HeadingPath, Quote: an.Quote, Prefix: an.Prefix, Suffix: an.Suffix, Start: an.Start, End: an.End},
 		}
 		if af.Anchor.HeadingPath == nil {
@@ -230,3 +243,5 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 	})
 	return api.ListFindings200JSONResponse(out), nil
 }
+
+func ptrInt(n int) *int { return &n }

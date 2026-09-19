@@ -87,7 +87,7 @@ func coherenceChecks(in input, ev *evaluation) {
 				byID[d.ID] = d
 			}
 			for _, c := range coherence.Coverage(ids, referenced, acks) {
-				ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: coverLevel, Passed: c.State != "gap", Applicable: true})
+				ev.items = append(ev.items, verdict.Item{Slug: CoverageSlug, Category: verdict.Coherence, Level: coverLevel, Passed: c.State != "gap", Applicable: true})
 				if c.State != "gap" {
 					continue
 				}
@@ -112,7 +112,7 @@ func coherenceChecks(in input, ev *evaluation) {
 				upText[i] = p.Text
 			}
 			found := coherence.Restated(downText, upText)
-			ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: restateLevel, Passed: len(found) == 0, Applicable: true})
+			ev.items = append(ev.items, verdict.Item{Slug: RestatementSlug, Category: verdict.Coherence, Level: restateLevel, Passed: len(found) == 0, Applicable: true})
 			for _, r := range found {
 				dp, up := downParas[r.Down], upParas[r.Up]
 				ev.findings = append(ev.findings, pending{
@@ -205,7 +205,7 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 		if dropped > 0 {
 			rc.note(fmt.Sprintf("%d possible conflicts with %s quoted text that is not in the docs, so they were dropped.", dropped, l.target.Slug))
 		}
-		ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: lvl, Passed: kept == 0, Applicable: true})
+		ev.items = append(ev.items, verdict.Item{Slug: ContradictionSlug, Category: verdict.Coherence, Level: lvl, Passed: kept == 0, Applicable: true})
 	}
 	return nil
 }

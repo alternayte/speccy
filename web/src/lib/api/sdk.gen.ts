@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetRunData, GetRunErrors, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetTraceData, GetTraceErrors, GetTraceResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses } from './types.gen';
+import type { AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, ApproveBundleData, ApproveBundleErrors, ApproveBundleResponses, ApproveWaiverData, ApproveWaiverErrors, ApproveWaiverResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateProfileData, CreateProfileErrors, CreateProfileResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetBundleStatusData, GetBundleStatusErrors, GetBundleStatusResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetInboxData, GetInboxErrors, GetInboxResponses, GetInsightsData, GetInsightsErrors, GetInsightsResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetProfileData, GetProfileErrors, GetProfileResponses, GetRunData, GetRunErrors, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetThreadData, GetThreadErrors, GetThreadResponses, GetTraceData, GetTraceErrors, GetTraceResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListBundleThreadsData, ListBundleThreadsErrors, ListBundleThreadsResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPeopleData, ListPeopleErrors, ListPeopleResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListProfileThreadsData, ListProfileThreadsErrors, ListProfileThreadsResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, ListWaiversData, ListWaiversErrors, ListWaiversResponses, MarkDecisionData, MarkDecisionErrors, MarkDecisionResponses, MarkInboxSeenData, MarkInboxSeenErrors, MarkInboxSeenResponses, OpenBundleThreadData, OpenBundleThreadErrors, OpenBundleThreadResponses, OpenProfileThreadData, OpenProfileThreadErrors, OpenProfileThreadResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RejectWaiverData, RejectWaiverErrors, RejectWaiverResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, RequestReviewData, RequestReviewErrors, RequestReviewResponses, RequestWaiverData, RequestWaiverErrors, RequestWaiverResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetMaintainersData, SetMaintainersErrors, SetMaintainersResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetThreadBlockingData, SetThreadBlockingErrors, SetThreadBlockingResponses, SetThreadStatusData, SetThreadStatusErrors, SetThreadStatusResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -327,9 +327,206 @@ export const getRun = <ThrowOnError extends boolean = false>(options: Options<Ge
 export const listFindings = <ThrowOnError extends boolean = false>(options: Options<ListFindingsData, ThrowOnError>): RequestResult<ListFindingsResponses, ListFindingsErrors, ThrowOnError> => (options.client ?? client).get<ListFindingsResponses, ListFindingsErrors, ThrowOnError>({ url: '/runs/{runId}/findings', ...options });
 
 /**
+ * List the threads of a bundle, open first (REQ-087).
+ */
+export const listBundleThreads = <ThrowOnError extends boolean = false>(options: Options<ListBundleThreadsData, ThrowOnError>): RequestResult<ListBundleThreadsResponses, ListBundleThreadsErrors, ThrowOnError> => (options.client ?? client).get<ListBundleThreadsResponses, ListBundleThreadsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/threads', ...options });
+
+/**
+ * Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+ */
+export const openBundleThread = <ThrowOnError extends boolean = false>(options: Options<OpenBundleThreadData, ThrowOnError>): RequestResult<OpenBundleThreadResponses, OpenBundleThreadErrors, ThrowOnError> => (options.client ?? client).post<OpenBundleThreadResponses, OpenBundleThreadErrors, ThrowOnError>({
+    url: '/bundles/{bundleId}/threads',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * A thread with its messages.
+ */
+export const getThread = <ThrowOnError extends boolean = false>(options: Options<GetThreadData, ThrowOnError>): RequestResult<GetThreadResponses, GetThreadErrors, ThrowOnError> => (options.client ?? client).get<GetThreadResponses, GetThreadErrors, ThrowOnError>({ url: '/threads/{threadId}', ...options });
+
+/**
+ * Post a message. In a thread for the AI, the AI answers with sources (REQ-088).
+ */
+export const postMessage = <ThrowOnError extends boolean = false>(options: Options<PostMessageData, ThrowOnError>): RequestResult<PostMessageResponses, PostMessageErrors, ThrowOnError> => (options.client ?? client).post<PostMessageResponses, PostMessageErrors, ThrowOnError>({
+    url: '/threads/{threadId}/messages',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Mark a message as the thread's decision. A later decision is recorded as a reversal (REQ-089).
+ */
+export const markDecision = <ThrowOnError extends boolean = false>(options: Options<MarkDecisionData, ThrowOnError>): RequestResult<MarkDecisionResponses, MarkDecisionErrors, ThrowOnError> => (options.client ?? client).post<MarkDecisionResponses, MarkDecisionErrors, ThrowOnError>({
+    url: '/threads/{threadId}/decision',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Mark the thread blocking or not. An open blocking thread prevents Build Ready (REQ-089).
+ */
+export const setThreadBlocking = <ThrowOnError extends boolean = false>(options: Options<SetThreadBlockingData, ThrowOnError>): RequestResult<SetThreadBlockingResponses, SetThreadBlockingErrors, ThrowOnError> => (options.client ?? client).put<SetThreadBlockingResponses, SetThreadBlockingErrors, ThrowOnError>({
+    url: '/threads/{threadId}/blocking',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resolve or reopen the thread.
+ */
+export const setThreadStatus = <ThrowOnError extends boolean = false>(options: Options<SetThreadStatusData, ThrowOnError>): RequestResult<SetThreadStatusResponses, SetThreadStatusErrors, ThrowOnError> => (options.client ?? client).put<SetThreadStatusResponses, SetThreadStatusErrors, ThrowOnError>({
+    url: '/threads/{threadId}/status',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the waivers of a bundle (REQ-072 to REQ-074).
+ */
+export const listWaivers = <ThrowOnError extends boolean = false>(options: Options<ListWaiversData, ThrowOnError>): RequestResult<ListWaiversResponses, ListWaiversErrors, ThrowOnError> => (options.client ?? client).get<ListWaiversResponses, ListWaiversErrors, ThrowOnError>({ url: '/bundles/{bundleId}/waivers', ...options });
+
+/**
+ * Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+ */
+export const requestWaiver = <ThrowOnError extends boolean = false>(options: Options<RequestWaiverData, ThrowOnError>): RequestResult<RequestWaiverResponses, RequestWaiverErrors, ThrowOnError> => (options.client ?? client).post<RequestWaiverResponses, RequestWaiverErrors, ThrowOnError>({
+    url: '/bundles/{bundleId}/waivers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+ */
+export const approveWaiver = <ThrowOnError extends boolean = false>(options: Options<ApproveWaiverData, ThrowOnError>): RequestResult<ApproveWaiverResponses, ApproveWaiverErrors, ThrowOnError> => (options.client ?? client).post<ApproveWaiverResponses, ApproveWaiverErrors, ThrowOnError>({ url: '/waivers/{waiverId}/approve', ...options });
+
+/**
+ * Reject a waiver.
+ */
+export const rejectWaiver = <ThrowOnError extends boolean = false>(options: Options<RejectWaiverData, ThrowOnError>): RequestResult<RejectWaiverResponses, RejectWaiverErrors, ThrowOnError> => (options.client ?? client).post<RejectWaiverResponses, RejectWaiverErrors, ThrowOnError>({ url: '/waivers/{waiverId}/reject', ...options });
+
+/**
+ * The review status of a bundle (§9.5).
+ */
+export const getBundleStatus = <ThrowOnError extends boolean = false>(options: Options<GetBundleStatusData, ThrowOnError>): RequestResult<GetBundleStatusResponses, GetBundleStatusErrors, ThrowOnError> => (options.client ?? client).get<GetBundleStatusResponses, GetBundleStatusErrors, ThrowOnError>({ url: '/bundles/{bundleId}/status', ...options });
+
+/**
+ * Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+ */
+export const requestReview = <ThrowOnError extends boolean = false>(options: Options<RequestReviewData, ThrowOnError>): RequestResult<RequestReviewResponses, RequestReviewErrors, ThrowOnError> => (options.client ?? client).post<RequestReviewResponses, RequestReviewErrors, ThrowOnError>({
+    url: '/bundles/{bundleId}/review-request',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+ */
+export const approveBundle = <ThrowOnError extends boolean = false>(options: Options<ApproveBundleData, ThrowOnError>): RequestResult<ApproveBundleResponses, ApproveBundleErrors, ThrowOnError> => (options.client ?? client).post<ApproveBundleResponses, ApproveBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}/approve', ...options });
+
+/**
+ * The members of the workspace, for reviewers and mentions. Empty in local mode.
+ */
+export const listPeople = <ThrowOnError extends boolean = false>(options?: Options<ListPeopleData, ThrowOnError>): RequestResult<ListPeopleResponses, ListPeopleErrors, ThrowOnError> => (options?.client ?? client).get<ListPeopleResponses, ListPeopleErrors, ThrowOnError>({ url: '/people', ...options });
+
+/**
+ * The caller's inbox (REQ-091).
+ */
+export const getInbox = <ThrowOnError extends boolean = false>(options?: Options<GetInboxData, ThrowOnError>): RequestResult<GetInboxResponses, GetInboxErrors, ThrowOnError> => (options?.client ?? client).get<GetInboxResponses, GetInboxErrors, ThrowOnError>({ url: '/inbox', ...options });
+
+/**
+ * Mark the inbox as read up to now.
+ */
+export const markInboxSeen = <ThrowOnError extends boolean = false>(options?: Options<MarkInboxSeenData, ThrowOnError>): RequestResult<MarkInboxSeenResponses, MarkInboxSeenErrors, ThrowOnError> => (options?.client ?? client).post<MarkInboxSeenResponses, MarkInboxSeenErrors, ThrowOnError>({ url: '/inbox/seen', ...options });
+
+/**
+ * The metrics of SDD §8.9, per profile (REQ-092). Maintainers and admins.
+ */
+export const getInsights = <ThrowOnError extends boolean = false>(options?: Options<GetInsightsData, ThrowOnError>): RequestResult<GetInsightsResponses, GetInsightsErrors, ThrowOnError> => (options?.client ?? client).get<GetInsightsResponses, GetInsightsErrors, ThrowOnError>({ url: '/insights', ...options });
+
+/**
+ * A profile with its YAML, template, versions, and maintainers (REQ-013).
+ */
+export const getProfile = <ThrowOnError extends boolean = false>(options: Options<GetProfileData, ThrowOnError>): RequestResult<GetProfileResponses, GetProfileErrors, ThrowOnError> => (options.client ?? client).get<GetProfileResponses, GetProfileErrors, ThrowOnError>({ url: '/profiles/{key}', ...options });
+
+/**
+ * Save a profile as a new version (REQ-012, REQ-013). Maintainers of the profile and admins.
+ */
+export const updateProfile = <ThrowOnError extends boolean = false>(options: Options<UpdateProfileData, ThrowOnError>): RequestResult<UpdateProfileResponses, UpdateProfileErrors, ThrowOnError> => (options.client ?? client).put<UpdateProfileResponses, UpdateProfileErrors, ThrowOnError>({
+    url: '/profiles/{key}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set the maintainers of a profile. Admins only.
+ */
+export const setMaintainers = <ThrowOnError extends boolean = false>(options: Options<SetMaintainersData, ThrowOnError>): RequestResult<SetMaintainersResponses, SetMaintainersErrors, ThrowOnError> => (options.client ?? client).put<SetMaintainersResponses, SetMaintainersErrors, ThrowOnError>({
+    url: '/profiles/{key}/maintainers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The suggestions for a profile, as threads on its checks (REQ-015).
+ */
+export const listProfileThreads = <ThrowOnError extends boolean = false>(options: Options<ListProfileThreadsData, ThrowOnError>): RequestResult<ListProfileThreadsResponses, ListProfileThreadsErrors, ThrowOnError> => (options.client ?? client).get<ListProfileThreadsResponses, ListProfileThreadsErrors, ThrowOnError>({ url: '/profiles/{key}/threads', ...options });
+
+/**
+ * Suggest a change to a check, the template, or a limit (REQ-015).
+ */
+export const openProfileThread = <ThrowOnError extends boolean = false>(options: Options<OpenProfileThreadData, ThrowOnError>): RequestResult<OpenProfileThreadResponses, OpenProfileThreadErrors, ThrowOnError> => (options.client ?? client).post<OpenProfileThreadResponses, OpenProfileThreadErrors, ThrowOnError>({
+    url: '/profiles/{key}/threads',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List the profiles, with their current versions.
  */
 export const listProfiles = <ThrowOnError extends boolean = false>(options?: Options<ListProfilesData, ThrowOnError>): RequestResult<ListProfilesResponses, ListProfilesErrors, ThrowOnError> => (options?.client ?? client).get<ListProfilesResponses, ListProfilesErrors, ThrowOnError>({ url: '/profiles', ...options });
+
+/**
+ * Create a profile for a new doc type. Admins only.
+ */
+export const createProfile = <ThrowOnError extends boolean = false>(options: Options<CreateProfileData, ThrowOnError>): RequestResult<CreateProfileResponses, CreateProfileErrors, ThrowOnError> => (options.client ?? client).post<CreateProfileResponses, CreateProfileErrors, ThrowOnError>({
+    url: '/profiles',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * List the model backends. Secrets show their last 4 characters only (SDD §14.1).

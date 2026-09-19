@@ -40,15 +40,19 @@ func newEnv(t *testing.T, e storetest.Engine) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, err := app.New(ctx, db, sealer, nil, "")
+	ws, err := db.Workspace(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth, err := hostauth.New(hostauth.Config{DB: db, Workspace: a.Workspace, BaseURL: srv.URL, Insecure: true})
+	auth, err := hostauth.New(hostauth.Config{DB: db, Workspace: ws, BaseURL: srv.URL, Insecure: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := auth.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a, err := app.New(ctx, db, sealer, app.Options{People: auth})
+	if err != nil {
 		t.Fatal(err)
 	}
 	a.Admin.Accounts = auth

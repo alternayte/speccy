@@ -121,6 +121,7 @@ export type Bundle = {
      */
     run_error?: string;
     visibility?: Visibility;
+    status?: ReviewStatus;
 };
 
 /**
@@ -149,6 +150,10 @@ export type BundleVerdict = {
     must: number;
     should: number;
     info: number;
+    /**
+     * Open blocking threads. Any makes the verdict Not Build Ready (§8.6 rule 2).
+     */
+    blocking_threads?: number;
     /**
      * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
      */
@@ -406,6 +411,10 @@ export type Anchor = {
 };
 
 export type Finding = {
+    /**
+     * A valid waiver covers this finding (REQ-074).
+     */
+    waived: boolean;
     id: string;
     check_slug: string;
     level: 'MUST' | 'SHOULD' | 'INFO';
@@ -421,6 +430,189 @@ export type Finding = {
 
 export type FindingList = {
     items: Array<Finding>;
+};
+
+export type Thread = {
+    id: string;
+    bundle_id?: string;
+    profile_key?: string;
+    anchor_kind: 'text' | 'section' | 'finding' | 'check';
+    /**
+     * For text, an Anchor. For a section, {heading_path}. For a finding, {finding_id, check_slug}. For a check, {check_slug}.
+     */
+    anchor: {
+        [key: string]: unknown;
+    };
+    addressed_to: 'humans' | 'ai';
+    title: string;
+    blocking: boolean;
+    status: 'open' | 'resolved';
+    created_by: string;
+    created_at: string;
+    last_message_at: string;
+    message_count: number;
+};
+
+export type ThreadDetail = Thread & {
+    messages: Array<ThreadMessage>;
+    /**
+     * The AI is writing an answer.
+     */
+    answering: boolean;
+};
+
+export type ThreadMessage = {
+    id: string;
+    seq: number;
+    author_kind: 'user' | 'guest' | 'ai';
+    author_id?: string;
+    author_name: string;
+    body: string;
+    sources: Array<string>;
+    decision: '' | 'decision' | 'reversal';
+    created_at: string;
+};
+
+export type OpenThread = {
+    anchor_kind: 'text' | 'section' | 'finding' | 'check';
+    anchor: {
+        [key: string]: unknown;
+    };
+    addressed_to: 'humans' | 'ai';
+    title?: string;
+    body: string;
+    blocking?: boolean;
+};
+
+export type PostMessage = {
+    body: string;
+};
+
+export type Waiver = {
+    id: string;
+    bundle_id: string;
+    check_slug: string;
+    level: string;
+    section: Array<string>;
+    reason: string;
+    status: 'requested' | 'approved' | 'rejected' | 'invalidated';
+    requested_by: string;
+    approvals: Array<string>;
+    /**
+     * The waiver policy (§9.1).
+     */
+    policy: string;
+    /**
+     * The approvals the policy needs.
+     */
+    needed: number;
+    /**
+     * Whether the caller can approve or reject it now.
+     */
+    can_approve: boolean;
+    created_at: string;
+};
+
+export type ReviewStatus = 'draft' | 'in_review' | 'approved' | 'superseded';
+
+export type BundleStatus = {
+    status: ReviewStatus;
+    reviewers: Array<string>;
+    approvals: Array<{
+        by: string;
+        version_id: string;
+        at: string;
+    }>;
+    required: number;
+    can_request: boolean;
+    can_approve: boolean;
+    /**
+     * Why the caller cannot approve now, when they cannot.
+     */
+    approve_blocked_by?: string;
+};
+
+export type Person = {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+};
+
+export type Inbox = {
+    seen_at: string;
+    items: Array<InboxItem>;
+};
+
+export type InboxItem = {
+    kind: 'review_request' | 'message' | 'mention' | 'run';
+    bundle_id: string;
+    bundle_title: string;
+    thread_id?: string;
+    text: string;
+    at: string;
+    unread: boolean;
+};
+
+export type Insights = {
+    profiles: Array<ProfileInsights>;
+};
+
+export type ProfileInsights = {
+    key: string;
+    name: string;
+    bundles: number;
+    standalone: number;
+    /**
+     * Bundles whose current verdict is Build Ready.
+     */
+    build_ready: number;
+    /**
+     * The median number of review runs before the first Build Ready verdict. 0 with no data.
+     */
+    runs_to_build_ready: number;
+    /**
+     * The median hours from the first review to the first Build Ready verdict.
+     */
+    hours_to_build_ready: number;
+    /**
+     * The median hours from in review to approved.
+     */
+    hours_to_approval: number;
+    top_failing: Array<{
+        check_slug: string;
+        count: number;
+    }>;
+    waiver_rate: Array<{
+        check_slug: string;
+        waived: number;
+        requested: number;
+    }>;
+};
+
+export type ProfileInput = {
+    yaml: string;
+    template: string;
+};
+
+export type ProfileDetail = {
+    key: string;
+    name: string;
+    version: number;
+    origin: string;
+    yaml: string;
+    template: string;
+    versions: Array<{
+        version: number;
+        created_by: string;
+        created_at: string;
+    }>;
+    maintainers: Array<string>;
+    can_edit: boolean;
+    /**
+     * False when the profile cannot be saved here, such as a built-in in local mode with no .speccy/profiles folder rights.
+     */
+    editable: boolean;
 };
 
 export type Profile = {
@@ -668,6 +860,12 @@ export type ConnectionId = string;
 export type BackendId = string;
 
 export type RunId = string;
+
+export type ThreadId = string;
+
+export type WaiverId = string;
+
+export type ProfileKey = string;
 
 export type BundleId = string;
 
@@ -1880,6 +2078,643 @@ export type ListFindingsResponses = {
 
 export type ListFindingsResponse = ListFindingsResponses[keyof ListFindingsResponses];
 
+export type ListBundleThreadsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/threads';
+};
+
+export type ListBundleThreadsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListBundleThreadsError = ListBundleThreadsErrors[keyof ListBundleThreadsErrors];
+
+export type ListBundleThreadsResponses = {
+    /**
+     * The threads.
+     */
+    200: {
+        items: Array<Thread>;
+    };
+};
+
+export type ListBundleThreadsResponse = ListBundleThreadsResponses[keyof ListBundleThreadsResponses];
+
+export type OpenBundleThreadData = {
+    body: OpenThread;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/threads';
+};
+
+export type OpenBundleThreadErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type OpenBundleThreadError = OpenBundleThreadErrors[keyof OpenBundleThreadErrors];
+
+export type OpenBundleThreadResponses = {
+    /**
+     * The new thread.
+     */
+    200: ThreadDetail;
+};
+
+export type OpenBundleThreadResponse = OpenBundleThreadResponses[keyof OpenBundleThreadResponses];
+
+export type GetThreadData = {
+    body?: never;
+    path: {
+        threadId: string;
+    };
+    query?: never;
+    url: '/threads/{threadId}';
+};
+
+export type GetThreadErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetThreadError = GetThreadErrors[keyof GetThreadErrors];
+
+export type GetThreadResponses = {
+    /**
+     * The thread.
+     */
+    200: ThreadDetail;
+};
+
+export type GetThreadResponse = GetThreadResponses[keyof GetThreadResponses];
+
+export type PostMessageData = {
+    body: PostMessage;
+    path: {
+        threadId: string;
+    };
+    query?: never;
+    url: '/threads/{threadId}/messages';
+};
+
+export type PostMessageErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PostMessageError = PostMessageErrors[keyof PostMessageErrors];
+
+export type PostMessageResponses = {
+    /**
+     * The thread.
+     */
+    200: ThreadDetail;
+};
+
+export type PostMessageResponse = PostMessageResponses[keyof PostMessageResponses];
+
+export type MarkDecisionData = {
+    body: {
+        message_id: string;
+    };
+    path: {
+        threadId: string;
+    };
+    query?: never;
+    url: '/threads/{threadId}/decision';
+};
+
+export type MarkDecisionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type MarkDecisionError = MarkDecisionErrors[keyof MarkDecisionErrors];
+
+export type MarkDecisionResponses = {
+    /**
+     * The thread.
+     */
+    200: ThreadDetail;
+};
+
+export type MarkDecisionResponse = MarkDecisionResponses[keyof MarkDecisionResponses];
+
+export type SetThreadBlockingData = {
+    body: {
+        blocking: boolean;
+    };
+    path: {
+        threadId: string;
+    };
+    query?: never;
+    url: '/threads/{threadId}/blocking';
+};
+
+export type SetThreadBlockingErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetThreadBlockingError = SetThreadBlockingErrors[keyof SetThreadBlockingErrors];
+
+export type SetThreadBlockingResponses = {
+    /**
+     * The thread.
+     */
+    200: ThreadDetail;
+};
+
+export type SetThreadBlockingResponse = SetThreadBlockingResponses[keyof SetThreadBlockingResponses];
+
+export type SetThreadStatusData = {
+    body: {
+        open: boolean;
+    };
+    path: {
+        threadId: string;
+    };
+    query?: never;
+    url: '/threads/{threadId}/status';
+};
+
+export type SetThreadStatusErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetThreadStatusError = SetThreadStatusErrors[keyof SetThreadStatusErrors];
+
+export type SetThreadStatusResponses = {
+    /**
+     * The thread.
+     */
+    200: ThreadDetail;
+};
+
+export type SetThreadStatusResponse = SetThreadStatusResponses[keyof SetThreadStatusResponses];
+
+export type ListWaiversData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/waivers';
+};
+
+export type ListWaiversErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListWaiversError = ListWaiversErrors[keyof ListWaiversErrors];
+
+export type ListWaiversResponses = {
+    /**
+     * The waivers, newest first.
+     */
+    200: {
+        items: Array<Waiver>;
+    };
+};
+
+export type ListWaiversResponse = ListWaiversResponses[keyof ListWaiversResponses];
+
+export type RequestWaiverData = {
+    body: {
+        finding_id: string;
+        reason: string;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/waivers';
+};
+
+export type RequestWaiverErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RequestWaiverError = RequestWaiverErrors[keyof RequestWaiverErrors];
+
+export type RequestWaiverResponses = {
+    /**
+     * The waiver.
+     */
+    200: Waiver;
+};
+
+export type RequestWaiverResponse = RequestWaiverResponses[keyof RequestWaiverResponses];
+
+export type ApproveWaiverData = {
+    body?: never;
+    path: {
+        waiverId: string;
+    };
+    query?: never;
+    url: '/waivers/{waiverId}/approve';
+};
+
+export type ApproveWaiverErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ApproveWaiverError = ApproveWaiverErrors[keyof ApproveWaiverErrors];
+
+export type ApproveWaiverResponses = {
+    /**
+     * The waiver.
+     */
+    200: Waiver;
+};
+
+export type ApproveWaiverResponse = ApproveWaiverResponses[keyof ApproveWaiverResponses];
+
+export type RejectWaiverData = {
+    body?: never;
+    path: {
+        waiverId: string;
+    };
+    query?: never;
+    url: '/waivers/{waiverId}/reject';
+};
+
+export type RejectWaiverErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RejectWaiverError = RejectWaiverErrors[keyof RejectWaiverErrors];
+
+export type RejectWaiverResponses = {
+    /**
+     * The waiver.
+     */
+    200: Waiver;
+};
+
+export type RejectWaiverResponse = RejectWaiverResponses[keyof RejectWaiverResponses];
+
+export type GetBundleStatusData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/status';
+};
+
+export type GetBundleStatusErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetBundleStatusError = GetBundleStatusErrors[keyof GetBundleStatusErrors];
+
+export type GetBundleStatusResponses = {
+    /**
+     * The status.
+     */
+    200: BundleStatus;
+};
+
+export type GetBundleStatusResponse = GetBundleStatusResponses[keyof GetBundleStatusResponses];
+
+export type RequestReviewData = {
+    body: {
+        /**
+         * User IDs.
+         */
+        reviewers: Array<string>;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/review-request';
+};
+
+export type RequestReviewErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RequestReviewError = RequestReviewErrors[keyof RequestReviewErrors];
+
+export type RequestReviewResponses = {
+    /**
+     * The status.
+     */
+    200: BundleStatus;
+};
+
+export type RequestReviewResponse = RequestReviewResponses[keyof RequestReviewResponses];
+
+export type ApproveBundleData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/approve';
+};
+
+export type ApproveBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ApproveBundleError = ApproveBundleErrors[keyof ApproveBundleErrors];
+
+export type ApproveBundleResponses = {
+    /**
+     * The status.
+     */
+    200: BundleStatus;
+};
+
+export type ApproveBundleResponse = ApproveBundleResponses[keyof ApproveBundleResponses];
+
+export type ListPeopleData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/people';
+};
+
+export type ListPeopleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListPeopleError = ListPeopleErrors[keyof ListPeopleErrors];
+
+export type ListPeopleResponses = {
+    /**
+     * The people.
+     */
+    200: {
+        items: Array<Person>;
+    };
+};
+
+export type ListPeopleResponse = ListPeopleResponses[keyof ListPeopleResponses];
+
+export type GetInboxData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/inbox';
+};
+
+export type GetInboxErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetInboxError = GetInboxErrors[keyof GetInboxErrors];
+
+export type GetInboxResponses = {
+    /**
+     * The inbox.
+     */
+    200: Inbox;
+};
+
+export type GetInboxResponse = GetInboxResponses[keyof GetInboxResponses];
+
+export type MarkInboxSeenData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/inbox/seen';
+};
+
+export type MarkInboxSeenErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type MarkInboxSeenError = MarkInboxSeenErrors[keyof MarkInboxSeenErrors];
+
+export type MarkInboxSeenResponses = {
+    /**
+     * Marked.
+     */
+    204: void;
+};
+
+export type MarkInboxSeenResponse = MarkInboxSeenResponses[keyof MarkInboxSeenResponses];
+
+export type GetInsightsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/insights';
+};
+
+export type GetInsightsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetInsightsError = GetInsightsErrors[keyof GetInsightsErrors];
+
+export type GetInsightsResponses = {
+    /**
+     * The metrics.
+     */
+    200: Insights;
+};
+
+export type GetInsightsResponse = GetInsightsResponses[keyof GetInsightsResponses];
+
+export type GetProfileData = {
+    body?: never;
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}';
+};
+
+export type GetProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetProfileError = GetProfileErrors[keyof GetProfileErrors];
+
+export type GetProfileResponses = {
+    /**
+     * The profile.
+     */
+    200: ProfileDetail;
+};
+
+export type GetProfileResponse = GetProfileResponses[keyof GetProfileResponses];
+
+export type UpdateProfileData = {
+    body: ProfileInput;
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}';
+};
+
+export type UpdateProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UpdateProfileError = UpdateProfileErrors[keyof UpdateProfileErrors];
+
+export type UpdateProfileResponses = {
+    /**
+     * The profile.
+     */
+    200: ProfileDetail;
+};
+
+export type UpdateProfileResponse = UpdateProfileResponses[keyof UpdateProfileResponses];
+
+export type SetMaintainersData = {
+    body: {
+        user_ids: Array<string>;
+    };
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}/maintainers';
+};
+
+export type SetMaintainersErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetMaintainersError = SetMaintainersErrors[keyof SetMaintainersErrors];
+
+export type SetMaintainersResponses = {
+    /**
+     * The profile.
+     */
+    200: ProfileDetail;
+};
+
+export type SetMaintainersResponse = SetMaintainersResponses[keyof SetMaintainersResponses];
+
+export type ListProfileThreadsData = {
+    body?: never;
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}/threads';
+};
+
+export type ListProfileThreadsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListProfileThreadsError = ListProfileThreadsErrors[keyof ListProfileThreadsErrors];
+
+export type ListProfileThreadsResponses = {
+    /**
+     * The threads.
+     */
+    200: {
+        items: Array<Thread>;
+    };
+};
+
+export type ListProfileThreadsResponse = ListProfileThreadsResponses[keyof ListProfileThreadsResponses];
+
+export type OpenProfileThreadData = {
+    body: OpenThread;
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}/threads';
+};
+
+export type OpenProfileThreadErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type OpenProfileThreadError = OpenProfileThreadErrors[keyof OpenProfileThreadErrors];
+
+export type OpenProfileThreadResponses = {
+    /**
+     * The new thread.
+     */
+    200: ThreadDetail;
+};
+
+export type OpenProfileThreadResponse = OpenProfileThreadResponses[keyof OpenProfileThreadResponses];
+
 export type ListProfilesData = {
     body?: never;
     path?: never;
@@ -1904,6 +2739,33 @@ export type ListProfilesResponses = {
 };
 
 export type ListProfilesResponse = ListProfilesResponses[keyof ListProfilesResponses];
+
+export type CreateProfileData = {
+    body: ProfileInput & {
+        key: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/profiles';
+};
+
+export type CreateProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateProfileError = CreateProfileErrors[keyof CreateProfileErrors];
+
+export type CreateProfileResponses = {
+    /**
+     * The profile.
+     */
+    200: ProfileDetail;
+};
+
+export type CreateProfileResponse = CreateProfileResponses[keyof CreateProfileResponses];
 
 export type ListBackendsData = {
     body?: never;

@@ -75,7 +75,7 @@ func TestEventStore_InlineProjectionAtomic(t *testing.T) {
 				t.Fatal(err)
 			}
 			var failNext bool
-			project := func(ctx context.Context, tx store.Tx, events []es.Recorded) error {
+			project := func(ctx context.Context, tx store.Tx, _ es.Stream, events []es.Recorded) error {
 				for _, r := range events {
 					q := `INSERT INTO test_view (stream_id, version) VALUES ($1, $2)`
 					if _, err := tx.ExecContext(ctx, q, r.StreamID.String(), r.Version); err != nil {

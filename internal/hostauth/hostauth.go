@@ -24,6 +24,7 @@ import (
 	"github.com/alternayte/auth-all/ratelimit"
 	"github.com/alternayte/auth-all/ratelimit/storelimit"
 	"github.com/alternayte/auth-all/schema"
+	authstore "github.com/alternayte/auth-all/store"
 	authpg "github.com/alternayte/auth-all/store/postgres"
 	authsqlite "github.com/alternayte/auth-all/store/sqlite"
 
@@ -233,4 +234,32 @@ func (a *Auth) CreateInvite(ctx context.Context, role, createdBy string, ttl tim
 // CreateResetLink makes a password reset link.
 func (a *Auth) CreateResetLink(ctx context.Context, email, createdBy string) (string, error) {
 	return a.Invites.CreateResetLink(ctx, email, createdBy)
+}
+
+// People lists the enabled accounts (kernel.Directory).
+func (a *Auth) People(ctx context.Context) ([]kernel.Person, error) {
+	lister, ok := a.All.Store().(authstore.UserAdminStore)
+	if !ok {
+		return nil, fmt.Errorf("the auth store cannot list users")
+	}
+	enabled := false
+	var out []kernel.Person
+	cursor := ""
+	for {
+		users, next, err := lister.ListUsers(ctx, authstore.UserListFilter{Disabled: &enabled, Limit: 200, Cursor: cursor})
+		if err != nil {
+			return nil, err
+		}
+		for _, u := range users {
+			role := kernel.RoleMember
+			if u.Role == kernel.RoleAdmin {
+				role = kernel.RoleAdmin
+			}
+			out = append(out, kernel.Person{ID: u.ID, Name: u.DisplayName, Email: u.Email, Role: role})
+		}
+		if next == "" {
+			return out, nil
+		}
+		cursor = next
+	}
 }

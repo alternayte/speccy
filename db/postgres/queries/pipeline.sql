@@ -85,9 +85,17 @@ SELECT * FROM review_run WHERE id = sqlc.arg(id);
 SELECT * FROM question WHERE version_id = sqlc.arg(version_id) ORDER BY number;
 
 -- name: InsertQuestion :exec
-INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor)
+INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor, input_hash)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.arg(number),
-        sqlc.arg(text), sqlc.arg(level), sqlc.arg(cites), sqlc.arg(anchor));
+        sqlc.arg(text), sqlc.arg(level), sqlc.arg(cites), sqlc.arg(anchor), sqlc.arg(input_hash));
+
+-- name: ListQuestionsByInput :many
+-- REQ-047: the questions of an earlier version of the bundle with the same content.
+SELECT q.* FROM question q
+WHERE q.bundle_id = sqlc.arg(bundle_id) AND q.input_hash = sqlc.arg(input_hash) AND q.input_hash <> ''
+  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.bundle_id = sqlc.arg(bundle_id)
+                      AND q2.input_hash = sqlc.arg(input_hash) LIMIT 1)
+ORDER BY q.number;
 
 -- name: InsertAnswer :exec
 INSERT INTO answer (question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found)

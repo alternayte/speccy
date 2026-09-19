@@ -210,7 +210,7 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 			a := r.answers[c.Slug]
 			lvl := r.unit.levels[c.Slug]
 			applicable := a.Result != "not_applicable"
-			ev.items = append(ev.items, verdict.Item{Category: verdict.Completeness, Level: lvl, Passed: a.Result == "pass", Applicable: applicable})
+			ev.items = append(ev.items, verdict.Item{Slug: c.Slug, Category: verdict.Completeness, Level: lvl, Passed: a.Result == "pass", Applicable: applicable})
 			if a.Result != "fail" {
 				continue
 			}

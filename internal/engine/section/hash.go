@@ -1,0 +1,28 @@
+package section
+
+// HashAt returns the hash of the section with path in doc: its own content, as SDD §8.1 says.
+// An empty path is the whole doc after the frontmatter, so a doc-level waiver ends on any edit.
+// ok is false when no section has the path.
+func HashAt(doc Doc, src []byte, path []string) (string, bool) {
+	if len(path) == 0 {
+		return Hash(src[doc.BodyStart:]), true
+	}
+	for _, s := range doc.Sections {
+		if s.Level > 0 && equal(s.Path, path) {
+			return s.Hash, true
+		}
+	}
+	return "", false
+}
+
+func equal(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

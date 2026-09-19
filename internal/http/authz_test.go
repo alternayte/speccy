@@ -95,6 +95,9 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 		speccyhttp.BundleAI:   {"member", "author", "admin"},
 		speccyhttp.BundleEdit: {"author", "admin"},
 		speccyhttp.AdminOnly:  {"admin"},
+		// The fixture has no maintainers, so only the admin passes.
+		speccyhttp.ProfileEdit: {"admin"},
+		speccyhttp.Maintainer:  {"admin"},
 	}
 
 	e := storetest.Engines()[0]
@@ -109,7 +112,7 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 					want = want || n == a.name
 				}
 				status, code := env.call(t, op, a.actor(env.bundle.ID))
-				denied := code == "sign_in_required" || code == "forbidden" || code == "guest_not_allowed" || code == "not_author" ||
+				denied := code == "sign_in_required" || code == "forbidden" || code == "guest_not_allowed" || code == "not_author" || code == "not_maintainer" ||
 					(status == 404 && code == "bundle_not_found")
 				if denied == want {
 					t.Errorf("%s as %s: status %d, code %q; want allowed %v", op.id, a.name, status, code, want)
@@ -153,6 +156,8 @@ type hostedEnv struct {
 	handler nethttp.Handler
 	bundle  pgdb.Bundle
 	run     pgdb.ReviewRun
+	thread  string
+	waiver  string
 }
 
 type actorKey struct{}
@@ -162,7 +167,7 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	db := e.Open(t)
-	a, err := app.New(ctx, db, nil, nil, "")
+	a, err := app.New(ctx, db, nil, app.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +192,34 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 	}
 	spa := fs.FS(fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html></html>")}})
 	h := speccyhttp.Handler(spa, a.API, speccyhttp.Options{Actor: actor, Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}})
-	return &hostedEnv{app: a, handler: h, bundle: b, run: run}
+	env := &hostedEnv{app: a, handler: h, bundle: b, run: run}
+	// A thread and a waiver request, made by the admin, for the thread and waiver paths.
+	admin := kernel.Actor{UserID: "user-admin", Role: kernel.RoleAdmin}
+	_, body := env.post(t, "/bundles/"+b.ID.String()+"/threads", `{"anchor_kind":"section","anchor":{"heading_path":[]},"addressed_to":"humans","body":"Who owns retries?"}`, admin)
+	var th struct{ ID string }
+	_ = json.Unmarshal(body, &th)
+	env.thread = th.ID
+	fs, err := q.ListFindings(ctx, run.ID)
+	if err != nil || len(fs) == 0 {
+		t.Fatalf("the fixture run has no finding to waive: %v", err)
+	}
+	_, body = env.post(t, "/bundles/"+b.ID.String()+"/waivers", `{"finding_id":"`+fs[0].ID.String()+`","reason":"The provider owns this part of the design."}`, admin)
+	var w struct{ ID string }
+	_ = json.Unmarshal(body, &w)
+	env.waiver = w.ID
+	if env.thread == "" || env.waiver == "" {
+		t.Fatalf("fixture thread %q, waiver %q", env.thread, env.waiver)
+	}
+	return env
+}
+
+func (env *hostedEnv) post(t *testing.T, path, body string, a kernel.Actor) (int, []byte) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(context.WithValue(context.Background(), actorKey{}, a), "POST", "/api/v1"+path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	env.handler.ServeHTTP(rec, req)
+	return rec.Code, rec.Body.Bytes()
 }
 
 // do calls op as the actor, with the fixture's IDs in the path and minimal parameters.
@@ -196,6 +228,7 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 	path := strings.NewReplacer(
 		"{bundleId}", env.bundle.ID.String(), "{runId}", env.run.ID.String(), "{token}", "not-a-token",
 		"{connectionId}", uuid.NewString(), "{backendId}", uuid.NewString(), "{inviteId}", uuid.NewString(), "{role}", "reviewer",
+		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd",
 	).Replace(op.path)
 	query := "?path=SPEC.md&base_version=" + env.bundle.CurrentVersionID.UUID.String() +
 		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String()

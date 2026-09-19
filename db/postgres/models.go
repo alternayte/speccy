@@ -63,6 +63,16 @@ type BundleReviewer struct {
 	UserID   string
 }
 
+type BundleStatusView struct {
+	BundleID          uuid.UUID
+	Status            string
+	Approvals         dbtype.JSON
+	ApprovedVersion   uuid.NullUUID
+	ReviewRequestedAt sql.NullTime
+	ApprovedAt        sql.NullTime
+	UpdatedAt         time.Time
+}
+
 type CacheEntry struct {
 	KeyHash   string
 	Result    dbtype.JSON
@@ -107,6 +117,7 @@ type Finding struct {
 	Message    string
 	Evidence   dbtype.JSON
 	Suggestion dbtype.JSON
+	Waived     bool
 }
 
 type Invite struct {
@@ -178,6 +189,11 @@ type Profile struct {
 	CurrentVersion int64
 }
 
+type ProfileMaintainer struct {
+	ProfileID uuid.UUID
+	UserID    string
+}
+
 type ProfileVersion struct {
 	ProfileID uuid.UUID
 	Version   int64
@@ -198,6 +214,7 @@ type Question struct {
 	Level       string
 	Cites       dbtype.JSON
 	Anchor      dbtype.JSON
+	InputHash   string
 }
 
 type QuestionResult struct {
@@ -262,6 +279,41 @@ type ShareGuest struct {
 	CreatedAt   time.Time
 }
 
+type ThreadMessageView struct {
+	ID         uuid.UUID
+	ThreadID   uuid.UUID
+	Seq        int64
+	AuthorKind string
+	AuthorID   string
+	AuthorName string
+	Body       string
+	Sources    dbtype.JSON
+	Decision   string
+	CreatedAt  time.Time
+}
+
+type ThreadView struct {
+	ID            uuid.UUID
+	WorkspaceID   uuid.UUID
+	BundleID      uuid.NullUUID
+	ProfileKey    string
+	AnchorKind    string
+	Anchor        dbtype.JSON
+	AddressedTo   string
+	Title         string
+	Blocking      bool
+	Status        string
+	CreatedBy     string
+	CreatedAt     time.Time
+	LastMessageAt time.Time
+	MessageCount  int64
+}
+
+type UserState struct {
+	UserID      string
+	InboxSeenAt time.Time
+}
+
 type Verdict struct {
 	RunID              uuid.UUID
 	Result             string
@@ -286,6 +338,23 @@ type VersionFile struct {
 	VersionID uuid.UUID
 	Path      string
 	Sha256    string
+}
+
+type WaiverView struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	BundleID    uuid.UUID
+	CheckSlug   string
+	Level       string
+	SectionPath dbtype.JSON
+	SectionHash string
+	Reason      string
+	Status      string
+	RequestedBy string
+	Approvals   dbtype.JSON
+	DecidedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Workspace struct {

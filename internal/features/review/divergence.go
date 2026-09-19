@@ -236,7 +236,7 @@ func addDivergenceFinding(in input, ev *evaluation, o questionOutcome) {
 		slug = DivergenceGap
 	}
 	lvl := in.level(slug, o.q.level)
-	ev.items = append(ev.items, verdict.Item{Category: verdict.Precision, Level: lvl, Passed: o.result == divergence.Agree, Applicable: true})
+	ev.items = append(ev.items, verdict.Item{Slug: slug, Category: verdict.Precision, Level: lvl, Passed: o.result == divergence.Agree, Applicable: true})
 	if o.result == divergence.Agree {
 		return
 	}

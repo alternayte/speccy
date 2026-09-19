@@ -127,11 +127,17 @@ func (s *Service) RunNext(ctx context.Context) (ran bool, err error) {
 		return false, err
 	}
 	var p struct {
-		RunID string `json:"run_id"`
+		RunID    string `json:"run_id"`
+		ThreadID string `json:"thread_id"`
 	}
 	runErr := json.Unmarshal(job.Payload, &p)
 	if runErr == nil {
-		runErr = s.execute(ctx, p.RunID)
+		switch job.Kind {
+		case jobKindAnswer:
+			runErr = s.answerThread(ctx, uuidOf(p.ThreadID))
+		default:
+			runErr = s.execute(ctx, p.RunID)
+		}
 	}
 	status, msg := "done", ""
 	if runErr != nil {

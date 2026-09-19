@@ -143,15 +143,15 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 		evidence := map[string]any{"claim": c.text, "reason": l.Reason, "sources": nonNil(l.Sources), "search": mode}
 		switch l.Label {
 		case "verified":
-			ev.items = append(ev.items, verdict.Item{Category: verdict.Evidence, Level: kernel.Should, Passed: true, Applicable: true})
+			ev.items = append(ev.items, verdict.Item{Slug: GroundingUnverified, Category: verdict.Evidence, Level: kernel.Should, Passed: true, Applicable: true})
 		case "contradicted":
 			lvl := in.level(GroundingContradicted, kernel.Must)
-			ev.items = append(ev.items, verdict.Item{Category: verdict.Evidence, Level: lvl, Applicable: true})
+			ev.items = append(ev.items, verdict.Item{Slug: GroundingContradicted, Category: verdict.Evidence, Level: lvl, Applicable: true})
 			ev.findings = append(ev.findings, pending{slug: GroundingContradicted, level: lvl, stage: StageGrounding, anchor: an,
 				message: "A source contradicts this claim: " + sentence(l.Reason), fix: "Correct the claim, or explain why the source does not apply.", evidence: evidence})
 		default:
 			lvl := in.level(GroundingUnverified, kernel.Should)
-			ev.items = append(ev.items, verdict.Item{Category: verdict.Evidence, Level: lvl, Applicable: true})
+			ev.items = append(ev.items, verdict.Item{Slug: GroundingUnverified, Category: verdict.Evidence, Level: lvl, Applicable: true})
 			ev.findings = append(ev.findings, pending{slug: GroundingUnverified, level: lvl, stage: StageGrounding, anchor: an,
 				message: "No source confirms this claim.", fix: "Add a source or mark it as an assumption.", evidence: evidence})
 		}

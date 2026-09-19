@@ -353,9 +353,9 @@ func (q *Queries) InsertMCPConnection(ctx context.Context, arg InsertMCPConnecti
 }
 
 const insertQuestion = `-- name: InsertQuestion :exec
-INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor)
+INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor, input_hash)
 VALUES (?1, ?2, ?3, ?4, ?5,
-        ?6, ?7, ?8, ?9)
+        ?6, ?7, ?8, ?9, ?10)
 `
 
 type InsertQuestionParams struct {
@@ -368,6 +368,7 @@ type InsertQuestionParams struct {
 	Level       string
 	Cites       dbtype.JSON
 	Anchor      dbtype.JSON
+	InputHash   string
 }
 
 func (q *Queries) InsertQuestion(ctx context.Context, arg InsertQuestionParams) error {
@@ -381,6 +382,7 @@ func (q *Queries) InsertQuestion(ctx context.Context, arg InsertQuestionParams) 
 		arg.Level,
 		arg.Cites,
 		arg.Anchor,
+		arg.InputHash,
 	)
 	return err
 }
@@ -636,7 +638,7 @@ func (q *Queries) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]Q
 }
 
 const listQuestions = `-- name: ListQuestions :many
-SELECT id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor FROM question WHERE version_id = ?1 ORDER BY number
+SELECT id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor, input_hash FROM question WHERE version_id = ?1 ORDER BY number
 `
 
 func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error) {
@@ -658,6 +660,55 @@ func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Que
 			&i.Level,
 			&i.Cites,
 			&i.Anchor,
+			&i.InputHash,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuestionsByInput = `-- name: ListQuestionsByInput :many
+SELECT q.id, q.workspace_id, q.bundle_id, q.version_id, q.number, q.text, q.level, q.cites, q.anchor, q.input_hash FROM question q
+WHERE q.bundle_id = ?1 AND q.input_hash = ?2 AND q.input_hash <> ''
+  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.bundle_id = ?1
+                      AND q2.input_hash = ?2 LIMIT 1)
+ORDER BY q.number
+`
+
+type ListQuestionsByInputParams struct {
+	BundleID  uuid.UUID
+	InputHash string
+}
+
+// REQ-047: the questions of an earlier version of the bundle with the same content.
+func (q *Queries) ListQuestionsByInput(ctx context.Context, arg ListQuestionsByInputParams) ([]Question, error) {
+	rows, err := q.db.QueryContext(ctx, listQuestionsByInput, arg.BundleID, arg.InputHash)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Question
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.BundleID,
+			&i.VersionID,
+			&i.Number,
+			&i.Text,
+			&i.Level,
+			&i.Cites,
+			&i.Anchor,
+			&i.InputHash,
 		); err != nil {
 			return nil, err
 		}

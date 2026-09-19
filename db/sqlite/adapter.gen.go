@@ -36,6 +36,26 @@ func (a Adapter) CountAssignmentsForBackend(ctx context.Context, arg pgdb.CountA
 	return a.q.CountAssignmentsForBackend(ctx, CountAssignmentsForBackendParams(arg))
 }
 
+func (a Adapter) CountAuthorMessagesSince(ctx context.Context, arg pgdb.CountAuthorMessagesSinceParams) (int64, error) {
+	return a.q.CountAuthorMessagesSince(ctx, CountAuthorMessagesSinceParams(arg))
+}
+
+func (a Adapter) CountFindingsByCheck(ctx context.Context, arg pgdb.CountFindingsByCheckParams) ([]pgdb.CountFindingsByCheckRow, error) {
+	rows, err := a.q.CountFindingsByCheck(ctx, CountFindingsByCheckParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.CountFindingsByCheckRow, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.CountFindingsByCheckRow(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error) {
+	return a.q.CountOpenBlockingThreads(ctx, bundleID)
+}
+
 func (a Adapter) DeleteAssignment(ctx context.Context, arg pgdb.DeleteAssignmentParams) error {
 	return a.q.DeleteAssignment(ctx, DeleteAssignmentParams(arg))
 }
@@ -50,6 +70,10 @@ func (a Adapter) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) er
 
 func (a Adapter) DeleteMCPConnection(ctx context.Context, arg pgdb.DeleteMCPConnectionParams) error {
 	return a.q.DeleteMCPConnection(ctx, DeleteMCPConnectionParams(arg))
+}
+
+func (a Adapter) DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error {
+	return a.q.DeleteProfileMaintainers(ctx, profileID)
 }
 
 func (a Adapter) FinishJob(ctx context.Context, arg pgdb.FinishJobParams) error {
@@ -89,8 +113,18 @@ func (a Adapter) GetBundleBySlug(ctx context.Context, arg pgdb.GetBundleBySlugPa
 	return pgdb.Bundle(r), err
 }
 
+func (a Adapter) GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (pgdb.BundleStatusView, error) {
+	r, err := a.q.GetBundleStatusView(ctx, bundleID)
+	return pgdb.BundleStatusView(r), err
+}
+
 func (a Adapter) GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error) {
 	return a.q.GetCache(ctx, keyHash)
+}
+
+func (a Adapter) GetFinding(ctx context.Context, id uuid.UUID) (pgdb.Finding, error) {
+	r, err := a.q.GetFinding(ctx, id)
+	return pgdb.Finding(r), err
 }
 
 func (a Adapter) GetFirstWorkspace(ctx context.Context) (pgdb.Workspace, error) {
@@ -133,6 +167,16 @@ func (a Adapter) GetStream(ctx context.Context, streamID uuid.UUID) (pgdb.EsStre
 	return pgdb.EsStream(r), err
 }
 
+func (a Adapter) GetThreadView(ctx context.Context, arg pgdb.GetThreadViewParams) (pgdb.ThreadView, error) {
+	r, err := a.q.GetThreadView(ctx, GetThreadViewParams(arg))
+	return pgdb.ThreadView(r), err
+}
+
+func (a Adapter) GetUserState(ctx context.Context, userID string) (pgdb.UserState, error) {
+	r, err := a.q.GetUserState(ctx, userID)
+	return pgdb.UserState(r), err
+}
+
 func (a Adapter) GetVerdict(ctx context.Context, runID uuid.UUID) (pgdb.Verdict, error) {
 	r, err := a.q.GetVerdict(ctx, runID)
 	return pgdb.Verdict(r), err
@@ -146,6 +190,11 @@ func (a Adapter) GetVersion(ctx context.Context, arg pgdb.GetVersionParams) (pgd
 func (a Adapter) GetVersionByNumber(ctx context.Context, arg pgdb.GetVersionByNumberParams) (pgdb.Version, error) {
 	r, err := a.q.GetVersionByNumber(ctx, GetVersionByNumberParams(arg))
 	return pgdb.Version(r), err
+}
+
+func (a Adapter) GetWaiverView(ctx context.Context, arg pgdb.GetWaiverViewParams) (pgdb.WaiverView, error) {
+	r, err := a.q.GetWaiverView(ctx, GetWaiverViewParams(arg))
+	return pgdb.WaiverView(r), err
 }
 
 func (a Adapter) GetWorkspace(ctx context.Context, id uuid.UUID) (pgdb.Workspace, error) {
@@ -175,6 +224,10 @@ func (a Adapter) InsertBundle(ctx context.Context, arg pgdb.InsertBundleParams) 
 
 func (a Adapter) InsertBundleAuthor(ctx context.Context, arg pgdb.InsertBundleAuthorParams) error {
 	return a.q.InsertBundleAuthor(ctx, InsertBundleAuthorParams(arg))
+}
+
+func (a Adapter) InsertBundleReviewer(ctx context.Context, arg pgdb.InsertBundleReviewerParams) error {
+	return a.q.InsertBundleReviewer(ctx, InsertBundleReviewerParams(arg))
 }
 
 func (a Adapter) InsertClaim(ctx context.Context, arg pgdb.InsertClaimParams) error {
@@ -209,6 +262,10 @@ func (a Adapter) InsertProfile(ctx context.Context, arg pgdb.InsertProfileParams
 	return a.q.InsertProfile(ctx, InsertProfileParams(arg))
 }
 
+func (a Adapter) InsertProfileMaintainer(ctx context.Context, arg pgdb.InsertProfileMaintainerParams) error {
+	return a.q.InsertProfileMaintainer(ctx, InsertProfileMaintainerParams(arg))
+}
+
 func (a Adapter) InsertProfileVersion(ctx context.Context, arg pgdb.InsertProfileVersionParams) error {
 	return a.q.InsertProfileVersion(ctx, InsertProfileVersionParams(arg))
 }
@@ -241,6 +298,10 @@ func (a Adapter) InsertStream(ctx context.Context, arg pgdb.InsertStreamParams) 
 	return a.q.InsertStream(ctx, InsertStreamParams(arg))
 }
 
+func (a Adapter) InsertThreadMessage(ctx context.Context, arg pgdb.InsertThreadMessageParams) error {
+	return a.q.InsertThreadMessage(ctx, InsertThreadMessageParams(arg))
+}
+
 func (a Adapter) InsertVerdict(ctx context.Context, arg pgdb.InsertVerdictParams) error {
 	return a.q.InsertVerdict(ctx, InsertVerdictParams(arg))
 }
@@ -257,12 +318,20 @@ func (a Adapter) InsertWorkspace(ctx context.Context, arg pgdb.InsertWorkspacePa
 	return a.q.InsertWorkspace(ctx, InsertWorkspaceParams(arg))
 }
 
+func (a Adapter) IsAnyMaintainer(ctx context.Context, arg pgdb.IsAnyMaintainerParams) (bool, error) {
+	return a.q.IsAnyMaintainer(ctx, IsAnyMaintainerParams(arg))
+}
+
 func (a Adapter) IsBundleAuthor(ctx context.Context, arg pgdb.IsBundleAuthorParams) (bool, error) {
 	return a.q.IsBundleAuthor(ctx, IsBundleAuthorParams(arg))
 }
 
 func (a Adapter) IsBundleMember(ctx context.Context, arg pgdb.IsBundleMemberParams) (bool, error) {
 	return a.q.IsBundleMember(ctx, IsBundleMemberParams(arg))
+}
+
+func (a Adapter) IsProfileMaintainer(ctx context.Context, arg pgdb.IsProfileMaintainerParams) (bool, error) {
+	return a.q.IsProfileMaintainer(ctx, IsProfileMaintainerParams(arg))
 }
 
 func (a Adapter) LatestBudget(ctx context.Context, workspaceID uuid.UUID) (pgdb.Budget, error) {
@@ -278,6 +347,18 @@ func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.Review
 func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRunFor(ctx, LatestRunForParams(arg))
 	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.ListAllRunsRow, error) {
+	rows, err := a.q.ListAllRuns(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ListAllRunsRow, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ListAllRunsRow(r)
+	}
+	return out, nil
 }
 
 func (a Adapter) ListAnswers(ctx context.Context, runID uuid.UUID) ([]pgdb.Answer, error) {
@@ -304,6 +385,10 @@ func (a Adapter) ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]
 	return out, nil
 }
 
+func (a Adapter) ListAuthorBundles(ctx context.Context, userID string) ([]uuid.UUID, error) {
+	return a.q.ListAuthorBundles(ctx, userID)
+}
+
 func (a Adapter) ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.ModelBackend, error) {
 	rows, err := a.q.ListBackends(ctx, workspaceID)
 	if err != nil {
@@ -322,6 +407,42 @@ func (a Adapter) ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]s
 
 func (a Adapter) ListBundleReviewers(ctx context.Context, bundleID uuid.UUID) ([]string, error) {
 	return a.q.ListBundleReviewers(ctx, bundleID)
+}
+
+func (a Adapter) ListBundleStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.BundleStatusView, error) {
+	rows, err := a.q.ListBundleStatusViews(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.BundleStatusView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.BundleStatusView(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID) ([]pgdb.ThreadView, error) {
+	rows, err := a.q.ListBundleThreads(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ThreadView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ThreadView(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]pgdb.WaiverView, error) {
+	rows, err := a.q.ListBundleWaivers(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.WaiverView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.WaiverView(r)
+	}
+	return out, nil
 }
 
 func (a Adapter) ListBundles(ctx context.Context, arg pgdb.ListBundlesParams) ([]pgdb.Bundle, error) {
@@ -384,6 +505,18 @@ func (a Adapter) ListFindings(ctx context.Context, runID uuid.UUID) ([]pgdb.Find
 	return out, nil
 }
 
+func (a Adapter) ListFullRunsSince(ctx context.Context, arg pgdb.ListFullRunsSinceParams) ([]pgdb.ReviewRun, error) {
+	rows, err := a.q.ListFullRunsSince(ctx, ListFullRunsSinceParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ReviewRun, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ReviewRun(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Invite, error) {
 	rows, err := a.q.ListInvites(ctx, workspaceID)
 	if err != nil {
@@ -432,6 +565,46 @@ func (a Adapter) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) 
 	return out, nil
 }
 
+func (a Adapter) ListMessagesSince(ctx context.Context, arg pgdb.ListMessagesSinceParams) ([]pgdb.ListMessagesSinceRow, error) {
+	rows, err := a.q.ListMessagesSince(ctx, ListMessagesSinceParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ListMessagesSinceRow, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ListMessagesSinceRow(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListProfileMaintainers(ctx context.Context, profileID uuid.UUID) ([]string, error) {
+	return a.q.ListProfileMaintainers(ctx, profileID)
+}
+
+func (a Adapter) ListProfileThreads(ctx context.Context, arg pgdb.ListProfileThreadsParams) ([]pgdb.ThreadView, error) {
+	rows, err := a.q.ListProfileThreads(ctx, ListProfileThreadsParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ThreadView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ThreadView(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListProfileVersions(ctx context.Context, profileID uuid.UUID) ([]pgdb.ListProfileVersionsRow, error) {
+	rows, err := a.q.ListProfileVersions(ctx, profileID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ListProfileVersionsRow, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ListProfileVersionsRow(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Profile, error) {
 	rows, err := a.q.ListProfiles(ctx, workspaceID)
 	if err != nil {
@@ -468,6 +641,22 @@ func (a Adapter) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]pgdb
 	return out, nil
 }
 
+func (a Adapter) ListQuestionsByInput(ctx context.Context, arg pgdb.ListQuestionsByInputParams) ([]pgdb.Question, error) {
+	rows, err := a.q.ListQuestionsByInput(ctx, ListQuestionsByInputParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Question, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Question(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListReviewerBundles(ctx context.Context, userID string) ([]uuid.UUID, error) {
+	return a.q.ListReviewerBundles(ctx, userID)
+}
+
 func (a Adapter) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]pgdb.RunLink, error) {
 	rows, err := a.q.ListRunLinks(ctx, runID)
 	if err != nil {
@@ -492,6 +681,30 @@ func (a Adapter) ListRuns(ctx context.Context, arg pgdb.ListRunsParams) ([]pgdb.
 	return out, nil
 }
 
+func (a Adapter) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Link, error) {
+	rows, err := a.q.ListSupersedesLinks(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Link, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Link(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]pgdb.ThreadMessageView, error) {
+	rows, err := a.q.ListThreadMessages(ctx, threadID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ThreadMessageView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ThreadMessageView(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]pgdb.ListVersionFilesRow, error) {
 	rows, err := a.q.ListVersionFiles(ctx, versionID)
 	if err != nil {
@@ -512,6 +725,18 @@ func (a Adapter) ListVersions(ctx context.Context, arg pgdb.ListVersionsParams) 
 	out := make([]pgdb.Version, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Version(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.WaiverView, error) {
+	rows, err := a.q.ListWorkspaceWaivers(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.WaiverView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.WaiverView(r)
 	}
 	return out, nil
 }
@@ -557,6 +782,14 @@ func (a Adapter) SetBundleShare(ctx context.Context, arg pgdb.SetBundleSharePara
 
 func (a Adapter) SetBundleVisibility(ctx context.Context, arg pgdb.SetBundleVisibilityParams) error {
 	return a.q.SetBundleVisibility(ctx, SetBundleVisibilityParams(arg))
+}
+
+func (a Adapter) SetInboxSeen(ctx context.Context, arg pgdb.SetInboxSeenParams) error {
+	return a.q.SetInboxSeen(ctx, SetInboxSeenParams(arg))
+}
+
+func (a Adapter) SetMessageDecision(ctx context.Context, arg pgdb.SetMessageDecisionParams) error {
+	return a.q.SetMessageDecision(ctx, SetMessageDecisionParams(arg))
 }
 
 func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersionParams) error {
@@ -607,4 +840,16 @@ func (a Adapter) UpdateStream(ctx context.Context, arg pgdb.UpdateStreamParams) 
 
 func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignmentParams) error {
 	return a.q.UpsertAssignment(ctx, UpsertAssignmentParams(arg))
+}
+
+func (a Adapter) UpsertBundleStatusView(ctx context.Context, arg pgdb.UpsertBundleStatusViewParams) error {
+	return a.q.UpsertBundleStatusView(ctx, UpsertBundleStatusViewParams(arg))
+}
+
+func (a Adapter) UpsertThreadView(ctx context.Context, arg pgdb.UpsertThreadViewParams) error {
+	return a.q.UpsertThreadView(ctx, UpsertThreadViewParams(arg))
+}
+
+func (a Adapter) UpsertWaiverView(ctx context.Context, arg pgdb.UpsertWaiverViewParams) error {
+	return a.q.UpsertWaiverView(ctx, UpsertWaiverViewParams(arg))
 }

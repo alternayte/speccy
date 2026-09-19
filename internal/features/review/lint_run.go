@@ -23,6 +23,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/engine/verdict"
+	"github.com/alternayte/speccy/internal/es"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -62,6 +63,8 @@ type Service struct {
 	Progress *Broker
 	// Parallel returns the bound on the model calls of one run (REQ-105). Nil means 4.
 	Parallel func(context.Context) int
+	// ES stores thread events; the AI posts its answers there (REQ-088).
+	ES *es.Store
 
 	mu     sync.Mutex // one lint pass at a time
 	wakeMu sync.Mutex
@@ -177,14 +180,14 @@ func lintStage(in input) evaluation {
 		failed[f.Slug] = true
 	}
 	for slug, lvl := range res.Rules {
-		ev.items = append(ev.items, verdict.Item{Category: categories[slug], Level: lvl, Passed: !failed[slug], Applicable: true})
+		ev.items = append(ev.items, verdict.Item{Slug: slug, Category: categories[slug], Level: lvl, Passed: !failed[slug], Applicable: true})
 	}
 	if up := in.profile.Profile.Links.Upstream; up != nil && up.Required {
 		level := in.level(HasUpstreamSlug, checkLevel(in.profile.Profile, HasUpstreamSlug, kernel.Must))
 		has, missing := hasUpstream(in, up.Kinds, up.Types)
 		ev.in.UpstreamRequired = level == kernel.Must
 		ev.in.HasUpstream = has
-		ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
+		ev.items = append(ev.items, verdict.Item{Slug: HasUpstreamSlug, Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
 		if !has {
 			ev.findings = append(ev.findings, pending{
 				slug: HasUpstreamSlug, level: level, stage: StageCoherence, anchor: docAnchor(in),
@@ -239,7 +242,14 @@ func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
 func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev evaluation, p profile.Profile, existing bool) error {
 	var rows []pgdb.InsertFindingParams
 	vin := ev.in
-	for _, f := range ev.findings {
+	waived := applyWaivers(in, &ev)
+	// §8.6 rule 2: an open blocking thread blocks.
+	blocking, err := s.DB.Queries().CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: run.BundleID, Valid: true})
+	if err != nil {
+		return err
+	}
+	vin.OpenBlockingThreads = int(blocking)
+	for i, f := range ev.findings {
 		id := kernel.NewID()
 		anchorJSON, _ := json.Marshal(f.anchor)
 		evidence := dbtype.JSON(`{}`)
@@ -253,9 +263,9 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		}
 		rows = append(rows, pgdb.InsertFindingParams{
 			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
-			Anchor: anchorJSON, Message: f.message, Evidence: evidence, Suggestion: sugg,
+			Anchor: anchorJSON, Message: f.message, Evidence: evidence, Suggestion: sugg, Waived: waived[i],
 		})
-		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level})
+		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i]})
 	}
 	vin.Items = ev.items
 	v := verdict.Decide(vin)
