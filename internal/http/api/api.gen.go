@@ -65,6 +65,45 @@ func (e BackendKind) Valid() bool {
 	}
 }
 
+// Defines values for BuildQuestionLevel.
+const (
+	BuildQuestionLevelMUST   BuildQuestionLevel = "MUST"
+	BuildQuestionLevelSHOULD BuildQuestionLevel = "SHOULD"
+)
+
+// Valid indicates whether the value is a known member of the BuildQuestionLevel enum.
+func (e BuildQuestionLevel) Valid() bool {
+	switch e {
+	case BuildQuestionLevelMUST:
+		return true
+	case BuildQuestionLevelSHOULD:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BuildQuestionResult.
+const (
+	Agree   BuildQuestionResult = "agree"
+	Diverge BuildQuestionResult = "diverge"
+	Gap     BuildQuestionResult = "gap"
+)
+
+// Valid indicates whether the value is a known member of the BuildQuestionResult enum.
+func (e BuildQuestionResult) Valid() bool {
+	switch e {
+	case Agree:
+		return true
+	case Diverge:
+		return true
+	case Gap:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BundleSourceKind.
 const (
 	BundleSourceKindDb     BundleSourceKind = "db"
@@ -128,6 +167,24 @@ func (e ChangeStatus) Valid() bool {
 	}
 }
 
+// Defines values for CiteKind.
+const (
+	Section CiteKind = "section"
+	Trace   CiteKind = "trace"
+)
+
+// Valid indicates whether the value is a known member of the CiteKind enum.
+func (e CiteKind) Valid() bool {
+	switch e {
+	case Section:
+		return true
+	case Trace:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ClaimLabel.
 const (
 	Contradicted ClaimLabel = "contradicted"
@@ -151,19 +208,19 @@ func (e ClaimLabel) Valid() bool {
 
 // Defines values for FindingLevel.
 const (
-	INFO   FindingLevel = "INFO"
-	MUST   FindingLevel = "MUST"
-	SHOULD FindingLevel = "SHOULD"
+	FindingLevelINFO   FindingLevel = "INFO"
+	FindingLevelMUST   FindingLevel = "MUST"
+	FindingLevelSHOULD FindingLevel = "SHOULD"
 )
 
 // Valid indicates whether the value is a known member of the FindingLevel enum.
 func (e FindingLevel) Valid() bool {
 	switch e {
-	case INFO:
+	case FindingLevelINFO:
 		return true
-	case MUST:
+	case FindingLevelMUST:
 		return true
-	case SHOULD:
+	case FindingLevelSHOULD:
 		return true
 	default:
 		return false
@@ -394,6 +451,30 @@ type Budget struct {
 	TokensUsed int64  `json:"tokens_used"`
 }
 
+// BuildQuestion defines model for BuildQuestion.
+type BuildQuestion struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor Anchor `json:"anchor"`
+
+	// Answers One per reader, in reader order. Readers are named by number only (DEC-013).
+	Answers []ReaderAnswer `json:"answers"`
+	Cites   []Cite         `json:"cites"`
+
+	// Groups The judge's groups of reader numbers with the same meaning.
+	Groups [][]int             `json:"groups"`
+	Id     openapi_types.UUID  `json:"id"`
+	Level  BuildQuestionLevel  `json:"level"`
+	Number int                 `json:"number"`
+	Result BuildQuestionResult `json:"result"`
+	Text   string              `json:"text"`
+}
+
+// BuildQuestionLevel defines model for BuildQuestion.Level.
+type BuildQuestionLevel string
+
+// BuildQuestionResult defines model for BuildQuestion.Result.
+type BuildQuestionResult string
+
 // Bundle defines model for Bundle.
 type Bundle struct {
 	CurrentVersion Version            `json:"current_version"`
@@ -470,6 +551,16 @@ type BundleVerdictKind string
 
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
+
+// Cite defines model for Cite.
+type Cite struct {
+	Id   *string   `json:"id,omitempty"`
+	Kind CiteKind  `json:"kind"`
+	Path *[]string `json:"path,omitempty"`
+}
+
+// CiteKind defines model for Cite.Kind.
+type CiteKind string
 
 // Claim defines model for Claim.
 type Claim struct {
@@ -665,6 +756,22 @@ type ProfileList struct {
 
 	// Problems Profile files that did not load, with the reason.
 	Problems []string `json:"problems"`
+}
+
+// QuoteCheck defines model for QuoteCheck.
+type QuoteCheck struct {
+	Found bool   `json:"found"`
+	Text  string `json:"text"`
+}
+
+// ReaderAnswer defines model for ReaderAnswer.
+type ReaderAnswer struct {
+	Answer string `json:"answer"`
+
+	// Answered False for NOT SPECIFIED, and for an answer with no quote found in the bundle (REQ-043).
+	Answered bool         `json:"answered"`
+	Quotes   []QuoteCheck `json:"quotes"`
+	Reader   int          `json:"reader"`
 }
 
 // RenameRequest defines model for RenameRequest.
@@ -1051,6 +1158,9 @@ type ServerInterface interface {
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(w http.ResponseWriter, r *http.Request, runId RunId)
+	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
+	// (GET /runs/{runId}/questions)
+	ListQuestions(w http.ResponseWriter, r *http.Request, runId RunId)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -2133,6 +2243,32 @@ func (siw *ServerInterfaceWrapper) ListFindings(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// ListQuestions operation middleware
+func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListQuestions(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -2272,6 +2408,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/assumptions", wrapper.ListAssumptions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/events", wrapper.RunEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/claims", wrapper.ListClaims)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/questions", wrapper.ListQuestions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp", wrapper.ListMCPConnections)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/mcp", wrapper.CreateMCPConnection)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.DeleteMCPConnection)
@@ -3857,6 +3994,47 @@ func (response ListFindingsdefaultApplicationProblemPlusJSONResponse) VisitListF
 	return err
 }
 
+type ListQuestionsRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type ListQuestionsResponseObject interface {
+	VisitListQuestionsResponse(w http.ResponseWriter) error
+}
+
+type ListQuestions200JSONResponse struct {
+	Items []BuildQuestion `json:"items"`
+}
+
+func (response ListQuestions200JSONResponse) VisitListQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListQuestionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListQuestionsdefaultApplicationProblemPlusJSONResponse) VisitListQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
@@ -3976,6 +4154,9 @@ type StrictServerInterface interface {
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(ctx context.Context, request ListFindingsRequestObject) (ListFindingsResponseObject, error)
+	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
+	// (GET /runs/{runId}/questions)
+	ListQuestions(ctx context.Context, request ListQuestionsRequestObject) (ListQuestionsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -5085,6 +5266,32 @@ func (sh *strictHandler) ListFindings(w http.ResponseWriter, r *http.Request, ru
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListFindingsResponseObject); ok {
 		if err := validResponse.VisitListFindingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListQuestions operation middleware
+func (sh *strictHandler) ListQuestions(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request ListQuestionsRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListQuestions(ctx, request.(ListQuestionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListQuestions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListQuestionsResponseObject); ok {
+		if err := validResponse.VisitListQuestionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

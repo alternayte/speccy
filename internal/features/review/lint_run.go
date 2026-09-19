@@ -32,11 +32,12 @@ import (
 
 // Stage names (REQ-020).
 const (
-	StageLint      = "lint"
-	StageRubric    = "rubric"
-	StageGrounding = "grounding"
-	StageCoherence = "coherence"
-	StageVerdict   = "verdict"
+	StageLint       = "lint"
+	StageRubric     = "rubric"
+	StageGrounding  = "grounding"
+	StageDivergence = "divergence"
+	StageCoherence  = "coherence"
+	StageVerdict    = "verdict"
 )
 
 // Searcher is a web search source other than the model's own: an MCP connection marked
@@ -101,11 +102,12 @@ type pendingClaim struct {
 
 // evaluation collects the results of a run's stages.
 type evaluation struct {
-	findings []pending
-	items    []verdict.Item
-	in       verdict.Input
-	claims   []pendingClaim
-	relaxed  map[string]bool
+	findings  []pending
+	items     []verdict.Item
+	in        verdict.Input
+	claims    []pendingClaim
+	questions []questionOutcome
+	relaxed   map[string]bool
 }
 
 // input is what every stage reads: the bundle version, its main doc, and the profile.
@@ -196,7 +198,7 @@ func docAnchor(in input) anchor.Anchor {
 
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
 func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
-	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true}
+	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, DivergenceAmbiguous: true, DivergenceGap: true}
 	for _, r := range lint.Rules {
 		known[r.Slug] = true
 	}
@@ -257,6 +259,19 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, ev evaluation, p
 			an, _ := json.Marshal(c.anchor)
 			if err := q.InsertClaim(ctx, pgdb.InsertClaimParams{ID: kernel.NewID(), RunID: run.ID, Text: c.text, Label: c.label,
 				Reason: c.reason, Sources: sources, Anchor: an}); err != nil {
+				return err
+			}
+		}
+		for _, o := range ev.questions {
+			for _, a := range o.answers {
+				quotes, _ := json.Marshal(nonNilQuotes(a.quotes))
+				if err := q.InsertAnswer(ctx, pgdb.InsertAnswerParams{QuestionID: o.q.id, RunID: run.ID, ReaderRole: a.role,
+					ModelFingerprint: a.fingerprint, Answer: a.answer, Quotes: quotes, QuotesFound: a.quotesFound}); err != nil {
+					return err
+				}
+			}
+			groups, _ := json.Marshal(o.groups)
+			if err := q.InsertQuestionResult(ctx, pgdb.InsertQuestionResultParams{RunID: run.ID, QuestionID: o.q.id, Result: string(o.result), Groups: groups}); err != nil {
 				return err
 			}
 		}

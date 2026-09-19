@@ -367,6 +367,28 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /runs/{runId}/questions:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: listQuestions
+      summary: List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
+      responses:
+        "200":
+          description: The questions in order. Empty for a run without a divergence test.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuildQuestion"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /admin/mcp:
     get:
       operationId: listMCPConnections
@@ -1023,6 +1045,81 @@ components:
             type: string
         anchor:
           $ref: "#/components/schemas/Anchor"
+
+    BuildQuestion:
+      type: object
+      required: [id, number, text, level, cites, anchor, result, answers, groups]
+      properties:
+        id:
+          type: string
+          format: uuid
+        number:
+          type: integer
+        text:
+          type: string
+        level:
+          type: string
+          enum: [MUST, SHOULD]
+        cites:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cite"
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+        result:
+          type: string
+          enum: [agree, diverge, gap]
+        answers:
+          type: array
+          description: One per reader, in reader order. Readers are named by number only (DEC-013).
+          items:
+            $ref: "#/components/schemas/ReaderAnswer"
+        groups:
+          type: array
+          description: The judge's groups of reader numbers with the same meaning.
+          items:
+            type: array
+            items:
+              type: integer
+
+    Cite:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [section, trace]
+        path:
+          type: array
+          items:
+            type: string
+        id:
+          type: string
+
+    ReaderAnswer:
+      type: object
+      required: [reader, answer, answered, quotes]
+      properties:
+        reader:
+          type: integer
+        answer:
+          type: string
+        answered:
+          type: boolean
+          description: False for NOT SPECIFIED, and for an answer with no quote found in the bundle (REQ-043).
+        quotes:
+          type: array
+          items:
+            $ref: "#/components/schemas/QuoteCheck"
+
+    QuoteCheck:
+      type: object
+      required: [text, found]
+      properties:
+        text:
+          type: string
+        found:
+          type: boolean
 
     MCPConnectionInput:
       type: object

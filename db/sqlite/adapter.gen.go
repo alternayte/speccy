@@ -134,6 +134,10 @@ func (a Adapter) GetVersionByNumber(ctx context.Context, arg pgdb.GetVersionByNu
 	return pgdb.Version(r), err
 }
 
+func (a Adapter) InsertAnswer(ctx context.Context, arg pgdb.InsertAnswerParams) error {
+	return a.q.InsertAnswer(ctx, InsertAnswerParams(arg))
+}
+
 func (a Adapter) InsertBackend(ctx context.Context, arg pgdb.InsertBackendParams) error {
 	return a.q.InsertBackend(ctx, InsertBackendParams(arg))
 }
@@ -178,6 +182,14 @@ func (a Adapter) InsertProfileVersion(ctx context.Context, arg pgdb.InsertProfil
 	return a.q.InsertProfileVersion(ctx, InsertProfileVersionParams(arg))
 }
 
+func (a Adapter) InsertQuestion(ctx context.Context, arg pgdb.InsertQuestionParams) error {
+	return a.q.InsertQuestion(ctx, InsertQuestionParams(arg))
+}
+
+func (a Adapter) InsertQuestionResult(ctx context.Context, arg pgdb.InsertQuestionResultParams) error {
+	return a.q.InsertQuestionResult(ctx, InsertQuestionResultParams(arg))
+}
+
 func (a Adapter) InsertRun(ctx context.Context, arg pgdb.InsertRunParams) error {
 	return a.q.InsertRun(ctx, InsertRunParams(arg))
 }
@@ -215,6 +227,18 @@ func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.Review
 func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRunFor(ctx, LatestRunForParams(arg))
 	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) ListAnswers(ctx context.Context, runID uuid.UUID) ([]pgdb.Answer, error) {
+	rows, err := a.q.ListAnswers(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Answer, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Answer(r)
+	}
+	return out, nil
 }
 
 func (a Adapter) ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.RoleAssignment, error) {
@@ -321,6 +345,30 @@ func (a Adapter) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]pgd
 	out := make([]pgdb.Profile, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Profile(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]pgdb.QuestionResult, error) {
+	rows, err := a.q.ListQuestionResults(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.QuestionResult, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.QuestionResult(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]pgdb.Question, error) {
+	rows, err := a.q.ListQuestions(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Question, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Question(r)
 	}
 	return out, nil
 }

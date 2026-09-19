@@ -75,7 +75,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "readers": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "readers": { "type": "integer", "minimum": 1, "maximum": 3, "description": "REQ-101 has three reader roles." },
         "questions": {
           "type": "object",
           "additionalProperties": false,

@@ -157,6 +157,45 @@ export type Claim = {
     anchor: Anchor;
 };
 
+export type BuildQuestion = {
+    id: string;
+    number: number;
+    text: string;
+    level: 'MUST' | 'SHOULD';
+    cites: Array<Cite>;
+    anchor: Anchor;
+    result: 'agree' | 'diverge' | 'gap';
+    /**
+     * One per reader, in reader order. Readers are named by number only (DEC-013).
+     */
+    answers: Array<ReaderAnswer>;
+    /**
+     * The judge's groups of reader numbers with the same meaning.
+     */
+    groups: Array<Array<number>>;
+};
+
+export type Cite = {
+    kind: 'section' | 'trace';
+    path?: Array<string>;
+    id?: string;
+};
+
+export type ReaderAnswer = {
+    reader: number;
+    answer: string;
+    /**
+     * False for NOT SPECIFIED, and for an answer with no quote found in the bundle (REQ-043).
+     */
+    answered: boolean;
+    quotes: Array<QuoteCheck>;
+};
+
+export type QuoteCheck = {
+    text: string;
+    found: boolean;
+};
+
 export type McpConnectionInput = {
     name: string;
     transport: 'stdio' | 'http';
@@ -1054,6 +1093,35 @@ export type ListClaimsResponses = {
 };
 
 export type ListClaimsResponse = ListClaimsResponses[keyof ListClaimsResponses];
+
+export type ListQuestionsData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/questions';
+};
+
+export type ListQuestionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListQuestionsError = ListQuestionsErrors[keyof ListQuestionsErrors];
+
+export type ListQuestionsResponses = {
+    /**
+     * The questions in order. Empty for a run without a divergence test.
+     */
+    200: {
+        items: Array<BuildQuestion>;
+    };
+};
+
+export type ListQuestionsResponse = ListQuestionsResponses[keyof ListQuestionsResponses];
 
 export type ListMcpConnectionsData = {
     body?: never;
