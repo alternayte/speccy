@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { Compass, Download, FolderTree, ListChecks, Network, Printer } from "lucide-react";
+import { Compass, Download, FileText, FolderTree, ListChecks, Network, Printer } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -170,10 +170,21 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           />
           <a
             href={`/api/v1/bundles/${bundleId}/export`}
+            title="Download the bundle as a .zip file"
             className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
           >
             <Download aria-hidden className="size-3.5" />
             <span className="hidden sm:inline">Export .zip</span>
+            <span className="sr-only sm:hidden">Export .zip</span>
+          </a>
+          <a
+            href={`/api/v1/bundles/${bundleId}/export?format=html`}
+            title="Download one HTML file with the verdict, the findings, and the doc"
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
+          >
+            <FileText aria-hidden className="size-3.5" />
+            <span className="hidden sm:inline">Report</span>
+            <span className="sr-only sm:hidden">HTML report</span>
           </a>
           <Button
             size="sm"

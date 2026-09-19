@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M9. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs.
+Speccy is at milestone M11. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. The overlay marks the text of each finding, and the **Tour** lists the points that need a human decision. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs. `speccy review` reviews bundles in a terminal or in CI, `speccy tui` is the terminal UI, and `speccy mcp` lets coding agents review and fix docs.
 
 ## Quick start
 
@@ -73,6 +73,8 @@ This table lists only the guarantees whose tests pass today.
 | A guest cannot edit or ask the AI. | [`TestGuest_Restrictions`](internal/hostauth/hostauth_test.go) |
 | Anchors follow edits, or become detached. They never point at the wrong text. | [`TestAnchor_Reanchor`](internal/engine/anchor/reanchor_test.go) |
 | Speccy never changes a doc without an accept. | [`TestSuggestFix_RequiresAccept`](internal/features/review/fix_test.go) |
+| CLI exit codes match SDD §12.2. | [`TestCLI_ExitCodes`](cmd/speccy/review_test.go) |
+| `speccy review --summary` works with no server and no `speccy init`. | [`TestCLI_SummaryNoSetup`](cmd/speccy/review_test.go) |
 
 ## How the verdict works
 
@@ -96,7 +98,11 @@ The **score** is passed checks divided by applicable checks. It is for tracking,
 |---|---|---|
 | Local | `speccy` | Edit, import, compare, and export bundles on 127.0.0.1. |
 | Hosted | `speccy serve --hosted` | Accounts from invite links, admin and member roles, private and shared bundles, guests, and API tokens. Needs Postgres. See [configuration](docs/configuration.md). |
-| Headless | `speccy review <path>` | Not built yet. |
+| Headless | `speccy review <path…>` | Review bundles in a terminal or in CI, and print text, JSON, or markdown. |
+| Terminal UI | `speccy tui` | Bundles, verdicts, findings, and the tour in the terminal. `e` opens a finding in `$EDITOR`. |
+| Agents | `speccy mcp` | An MCP server over stdio. Hosted mode also serves MCP at `/mcp` with an API token. |
+
+`speccy review` exits with 0 for Build Ready, or for any verdict in advisory mode; 1 for Not Build Ready with `--enforcement blocking`; 2 for a usage or configuration error; and 3 when a review fails. With no model assigned, it runs lint only and says so.
 
 ## Try it on your existing specs
 
@@ -114,7 +120,13 @@ adoption:                 # these checks report as INFO for now
   relaxed: [links.has-upstream, lint.required-headings]
 ```
 
-`speccy review docs/ --summary` arrives with the CLI (M11).
+Or review them all in one command. It needs no server and no setup:
+
+```sh
+speccy review docs/ --summary
+```
+
+It prints one line per bundle, with the verdict, the score, and the top three failing checks, then the checks that fail most often. Add `--format md` for a pull request comment, or `--format json` for a script. `speccy init` writes a commented `.speccy.yaml` and adds `.speccy/state/` to `.gitignore`.
 
 ## GitHub Action
 

@@ -12,6 +12,41 @@
 
 Speccy keeps its state in `<dir>/.speccy/state/`. Do not commit that folder.
 
+## Commands
+
+| Command | Does |
+|---|---|
+| `speccy review <path…>` | Reviews the bundles in the paths. A folder names every bundle in it; a file names its bundle. |
+| `speccy init` | Writes `.speccy.yaml`, adds `.speccy/state/` to `.gitignore`, and offers to give loose markdown files a type. |
+| `speccy tui` | The terminal UI. It uses `$VISUAL` or `$EDITOR` to open files. |
+| `speccy mcp` | The MCP server over stdio. |
+| `speccy profile validate <file>` | Checks a profile file against the schema and prints each error with its path. |
+| `speccy export <path> --format zip\|html` | Writes the bundle as a `.zip`, or as a single HTML report with the verdict and the findings. |
+
+`speccy review`, `tui`, `mcp`, and `export` work on the folder with `.speccy.yaml`, from the current folder up, or else on the current folder. They use `.speccy/state/` when it exists, so they share models, reviews, and threads with the app. With no `.speccy/state/`, `speccy review` uses a temporary store and leaves nothing behind.
+
+Flags of `speccy review`:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--format` | `text` | `text`, `json`, or `md`. |
+| `--summary` | off | One table for all bundles, with totals. |
+| `--stages` | all, or lint when no model is assigned | A comma-separated list of `lint`, `rubric`, `grounding`, `divergence`, and `coherence`. Lint always runs. |
+| `--enforcement` | `enforcement` in `.speccy.yaml`, else `advisory` | With `blocking`, a Not Build Ready verdict exits 1. |
+| `--server` | none | Send the files to a Speccy server, which reviews them with its models and its linked docs, and stores nothing. The API token is in `SPECCY_TOKEN`. |
+
+### MCP
+
+For a coding agent on your machine, add Speccy as an MCP server that runs `speccy mcp` in the repo folder. For example, in Claude Code:
+
+```sh
+claude mcp add speccy -- speccy mcp
+```
+
+The tools are `list_bundles`, `get_bundle`, `review_bundle`, `review_content`, `get_verdict`, `get_findings`, `get_tour`, `get_traceability`, `list_threads`, and `post_message`. `review_content` reviews text that is not saved, so an agent can check a doc before it writes the file.
+
+In hosted mode, the same tools are at `/mcp` over streamable HTTP. Send a personal API token as `Authorization: Bearer <token>`. A tool can do what the token's owner can do in the app, and nothing more.
+
 ## Hosted mode
 
 `speccy serve --hosted` serves a team. It needs Postgres and reads its settings from the environment.

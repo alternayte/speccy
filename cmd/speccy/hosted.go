@@ -147,9 +147,9 @@ func runHosted(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun
 	}
-	h := speccyhttp.Handler(spa, a.API, speccyhttp.Options{
+	h := withMCP(speccyhttp.Handler(spa, a.API, speccyhttp.Options{
 		Actor: auth.Actor(a.Share.Guest), Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}, Auth: auth.Handler(),
-	})
+	}))
 	ln, err := net.Listen("tcp", c.listen)
 	if err != nil {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)

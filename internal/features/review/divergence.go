@@ -271,6 +271,9 @@ func nonNilQuotes(q []quoteEvidence) []quoteEvidence {
 // pinQuestions returns the build questions of the version: the pinned set when one exists
 // (REQ-047), else a new set from the reviewer, which is then pinned.
 func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex, reviewerFP string) ([]buildQuestion, error) {
+	if in.version == uuid.Nil {
+		return s.cachedQuestions(ctx, rc, in, idx, reviewerFP)
+	}
 	q := s.DB.Queries()
 	rows, err := q.ListQuestions(ctx, in.version)
 	if err != nil {
@@ -317,48 +320,9 @@ func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 		return out, nil
 	}
 
-	d := in.profile.Profile.Divergence
-	res, err := rc.call(ctx, s.Gateway, model.Call{
-		Role: model.RoleReviewer, PromptVersion: PromptQuestions, System: systemPrompt,
-		Prompt: questionsPrompt(in.profile.Profile.Name, d.Questions.Min, d.Questions.Max, d.Themes, idx.paths,
-			bundleData(in.bundle.MainDoc, in.main, textAssets(in))),
-		Schema: questionsSchema(d.Questions.Min, d.Questions.Max), Files: snapshot(in), MaxTokens: 8000,
-	})
+	out, err := s.newQuestions(ctx, rc, in, idx)
 	if err != nil {
 		return nil, err
-	}
-	var got struct {
-		Questions []struct {
-			Text  string   `json:"text"`
-			Cites []string `json:"cites"`
-		} `json:"questions"`
-	}
-	if err := json.Unmarshal(res.JSON, &got); err != nil {
-		return nil, err
-	}
-	var out []buildQuestion
-	seen := map[string]bool{}
-	dropped := 0
-	for _, g := range got.Questions {
-		text := strings.TrimSpace(g.Text)
-		if text == "" || seen[strings.ToLower(text)] {
-			continue
-		}
-		var cites []cite
-		for _, c := range g.Cites {
-			if ct, ok := idx.resolve(c); ok {
-				cites = append(cites, ct)
-			}
-		}
-		if len(cites) == 0 {
-			dropped++ // REQ-041: a question must cite a section or a trace ID of the doc
-			continue
-		}
-		seen[strings.ToLower(text)] = true
-		out = append(out, buildQuestion{id: kernel.NewID(), number: len(out) + 1, text: text, level: idx.level(cites), cites: cites, anchor: idx.anchor(cites)})
-	}
-	if dropped > 0 {
-		rc.note(fmt.Sprintf("%d build questions cited no section or trace ID of the doc, so they were dropped.", dropped))
 	}
 	err = s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
@@ -654,4 +618,86 @@ func (idx citeIndex) anchor(cites []cite) anchor.Anchor {
 		}
 	}
 	return docAnchor(in)
+}
+
+// newQuestions asks the reviewer for build questions and keeps those that cite the doc.
+func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex) ([]buildQuestion, error) {
+	d := in.profile.Profile.Divergence
+	res, err := rc.call(ctx, s.Gateway, model.Call{
+		Role: model.RoleReviewer, PromptVersion: PromptQuestions, System: systemPrompt,
+		Prompt: questionsPrompt(in.profile.Profile.Name, d.Questions.Min, d.Questions.Max, d.Themes, idx.paths,
+			bundleData(in.bundle.MainDoc, in.main, textAssets(in))),
+		Schema: questionsSchema(d.Questions.Min, d.Questions.Max), Files: snapshot(in), MaxTokens: 8000,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var got struct {
+		Questions []struct {
+			Text  string   `json:"text"`
+			Cites []string `json:"cites"`
+		} `json:"questions"`
+	}
+	if err := json.Unmarshal(res.JSON, &got); err != nil {
+		return nil, err
+	}
+	var out []buildQuestion
+	seen := map[string]bool{}
+	dropped := 0
+	for _, g := range got.Questions {
+		text := strings.TrimSpace(g.Text)
+		if text == "" || seen[strings.ToLower(text)] {
+			continue
+		}
+		var cites []cite
+		for _, c := range g.Cites {
+			if ct, ok := idx.resolve(c); ok {
+				cites = append(cites, ct)
+			}
+		}
+		if len(cites) == 0 {
+			dropped++ // REQ-041: a question must cite a section or a trace ID of the doc
+			continue
+		}
+		seen[strings.ToLower(text)] = true
+		out = append(out, buildQuestion{id: kernel.NewID(), number: len(out) + 1, text: text, level: idx.level(cites), cites: cites, anchor: idx.anchor(cites)})
+	}
+	if dropped > 0 {
+		rc.note(fmt.Sprintf("%d build questions cited no section or trace ID of the doc, so they were dropped.", dropped))
+	}
+	return out, nil
+}
+
+// pinnedQuestion is a build question in the cache.
+type pinnedQuestion struct {
+	Number int           `json:"number"`
+	Text   string        `json:"text"`
+	Level  kernel.Level  `json:"level"`
+	Cites  []cite        `json:"cites"`
+	Anchor anchor.Anchor `json:"anchor"`
+}
+
+// cachedQuestions pins the questions of content that is not saved by its content hash, in
+// the cache: the same content gets the same questions (REQ-047).
+func (s *Service) cachedQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex, reviewerFP string) ([]buildQuestion, error) {
+	k := cacheKey{Step: "questions", InputHash: bundleHash(in), ProfileVer: in.profile.Version, Fingerprint: reviewerFP, PromptVersion: PromptQuestions}
+	var pinned []pinnedQuestion
+	if hit, err := s.cached(ctx, k, &pinned); err != nil {
+		return nil, err
+	} else if hit {
+		rc.hit()
+		out := make([]buildQuestion, len(pinned))
+		for i, p := range pinned {
+			out[i] = buildQuestion{id: kernel.NewID(), number: p.Number, text: p.Text, level: p.Level, cites: p.Cites, anchor: p.Anchor}
+		}
+		return out, nil
+	}
+	out, err := s.newQuestions(ctx, rc, in, idx)
+	if err != nil {
+		return nil, err
+	}
+	for _, q := range out {
+		pinned = append(pinned, pinnedQuestion{Number: q.number, Text: q.text, Level: q.level, Cites: q.cites, Anchor: q.anchor})
+	}
+	return out, s.putCache(ctx, k, pinned)
 }

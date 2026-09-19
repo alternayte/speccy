@@ -51,7 +51,7 @@ invite role="member":
 gen: setup
     go tool sqlc generate
     go run ./tools/buildtool sqladapter
-    cd internal/http/api && go tool oapi-codegen -config oapi-codegen.yaml ../../../api/openapi.yaml
+    cd internal/http/api && go tool oapi-codegen -config oapi-codegen.yaml ../../../api/openapi.yaml && go tool oapi-codegen -config oapi-client.yaml ../../../api/openapi.yaml
     cd web && {{pnpm}} run gen:api
 
 # Fail when generated files differ from the committed files.

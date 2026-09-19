@@ -122,7 +122,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			}},
 			BundleAPI:   &bundle.API{Service: svc, Profiles: profiles.Current},
 			VersionAPI:  &version.API{DB: db, Workspace: ws},
-			ExportAPI:   &export.API{DB: db, Workspace: ws},
+			ExportAPI:   &export.API{DB: db, Workspace: ws, Reviews: reviewAPI},
 			ProfileAPI:  &profile.API{Registry: profiles, People: people},
 			ReviewAPI:   reviewAPI,
 			AdminAPI:    adminAPI,

@@ -31,7 +31,14 @@ func (a *API) StartRun(ctx context.Context, req api.StartRunRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	run, err := a.Service.StartRun(ctx, b)
+	var stages Stages
+	if req.Body != nil && req.Body.Stages != nil {
+		stages = Stages{}
+		for _, st := range *req.Body.Stages {
+			stages = append(stages, string(st))
+		}
+	}
+	run, err := a.Service.StartRun(ctx, b, stages)
 	if err != nil {
 		return nil, err
 	}

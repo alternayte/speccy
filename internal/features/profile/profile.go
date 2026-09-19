@@ -285,18 +285,7 @@ func LoadLocal(dir string) (map[string]Loaded, error) {
 	}
 	var errs []error
 	for _, f := range files {
-		src, err := os.ReadFile(f)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		base := filepath.Dir(f)
-		l, err := Parse(f, src, func(p string) ([]byte, error) {
-			if filepath.IsAbs(p) || strings.Contains(filepath.ToSlash(p), "..") {
-				return nil, fmt.Errorf("the template path must stay inside %s", base)
-			}
-			return os.ReadFile(filepath.Join(base, filepath.FromSlash(p)))
-		})
+		l, err := ParseFile(f)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -304,6 +293,22 @@ func LoadLocal(dir string) (map[string]Loaded, error) {
 		out[l.Profile.Key] = l
 	}
 	return out, errors.Join(errs...)
+}
+
+// ParseFile reads and validates the profile file f (REQ-014). Its template path is relative to
+// the file and must stay in its folder.
+func ParseFile(f string) (Loaded, error) {
+	src, err := os.ReadFile(f)
+	if err != nil {
+		return Loaded{}, err
+	}
+	base := filepath.Dir(f)
+	return Parse(f, src, func(p string) ([]byte, error) {
+		if filepath.IsAbs(p) || strings.Contains(filepath.ToSlash(p), "..") {
+			return nil, fmt.Errorf("the template path must stay inside %s", base)
+		}
+		return os.ReadFile(filepath.Join(base, filepath.FromSlash(p)))
+	})
 }
 
 var requiredMark = regexp.MustCompile(`\s*<!--\s*required\s*-->\s*$`)

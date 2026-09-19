@@ -284,7 +284,7 @@ func (pe *pipelineEnv) run(t *testing.T, slug string) (pgdb.ReviewRun, []pgdb.Fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	started, err := pe.reviews.StartRun(ctx, b)
+	started, err := pe.reviews.StartRun(ctx, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +524,7 @@ func TestRun_FailureNamesStage(t *testing.T) {
 	})
 	q := pe.bundles.DB.Queries()
 	b, _ := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
-	started, err := pe.reviews.StartRun(ctx, b)
+	started, err := pe.reviews.StartRun(ctx, b, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

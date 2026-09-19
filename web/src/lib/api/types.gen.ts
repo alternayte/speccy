@@ -542,6 +542,68 @@ export type FindingBrief = {
     message: string;
 };
 
+export type StartRunRequest = {
+    /**
+     * The model stages to run. Absent means all. Lint and the verdict always run.
+     */
+    stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
+};
+
+export type ContentFile = {
+    /**
+     * The path in the bundle.
+     */
+    path: string;
+    /**
+     * The file text, or base64 when encoding is base64.
+     */
+    content: string;
+    encoding?: 'text' | 'base64';
+};
+
+export type ContentReviewRequest = {
+    /**
+     * The bundle's slug. Links from other bundles and to this one use it.
+     */
+    slug?: string;
+    /**
+     * The main doc of a single-file bundle (REQ-001 form b). Absent means the one file with a type in its frontmatter.
+     */
+    main_doc?: string;
+    /**
+     * The profile for a main doc with no type in its frontmatter (REQ-130).
+     */
+    profile?: string;
+    stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
+    files: Array<ContentFile>;
+};
+
+export type ContentReview = {
+    profile_key: string;
+    profile_version: number;
+    main_doc: string;
+    verdict: ContentVerdict;
+    findings: Array<Finding>;
+    notes: Array<string>;
+    tokens_in?: number;
+    tokens_out?: number;
+    cost_estimate?: number;
+    cache_hits?: number;
+};
+
+export type ContentVerdict = {
+    result: VerdictResult;
+    score: number;
+    radar: {
+        [key: string]: number;
+    };
+    waiver_count: number;
+    relaxed_count: number;
+    must: number;
+    should: number;
+    info: number;
+};
+
 export type FindingList = {
     items: Array<Finding>;
 };
@@ -1721,6 +1783,7 @@ export type ExportBundleData = {
     };
     query?: {
         version?: string;
+        format?: 'zip' | 'html';
     };
     url: '/bundles/{bundleId}/export';
 };
@@ -1736,7 +1799,7 @@ export type ExportBundleError = ExportBundleErrors[keyof ExportBundleErrors];
 
 export type ExportBundleResponses = {
     /**
-     * The .zip file.
+     * The .zip file, or the HTML report.
      */
     200: Blob | File;
 };
@@ -1773,7 +1836,7 @@ export type ListRunsResponses = {
 export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
 
 export type StartRunData = {
-    body?: never;
+    body?: StartRunRequest;
     path: {
         bundleId: string;
     };
@@ -1798,6 +1861,31 @@ export type StartRunResponses = {
 };
 
 export type StartRunResponse = StartRunResponses[keyof StartRunResponses];
+
+export type ReviewContentData = {
+    body: ContentReviewRequest;
+    path?: never;
+    query?: never;
+    url: '/reviews';
+};
+
+export type ReviewContentErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ReviewContentError = ReviewContentErrors[keyof ReviewContentErrors];
+
+export type ReviewContentResponses = {
+    /**
+     * The findings and the verdict.
+     */
+    200: ContentReview;
+};
+
+export type ReviewContentResponse = ReviewContentResponses[keyof ReviewContentResponses];
 
 export type EstimateRunData = {
     body?: never;
