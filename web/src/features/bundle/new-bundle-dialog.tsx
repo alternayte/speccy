@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
 import { useState } from "react";
+import { useMe } from "@/features/account/me";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
@@ -15,6 +16,7 @@ export function NewBundleDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [key, setKey] = useState("");
   const [title, setTitle] = useState("");
   const [name, setName] = useState("");
+  const hosted = useMe().data?.mode === "hosted";
   const qc = useQueryClient();
   const navigate = useNavigate();
   const create = useMutation({
@@ -89,7 +91,7 @@ export function NewBundleDialog({ open, onOpenChange }: { open: boolean; onOpenC
           />
         </div>
         <div>
-          <Label htmlFor="new-name">Folder name</Label>
+          <Label htmlFor="new-name">{hosted ? "Name" : "Folder name"}</Label>
           <Input id="new-name" value={folder} onChange={(e) => setName(e.target.value)} placeholder="payment-retries" />
         </div>
         {create.isError ? <ErrorState message={problemMessage(create.error)} /> : null}

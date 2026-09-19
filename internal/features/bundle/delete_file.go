@@ -11,7 +11,7 @@ import (
 // DeleteFile deletes a file from the bundle.
 func (a *API) DeleteFile(ctx context.Context, req api.DeleteFileRequestObject) (api.DeleteFileResponseObject, error) {
 	v, changed, err := a.Service.Change(ctx, req.BundleId, req.Params.BaseVersion,
-		source.Op{Kind: source.OpDelete, Path: req.Params.Path}, a.user(), "Deleted "+req.Params.Path)
+		source.Op{Kind: source.OpDelete, Path: req.Params.Path}, a.user(ctx), "Deleted "+req.Params.Path)
 	if err != nil {
 		return nil, err
 	}

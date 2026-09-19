@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
+import { useMe } from "@/features/account/me";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import { listBundlesOptions } from "@/lib/api/@tanstack/react-query.gen";
@@ -15,6 +16,7 @@ export function BundlesPage() {
   const bundles = useQuery({ ...listBundlesOptions({ query: { limit: 100 } }), refetchInterval: 3000 });
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
+  const hosted = useMe().data?.mode === "hosted";
 
   return (
     <div className="h-full overflow-y-auto">
@@ -22,7 +24,11 @@ export function BundlesPage() {
         <div className="flex items-end justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Bundles</h1>
-            <p className="mt-1 text-sm text-ink-2">Each bundle is a folder with one main doc and its assets.</p>
+            <p className="mt-1 text-sm text-ink-2">
+              {hosted
+                ? "Each bundle is one spec: a main doc and its assets."
+                : "Each bundle is a folder with one main doc and its assets."}
+            </p>
           </div>
           <div className="flex gap-2">
             <Button icon={<FolderPlus className="size-4" />} onClick={() => setImporting(true)}>
@@ -50,8 +56,14 @@ export function BundlesPage() {
             </div>
           ) : bundles.data.items.length === 0 ? (
             <Empty title="No bundles yet">
-              Speccy found no folder with a main doc. A main doc is a markdown file with a <code>type</code> field in
-              its frontmatter. Create a bundle from a template, add one on disk, or import a file.
+              {hosted ? (
+                <>No bundle is visible to you yet. Create a bundle from a template, or import a file.</>
+              ) : (
+                <>
+                  Speccy found no folder with a main doc. A main doc is a markdown file with a <code>type</code> field
+                  in its frontmatter. Create a bundle from a template, add one on disk, or import a file.
+                </>
+              )}
             </Empty>
           ) : (
             <ul className="divide-y divide-line">

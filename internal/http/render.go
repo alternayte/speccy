@@ -31,7 +31,7 @@ import (
 
 // RenderMarkdown renders markdown to HTML on the server (DEC-017), with the parser that the
 // review engine uses. Each block carries its source position for overlays and scroll sync.
-func (core) RenderMarkdown(_ context.Context, req api.RenderMarkdownRequestObject) (api.RenderMarkdownResponseObject, error) {
+func (Core) RenderMarkdown(_ context.Context, req api.RenderMarkdownRequestObject) (api.RenderMarkdownResponseObject, error) {
 	var dir string
 	if req.Body.Path != nil {
 		dir = path.Dir(*req.Body.Path)

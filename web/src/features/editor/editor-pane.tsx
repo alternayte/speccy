@@ -53,6 +53,7 @@ export function EditorPane({
   onSaved,
   onDirtyChange,
   focus,
+  readOnly = false,
 }: {
   bundleId: string;
   path: string;
@@ -66,6 +67,8 @@ export function EditorPane({
   onDirtyChange: (dirty: boolean) => void;
   // focus asks the pane to show a byte range of the file; seq changes on every request.
   focus?: { start: number; end: number; seq: number };
+  // readOnly is for a guest or a member who is not an author: no edits, no save.
+  readOnly?: boolean;
 }) {
   const qc = useQueryClient();
   // loadVersion is the version the editor text came from. base is the version a save builds on.
@@ -134,8 +137,8 @@ export function EditorPane({
   });
 
   const doSave = useCallback(() => {
-    if (text !== null && text !== saved && !save.isPending) save.mutate(text);
-  }, [text, saved, save]);
+    if (!readOnly && text !== null && text !== saved && !save.isPending) save.mutate(text);
+  }, [readOnly, text, saved, save]);
 
   const reload = () => {
     save.reset();
@@ -251,16 +254,20 @@ export function EditorPane({
         ) : null}
         <div className="ml-auto flex items-center gap-2">
           {md ? <ViewToggle view={shown} onChange={onViewChange} /> : null}
-          <Button
-            size="sm"
-            variant={dirty ? "primary" : "secondary"}
-            disabled={!dirty || save.isPending}
-            onClick={doSave}
-            icon={<Save className="size-3.5" />}
-            title="Save (Ctrl+S or ⌘S)"
-          >
-            {save.isPending ? "Saving" : "Save"}
-          </Button>
+          {readOnly ? (
+            <span className="text-xs text-ink-3">Read only</span>
+          ) : (
+            <Button
+              size="sm"
+              variant={dirty ? "primary" : "secondary"}
+              disabled={!dirty || save.isPending}
+              onClick={doSave}
+              icon={<Save className="size-3.5" />}
+              title="Save (Ctrl+S or ⌘S)"
+            >
+              {save.isPending ? "Saving" : "Save"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -300,6 +307,7 @@ export function EditorPane({
               onChange={setText}
               onSave={doSave}
               onView={attachView}
+              readOnly={readOnly}
             />
           </div>
         ) : null}

@@ -139,3 +139,22 @@ func (d *DB) InTx(ctx context.Context, fn func(Tx) error) error {
 	}
 	return sqltx.Commit()
 }
+
+// MigrateSet applies a second migration set, such as auth-all's, with its own goose version
+// table, so its versions never mix with Speccy's. The set may gain a unit with a lower version
+// than one already applied (auth-all exports only the units of the features in use), so it
+// applies units out of order.
+func (d *DB) MigrateSet(ctx context.Context, fsys fs.FS, table string) error {
+	dialect := goose.DialectPostgres
+	if d.Engine == SQLite {
+		dialect = goose.DialectSQLite3
+	}
+	p, err := goose.NewProvider(dialect, d.SQL, fsys, goose.WithTableName(table), goose.WithAllowOutofOrder(true))
+	if err != nil {
+		return fmt.Errorf("migrate %s: %w", table, err)
+	}
+	if _, err := p.Up(ctx); err != nil {
+		return fmt.Errorf("migrate %s: %w", table, err)
+	}
+	return nil
+}

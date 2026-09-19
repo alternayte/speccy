@@ -34,7 +34,7 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 	if err != nil {
 		return nil, kernel.Invalid("no_main_doc", "The import has %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
-	if err := source.CheckLimits(files); err != nil {
+	if err := source.CheckLimits(files, a.Service.limits(ctx)); err != nil {
 		return nil, err
 	}
 	name := slugify(in.name)
@@ -50,7 +50,7 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 
 	s := a.Service
 	if s.Local == nil {
-		b, err := s.CreateDB(ctx, name, files, a.user())
+		b, err := s.CreateDB(ctx, name, files, a.user(ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -90,12 +90,12 @@ func readImportForm(r *multipart.Reader) (importForm, error) {
 		if err != nil {
 			return in, kernel.Invalid("bad_form", "The form data does not parse: %s.", err.Error())
 		}
-		data, err := io.ReadAll(io.LimitReader(part, source.MaxBundleBytes+1))
+		data, err := io.ReadAll(io.LimitReader(part, source.CeilingBundleBytes+1))
 		if err != nil {
 			return in, err
 		}
-		if len(data) > source.MaxBundleBytes {
-			return in, kernel.TooLarge("bundle_too_large", "The upload is larger than 50 MB, which is the limit for one bundle.")
+		if len(data) > source.CeilingBundleBytes {
+			return in, kernel.TooLarge("bundle_too_large", "The upload is larger than %d MB, which is the most Speccy accepts for one bundle.", source.CeilingBundleBytes>>20)
 		}
 		switch part.FormName() {
 		case "name":
@@ -169,17 +169,17 @@ func unzip(data []byte) ([]source.File, string, error) {
 			return nil, "", kernel.Invalid("bad_zip", "%s does not open: %s.", p, err.Error())
 		}
 		// Read one byte more than the limit, so a false size in the header cannot hide a large file.
-		content, err := io.ReadAll(io.LimitReader(rc, source.MaxFileBytes+1))
+		content, err := io.ReadAll(io.LimitReader(rc, source.CeilingFileBytes+1))
 		_ = rc.Close()
 		if err != nil {
 			return nil, "", kernel.Invalid("bad_zip", "%s does not read: %s.", p, err.Error())
 		}
-		if len(content) > source.MaxFileBytes {
-			return nil, "", kernel.TooLarge("file_too_large", "%s is larger than 10 MB, which is the limit for one file.", p)
+		if len(content) > source.CeilingFileBytes {
+			return nil, "", kernel.TooLarge("file_too_large", "%s is larger than %d MB, which is the most Speccy accepts for one file.", p, source.CeilingFileBytes>>20)
 		}
 		total += int64(len(content))
-		if total > source.MaxBundleBytes {
-			return nil, "", kernel.TooLarge("bundle_too_large", "The files in the .zip file are larger than 50 MB together, which is the limit for one bundle.")
+		if total > source.CeilingBundleBytes {
+			return nil, "", kernel.TooLarge("bundle_too_large", "The files in the .zip file are larger than %d MB together, which is the most Speccy accepts for one bundle.", source.CeilingBundleBytes>>20)
 		}
 		files = append(files, source.File{Path: p, Content: content})
 	}

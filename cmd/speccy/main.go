@@ -18,15 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/alternayte/speccy/internal/features/admin"
-	"github.com/alternayte/speccy/internal/features/bundle"
-	"github.com/alternayte/speccy/internal/features/export"
-	"github.com/alternayte/speccy/internal/features/profile"
-	"github.com/alternayte/speccy/internal/features/review"
-	"github.com/alternayte/speccy/internal/features/version"
+	"github.com/alternayte/speccy/internal/app"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/kernel"
-	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/store"
 	"github.com/alternayte/speccy/web"
@@ -42,6 +36,9 @@ const (
 const usage = `Usage:
   speccy [--dir folder] [--addr host:port] [--no-open]   Start local mode and open the browser.
   speccy serve [--dir folder] [--addr host:port]         Start local mode without opening a browser.
+  speccy serve --hosted                                  Start hosted mode (SPECCY_ environment variables).
+  speccy admin invite --role admin|member                Print an invite link (hosted).
+  speccy admin reset-link <email>                        Print a password reset link (hosted).
   speccy version                                         Print the version.
 
 Local mode serves the bundles under --dir (default: the current folder).
@@ -57,7 +54,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "serve":
+		for _, a := range args[1:] {
+			if a == "--hosted" || a == "-hosted" {
+				if len(args) != 2 {
+					fmt.Fprintf(stderr, "speccy serve --hosted takes no other flags; it reads the SPECCY_ environment variables.\n")
+					return exitUsage
+				}
+				return runHosted(stdout, stderr)
+			}
+		}
 		return runLocal(args[1:], false, stdout, stderr)
+	case "admin":
+		return runAdmin(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK
@@ -141,52 +149,27 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	if err := db.Migrate(ctx); err != nil {
 		return nil, err
 	}
-	ws, err := db.Workspace(ctx)
-	if err != nil {
-		return nil, err
-	}
 	// SDD §14.1: local mode keeps the secret key in .speccy/state/key, mode 0600.
 	sealer, err := kernel.LocalSealer(filepath.Join(stateDir, "key"))
 	if err != nil {
 		return nil, err
 	}
-	gateway := &model.Gateway{DB: db, Workspace: ws, Sealer: sealer}
-	profiles := &profile.Registry{DB: db, Workspace: ws, Dir: filepath.Join(root.Dir(), ".speccy", "profiles")}
-	if err := profiles.Reload(ctx); err != nil {
+	a, err := app.New(ctx, db, sealer, root, filepath.Join(root.Dir(), ".speccy", "profiles"))
+	if err != nil {
 		return nil, err
 	}
-	svc := &bundle.Service{DB: db, Workspace: ws, Local: root}
-	adminAPI := &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway}
-	reviews := &review.Service{
-		DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig,
-		Gateway: gateway, Search: adminAPI.SearchSource, Progress: review.NewBroker(),
-	}
-	// DEC-027: lint runs on every new version.
-	svc.AfterChange = reviews.EnsureLinted
-	if err := svc.Sync(ctx); err != nil {
-		return nil, err
-	}
-	// SDD §7.2: one worker runs queued reviews.
-	go reviews.Work(ctx)
 	go func() {
 		_ = root.Watch(ctx, 300*time.Millisecond, func() {
-			if err := profiles.Reload(ctx); err != nil && ctx.Err() == nil {
+			if err := a.Profiles.Reload(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("reload of the profiles failed", "err", err)
 			}
-			if err := svc.Sync(ctx); err != nil && ctx.Err() == nil {
+			if err := a.Bundles.Sync(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("sync after a change on disk failed", "err", err)
 			}
 		})
 	}()
-	api := speccyhttp.API{
-		BundleAPI:  &bundle.API{Service: svc, Profiles: profiles.Current},
-		VersionAPI: &version.API{DB: db, Workspace: ws},
-		ExportAPI:  &export.API{DB: db, Workspace: ws},
-		ProfileAPI: &profile.API{Registry: profiles},
-		ReviewAPI:  &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change},
-		AdminAPI:   adminAPI,
-	}
-	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, api) }, nil
+	opts := speccyhttp.Options{Actor: speccyhttp.LocalActor, Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}}
+	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, a.API, opts) }, nil
 }
 
 // openURL opens url in the default browser.

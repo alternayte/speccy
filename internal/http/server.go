@@ -13,11 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/alternayte/speccy/internal/features/admin"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
+	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -28,13 +31,14 @@ const maxRequestBytes = 60 << 20
 
 // API is every endpoint in api/openapi.yaml. Each feature serves its own operations.
 type API struct {
-	core
+	Core
 	*BundleAPI
 	*VersionAPI
 	*ExportAPI
 	*ProfileAPI
 	*ReviewAPI
 	*AdminAPI
+	*ShareAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -45,19 +49,43 @@ type (
 	ProfileAPI = profile.API
 	ReviewAPI  = review.API
 	AdminAPI   = admin.API
+	ShareAPI   = share.API
 )
 
-// core serves the operations that belong to no feature.
-type core struct{}
+// Core serves the operations that belong to no feature.
+type Core struct {
+	// Hosted is true for `speccy serve --hosted`.
+	Hosted bool
+	// Providers are the configured OAuth provider IDs (REQ-080).
+	Providers []string
+}
 
-// Handler returns the root handler: /healthz, /api/v1, and the SPA for every other path.
-func Handler(spa fs.FS, a API) nethttp.Handler {
+// Options are the parts of the handler that differ between local and hosted mode.
+type Options struct {
+	// Actor sets the actor of each API request (kernel.WithActor).
+	Actor func(nethttp.Handler) nethttp.Handler
+	// Authz enforces the role table.
+	Authz *Authz
+	// Auth is the auth-all handler, mounted at /api/auth/ in hosted mode.
+	Auth nethttp.Handler
+}
+
+// LocalActor makes every request the local user (DEC-015: local mode has no auth).
+func LocalActor(next nethttp.Handler) nethttp.Handler {
+	return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		next.ServeHTTP(w, r.WithContext(kernel.WithActor(r.Context(), kernel.LocalActor)))
+	})
+}
+
+// Handler returns the root handler: /healthz, /api/v1, /api/auth in hosted mode, and the SPA
+// for every other path.
+func Handler(spa fs.FS, a API, opts Options) nethttp.Handler {
 	mux := nethttp.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok\n"))
 	})
-	strict := api.NewStrictHandlerWithOptions(a, nil, api.StrictHTTPServerOptions{
+	strict := api.NewStrictHandlerWithOptions(a, []api.StrictMiddlewareFunc{opts.Authz.Middleware}, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w nethttp.ResponseWriter, _ *nethttp.Request, err error) {
 			writeProblem(w, nethttp.StatusBadRequest, "bad_request", err.Error())
 		},
@@ -75,13 +103,17 @@ func Handler(spa fs.FS, a API) nethttp.Handler {
 		ErrorHandlerFunc: func(w nethttp.ResponseWriter, _ *nethttp.Request, err error) {
 			writeProblem(w, nethttp.StatusBadRequest, "bad_request", err.Error())
 		},
-		Middlewares: []api.MiddlewareFunc{func(next nethttp.Handler) nethttp.Handler {
+		// The last middleware runs first: the body limit, then the actor.
+		Middlewares: []api.MiddlewareFunc{opts.Actor, func(next nethttp.Handler) nethttp.Handler {
 			return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 				r.Body = nethttp.MaxBytesReader(w, r.Body, maxRequestBytes)
 				next.ServeHTTP(w, r)
 			})
 		}},
 	})
+	if opts.Auth != nil {
+		mux.Handle("/api/auth/", opts.Auth)
+	}
 	mux.HandleFunc("/api/", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		writeProblem(w, nethttp.StatusNotFound, "not_found", "No API endpoint matches "+r.Method+" "+r.URL.Path+".")
 	})
@@ -89,8 +121,41 @@ func Handler(spa fs.FS, a API) nethttp.Handler {
 	return mux
 }
 
-func (core) GetMeta(context.Context, api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
-	return api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.MetaModeLocal}, nil
+func (c Core) mode() string {
+	if c.Hosted {
+		return "hosted"
+	}
+	return "local"
+}
+
+func (c Core) GetMeta(context.Context, api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
+	out := api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.MetaMode(c.mode())}
+	if len(c.Providers) > 0 {
+		ps := make([]api.MetaSignInProviders, len(c.Providers))
+		for i, p := range c.Providers {
+			ps[i] = api.MetaSignInProviders(p)
+		}
+		out.SignInProviders = &ps
+	}
+	return out, nil
+}
+
+// GetMe returns the actor of the request.
+func (c Core) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeResponseObject, error) {
+	a := kernel.ActorFrom(ctx)
+	out := api.Me{Mode: api.MeMode(c.mode()), SignedIn: a.UserID != ""}
+	if a.UserID != "" {
+		out.UserId, out.Email = &a.UserID, &a.Email
+		role := api.MeRole(a.Role)
+		out.Role = &role
+	}
+	if a.Guest != nil {
+		out.Guest = &struct {
+			BundleId uuid.UUID `json:"bundle_id"`
+			Name     string    `json:"name"`
+		}{BundleId: a.Guest.BundleID, Name: a.Guest.Name}
+	}
+	return api.GetMe200JSONResponse(out), nil
 }
 
 // writeProblem writes an RFC 9457 problem details response with a stable code.

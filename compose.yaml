@@ -1,0 +1,19 @@
+# Postgres for `just dev-hosted`. Tests start their own container.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: speccy
+      POSTGRES_PASSWORD: speccy
+      POSTGRES_DB: speccy
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - speccy-dev-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U speccy"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+volumes:
+  speccy-dev-pg:

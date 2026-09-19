@@ -26,6 +26,14 @@ type API struct {
 	Workspace uuid.UUID
 	Sealer    *kernel.Sealer
 	Gateway   *model.Gateway
+	// Accounts makes invite and reset links. It is nil in local mode, which has no accounts.
+	Accounts Accounts
+}
+
+// Accounts is the part of the hosted auth setup that the admin screens use.
+type Accounts interface {
+	CreateInvite(ctx context.Context, role, createdBy string, ttl time.Duration) (string, pgdb.Invite, error)
+	CreateResetLink(ctx context.Context, email, createdBy string) (string, error)
 }
 
 // backendConfig is the non-secret config stored in model_backend.config.

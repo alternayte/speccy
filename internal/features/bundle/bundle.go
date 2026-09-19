@@ -44,6 +44,8 @@ type Service struct {
 	// AfterChange runs after a sync, a change, or an import creates versions. Lint on save
 	// (DEC-027) hooks in here.
 	AfterChange func(context.Context) error
+	// Limits returns the REQ-009 limits in force. Nil means the defaults.
+	Limits func(context.Context) source.Limits
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan
@@ -212,7 +214,7 @@ func (s *Service) change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 			return pgdb.Version{}, false, applyError(err)
 		}
 	case KindDB:
-		if err := source.CheckLimits(next); err != nil {
+		if err := source.CheckLimits(next, s.limits(ctx)); err != nil {
 			return pgdb.Version{}, false, err
 		}
 	default:
@@ -280,7 +282,7 @@ func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File
 	if err != nil {
 		return pgdb.Bundle{}, kernel.Invalid("no_main_doc", "The files have %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
-	if err := source.CheckLimits(files); err != nil {
+	if err := source.CheckLimits(files, s.limits(ctx)); err != nil {
 		return pgdb.Bundle{}, err
 	}
 	now := time.Now().UTC()
@@ -298,6 +300,12 @@ func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File
 		}
 		if err := q.InsertBundle(ctx, insertParams(b)); err != nil {
 			return err
+		}
+		// SDD §3: a member who creates a bundle becomes its author.
+		if by != LocalUser {
+			if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: b.ID, UserID: by}); err != nil {
+				return err
+			}
 		}
 		_, _, err := version.Record(ctx, tx, version.Change{
 			Bundle: b, Files: files, Title: b.Title, Profile: b.ProfileKey, MainDoc: b.MainDoc, CreatedBy: by, Message: "Imported",
@@ -353,4 +361,11 @@ func sentence(msg string) string {
 		msg += "."
 	}
 	return msg
+}
+
+func (s *Service) limits(ctx context.Context) source.Limits {
+	if s.Limits == nil {
+		return source.DefaultLimits
+	}
+	return s.Limits(ctx)
 }

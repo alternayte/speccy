@@ -3,7 +3,9 @@ package kernel
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 // Sealer encrypts secrets at rest with AES-256-GCM (SDD §14.1, T-043).
 type Sealer struct {
 	aead cipher.AEAD
+	key  []byte
 }
 
 // NewSealer returns a sealer for a 32-byte key.
@@ -31,7 +34,7 @@ func NewSealer(key []byte) (*Sealer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sealer{aead: aead}, nil
+	return &Sealer{aead: aead, key: append([]byte{}, key...)}, nil
 }
 
 // SealerFromBase64 returns a sealer for a base64 key, as in SPECCY_MASTER_KEY.
@@ -105,4 +108,14 @@ func Last4(secret string) string {
 		return strings.Repeat("•", len(r))
 	}
 	return string(r[len(r)-4:])
+}
+
+// MAC returns an HMAC-SHA256 of data under a key derived from the sealer key for purpose, so
+// a signature for one purpose never verifies for another.
+func (s *Sealer) MAC(purpose string, data []byte) []byte {
+	k := hmac.New(sha256.New, s.key)
+	k.Write([]byte("speccy-mac:" + purpose))
+	m := hmac.New(sha256.New, k.Sum(nil))
+	m.Write(data)
+	return m.Sum(nil)
 }

@@ -48,6 +48,19 @@ type Bundle struct {
 	ArchivedAt       sql.NullTime
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	Visibility       string
+	ShareTokenHash   sql.NullString
+	ShareExpiresAt   sql.NullTime
+}
+
+type BundleAuthor struct {
+	BundleID uuid.UUID
+	UserID   string
+}
+
+type BundleReviewer struct {
+	BundleID uuid.UUID
+	UserID   string
 }
 
 type CacheEntry struct {
@@ -94,6 +107,19 @@ type Finding struct {
 	Message    string
 	Evidence   dbtype.JSON
 	Suggestion dbtype.JSON
+}
+
+type Invite struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TokenHash   string
+	Role        string
+	ExpiresAt   time.Time
+	CreatedBy   string
+	CreatedAt   time.Time
+	UsedAt      sql.NullTime
+	UsedBy      sql.NullString
+	RevokedAt   sql.NullTime
 }
 
 type Job struct {
@@ -181,6 +207,17 @@ type QuestionResult struct {
 	Groups     dbtype.JSON
 }
 
+type ResetLink struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	TokenHash   string
+	UserID      string
+	ExpiresAt   time.Time
+	CreatedBy   string
+	CreatedAt   time.Time
+	UsedAt      sql.NullTime
+}
+
 type ReviewRun struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
@@ -216,6 +253,13 @@ type RunLink struct {
 	RunID     uuid.UUID
 	BundleID  uuid.UUID
 	VersionID uuid.UUID
+}
+
+type ShareGuest struct {
+	ID          uuid.UUID
+	BundleID    uuid.UUID
+	DisplayName string
+	CreatedAt   time.Time
 }
 
 type Verdict struct {

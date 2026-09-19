@@ -159,7 +159,7 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 	defer cancel()
 	rc := &runCtx{
 		id: run.ID, progress: s.Progress, roles: map[string]string{}, prompts: map[string]string{},
-		prices: map[string][2]float64{}, sem: make(chan struct{}, s.parallel()),
+		prices: map[string][2]float64{}, sem: make(chan struct{}, s.parallel(parent)),
 	}
 	stage := StageLint
 	fail := func(cause error) error {
@@ -270,9 +270,11 @@ func (s *Service) fillRun(run *pgdb.ReviewRun, rc *runCtx) {
 	run.Notes, _ = json.Marshal(notes)
 }
 
-func (s *Service) parallel() int {
-	if s.Parallel > 0 {
-		return s.Parallel
+func (s *Service) parallel(ctx context.Context) int {
+	if s.Parallel != nil {
+		if n := s.Parallel(ctx); n > 0 {
+			return n
+		}
 	}
 	return 4
 }

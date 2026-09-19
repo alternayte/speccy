@@ -12,7 +12,74 @@ export type Meta = {
     /**
      * The mode the server runs in.
      */
-    mode: 'local';
+    mode: 'local' | 'hosted';
+    /**
+     * The OAuth providers of hosted mode (REQ-080), by their auth-all ID. A provider signs in a person who linked it to their account.
+     */
+    sign_in_providers?: Array<'oidc' | 'github'>;
+};
+
+export type Me = {
+    signed_in: boolean;
+    mode: 'local' | 'hosted';
+    user_id?: string;
+    email?: string;
+    role?: 'admin' | 'member';
+    guest?: {
+        name: string;
+        bundle_id: string;
+    };
+};
+
+export type Visibility = 'private' | 'internal' | 'link';
+
+export type ShareInfo = {
+    bundle_id: string;
+    title: string;
+};
+
+export type BundleAccess = {
+    visibility: Visibility;
+    /**
+     * Author user IDs.
+     */
+    authors: Array<string>;
+    reviewers: Array<string>;
+    share_active: boolean;
+    share_expires_at?: string;
+    /**
+     * Whether the caller can change the bundle and its access.
+     */
+    can_edit: boolean;
+};
+
+export type Invite = {
+    id: string;
+    role: 'admin' | 'member';
+    expires_at: string;
+    created_by: string;
+    created_at: string;
+    used_by?: string;
+    status: 'pending' | 'used' | 'revoked' | 'expired';
+};
+
+export type Settings = {
+    /**
+     * REQ-009. Default 10.
+     */
+    max_file_mb: number;
+    /**
+     * REQ-009. Default 50.
+     */
+    max_bundle_mb: number;
+    /**
+     * REQ-081. Default 7.
+     */
+    invite_ttl_days: number;
+    /**
+     * REQ-105. Model calls at a time per run. Default 4.
+     */
+    parallel_calls: number;
 };
 
 /**
@@ -53,6 +120,7 @@ export type Bundle = {
      * Why the latest run on the current version failed, when it failed.
      */
     run_error?: string;
+    visibility?: Visibility;
 };
 
 /**
@@ -644,6 +712,365 @@ export type GetMetaResponses = {
 };
 
 export type GetMetaResponse = GetMetaResponses[keyof GetMetaResponses];
+
+export type GetMeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/me';
+};
+
+export type GetMeErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetMeError = GetMeErrors[keyof GetMeErrors];
+
+export type GetMeResponses = {
+    /**
+     * The caller.
+     */
+    200: Me;
+};
+
+export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
+
+export type GetShareData = {
+    body?: never;
+    path: {
+        token: string;
+    };
+    query?: never;
+    url: '/share/{token}';
+};
+
+export type GetShareErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetShareError = GetShareErrors[keyof GetShareErrors];
+
+export type GetShareResponses = {
+    /**
+     * The shared bundle.
+     */
+    200: ShareInfo;
+};
+
+export type GetShareResponse = GetShareResponses[keyof GetShareResponses];
+
+export type JoinShareData = {
+    body: {
+        display_name: string;
+    };
+    path: {
+        token: string;
+    };
+    query?: never;
+    url: '/share/{token}';
+};
+
+export type JoinShareErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type JoinShareError = JoinShareErrors[keyof JoinShareErrors];
+
+export type JoinShareResponses = {
+    /**
+     * The guest may now read the bundle.
+     */
+    200: ShareInfo;
+};
+
+export type JoinShareResponse = JoinShareResponses[keyof JoinShareResponses];
+
+export type GetBundleAccessData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/access';
+};
+
+export type GetBundleAccessErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetBundleAccessError = GetBundleAccessErrors[keyof GetBundleAccessErrors];
+
+export type GetBundleAccessResponses = {
+    /**
+     * The access of the bundle.
+     */
+    200: BundleAccess;
+};
+
+export type GetBundleAccessResponse = GetBundleAccessResponses[keyof GetBundleAccessResponses];
+
+export type SetVisibilityData = {
+    body: {
+        visibility: Visibility;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/visibility';
+};
+
+export type SetVisibilityErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetVisibilityError = SetVisibilityErrors[keyof SetVisibilityErrors];
+
+export type SetVisibilityResponses = {
+    /**
+     * The access of the bundle.
+     */
+    200: BundleAccess;
+};
+
+export type SetVisibilityResponse = SetVisibilityResponses[keyof SetVisibilityResponses];
+
+export type RevokeShareLinkData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/share';
+};
+
+export type RevokeShareLinkErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RevokeShareLinkError = RevokeShareLinkErrors[keyof RevokeShareLinkErrors];
+
+export type RevokeShareLinkResponses = {
+    /**
+     * The access of the bundle.
+     */
+    200: BundleAccess;
+};
+
+export type RevokeShareLinkResponse = RevokeShareLinkResponses[keyof RevokeShareLinkResponses];
+
+export type CreateShareLinkData = {
+    body: {
+        expires_at?: string;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/share';
+};
+
+export type CreateShareLinkErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateShareLinkError = CreateShareLinkErrors[keyof CreateShareLinkErrors];
+
+export type CreateShareLinkResponses = {
+    /**
+     * The new link.
+     */
+    200: {
+        url: string;
+        access: BundleAccess;
+    };
+};
+
+export type CreateShareLinkResponse = CreateShareLinkResponses[keyof CreateShareLinkResponses];
+
+export type ListInvitesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/invites';
+};
+
+export type ListInvitesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListInvitesError = ListInvitesErrors[keyof ListInvitesErrors];
+
+export type ListInvitesResponses = {
+    /**
+     * The invites. A list never carries a token.
+     */
+    200: {
+        items: Array<Invite>;
+    };
+};
+
+export type ListInvitesResponse = ListInvitesResponses[keyof ListInvitesResponses];
+
+export type CreateInviteData = {
+    body: {
+        role: 'admin' | 'member';
+    };
+    path?: never;
+    query?: never;
+    url: '/admin/invites';
+};
+
+export type CreateInviteErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateInviteError = CreateInviteErrors[keyof CreateInviteErrors];
+
+export type CreateInviteResponses = {
+    /**
+     * The invite and its link.
+     */
+    200: {
+        url: string;
+        invite: Invite;
+    };
+};
+
+export type CreateInviteResponse = CreateInviteResponses[keyof CreateInviteResponses];
+
+export type RevokeInviteData = {
+    body?: never;
+    path: {
+        inviteId: string;
+    };
+    query?: never;
+    url: '/admin/invites/{inviteId}/revoke';
+};
+
+export type RevokeInviteErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RevokeInviteError = RevokeInviteErrors[keyof RevokeInviteErrors];
+
+export type RevokeInviteResponses = {
+    /**
+     * Revoked.
+     */
+    204: void;
+};
+
+export type RevokeInviteResponse = RevokeInviteResponses[keyof RevokeInviteResponses];
+
+export type CreateResetLinkData = {
+    body: {
+        email: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/admin/reset-links';
+};
+
+export type CreateResetLinkErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateResetLinkError = CreateResetLinkErrors[keyof CreateResetLinkErrors];
+
+export type CreateResetLinkResponses = {
+    /**
+     * The link.
+     */
+    200: {
+        url: string;
+    };
+};
+
+export type CreateResetLinkResponse = CreateResetLinkResponses[keyof CreateResetLinkResponses];
+
+export type GetSettingsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/settings';
+};
+
+export type GetSettingsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetSettingsError = GetSettingsErrors[keyof GetSettingsErrors];
+
+export type GetSettingsResponses = {
+    /**
+     * The settings.
+     */
+    200: Settings;
+};
+
+export type GetSettingsResponse = GetSettingsResponses[keyof GetSettingsResponses];
+
+export type SetSettingsData = {
+    body: Settings;
+    path?: never;
+    query?: never;
+    url: '/admin/settings';
+};
+
+export type SetSettingsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetSettingsError = SetSettingsErrors[keyof SetSettingsErrors];
+
+export type SetSettingsResponses = {
+    /**
+     * The settings.
+     */
+    200: Settings;
+};
+
+export type SetSettingsResponse = SetSettingsResponses[keyof SetSettingsResponses];
 
 export type ListBundlesData = {
     body?: never;

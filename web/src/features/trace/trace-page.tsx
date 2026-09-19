@@ -6,7 +6,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { BundleLink, TraceCell, TraceMatrix } from "@/lib/api";
-import { addTraceIdsMutation, getBundleOptions, getTraceOptions } from "@/lib/api/@tanstack/react-query.gen";
+import {
+  addTraceIdsMutation,
+  getBundleAccessOptions,
+  getBundleOptions,
+  getTraceOptions,
+} from "@/lib/api/@tanstack/react-query.gen";
+import { useMe } from "@/features/account/me";
 import { problemMessage } from "@/lib/problem";
 
 const cellStyle = {
@@ -28,6 +34,9 @@ const kindText: Record<BundleLink["kind"], string> = {
 export function TracePage({ bundleId }: { bundleId: string }) {
   const bundle = useQuery(getBundleOptions({ path: { bundleId } }));
   const trace = useQuery(getTraceOptions({ path: { bundleId } }));
+  const hosted = useMe().data?.mode === "hosted";
+  const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
+  const canEdit = !hosted || !!access.data?.can_edit;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -91,7 +100,7 @@ export function TracePage({ bundleId }: { bundleId: string }) {
               )}
             </section>
 
-            {bundle.data ? (
+            {bundle.data && canEdit ? (
               <Suggestions
                 key={trace.data.suggestions.map((s) => s.id).join()}
                 bundleId={bundleId}

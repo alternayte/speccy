@@ -22,6 +22,11 @@ func (a Adapter) AddBudgetTokens(ctx context.Context, arg pgdb.AddBudgetTokensPa
 	return a.q.AddBudgetTokens(ctx, AddBudgetTokensParams(arg))
 }
 
+func (a Adapter) BundleByShareToken(ctx context.Context, arg pgdb.BundleByShareTokenParams) (pgdb.Bundle, error) {
+	r, err := a.q.BundleByShareToken(ctx, BundleByShareTokenParams(arg))
+	return pgdb.Bundle(r), err
+}
+
 func (a Adapter) ClaimJob(ctx context.Context, arg pgdb.ClaimJobParams) (pgdb.Job, error) {
 	r, err := a.q.ClaimJob(ctx, ClaimJobParams(arg))
 	return pgdb.Job(r), err
@@ -118,6 +123,11 @@ func (a Adapter) GetRunByID(ctx context.Context, id uuid.UUID) (pgdb.ReviewRun, 
 	return pgdb.ReviewRun(r), err
 }
 
+func (a Adapter) GetShareGuest(ctx context.Context, id uuid.UUID) (pgdb.ShareGuest, error) {
+	r, err := a.q.GetShareGuest(ctx, id)
+	return pgdb.ShareGuest(r), err
+}
+
 func (a Adapter) GetStream(ctx context.Context, streamID uuid.UUID) (pgdb.EsStream, error) {
 	r, err := a.q.GetStream(ctx, streamID)
 	return pgdb.EsStream(r), err
@@ -136,6 +146,11 @@ func (a Adapter) GetVersion(ctx context.Context, arg pgdb.GetVersionParams) (pgd
 func (a Adapter) GetVersionByNumber(ctx context.Context, arg pgdb.GetVersionByNumberParams) (pgdb.Version, error) {
 	r, err := a.q.GetVersionByNumber(ctx, GetVersionByNumberParams(arg))
 	return pgdb.Version(r), err
+}
+
+func (a Adapter) GetWorkspace(ctx context.Context, id uuid.UUID) (pgdb.Workspace, error) {
+	r, err := a.q.GetWorkspace(ctx, id)
+	return pgdb.Workspace(r), err
 }
 
 func (a Adapter) InsertAnswer(ctx context.Context, arg pgdb.InsertAnswerParams) error {
@@ -158,6 +173,10 @@ func (a Adapter) InsertBundle(ctx context.Context, arg pgdb.InsertBundleParams) 
 	return a.q.InsertBundle(ctx, InsertBundleParams(arg))
 }
 
+func (a Adapter) InsertBundleAuthor(ctx context.Context, arg pgdb.InsertBundleAuthorParams) error {
+	return a.q.InsertBundleAuthor(ctx, InsertBundleAuthorParams(arg))
+}
+
 func (a Adapter) InsertClaim(ctx context.Context, arg pgdb.InsertClaimParams) error {
 	return a.q.InsertClaim(ctx, InsertClaimParams(arg))
 }
@@ -168,6 +187,10 @@ func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) er
 
 func (a Adapter) InsertFinding(ctx context.Context, arg pgdb.InsertFindingParams) error {
 	return a.q.InsertFinding(ctx, InsertFindingParams(arg))
+}
+
+func (a Adapter) InsertInvite(ctx context.Context, arg pgdb.InsertInviteParams) error {
+	return a.q.InsertInvite(ctx, InsertInviteParams(arg))
 }
 
 func (a Adapter) InsertJob(ctx context.Context, arg pgdb.InsertJobParams) error {
@@ -198,12 +221,20 @@ func (a Adapter) InsertQuestionResult(ctx context.Context, arg pgdb.InsertQuesti
 	return a.q.InsertQuestionResult(ctx, InsertQuestionResultParams(arg))
 }
 
+func (a Adapter) InsertResetLink(ctx context.Context, arg pgdb.InsertResetLinkParams) error {
+	return a.q.InsertResetLink(ctx, InsertResetLinkParams(arg))
+}
+
 func (a Adapter) InsertRun(ctx context.Context, arg pgdb.InsertRunParams) error {
 	return a.q.InsertRun(ctx, InsertRunParams(arg))
 }
 
 func (a Adapter) InsertRunLink(ctx context.Context, arg pgdb.InsertRunLinkParams) error {
 	return a.q.InsertRunLink(ctx, InsertRunLinkParams(arg))
+}
+
+func (a Adapter) InsertShareGuest(ctx context.Context, arg pgdb.InsertShareGuestParams) error {
+	return a.q.InsertShareGuest(ctx, InsertShareGuestParams(arg))
 }
 
 func (a Adapter) InsertStream(ctx context.Context, arg pgdb.InsertStreamParams) (int64, error) {
@@ -224,6 +255,14 @@ func (a Adapter) InsertVersionFile(ctx context.Context, arg pgdb.InsertVersionFi
 
 func (a Adapter) InsertWorkspace(ctx context.Context, arg pgdb.InsertWorkspaceParams) error {
 	return a.q.InsertWorkspace(ctx, InsertWorkspaceParams(arg))
+}
+
+func (a Adapter) IsBundleAuthor(ctx context.Context, arg pgdb.IsBundleAuthorParams) (bool, error) {
+	return a.q.IsBundleAuthor(ctx, IsBundleAuthorParams(arg))
+}
+
+func (a Adapter) IsBundleMember(ctx context.Context, arg pgdb.IsBundleMemberParams) (bool, error) {
+	return a.q.IsBundleMember(ctx, IsBundleMemberParams(arg))
 }
 
 func (a Adapter) LatestBudget(ctx context.Context, workspaceID uuid.UUID) (pgdb.Budget, error) {
@@ -275,6 +314,14 @@ func (a Adapter) ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]pgd
 		out[i] = pgdb.ModelBackend(r)
 	}
 	return out, nil
+}
+
+func (a Adapter) ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]string, error) {
+	return a.q.ListBundleAuthors(ctx, bundleID)
+}
+
+func (a Adapter) ListBundleReviewers(ctx context.Context, bundleID uuid.UUID) ([]string, error) {
+	return a.q.ListBundleReviewers(ctx, bundleID)
 }
 
 func (a Adapter) ListBundles(ctx context.Context, arg pgdb.ListBundlesParams) ([]pgdb.Bundle, error) {
@@ -333,6 +380,18 @@ func (a Adapter) ListFindings(ctx context.Context, runID uuid.UUID) ([]pgdb.Find
 	out := make([]pgdb.Finding, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Finding(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Invite, error) {
+	rows, err := a.q.ListInvites(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Invite, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Invite(r)
 	}
 	return out, nil
 }
@@ -461,8 +520,22 @@ func (a Adapter) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int
 	return a.q.NextVersionNumber(ctx, bundleID)
 }
 
+func (a Adapter) PeekInvite(ctx context.Context, arg pgdb.PeekInviteParams) (pgdb.Invite, error) {
+	r, err := a.q.PeekInvite(ctx, PeekInviteParams(arg))
+	return pgdb.Invite(r), err
+}
+
+func (a Adapter) PeekResetLink(ctx context.Context, arg pgdb.PeekResetLinkParams) (pgdb.ResetLink, error) {
+	r, err := a.q.PeekResetLink(ctx, PeekResetLinkParams(arg))
+	return pgdb.ResetLink(r), err
+}
+
 func (a Adapter) PutCache(ctx context.Context, arg pgdb.PutCacheParams) error {
 	return a.q.PutCache(ctx, PutCacheParams(arg))
+}
+
+func (a Adapter) RevokeInvite(ctx context.Context, arg pgdb.RevokeInviteParams) (int64, error) {
+	return a.q.RevokeInvite(ctx, RevokeInviteParams(arg))
 }
 
 func (a Adapter) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
@@ -478,12 +551,38 @@ func (a Adapter) SetBundleArchived(ctx context.Context, arg pgdb.SetBundleArchiv
 	return a.q.SetBundleArchived(ctx, SetBundleArchivedParams(arg))
 }
 
+func (a Adapter) SetBundleShare(ctx context.Context, arg pgdb.SetBundleShareParams) error {
+	return a.q.SetBundleShare(ctx, SetBundleShareParams(arg))
+}
+
+func (a Adapter) SetBundleVisibility(ctx context.Context, arg pgdb.SetBundleVisibilityParams) error {
+	return a.q.SetBundleVisibility(ctx, SetBundleVisibilityParams(arg))
+}
+
 func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersionParams) error {
 	return a.q.SetProfileVersion(ctx, SetProfileVersionParams(arg))
 }
 
+func (a Adapter) SetWorkspaceSettings(ctx context.Context, arg pgdb.SetWorkspaceSettingsParams) error {
+	return a.q.SetWorkspaceSettings(ctx, SetWorkspaceSettingsParams(arg))
+}
+
+func (a Adapter) SpendInvite(ctx context.Context, arg pgdb.SpendInviteParams) (pgdb.Invite, error) {
+	r, err := a.q.SpendInvite(ctx, SpendInviteParams(arg))
+	return pgdb.Invite(r), err
+}
+
+func (a Adapter) SpendResetLink(ctx context.Context, arg pgdb.SpendResetLinkParams) (pgdb.ResetLink, error) {
+	r, err := a.q.SpendResetLink(ctx, SpendResetLinkParams(arg))
+	return pgdb.ResetLink(r), err
+}
+
 func (a Adapter) StartRunExecution(ctx context.Context, arg pgdb.StartRunExecutionParams) error {
 	return a.q.StartRunExecution(ctx, StartRunExecutionParams(arg))
+}
+
+func (a Adapter) UnspendInvite(ctx context.Context, id uuid.UUID) error {
+	return a.q.UnspendInvite(ctx, id)
 }
 
 func (a Adapter) UpdateBackend(ctx context.Context, arg pgdb.UpdateBackendParams) error {

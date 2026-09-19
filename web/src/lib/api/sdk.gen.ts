@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetRunData, GetRunErrors, GetRunResponses, GetTraceData, GetTraceErrors, GetTraceResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, StartRunData, StartRunErrors, StartRunResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses } from './types.gen';
+import type { AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetRunData, GetRunErrors, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetTraceData, GetTraceErrors, GetTraceResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -22,6 +22,113 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
  * Get the server version and mode.
  */
 export const getMeta = <ThrowOnError extends boolean = false>(options?: Options<GetMetaData, ThrowOnError>): RequestResult<GetMetaResponses, GetMetaErrors, ThrowOnError> => (options?.client ?? client).get<GetMetaResponses, GetMetaErrors, ThrowOnError>({ url: '/meta', ...options });
+
+/**
+ * Who the caller is (SDD §3). Anonymous callers get signed_in false.
+ */
+export const getMe = <ThrowOnError extends boolean = false>(options?: Options<GetMeData, ThrowOnError>): RequestResult<GetMeResponses, GetMeErrors, ThrowOnError> => (options?.client ?? client).get<GetMeResponses, GetMeErrors, ThrowOnError>({ url: '/me', ...options });
+
+/**
+ * Look up a share link (REQ-085). A revoked or expired link is not found.
+ */
+export const getShare = <ThrowOnError extends boolean = false>(options: Options<GetShareData, ThrowOnError>): RequestResult<GetShareResponses, GetShareErrors, ThrowOnError> => (options.client ?? client).get<GetShareResponses, GetShareErrors, ThrowOnError>({ url: '/share/{token}', ...options });
+
+/**
+ * Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
+ */
+export const joinShare = <ThrowOnError extends boolean = false>(options: Options<JoinShareData, ThrowOnError>): RequestResult<JoinShareResponses, JoinShareErrors, ThrowOnError> => (options.client ?? client).post<JoinShareResponses, JoinShareErrors, ThrowOnError>({
+    url: '/share/{token}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Who can see the bundle, and its share link state (REQ-084, REQ-085).
+ */
+export const getBundleAccess = <ThrowOnError extends boolean = false>(options: Options<GetBundleAccessData, ThrowOnError>): RequestResult<GetBundleAccessResponses, GetBundleAccessErrors, ThrowOnError> => (options.client ?? client).get<GetBundleAccessResponses, GetBundleAccessErrors, ThrowOnError>({ url: '/bundles/{bundleId}/access', ...options });
+
+/**
+ * Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
+ */
+export const setVisibility = <ThrowOnError extends boolean = false>(options: Options<SetVisibilityData, ThrowOnError>): RequestResult<SetVisibilityResponses, SetVisibilityErrors, ThrowOnError> => (options.client ?? client).put<SetVisibilityResponses, SetVisibilityErrors, ThrowOnError>({
+    url: '/bundles/{bundleId}/visibility',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke the share link (REQ-085).
+ */
+export const revokeShareLink = <ThrowOnError extends boolean = false>(options: Options<RevokeShareLinkData, ThrowOnError>): RequestResult<RevokeShareLinkResponses, RevokeShareLinkErrors, ThrowOnError> => (options.client ?? client).delete<RevokeShareLinkResponses, RevokeShareLinkErrors, ThrowOnError>({ url: '/bundles/{bundleId}/share', ...options });
+
+/**
+ * Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
+ */
+export const createShareLink = <ThrowOnError extends boolean = false>(options: Options<CreateShareLinkData, ThrowOnError>): RequestResult<CreateShareLinkResponses, CreateShareLinkErrors, ThrowOnError> => (options.client ?? client).post<CreateShareLinkResponses, CreateShareLinkErrors, ThrowOnError>({
+    url: '/bundles/{bundleId}/share',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List invite links, newest first (REQ-081).
+ */
+export const listInvites = <ThrowOnError extends boolean = false>(options?: Options<ListInvitesData, ThrowOnError>): RequestResult<ListInvitesResponses, ListInvitesErrors, ThrowOnError> => (options?.client ?? client).get<ListInvitesResponses, ListInvitesErrors, ThrowOnError>({ url: '/admin/invites', ...options });
+
+/**
+ * Make a single-use invite link with a role (REQ-081). The URL appears one time.
+ */
+export const createInvite = <ThrowOnError extends boolean = false>(options: Options<CreateInviteData, ThrowOnError>): RequestResult<CreateInviteResponses, CreateInviteErrors, ThrowOnError> => (options.client ?? client).post<CreateInviteResponses, CreateInviteErrors, ThrowOnError>({
+    url: '/admin/invites',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke an unused invite link.
+ */
+export const revokeInvite = <ThrowOnError extends boolean = false>(options: Options<RevokeInviteData, ThrowOnError>): RequestResult<RevokeInviteResponses, RevokeInviteErrors, ThrowOnError> => (options.client ?? client).post<RevokeInviteResponses, RevokeInviteErrors, ThrowOnError>({ url: '/admin/invites/{inviteId}/revoke', ...options });
+
+/**
+ * Make a one-time password reset link for a user (REQ-082). The URL appears one time.
+ */
+export const createResetLink = <ThrowOnError extends boolean = false>(options: Options<CreateResetLinkData, ThrowOnError>): RequestResult<CreateResetLinkResponses, CreateResetLinkErrors, ThrowOnError> => (options.client ?? client).post<CreateResetLinkResponses, CreateResetLinkErrors, ThrowOnError>({
+    url: '/admin/reset-links',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The workspace settings (REQ-009, REQ-081, REQ-105).
+ */
+export const getSettings = <ThrowOnError extends boolean = false>(options?: Options<GetSettingsData, ThrowOnError>): RequestResult<GetSettingsResponses, GetSettingsErrors, ThrowOnError> => (options?.client ?? client).get<GetSettingsResponses, GetSettingsErrors, ThrowOnError>({ url: '/admin/settings', ...options });
+
+/**
+ * Change the workspace settings.
+ */
+export const setSettings = <ThrowOnError extends boolean = false>(options: Options<SetSettingsData, ThrowOnError>): RequestResult<SetSettingsResponses, SetSettingsErrors, ThrowOnError> => (options.client ?? client).put<SetSettingsResponses, SetSettingsErrors, ThrowOnError>({
+    url: '/admin/settings',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * List bundles, and the folders that look like bundles but are not valid.

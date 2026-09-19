@@ -60,8 +60,8 @@ type Service struct {
 	Search  func(ctx context.Context) (Searcher, error)
 	// Progress receives stage events for live views (REQ-026).
 	Progress *Broker
-	// Parallel bounds the model calls of one run (REQ-105). Zero means 4.
-	Parallel int
+	// Parallel returns the bound on the model calls of one run (REQ-105). Nil means 4.
+	Parallel func(context.Context) int
 
 	mu     sync.Mutex // one lint pass at a time
 	wakeMu sync.Mutex

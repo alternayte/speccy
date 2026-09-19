@@ -22,6 +22,8 @@ import {
 import { problemMessage } from "@/lib/problem";
 import { BackendDialog, kinds } from "./backend-dialog";
 import { MCPSection } from "./mcp-section";
+import { InvitesSection, PeopleSection, SettingsSection } from "./people-section";
+import { useMe } from "@/features/account/me";
 
 const roleHelp: Record<string, string> = {
   reviewer: "Checks the rubric and facts, and writes build questions.",
@@ -32,11 +34,27 @@ const roleHelp: Record<string, string> = {
   writer: "Suggests fixes, summarises diffs, and answers threads.",
 };
 
-// AdminPage configures models (REQ-100 to REQ-104). Only admins see it (DEC-013).
+// AdminPage configures people (hosted mode, REQ-081, REQ-082), models (REQ-100 to REQ-104),
+// and workspace settings. Only admins see it (DEC-013).
 export function AdminPage() {
+  const me = useMe();
+  const hosted = me.data?.mode === "hosted";
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[960px] space-y-10 px-4 py-8 sm:px-6">
+        {hosted ? (
+          <>
+            <header>
+              <h1 className="text-xl font-semibold tracking-tight">People</h1>
+              <p className="mt-1 text-sm text-ink-2">
+                Invite people, change roles, and make password reset links. Speccy sends no mail: pass each link on
+                yourself.
+              </p>
+            </header>
+            <PeopleSection />
+            <InvitesSection />
+          </>
+        ) : null}
         <header>
           <h1 className="text-xl font-semibold tracking-tight">Models</h1>
           <p className="mt-1 text-sm text-ink-2">
@@ -47,12 +65,21 @@ export function AdminPage() {
         <RolesSection />
         <MCPSection />
         <BudgetSection />
+        <SettingsSection hosted={hosted} />
       </div>
     </div>
   );
 }
 
-function Section({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
+export function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section>
       <div className="mb-3 flex items-end justify-between gap-4">
