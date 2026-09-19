@@ -34,7 +34,10 @@ func openSession(ctx context.Context, dir string) (*session, error) {
 	}
 	state := filepath.Join(root.Dir(), ".speccy", "state")
 	s := &session{root: root}
-	if _, err := os.Stat(filepath.Join(state, "speccy.db")); err != nil {
+	if dir := os.Getenv("SPECCY_STATE_DIR"); dir != "" {
+		// CI keeps the store between runs, for example in the Actions cache (SDD §12.4).
+		state = dir
+	} else if _, err := os.Stat(filepath.Join(state, "speccy.db")); err != nil {
 		tmp, err := os.MkdirTemp("", "speccy-review-")
 		if err != nil {
 			return nil, err
@@ -49,6 +52,10 @@ func openSession(ctx context.Context, dir string) (*session, error) {
 	s.app = a
 	h := localHandler(fs.FS(fstest.MapFS{}), a, db)
 	if s.client, err = api.NewClientWithResponses("http://speccy.local/api/v1", api.WithHTTPClient(speccyhttp.InProcess{Handler: h})); err != nil {
+		return nil, err
+	}
+	// CI sets the models in the environment (SPECCY_MODELS).
+	if err := applyEnvModels(ctx, s.client); err != nil {
 		return nil, err
 	}
 	return s, nil
