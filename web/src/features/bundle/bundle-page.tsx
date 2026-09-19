@@ -193,7 +193,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         <aside
           className={clsx(
             "no-print w-[var(--rail)] shrink-0 border-r border-line bg-surface",
-            panel === "files" ? "absolute inset-y-0 left-0 z-20 shadow-pop lg:static lg:shadow-none" : "hidden lg:block",
+            panel === "files"
+              ? "absolute inset-y-0 left-0 z-20 shadow-pop lg:static lg:shadow-none"
+              : "hidden lg:block",
           )}
         >
           {files.isError ? (
