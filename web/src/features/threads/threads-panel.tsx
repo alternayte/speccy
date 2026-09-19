@@ -116,6 +116,11 @@ function ThreadRow({ t, onOpen }: { t: Thread; onOpen: () => void }) {
               <Bot aria-hidden className="size-3" /> AI
             </span>
           ) : null}
+          {t.anchor_kind === "text" && t.anchor.detached ? (
+            <span className="font-normal text-warn" title="The text changed. Speccy cannot find the quote.">
+              Detached
+            </span>
+          ) : null}
           <span className="ml-auto font-normal text-ink-3">{timeAgo(t.last_message_at)}</span>
         </span>
         <span className="mt-1 block text-sm text-ink">{t.title}</span>
@@ -294,7 +299,12 @@ export function ThreadView({
           <ArrowLeft aria-hidden className="size-3.5" /> Threads
         </button>
         <p className="text-sm font-medium">{t.title}</p>
-        {textAnchor && onOpenAnchor ? (
+        {textAnchor?.detached ? (
+          <div className="border-l-2 border-warn pl-2 text-xs">
+            <p className="font-medium text-warn">Detached: the text changed, and Speccy cannot find this quote.</p>
+            <p className="mt-0.5 font-mono text-ink-2">{textAnchor.quote}</p>
+          </div>
+        ) : textAnchor && onOpenAnchor ? (
           <button
             type="button"
             onClick={() => onOpenAnchor(textAnchor)}

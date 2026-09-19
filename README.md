@@ -71,6 +71,8 @@ This table lists only the guarantees whose tests pass today.
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
 | Each endpoint enforces its role table. | [`TestAuthz_EndpointRoleTable`](internal/http/authz_test.go) |
 | A guest cannot edit or ask the AI. | [`TestGuest_Restrictions`](internal/hostauth/hostauth_test.go) |
+| Anchors follow edits, or become detached. They never point at the wrong text. | [`TestAnchor_Reanchor`](internal/engine/anchor/reanchor_test.go) |
+| Speccy never changes a doc without an accept. | [`TestSuggestFix_RequiresAccept`](internal/features/review/fix_test.go) |
 
 ## How the verdict works
 

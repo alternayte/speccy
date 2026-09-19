@@ -13,6 +13,7 @@ import (
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/verdict"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -205,30 +206,48 @@ func (a *API) GetRun(ctx context.Context, req api.GetRunRequestObject) (api.GetR
 	return api.GetRun200JSONResponse(out), nil
 }
 
-// ListFindings returns the findings of a run in document order.
+// ListFindings returns the findings of a run in document order. When the run read an older
+// version, each anchor moves to the current version, or is marked detached (SDD §8.8).
 func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObject) (api.ListFindingsResponseObject, error) {
-	run, _, err := a.run(ctx, req.RunId)
+	run, b, err := a.run(ctx, req.RunId)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := a.DB.Queries().ListFindings(ctx, run.ID)
+	q := a.DB.Queries()
+	rows, err := q.ListFindings(ctx, run.ID)
 	if err != nil {
 		return nil, err
+	}
+	var cur *version.Current
+	if b.CurrentVersionID.Valid && b.CurrentVersionID.UUID != run.VersionID {
+		if cur, err = version.LoadCurrent(ctx, q, b); err != nil {
+			return nil, err
+		}
 	}
 	out := api.FindingList{Items: make([]api.Finding, 0, len(rows))}
 	for _, f := range rows {
 		var an anchor.Anchor
 		_ = json.Unmarshal(f.Anchor, &an)
+		detached := false
+		if cur != nil {
+			var ok bool
+			an, ok = cur.Anchor(an)
+			detached = !ok
+		}
 		var sugg struct {
 			Fix string `json:"fix"`
 		}
 		_ = json.Unmarshal(f.Suggestion, &sugg)
 		af := api.Finding{
 			Id: f.ID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
-			Anchor: api.Anchor{File: an.File, HeadingPath: an.HeadingPath, Quote: an.Quote, Prefix: an.Prefix, Suffix: an.Suffix, Start: an.Start, End: an.End},
+			Anchor: anchorAPI(an),
 		}
-		if af.Anchor.HeadingPath == nil {
-			af.Anchor.HeadingPath = []string{}
+		if detached {
+			af.Anchor.Detached = &detached
+		}
+		if l := Layer(f.CheckSlug, f.Stage, kernel.Level(f.Level)); l != "" {
+			layer := api.FindingLayer(l)
+			af.Layer = &layer
 		}
 		if sugg.Fix != "" {
 			af.Fix = &sugg.Fix
@@ -242,6 +261,25 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		return out.Items[i].Anchor.Start < out.Items[j].Anchor.Start
 	})
 	return api.ListFindings200JSONResponse(out), nil
+}
+
+// Layer is the overlay layer of a finding (SDD §13.2): ambiguous for divergence and gaps,
+// contradicted and unverified for claims and conflicts, risk for other MUST findings, and slop
+// for other lint findings. Other findings have no layer.
+func Layer(slug, stage string, level kernel.Level) string {
+	switch {
+	case slug == DivergenceAmbiguous || slug == DivergenceGap:
+		return "ambiguous"
+	case slug == GroundingContradicted || slug == ContradictionSlug:
+		return "contradicted"
+	case slug == GroundingUnverified:
+		return "unverified"
+	case level == kernel.Must:
+		return "risk"
+	case stage == StageLint:
+		return "slop"
+	}
+	return ""
 }
 
 func ptrInt(n int) *int { return &n }

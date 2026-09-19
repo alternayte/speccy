@@ -5,7 +5,7 @@ import { Columns2, Eye, FileCode2, MessageSquarePlus, Save } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
-import { getFileContent, putFileContent } from "@/lib/api";
+import { type Finding, getFileContent, putFileContent } from "@/lib/api";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { CodeEditor } from "./code-editor";
 import { Preview } from "./preview";
@@ -55,6 +55,8 @@ export function EditorPane({
   focus,
   readOnly = false,
   onComment,
+  findings,
+  onOpenFinding,
 }: {
   bundleId: string;
   path: string;
@@ -72,6 +74,9 @@ export function EditorPane({
   readOnly?: boolean;
   // onComment opens a thread on the selected text (REQ-087), as a byte range of the saved file.
   onComment?: (sel: { file: string; start: number; end: number; quote: string }) => void;
+  // findings feed the overlay in the preview (SDD §13.2).
+  findings?: Finding[];
+  onOpenFinding?: (f: Finding) => void;
 }) {
   const qc = useQueryClient();
   // loadVersion is the version the editor text came from. base is the version a save builds on.
@@ -357,6 +362,8 @@ export function EditorPane({
               path={path}
               onOpenPath={onOpenPath}
               onScroll={onPreviewScroll}
+              findings={findings}
+              onOpenFinding={onOpenFinding}
             />
           </div>
         ) : null}

@@ -52,7 +52,7 @@
   --sunken: #f3f3f1;
   --ink: #1b1b1a;
   --ink-2: #4a4a47;
-  --ink-3: #75756f;
+  --ink-3: #686863;
   --line: #e6e6e2;
   --line-strong: #d4d4ce;
   --accent: #00794f;
@@ -75,6 +75,12 @@
   --code-str: #0a7a4b;
   --code-num: #b35c00;
   --code-fn: #1d5fb8;
+  /* Overlay layers (SDD §13.2). */
+  --layer-risk: #b42318;
+  --layer-ambiguous: #6d28d9;
+  --layer-contradicted: #be185d;
+  --layer-unverified: #8a5a00;
+  --layer-slop: #1d5fb8;
 }
 
 .dark {
@@ -107,6 +113,11 @@
   --code-str: #7ee2b8;
   --code-num: #f5a97f;
   --code-fn: #82aaff;
+  --layer-risk: #f87171;
+  --layer-ambiguous: #c4b5fd;
+  --layer-contradicted: #f472b6;
+  --layer-unverified: #fbbf24;
+  --layer-slop: #82aaff;
   color-scheme: dark;
 }
 
@@ -368,5 +379,66 @@ body {
   .doc pre,
   .doc table {
     break-inside: avoid;
+  }
+}
+
+/* Overlay (SDD §13.2): each layer has its own underline style, so colour is never the only
+   signal. The highlights come from the CSS Custom Highlight API (features/overlay). */
+::highlight(ov-risk) {
+  text-decoration: underline solid var(--layer-risk) 2px;
+}
+::highlight(ov-ambiguous) {
+  text-decoration: underline wavy var(--layer-ambiguous) 1.5px;
+}
+::highlight(ov-contradicted) {
+  text-decoration: underline double var(--layer-contradicted) 1.5px;
+}
+::highlight(ov-unverified) {
+  text-decoration: underline dotted var(--layer-unverified) 2px;
+}
+::highlight(ov-slop) {
+  text-decoration: underline dashed var(--layer-slop) 1.5px;
+}
+.layer-sample {
+  text-underline-offset: 3px;
+  text-decoration-line: underline;
+}
+.layer-sample-risk {
+  text-decoration: underline solid var(--layer-risk) 2px;
+}
+.layer-sample-ambiguous {
+  text-decoration: underline wavy var(--layer-ambiguous) 1.5px;
+}
+.layer-sample-contradicted {
+  text-decoration: underline double var(--layer-contradicted) 1.5px;
+}
+.layer-sample-unverified {
+  text-decoration: underline dotted var(--layer-unverified) 2px;
+}
+.layer-sample-slop {
+  text-decoration: underline dashed var(--layer-slop) 1.5px;
+}
+@media print {
+  ::highlight(ov-risk),
+  ::highlight(ov-ambiguous),
+  ::highlight(ov-contradicted),
+  ::highlight(ov-unverified),
+  ::highlight(ov-slop) {
+    text-decoration: none;
+    background-color: transparent;
+  }
+}
+
+/* Tour (SDD §13.3): the rest of the doc is muted around the current section. The muted colour
+   keeps AA contrast; opacity would not. */
+.doc .tour-dim:not(.placeholder),
+.doc .tour-dim *:not(.placeholder) {
+  color: var(--ink-3);
+  transition: color 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc .tour-dim,
+  .doc .tour-dim *:not(.placeholder) {
+    transition: none;
   }
 }

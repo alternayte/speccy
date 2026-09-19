@@ -262,19 +262,46 @@ func (e CiteKind) Valid() bool {
 
 // Defines values for ClaimLabel.
 const (
-	Contradicted ClaimLabel = "contradicted"
-	Unverified   ClaimLabel = "unverified"
-	Verified     ClaimLabel = "verified"
+	ClaimLabelContradicted ClaimLabel = "contradicted"
+	ClaimLabelUnverified   ClaimLabel = "unverified"
+	ClaimLabelVerified     ClaimLabel = "verified"
 )
 
 // Valid indicates whether the value is a known member of the ClaimLabel enum.
 func (e ClaimLabel) Valid() bool {
 	switch e {
-	case Contradicted:
+	case ClaimLabelContradicted:
 		return true
-	case Unverified:
+	case ClaimLabelUnverified:
 		return true
-	case Verified:
+	case ClaimLabelVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingLayer.
+const (
+	FindingLayerAmbiguous    FindingLayer = "ambiguous"
+	FindingLayerContradicted FindingLayer = "contradicted"
+	FindingLayerRisk         FindingLayer = "risk"
+	FindingLayerSlop         FindingLayer = "slop"
+	FindingLayerUnverified   FindingLayer = "unverified"
+)
+
+// Valid indicates whether the value is a known member of the FindingLayer enum.
+func (e FindingLayer) Valid() bool {
+	switch e {
+	case FindingLayerAmbiguous:
+		return true
+	case FindingLayerContradicted:
+		return true
+	case FindingLayerRisk:
+		return true
+	case FindingLayerSlop:
+		return true
+	case FindingLayerUnverified:
 		return true
 	default:
 		return false
@@ -296,6 +323,27 @@ func (e FindingLevel) Valid() bool {
 	case FindingLevelMUST:
 		return true
 	case FindingLevelSHOULD:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingBriefLevel.
+const (
+	FindingBriefLevelINFO   FindingBriefLevel = "INFO"
+	FindingBriefLevelMUST   FindingBriefLevel = "MUST"
+	FindingBriefLevelSHOULD FindingBriefLevel = "SHOULD"
+)
+
+// Valid indicates whether the value is a known member of the FindingBriefLevel enum.
+func (e FindingBriefLevel) Valid() bool {
+	switch e {
+	case FindingBriefLevelINFO:
+		return true
+	case FindingBriefLevelMUST:
+		return true
+	case FindingBriefLevelSHOULD:
 		return true
 	default:
 		return false
@@ -779,6 +827,51 @@ func (e ThreadMessageDecision) Valid() bool {
 	}
 }
 
+// Defines values for TourPointKind.
+const (
+	TourPointKindBlockingThread TourPointKind = "blocking_thread"
+	TourPointKindFinding        TourPointKind = "finding"
+	TourPointKindOpenDecision   TourPointKind = "open_decision"
+	TourPointKindWaiver         TourPointKind = "waiver"
+)
+
+// Valid indicates whether the value is a known member of the TourPointKind enum.
+func (e TourPointKind) Valid() bool {
+	switch e {
+	case TourPointKindBlockingThread:
+		return true
+	case TourPointKindFinding:
+		return true
+	case TourPointKindOpenDecision:
+		return true
+	case TourPointKindWaiver:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TourPointLevel.
+const (
+	TourPointLevelINFO   TourPointLevel = "INFO"
+	TourPointLevelMUST   TourPointLevel = "MUST"
+	TourPointLevelSHOULD TourPointLevel = "SHOULD"
+)
+
+// Valid indicates whether the value is a known member of the TourPointLevel enum.
+func (e TourPointLevel) Valid() bool {
+	switch e {
+	case TourPointLevelINFO:
+		return true
+	case TourPointLevelMUST:
+		return true
+	case TourPointLevelSHOULD:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TraceCellState.
 const (
 	TraceCellStateCoveredBy  TraceCellState = "covered_by"
@@ -889,6 +982,8 @@ func (e CreateInviteJSONBodyRole) Valid() bool {
 
 // Anchor A range of text with context (SDD §8.8).
 type Anchor struct {
+	// Detached The text changed, and Speccy cannot find the quote in the current version (SDD §8.8).
+	Detached    *bool    `json:"detached,omitempty"`
 	End         int      `json:"end"`
 	File        string   `json:"file"`
 	HeadingPath []string `json:"heading_path"`
@@ -1131,6 +1226,15 @@ type BundleVerdictKind string
 // BundleVerdictStaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
 type BundleVerdictStaleReason string
 
+// CategoryCount defines model for CategoryCount.
+type CategoryCount struct {
+	Category string `json:"category"`
+	Info     int    `json:"info"`
+	Must     int    `json:"must"`
+	Score    *int   `json:"score,omitempty"`
+	Should   int    `json:"should"`
+}
+
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
 
@@ -1178,6 +1282,20 @@ type Diff struct {
 	To       Version       `json:"to"`
 }
 
+// DiffSummary defines model for DiffSummary.
+type DiffSummary struct {
+	Added   []FindingBrief `json:"added"`
+	Changes []string       `json:"changes"`
+
+	// Fixed Findings of the older version that the newer version no longer has.
+	Fixed       []FindingBrief `json:"fixed"`
+	FromVerdict *VerdictResult `json:"from_verdict,omitempty"`
+
+	// Summary What changed in meaning, in one or two sentences.
+	Summary   string         `json:"summary"`
+	ToVerdict *VerdictResult `json:"to_verdict,omitempty"`
+}
+
 // FileDiff defines model for FileDiff.
 type FileDiff struct {
 	Binary bool `json:"binary"`
@@ -1196,13 +1314,16 @@ type FileList struct {
 
 // Finding defines model for Finding.
 type Finding struct {
-	// Anchor A range of text with context (SDD §8.8).
+	// Anchor The anchor in the bundle's current version, re-anchored when the run read an older version.
 	Anchor    Anchor             `json:"anchor"`
 	CheckSlug string             `json:"check_slug"`
 	Fix       *string            `json:"fix,omitempty"`
 	Id        openapi_types.UUID `json:"id"`
-	Level     FindingLevel       `json:"level"`
-	Message   string             `json:"message"`
+
+	// Layer The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
+	Layer   *FindingLayer `json:"layer,omitempty"`
+	Level   FindingLevel  `json:"level"`
+	Message string        `json:"message"`
 
 	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
 	Relaxed bool   `json:"relaxed"`
@@ -1212,12 +1333,37 @@ type Finding struct {
 	Waived bool `json:"waived"`
 }
 
+// FindingLayer The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
+type FindingLayer string
+
 // FindingLevel defines model for Finding.Level.
 type FindingLevel string
+
+// FindingBrief defines model for FindingBrief.
+type FindingBrief struct {
+	CheckSlug string            `json:"check_slug"`
+	Level     FindingBriefLevel `json:"level"`
+	Message   string            `json:"message"`
+}
+
+// FindingBriefLevel defines model for FindingBrief.Level.
+type FindingBriefLevel string
 
 // FindingList defines model for FindingList.
 type FindingList struct {
 	Items []Finding `json:"items"`
+}
+
+// FixSuggestion A patch that replaces one exact text in one file (REQ-025).
+type FixSuggestion struct {
+	Explanation string             `json:"explanation"`
+	File        string             `json:"file"`
+	FindingId   openapi_types.UUID `json:"finding_id"`
+	New         string             `json:"new"`
+	Old         string             `json:"old"`
+
+	// VersionId The version the patch was written for.
+	VersionId openapi_types.UUID `json:"version_id"`
 }
 
 // IdSuggestion defines model for IdSuggestion.
@@ -1520,6 +1666,13 @@ type ReaderAnswer struct {
 	Reader   int          `json:"reader"`
 }
 
+// ReaderDiversity How many readers answered, and how many distinct models served them (REQ-046). Models are not named (DEC-013).
+type ReaderDiversity struct {
+	DistinctModels int  `json:"distinct_models"`
+	Low            bool `json:"low"`
+	Readers        int  `json:"readers"`
+}
+
 // RenameRequest defines model for RenameRequest.
 type RenameRequest struct {
 	BaseVersion openapi_types.UUID `json:"base_version"`
@@ -1626,6 +1779,16 @@ type RunList struct {
 	Items []Run `json:"items"`
 }
 
+// RunReport defines model for RunReport.
+type RunReport struct {
+	// Categories Open findings by radar category (SDD §8.7), in radar order.
+	Categories []CategoryCount `json:"categories"`
+
+	// Readers How many readers answered, and how many distinct models served them (REQ-046). Models are not named (DEC-013).
+	Readers *ReaderDiversity `json:"readers,omitempty"`
+	Stages  []StageTiming    `json:"stages"`
+}
+
 // SectionDiff defines model for SectionDiff.
 type SectionDiff struct {
 	HeadingPath []string     `json:"heading_path"`
@@ -1652,6 +1815,13 @@ type Settings struct {
 type ShareInfo struct {
 	BundleId openapi_types.UUID `json:"bundle_id"`
 	Title    string             `json:"title"`
+}
+
+// StageTiming defines model for StageTiming.
+type StageTiming struct {
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	Stage      string     `json:"stage"`
+	StartedAt  time.Time  `json:"started_at"`
 }
 
 // Standalone defines model for Standalone.
@@ -1738,6 +1908,40 @@ type ThreadMessageAuthorKind string
 
 // ThreadMessageDecision defines model for ThreadMessage.Decision.
 type ThreadMessageDecision string
+
+// Tour defines model for Tour.
+type Tour struct {
+	Points []TourPoint `json:"points"`
+
+	// RunId The run whose findings the tour uses. Absent before the first review.
+	RunId *openapi_types.UUID `json:"run_id,omitempty"`
+}
+
+// TourPoint One point that needs a human decision. The ask states one explicit decision.
+type TourPoint struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor *Anchor `json:"anchor,omitempty"`
+	Ask    string  `json:"ask"`
+
+	// CanApprove For a waiver, the caller can approve or reject it now.
+	CanApprove *bool   `json:"can_approve,omitempty"`
+	CheckSlug  *string `json:"check_slug,omitempty"`
+
+	// Context Why the point needs a decision, in one or two sentences.
+	Context   string              `json:"context"`
+	FindingId *openapi_types.UUID `json:"finding_id,omitempty"`
+	Key       string              `json:"key"`
+	Kind      TourPointKind       `json:"kind"`
+	Level     *TourPointLevel     `json:"level,omitempty"`
+	ThreadId  *openapi_types.UUID `json:"thread_id,omitempty"`
+	WaiverId  *openapi_types.UUID `json:"waiver_id,omitempty"`
+}
+
+// TourPointKind defines model for TourPoint.Kind.
+type TourPointKind string
+
+// TourPointLevel defines model for TourPoint.Level.
+type TourPointLevel string
 
 // TraceCell defines model for TraceCell.
 type TraceCell struct {
@@ -1850,6 +2054,9 @@ type ConnectionId = openapi_types.UUID
 // Cursor defines model for Cursor.
 type Cursor = string
 
+// FindingId defines model for FindingId.
+type FindingId = openapi_types.UUID
+
 // Limit defines model for Limit.
 type Limit = int
 
@@ -1903,6 +2110,12 @@ type ListBundlesParams struct {
 
 // DiffVersionsParams defines parameters for DiffVersions.
 type DiffVersionsParams struct {
+	From openapi_types.UUID `form:"from" json:"from"`
+	To   openapi_types.UUID `form:"to" json:"to"`
+}
+
+// SummarizeDiffParams defines parameters for SummarizeDiff.
+type SummarizeDiffParams struct {
 	From openapi_types.UUID `form:"from" json:"from"`
 	To   openapi_types.UUID `form:"to" json:"to"`
 }
@@ -2199,6 +2412,9 @@ type ServerInterface interface {
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /bundles/{bundleId}/diff)
 	DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams)
+	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+	// (POST /bundles/{bundleId}/diff/summary)
+	SummarizeDiff(w http.ResponseWriter, r *http.Request, bundleId BundleId, params SummarizeDiffParams)
 	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
 	// (GET /bundles/{bundleId}/export)
 	ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams)
@@ -2244,6 +2460,9 @@ type ServerInterface interface {
 	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
 	// (POST /bundles/{bundleId}/threads)
 	OpenBundleThread(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+	// (GET /bundles/{bundleId}/tour)
+	GetTour(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /bundles/{bundleId}/trace)
 	GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -2316,9 +2535,18 @@ type ServerInterface interface {
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(w http.ResponseWriter, r *http.Request, runId RunId)
+	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+	// (POST /runs/{runId}/findings/{findingId}/fix)
+	SuggestFix(w http.ResponseWriter, r *http.Request, runId RunId, findingId FindingId)
+	// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	// (POST /runs/{runId}/findings/{findingId}/fix/accept)
+	AcceptFix(w http.ResponseWriter, r *http.Request, runId RunId, findingId FindingId)
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	// (GET /runs/{runId}/questions)
 	ListQuestions(w http.ResponseWriter, r *http.Request, runId RunId)
+	// GetRunReport The run report (SDD §13.1): stage timings, reader diversity, and findings by category.
+	// (GET /runs/{runId}/report)
+	GetRunReport(w http.ResponseWriter, r *http.Request, runId RunId)
 	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
 	// (GET /share/{token})
 	GetShare(w http.ResponseWriter, r *http.Request, token string)
@@ -3006,6 +3234,61 @@ func (siw *ServerInterfaceWrapper) DiffVersions(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// SummarizeDiff operation middleware
+func (siw *ServerInterfaceWrapper) SummarizeDiff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SummarizeDiffParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SummarizeDiff(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ExportBundle operation middleware
 func (siw *ServerInterfaceWrapper) ExportBundle(w http.ResponseWriter, r *http.Request) {
 
@@ -3522,6 +3805,32 @@ func (siw *ServerInterfaceWrapper) OpenBundleThread(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OpenBundleThread(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTour operation middleware
+func (siw *ServerInterfaceWrapper) GetTour(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTour(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4092,6 +4401,76 @@ func (siw *ServerInterfaceWrapper) ListFindings(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// SuggestFix operation middleware
+func (siw *ServerInterfaceWrapper) SuggestFix(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "findingId" -------------
+	var findingId FindingId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "findingId", r.PathValue("findingId"), &findingId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "findingId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SuggestFix(w, r, runId, findingId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AcceptFix operation middleware
+func (siw *ServerInterfaceWrapper) AcceptFix(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "findingId" -------------
+	var findingId FindingId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "findingId", r.PathValue("findingId"), &findingId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "findingId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AcceptFix(w, r, runId, findingId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListQuestions operation middleware
 func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.Request) {
 
@@ -4109,6 +4488,32 @@ func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListQuestions(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRunReport operation middleware
+func (siw *ServerInterfaceWrapper) GetRunReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRunReport(w, r, runId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4513,6 +4918,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.UpdateMCPConnection)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp/{connectionId}/tools", wrapper.ListMCPTools)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/tour", wrapper.GetTour)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/diff/summary", wrapper.SummarizeDiff)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/report", wrapper.GetRunReport)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix", wrapper.SuggestFix)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix/accept", wrapper.AcceptFix)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.ListBundleThreads)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.OpenBundleThread)
@@ -5714,6 +6124,46 @@ func (response DiffVersionsdefaultApplicationProblemPlusJSONResponse) VisitDiffV
 	return err
 }
 
+type SummarizeDiffRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   SummarizeDiffParams
+}
+
+type SummarizeDiffResponseObject interface {
+	VisitSummarizeDiffResponse(w http.ResponseWriter) error
+}
+
+type SummarizeDiff200JSONResponse DiffSummary
+
+func (response SummarizeDiff200JSONResponse) VisitSummarizeDiffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SummarizeDiffdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SummarizeDiffdefaultApplicationProblemPlusJSONResponse) VisitSummarizeDiffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ExportBundleRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 	Params   ExportBundleParams
@@ -6316,6 +6766,45 @@ type OpenBundleThreaddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response OpenBundleThreaddefaultApplicationProblemPlusJSONResponse) VisitOpenBundleThreadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTourRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type GetTourResponseObject interface {
+	VisitGetTourResponse(w http.ResponseWriter) error
+}
+
+type GetTour200JSONResponse Tour
+
+func (response GetTour200JSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTourdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetTourdefaultApplicationProblemPlusJSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7295,6 +7784,86 @@ func (response ListFindingsdefaultApplicationProblemPlusJSONResponse) VisitListF
 	return err
 }
 
+type SuggestFixRequestObject struct {
+	RunId     RunId     `json:"runId"`
+	FindingId FindingId `json:"findingId"`
+}
+
+type SuggestFixResponseObject interface {
+	VisitSuggestFixResponse(w http.ResponseWriter) error
+}
+
+type SuggestFix200JSONResponse FixSuggestion
+
+func (response SuggestFix200JSONResponse) VisitSuggestFixResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuggestFixdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SuggestFixdefaultApplicationProblemPlusJSONResponse) VisitSuggestFixResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptFixRequestObject struct {
+	RunId     RunId     `json:"runId"`
+	FindingId FindingId `json:"findingId"`
+}
+
+type AcceptFixResponseObject interface {
+	VisitAcceptFixResponse(w http.ResponseWriter) error
+}
+
+type AcceptFix200JSONResponse WriteResult
+
+func (response AcceptFix200JSONResponse) VisitAcceptFixResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptFixdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AcceptFixdefaultApplicationProblemPlusJSONResponse) VisitAcceptFixResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListQuestionsRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -7325,6 +7894,45 @@ type ListQuestionsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListQuestionsdefaultApplicationProblemPlusJSONResponse) VisitListQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRunReportRequestObject struct {
+	RunId RunId `json:"runId"`
+}
+
+type GetRunReportResponseObject interface {
+	VisitGetRunReportResponse(w http.ResponseWriter) error
+}
+
+type GetRunReport200JSONResponse RunReport
+
+func (response GetRunReport200JSONResponse) VisitGetRunReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRunReportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetRunReportdefaultApplicationProblemPlusJSONResponse) VisitGetRunReportResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7784,6 +8392,9 @@ type StrictServerInterface interface {
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /bundles/{bundleId}/diff)
 	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
+	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+	// (POST /bundles/{bundleId}/diff/summary)
+	SummarizeDiff(ctx context.Context, request SummarizeDiffRequestObject) (SummarizeDiffResponseObject, error)
 	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
 	// (GET /bundles/{bundleId}/export)
 	ExportBundle(ctx context.Context, request ExportBundleRequestObject) (ExportBundleResponseObject, error)
@@ -7829,6 +8440,9 @@ type StrictServerInterface interface {
 	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
 	// (POST /bundles/{bundleId}/threads)
 	OpenBundleThread(ctx context.Context, request OpenBundleThreadRequestObject) (OpenBundleThreadResponseObject, error)
+	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+	// (GET /bundles/{bundleId}/tour)
+	GetTour(ctx context.Context, request GetTourRequestObject) (GetTourResponseObject, error)
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /bundles/{bundleId}/trace)
 	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
@@ -7901,9 +8515,18 @@ type StrictServerInterface interface {
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(ctx context.Context, request ListFindingsRequestObject) (ListFindingsResponseObject, error)
+	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+	// (POST /runs/{runId}/findings/{findingId}/fix)
+	SuggestFix(ctx context.Context, request SuggestFixRequestObject) (SuggestFixResponseObject, error)
+	// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	// (POST /runs/{runId}/findings/{findingId}/fix/accept)
+	AcceptFix(ctx context.Context, request AcceptFixRequestObject) (AcceptFixResponseObject, error)
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	// (GET /runs/{runId}/questions)
 	ListQuestions(ctx context.Context, request ListQuestionsRequestObject) (ListQuestionsResponseObject, error)
+	// GetRunReport The run report (SDD §13.1): stage timings, reader diversity, and findings by category.
+	// (GET /runs/{runId}/report)
+	GetRunReport(ctx context.Context, request GetRunReportRequestObject) (GetRunReportResponseObject, error)
 	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
 	// (GET /share/{token})
 	GetShare(ctx context.Context, request GetShareRequestObject) (GetShareResponseObject, error)
@@ -8807,6 +9430,33 @@ func (sh *strictHandler) DiffVersions(w http.ResponseWriter, r *http.Request, bu
 	}
 }
 
+// SummarizeDiff operation middleware
+func (sh *strictHandler) SummarizeDiff(w http.ResponseWriter, r *http.Request, bundleId BundleId, params SummarizeDiffParams) {
+	var request SummarizeDiffRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SummarizeDiff(ctx, request.(SummarizeDiffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SummarizeDiff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SummarizeDiffResponseObject); ok {
+		if err := validResponse.VisitSummarizeDiffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ExportBundle operation middleware
 func (sh *strictHandler) ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams) {
 	var request ExportBundleRequestObject
@@ -9226,6 +9876,32 @@ func (sh *strictHandler) OpenBundleThread(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(OpenBundleThreadResponseObject); ok {
 		if err := validResponse.VisitOpenBundleThreadResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTour operation middleware
+func (sh *strictHandler) GetTour(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request GetTourRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTour(ctx, request.(GetTourRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTour")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTourResponseObject); ok {
+		if err := validResponse.VisitGetTourResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9897,6 +10573,60 @@ func (sh *strictHandler) ListFindings(w http.ResponseWriter, r *http.Request, ru
 	}
 }
 
+// SuggestFix operation middleware
+func (sh *strictHandler) SuggestFix(w http.ResponseWriter, r *http.Request, runId RunId, findingId FindingId) {
+	var request SuggestFixRequestObject
+
+	request.RunId = runId
+	request.FindingId = findingId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SuggestFix(ctx, request.(SuggestFixRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SuggestFix")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SuggestFixResponseObject); ok {
+		if err := validResponse.VisitSuggestFixResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AcceptFix operation middleware
+func (sh *strictHandler) AcceptFix(w http.ResponseWriter, r *http.Request, runId RunId, findingId FindingId) {
+	var request AcceptFixRequestObject
+
+	request.RunId = runId
+	request.FindingId = findingId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AcceptFix(ctx, request.(AcceptFixRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AcceptFix")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AcceptFixResponseObject); ok {
+		if err := validResponse.VisitAcceptFixResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListQuestions operation middleware
 func (sh *strictHandler) ListQuestions(w http.ResponseWriter, r *http.Request, runId RunId) {
 	var request ListQuestionsRequestObject
@@ -9916,6 +10646,32 @@ func (sh *strictHandler) ListQuestions(w http.ResponseWriter, r *http.Request, r
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListQuestionsResponseObject); ok {
 		if err := validResponse.VisitListQuestionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRunReport operation middleware
+func (sh *strictHandler) GetRunReport(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request GetRunReportRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRunReport(ctx, request.(GetRunReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRunReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRunReportResponseObject); ok {
+		if err := validResponse.VisitGetRunReportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

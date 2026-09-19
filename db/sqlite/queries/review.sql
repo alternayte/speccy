@@ -42,6 +42,13 @@ WHERE bundle_id = sqlc.arg(bundle_id) AND version_id = sqlc.arg(version_id)
 ORDER BY started_at DESC, id DESC
 LIMIT 1;
 
+-- name: LatestCompleteRun :one
+-- REQ-007: the latest finished run of a kind on a version.
+SELECT * FROM review_run
+WHERE bundle_id = sqlc.arg(bundle_id) AND version_id = sqlc.arg(version_id) AND status = 'complete' AND kind = sqlc.arg(kind)
+ORDER BY started_at DESC, id DESC
+LIMIT 1;
+
 -- name: ListRuns :many
 SELECT * FROM review_run
 WHERE bundle_id = sqlc.arg(bundle_id) AND started_at < sqlc.arg(before)
@@ -55,6 +62,9 @@ VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(check_slug), sqlc.arg(level), s
 
 -- name: ListFindings :many
 SELECT * FROM finding WHERE run_id = sqlc.arg(run_id) ORDER BY id;
+
+-- name: SetFindingSuggestion :exec
+UPDATE finding SET suggestion = sqlc.arg(suggestion) WHERE id = sqlc.arg(id);
 
 -- name: InsertVerdict :exec
 INSERT INTO verdict (run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids)

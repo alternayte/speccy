@@ -25,6 +25,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
+	"github.com/alternayte/speccy/internal/features/tour"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
 	"github.com/alternayte/speccy/internal/http/api"
@@ -49,6 +50,7 @@ type API struct {
 	*ApprovalAPI
 	*InboxAPI
 	*InsightsAPI
+	*TourAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -65,6 +67,7 @@ type (
 	ApprovalAPI = approval.API
 	InboxAPI    = inbox.API
 	InsightsAPI = insights.API
+	TourAPI     = tour.API
 )
 
 // Core serves the operations that belong to no feature.

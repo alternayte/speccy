@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { clsx } from "clsx";
 import { CircleAlert, CircleCheck, CircleDashed, Info, OctagonX, TriangleAlert } from "lucide-react";
 import type { BundleVerdict, Run, VerdictResult } from "@/lib/api";
@@ -21,6 +22,12 @@ const resultStyle: Record<VerdictResult, { label: string; tone: string; soft: st
     soft: "bg-warn-soft border-warn/30",
     icon: <CircleDashed aria-hidden className="size-full" />,
   },
+};
+
+export const verdictText: Record<VerdictResult, string> = {
+  build_ready: "Build Ready",
+  not_build_ready: "Not Build Ready",
+  stale: "Stale",
 };
 
 export function verdictLabel(v: BundleVerdict): string {
@@ -48,7 +55,9 @@ export function VerdictBar({
   currentVersion,
   report,
   onShowFindings,
+  bundleId,
 }: {
+  bundleId: string;
   verdict?: BundleVerdict;
   runError?: string;
   currentVersion: number;
@@ -122,6 +131,13 @@ export function VerdictBar({
         <button type="button" onClick={onShowFindings} className="font-medium text-ink underline underline-offset-2">
           Show findings
         </button>
+        <Link
+          to="/bundles/$bundleId/runs/$runId"
+          params={{ bundleId, runId: verdict.run_id }}
+          className="font-medium text-ink underline underline-offset-2"
+        >
+          Run report
+        </Link>
       </div>
       {runError || report?.notes?.length || report ? (
         <div className="w-full space-y-1 text-xs text-ink-2">

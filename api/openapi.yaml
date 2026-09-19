@@ -812,6 +812,101 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/tour:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: getTour
+      summary: The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+      responses:
+        "200":
+          description: The tour.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tour"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/diff/summary:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: summarizeDiff
+      summary: Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DiffSummary"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/report:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    get:
+      operationId: getRunReport
+      summary: "The run report (SDD §13.1): stage timings, reader diversity, and findings by category."
+      responses:
+        "200":
+          description: The report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunReport"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/findings/{findingId}/fix:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/FindingId"
+    post:
+      operationId: suggestFix
+      summary: Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+      responses:
+        "200":
+          description: The suggested patch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FixSuggestion"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/findings/{findingId}/fix/accept:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+      - $ref: "#/components/parameters/FindingId"
+    post:
+      operationId: acceptFix
+      summary: Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+      responses:
+        "200":
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /runs/{runId}/findings:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -1550,6 +1645,13 @@ components:
         format: uuid
     RunId:
       name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    FindingId:
+      name: findingId
       in: path
       required: true
       schema:
@@ -2310,6 +2412,9 @@ components:
           description: Byte offset of the quote in the file.
         end:
           type: integer
+        detached:
+          type: boolean
+          description: The text changed, and Speccy cannot find the quote in the current version (SDD §8.8).
 
     Finding:
       type: object
@@ -2335,8 +2440,175 @@ components:
           type: string
         fix:
           type: string
+        layer:
+          type: string
+          enum: [ambiguous, unverified, contradicted, risk, slop]
+          description: The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
         anchor:
           $ref: "#/components/schemas/Anchor"
+          description: The anchor in the bundle's current version, re-anchored when the run read an older version.
+
+    Tour:
+      type: object
+      required: [points]
+      properties:
+        run_id:
+          type: string
+          format: uuid
+          description: The run whose findings the tour uses. Absent before the first review.
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/TourPoint"
+
+    TourPoint:
+      type: object
+      description: One point that needs a human decision. The ask states one explicit decision.
+      required: [key, kind, ask, context]
+      properties:
+        key:
+          type: string
+        kind:
+          type: string
+          enum: [blocking_thread, finding, waiver, open_decision]
+        ask:
+          type: string
+        context:
+          type: string
+          description: Why the point needs a decision, in one or two sentences.
+        level:
+          type: string
+          enum: [MUST, SHOULD, INFO]
+        check_slug:
+          type: string
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+        finding_id:
+          type: string
+          format: uuid
+        thread_id:
+          type: string
+          format: uuid
+        waiver_id:
+          type: string
+          format: uuid
+        can_approve:
+          type: boolean
+          description: For a waiver, the caller can approve or reject it now.
+
+    RunReport:
+      type: object
+      required: [stages, categories]
+      properties:
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageTiming"
+        readers:
+          $ref: "#/components/schemas/ReaderDiversity"
+        categories:
+          type: array
+          description: Open findings by radar category (SDD §8.7), in radar order.
+          items:
+            $ref: "#/components/schemas/CategoryCount"
+
+    StageTiming:
+      type: object
+      required: [stage, started_at]
+      properties:
+        stage:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+
+    ReaderDiversity:
+      type: object
+      description: How many readers answered, and how many distinct models served them (REQ-046). Models are not named (DEC-013).
+      required: [readers, distinct_models, low]
+      properties:
+        readers:
+          type: integer
+        distinct_models:
+          type: integer
+        low:
+          type: boolean
+
+    CategoryCount:
+      type: object
+      required: [category, must, should, info]
+      properties:
+        category:
+          type: string
+        score:
+          type: integer
+        must:
+          type: integer
+        should:
+          type: integer
+        info:
+          type: integer
+
+    FixSuggestion:
+      type: object
+      description: A patch that replaces one exact text in one file (REQ-025).
+      required: [finding_id, file, old, new, explanation, version_id]
+      properties:
+        finding_id:
+          type: string
+          format: uuid
+        file:
+          type: string
+        old:
+          type: string
+        new:
+          type: string
+        explanation:
+          type: string
+        version_id:
+          type: string
+          format: uuid
+          description: The version the patch was written for.
+
+    DiffSummary:
+      type: object
+      required: [summary, changes, fixed, added]
+      properties:
+        summary:
+          type: string
+          description: What changed in meaning, in one or two sentences.
+        changes:
+          type: array
+          items:
+            type: string
+        from_verdict:
+          $ref: "#/components/schemas/VerdictResult"
+        to_verdict:
+          $ref: "#/components/schemas/VerdictResult"
+        fixed:
+          type: array
+          description: Findings of the older version that the newer version no longer has.
+          items:
+            $ref: "#/components/schemas/FindingBrief"
+        added:
+          type: array
+          items:
+            $ref: "#/components/schemas/FindingBrief"
+
+    FindingBrief:
+      type: object
+      required: [check_slug, level, message]
+      properties:
+        check_slug:
+          type: string
+        level:
+          type: string
+          enum: [MUST, SHOULD, INFO]
+        message:
+          type: string
 
     FindingList:
       type: object

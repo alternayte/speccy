@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { addTraceIds, approveBundle, approveWaiver, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createProfile, createResetLink, createShareLink, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getBundleStatus, getFileContent, getInbox, getInsights, getMe, getMeta, getProfile, getRun, getSettings, getShare, getThread, getTrace, importBundle, joinShare, listAssumptions, listBackends, listBundles, listBundleThreads, listClaims, listFiles, listFindings, listInvites, listMcpConnections, listMcpTools, listPeople, listPresets, listProfiles, listProfileThreads, listQuestions, listRoles, listRuns, listVersions, listWaivers, markDecision, markInboxSeen, openBundleThread, openProfileThread, type Options, postMessage, putFileContent, rejectWaiver, renameFile, renderMarkdown, requestReview, requestWaiver, revokeInvite, revokeShareLink, setBudget, setMaintainers, setSettings, setThreadBlocking, setThreadStatus, setVisibility, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection, updateProfile } from '../sdk.gen';
-import type { AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, ApproveBundleData, ApproveBundleError, ApproveBundleResponse, ApproveWaiverData, ApproveWaiverError, ApproveWaiverResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateProfileData, CreateProfileError, CreateProfileResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetBundleStatusData, GetBundleStatusError, GetBundleStatusResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetInboxData, GetInboxError, GetInboxResponse, GetInsightsData, GetInsightsError, GetInsightsResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetProfileData, GetProfileError, GetProfileResponse, GetRunData, GetRunError, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetThreadData, GetThreadError, GetThreadResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListBundleThreadsData, ListBundleThreadsError, ListBundleThreadsResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPeopleData, ListPeopleError, ListPeopleResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListProfileThreadsData, ListProfileThreadsError, ListProfileThreadsResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, ListWaiversData, ListWaiversError, ListWaiversResponse, MarkDecisionData, MarkDecisionError, MarkDecisionResponse, MarkInboxSeenData, MarkInboxSeenError, MarkInboxSeenResponse, OpenBundleThreadData, OpenBundleThreadError, OpenBundleThreadResponse, OpenProfileThreadData, OpenProfileThreadError, OpenProfileThreadResponse, PostMessageData, PostMessageError, PostMessageResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RejectWaiverData, RejectWaiverError, RejectWaiverResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, RequestReviewData, RequestReviewError, RequestReviewResponse, RequestWaiverData, RequestWaiverError, RequestWaiverResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetMaintainersData, SetMaintainersError, SetMaintainersResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetThreadBlockingData, SetThreadBlockingError, SetThreadBlockingResponse, SetThreadStatusData, SetThreadStatusError, SetThreadStatusResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse } from '../types.gen';
+import { acceptFix, addTraceIds, approveBundle, approveWaiver, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createProfile, createResetLink, createShareLink, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getBundleStatus, getFileContent, getInbox, getInsights, getMe, getMeta, getProfile, getRun, getRunReport, getSettings, getShare, getThread, getTour, getTrace, importBundle, joinShare, listAssumptions, listBackends, listBundles, listBundleThreads, listClaims, listFiles, listFindings, listInvites, listMcpConnections, listMcpTools, listPeople, listPresets, listProfiles, listProfileThreads, listQuestions, listRoles, listRuns, listVersions, listWaivers, markDecision, markInboxSeen, openBundleThread, openProfileThread, type Options, postMessage, putFileContent, rejectWaiver, renameFile, renderMarkdown, requestReview, requestWaiver, revokeInvite, revokeShareLink, setBudget, setMaintainers, setSettings, setThreadBlocking, setThreadStatus, setVisibility, startRun, suggestFix, summarizeDiff, testBackend, unassignRole, updateBackend, updateMcpConnection, updateProfile } from '../sdk.gen';
+import type { AcceptFixData, AcceptFixError, AcceptFixResponse, AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, ApproveBundleData, ApproveBundleError, ApproveBundleResponse, ApproveWaiverData, ApproveWaiverError, ApproveWaiverResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateProfileData, CreateProfileError, CreateProfileResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetBundleStatusData, GetBundleStatusError, GetBundleStatusResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetInboxData, GetInboxError, GetInboxResponse, GetInsightsData, GetInsightsError, GetInsightsResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetProfileData, GetProfileError, GetProfileResponse, GetRunData, GetRunError, GetRunReportData, GetRunReportError, GetRunReportResponse, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetThreadData, GetThreadError, GetThreadResponse, GetTourData, GetTourError, GetTourResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListBundleThreadsData, ListBundleThreadsError, ListBundleThreadsResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPeopleData, ListPeopleError, ListPeopleResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListProfileThreadsData, ListProfileThreadsError, ListProfileThreadsResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, ListWaiversData, ListWaiversError, ListWaiversResponse, MarkDecisionData, MarkDecisionError, MarkDecisionResponse, MarkInboxSeenData, MarkInboxSeenError, MarkInboxSeenResponse, OpenBundleThreadData, OpenBundleThreadError, OpenBundleThreadResponse, OpenProfileThreadData, OpenProfileThreadError, OpenProfileThreadResponse, PostMessageData, PostMessageError, PostMessageResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RejectWaiverData, RejectWaiverError, RejectWaiverResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, RequestReviewData, RequestReviewError, RequestReviewResponse, RequestWaiverData, RequestWaiverError, RequestWaiverResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetMaintainersData, SetMaintainersError, SetMaintainersResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetThreadBlockingData, SetThreadBlockingError, SetThreadBlockingResponse, SetThreadStatusData, SetThreadStatusError, SetThreadStatusResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, SuggestFixData, SuggestFixError, SuggestFixResponse, SummarizeDiffData, SummarizeDiffError, SummarizeDiffResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -834,6 +834,93 @@ export const getRunOptions = (options: Options<GetRunData>) => queryOptions<GetR
     },
     queryKey: getRunQueryKey(options)
 });
+
+export const getTourQueryKey = (options: Options<GetTourData>) => createQueryKey('getTour', options);
+
+/**
+ * The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+ */
+export const getTourOptions = (options: Options<GetTourData>) => queryOptions<GetTourResponse, GetTourError, GetTourResponse, ReturnType<typeof getTourQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getTour({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getTourQueryKey(options)
+});
+
+/**
+ * Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+ */
+export const summarizeDiffMutation = (options?: Partial<Options<SummarizeDiffData>>): UseMutationOptions<SummarizeDiffResponse, SummarizeDiffError, Options<SummarizeDiffData>> => {
+    const mutationOptions: UseMutationOptions<SummarizeDiffResponse, SummarizeDiffError, Options<SummarizeDiffData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await summarizeDiff({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getRunReportQueryKey = (options: Options<GetRunReportData>) => createQueryKey('getRunReport', options);
+
+/**
+ * The run report (SDD §13.1): stage timings, reader diversity, and findings by category.
+ */
+export const getRunReportOptions = (options: Options<GetRunReportData>) => queryOptions<GetRunReportResponse, GetRunReportError, GetRunReportResponse, ReturnType<typeof getRunReportQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getRunReport({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getRunReportQueryKey(options)
+});
+
+/**
+ * Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+ */
+export const suggestFixMutation = (options?: Partial<Options<SuggestFixData>>): UseMutationOptions<SuggestFixResponse, SuggestFixError, Options<SuggestFixData>> => {
+    const mutationOptions: UseMutationOptions<SuggestFixResponse, SuggestFixError, Options<SuggestFixData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await suggestFix({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+ */
+export const acceptFixMutation = (options?: Partial<Options<AcceptFixData>>): UseMutationOptions<AcceptFixResponse, AcceptFixError, Options<AcceptFixData>> => {
+    const mutationOptions: UseMutationOptions<AcceptFixResponse, AcceptFixError, Options<AcceptFixData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await acceptFix({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const listFindingsQueryKey = (options: Options<ListFindingsData>) => createQueryKey('listFindings', options);
 

@@ -339,6 +339,11 @@ func (a Adapter) LatestBudget(ctx context.Context, workspaceID uuid.UUID) (pgdb.
 	return pgdb.Budget(r), err
 }
 
+func (a Adapter) LatestCompleteRun(ctx context.Context, arg pgdb.LatestCompleteRunParams) (pgdb.ReviewRun, error) {
+	r, err := a.q.LatestCompleteRun(ctx, LatestCompleteRunParams(arg))
+	return pgdb.ReviewRun(r), err
+}
+
 func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRun(ctx, bundleID)
 	return pgdb.ReviewRun(r), err
@@ -782,6 +787,10 @@ func (a Adapter) SetBundleShare(ctx context.Context, arg pgdb.SetBundleSharePara
 
 func (a Adapter) SetBundleVisibility(ctx context.Context, arg pgdb.SetBundleVisibilityParams) error {
 	return a.q.SetBundleVisibility(ctx, SetBundleVisibilityParams(arg))
+}
+
+func (a Adapter) SetFindingSuggestion(ctx context.Context, arg pgdb.SetFindingSuggestionParams) error {
+	return a.q.SetFindingSuggestion(ctx, SetFindingSuggestionParams(arg))
 }
 
 func (a Adapter) SetInboxSeen(ctx context.Context, arg pgdb.SetInboxSeenParams) error {

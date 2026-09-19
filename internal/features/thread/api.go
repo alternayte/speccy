@@ -121,11 +121,41 @@ func (a *API) ListBundleThreads(ctx context.Context, req api.ListBundleThreadsRe
 	if err != nil {
 		return nil, err
 	}
+	b, err := a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	if err != nil {
+		return nil, err
+	}
+	cur, err := version.LoadCurrent(ctx, a.DB.Queries(), b)
+	if err != nil {
+		return nil, err
+	}
 	out := api.ListBundleThreads200JSONResponse{Items: []api.Thread{}}
 	for _, r := range rows {
-		out.Items = append(out.Items, threadAPI(r))
+		t := threadAPI(r)
+		follow(&t, cur)
+		out.Items = append(out.Items, t)
 	}
 	return out, nil
+}
+
+// follow moves a text anchor to the current version, or marks it detached (SDD §8.8).
+func follow(t *api.Thread, cur *version.Current) {
+	if t.AnchorKind != api.ThreadAnchorKindText {
+		return
+	}
+	raw, _ := json.Marshal(t.Anchor)
+	var an anchor.Anchor
+	if json.Unmarshal(raw, &an) != nil {
+		return
+	}
+	an, ok := cur.Anchor(an)
+	raw, _ = json.Marshal(an)
+	m := map[string]any{}
+	_ = json.Unmarshal(raw, &m)
+	if !ok {
+		m["detached"] = true
+	}
+	t.Anchor = m
 }
 
 // OpenBundleThread opens a thread on a bundle (REQ-087).
@@ -266,6 +296,17 @@ func (a *API) detail(ctx context.Context, id uuid.UUID) (api.ThreadDetail, error
 		return api.ThreadDetail{}, err
 	}
 	base := threadAPI(t)
+	if t.BundleID.Valid && t.AnchorKind == AnchorText {
+		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: t.BundleID.UUID})
+		if err != nil {
+			return api.ThreadDetail{}, err
+		}
+		cur, err := version.LoadCurrent(ctx, q, b)
+		if err != nil {
+			return api.ThreadDetail{}, err
+		}
+		follow(&base, cur)
+	}
 	d := api.ThreadDetail{
 		Id: base.Id, BundleId: base.BundleId, ProfileKey: base.ProfileKey, AnchorKind: api.ThreadDetailAnchorKind(base.AnchorKind),
 		Anchor: base.Anchor, AddressedTo: api.ThreadDetailAddressedTo(base.AddressedTo), Title: base.Title, Blocking: base.Blocking,

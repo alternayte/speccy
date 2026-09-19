@@ -63,9 +63,13 @@ var operations = map[string]access{
 	"listClaims":      bundleRead,
 	"listQuestions":   bundleRead,
 	"getBundleAccess": bundleRead,
+	"getTour":         bundleRead,
+	"getRunReport":    bundleRead,
 
 	"startRun":    bundleAI,
 	"estimateRun": bundleAI,
+	// REQ-007: the diff summary asks the AI.
+	"summarizeDiff": bundleAI,
 
 	// Threads (REQ-087): a guest reads and writes threads for humans on the shared bundle;
 	// the thread rules refuse the rest. A thread's bundle comes from its path.
@@ -99,10 +103,13 @@ var operations = map[string]access{
 	"createProfile":      adminOnly,
 	"setMaintainers":     adminOnly,
 
-	"putFileContent":  bundleEdit,
-	"deleteFile":      bundleEdit,
-	"renameFile":      bundleEdit,
-	"addTraceIds":     bundleEdit,
+	"putFileContent": bundleEdit,
+	"deleteFile":     bundleEdit,
+	"renameFile":     bundleEdit,
+	"addTraceIds":    bundleEdit,
+	// REQ-025: the author asks for a fix and accepts it.
+	"suggestFix":      bundleEdit,
+	"acceptFix":       bundleEdit,
 	"setVisibility":   bundleEdit,
 	"createShareLink": bundleEdit,
 	"revokeShareLink": bundleEdit,

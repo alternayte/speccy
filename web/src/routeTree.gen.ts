@@ -22,7 +22,9 @@ import { Route as ProfilesKeyRouteImport } from './routes/profiles/$key'
 import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
 import { Route as BundlesBundleIdDiffRouteImport } from './routes/bundles/$bundleId/diff'
+import { Route as BundlesBundleIdTourRouteImport } from './routes/bundles/$bundleId/tour'
 import { Route as BundlesBundleIdTraceRouteImport } from './routes/bundles/$bundleId/trace'
+import { Route as BundlesBundleIdRunsRunIdRouteImport } from './routes/bundles/$bundleId/runs/$runId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -89,11 +91,22 @@ const BundlesBundleIdDiffRoute = BundlesBundleIdDiffRouteImport.update({
   path: '/bundles/$bundleId/diff',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BundlesBundleIdTourRoute = BundlesBundleIdTourRouteImport.update({
+  id: '/bundles/$bundleId/tour',
+  path: '/bundles/$bundleId/tour',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BundlesBundleIdTraceRoute = BundlesBundleIdTraceRouteImport.update({
   id: '/bundles/$bundleId/trace',
   path: '/bundles/$bundleId/trace',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BundlesBundleIdRunsRunIdRoute =
+  BundlesBundleIdRunsRunIdRouteImport.update({
+    id: '/bundles/$bundleId/runs/$runId',
+    path: '/bundles/$bundleId/runs/$runId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -108,8 +121,10 @@ export interface FileRoutesByFullPath {
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
+  '/bundles/$bundleId/tour': typeof BundlesBundleIdTourRoute
   '/bundles/$bundleId/trace': typeof BundlesBundleIdTraceRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
+  '/bundles/$bundleId/runs/$runId': typeof BundlesBundleIdRunsRunIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -124,8 +139,10 @@ export interface FileRoutesByTo {
   '/share/$token': typeof ShareTokenRoute
   '/profiles': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
+  '/bundles/$bundleId/tour': typeof BundlesBundleIdTourRoute
   '/bundles/$bundleId/trace': typeof BundlesBundleIdTraceRoute
   '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
+  '/bundles/$bundleId/runs/$runId': typeof BundlesBundleIdRunsRunIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -141,8 +158,10 @@ export interface FileRoutesById {
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
+  '/bundles/$bundleId/tour': typeof BundlesBundleIdTourRoute
   '/bundles/$bundleId/trace': typeof BundlesBundleIdTraceRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
+  '/bundles/$bundleId/runs/$runId': typeof BundlesBundleIdRunsRunIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -159,8 +178,10 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/profiles/'
     | '/bundles/$bundleId/diff'
+    | '/bundles/$bundleId/tour'
     | '/bundles/$bundleId/trace'
     | '/bundles/$bundleId/'
+    | '/bundles/$bundleId/runs/$runId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -175,8 +196,10 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/profiles'
     | '/bundles/$bundleId/diff'
+    | '/bundles/$bundleId/tour'
     | '/bundles/$bundleId/trace'
     | '/bundles/$bundleId'
+    | '/bundles/$bundleId/runs/$runId'
   id:
     | '__root__'
     | '/'
@@ -191,8 +214,10 @@ export interface FileRouteTypes {
     | '/share/$token'
     | '/profiles/'
     | '/bundles/$bundleId/diff'
+    | '/bundles/$bundleId/tour'
     | '/bundles/$bundleId/trace'
     | '/bundles/$bundleId/'
+    | '/bundles/$bundleId/runs/$runId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -208,8 +233,10 @@ export interface RootRouteChildren {
   ShareTokenRoute: typeof ShareTokenRoute
   ProfilesIndexRoute: typeof ProfilesIndexRoute
   BundlesBundleIdDiffRoute: typeof BundlesBundleIdDiffRoute
+  BundlesBundleIdTourRoute: typeof BundlesBundleIdTourRoute
   BundlesBundleIdTraceRoute: typeof BundlesBundleIdTraceRoute
   BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
+  BundlesBundleIdRunsRunIdRoute: typeof BundlesBundleIdRunsRunIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -305,11 +332,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BundlesBundleIdDiffRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bundles/$bundleId/tour': {
+      id: '/bundles/$bundleId/tour'
+      path: '/bundles/$bundleId/tour'
+      fullPath: '/bundles/$bundleId/tour'
+      preLoaderRoute: typeof BundlesBundleIdTourRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bundles/$bundleId/trace': {
       id: '/bundles/$bundleId/trace'
       path: '/bundles/$bundleId/trace'
       fullPath: '/bundles/$bundleId/trace'
       preLoaderRoute: typeof BundlesBundleIdTraceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bundles/$bundleId/runs/$runId': {
+      id: '/bundles/$bundleId/runs/$runId'
+      path: '/bundles/$bundleId/runs/$runId'
+      fullPath: '/bundles/$bundleId/runs/$runId'
+      preLoaderRoute: typeof BundlesBundleIdRunsRunIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -328,8 +369,10 @@ const rootRouteChildren: RootRouteChildren = {
   ShareTokenRoute: ShareTokenRoute,
   ProfilesIndexRoute: ProfilesIndexRoute,
   BundlesBundleIdDiffRoute: BundlesBundleIdDiffRoute,
+  BundlesBundleIdTourRoute: BundlesBundleIdTourRoute,
   BundlesBundleIdTraceRoute: BundlesBundleIdTraceRoute,
   BundlesBundleIdIndexRoute: BundlesBundleIdIndexRoute,
+  BundlesBundleIdRunsRunIdRoute: BundlesBundleIdRunsRunIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

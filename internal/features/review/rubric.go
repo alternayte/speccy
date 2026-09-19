@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -42,6 +43,26 @@ type runCtx struct {
 	prompts   map[string]string
 	notes     []string
 	prices    map[string][2]float64 // role → price in, out per million tokens
+	stages    []stageTiming
+}
+
+// stageTiming is when a stage started and ended, for the run report (SDD §13.1).
+type stageTiming struct {
+	Stage      string     `json:"stage"`
+	StartedAt  time.Time  `json:"started_at"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
+}
+
+// enter ends the current stage and starts the next one, and tells live views.
+func (rc *runCtx) enter(stage string) {
+	now := time.Now().UTC()
+	rc.mu.Lock()
+	if n := len(rc.stages); n > 0 && rc.stages[n-1].FinishedAt == nil {
+		rc.stages[n-1].FinishedAt = &now
+	}
+	rc.stages = append(rc.stages, stageTiming{Stage: stage, StartedAt: now})
+	rc.mu.Unlock()
+	rc.publish(Event{Type: "stage", Stage: stage})
 }
 
 func (rc *runCtx) call(ctx context.Context, g *model.Gateway, c model.Call) (model.Result, error) {

@@ -19,6 +19,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
+	"github.com/alternayte/speccy/internal/features/tour"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
@@ -109,6 +110,9 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	// SDD §7.2: one worker runs queued reviews.
 	go reviews.Work(ctx)
 	shareAPI := &share.API{DB: db, Workspace: ws}
+	reviewAPI := &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change}
+	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}
+	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change}
 	return &App{
 		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI,
 		API: speccyhttp.API{
@@ -116,20 +120,19 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 				ok, _ := db.Queries().IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: ws, UserID: userID})
 				return ok
 			}},
-			BundleAPI:  &bundle.API{Service: svc, Profiles: profiles.Current},
-			VersionAPI: &version.API{DB: db, Workspace: ws},
-			ExportAPI:  &export.API{DB: db, Workspace: ws},
-			ProfileAPI: &profile.API{Registry: profiles, People: people},
-			ReviewAPI:  &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change},
-			AdminAPI:   adminAPI,
-			ShareAPI:   shareAPI,
-			ThreadAPI: &thread.API{DB: db, ES: events, Workspace: ws, People: people,
-				Ask: reviews.Ask, Answering: reviews.Answering},
-			WaiverAPI: &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people,
-				Change: svc.Change},
+			BundleAPI:   &bundle.API{Service: svc, Profiles: profiles.Current},
+			VersionAPI:  &version.API{DB: db, Workspace: ws},
+			ExportAPI:   &export.API{DB: db, Workspace: ws},
+			ProfileAPI:  &profile.API{Registry: profiles, People: people},
+			ReviewAPI:   reviewAPI,
+			AdminAPI:    adminAPI,
+			ShareAPI:    shareAPI,
+			ThreadAPI:   threadAPI,
+			WaiverAPI:   waiverAPI,
 			ApprovalAPI: &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people},
 			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people},
 			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current},
+			TourAPI:     &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI},
 		},
 	}, nil
 }

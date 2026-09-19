@@ -64,7 +64,7 @@ UPDATE review_run
 SET status = sqlc.arg(status), stage = sqlc.arg(stage), error = sqlc.arg(error), roles = sqlc.arg(roles),
     prompt_versions = sqlc.arg(prompt_versions), tokens_in = sqlc.arg(tokens_in), tokens_out = sqlc.arg(tokens_out),
     cost_estimate = sqlc.arg(cost_estimate), cache_hits = sqlc.arg(cache_hits), notes = sqlc.arg(notes),
-    finished_at = sqlc.arg(finished_at)
+    stages = sqlc.arg(stages), finished_at = sqlc.arg(finished_at)
 WHERE id = sqlc.arg(id);
 
 -- name: RunningRunFor :one

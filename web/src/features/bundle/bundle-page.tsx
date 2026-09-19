@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { Download, FolderTree, ListChecks, Network, Printer } from "lucide-react";
+import { Compass, Download, FolderTree, ListChecks, Network, Printer } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -11,6 +11,7 @@ import {
   getBundleOptions,
   getRunOptions,
   listFilesOptions,
+  listFindingsOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { ShareDialog } from "./share-dialog";
@@ -53,6 +54,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<RailTab>("findings");
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
+  // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
+  const [selectedFinding, setSelectedFinding] = useState<string>();
   // newThread is the anchor of a thread the user is starting (REQ-087).
   const [newThread, setNewThread] = useState<NewAnchor>();
   const startThread = (a: NewAnchor) => {
@@ -98,6 +101,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const run = useActiveRun(bundleId, refresh);
   const verdictRun = bundle.data?.verdict?.kind === "full" ? bundle.data.verdict.run_id : undefined;
   const report = useQuery({ ...getRunOptions({ path: { runId: verdictRun ?? "" } }), enabled: !!verdictRun });
+  const findingsRun = bundle.data?.verdict?.run_id;
+  const findings = useQuery({ ...listFindingsOptions({ path: { runId: findingsRun ?? "" } }), enabled: !!findingsRun });
   const me = useMe();
   const hosted = me.data?.mode === "hosted";
   const guest = !!me.data?.guest;
@@ -133,6 +138,15 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             {b.slug} · <span className="uppercase">{b.profile_key}</span> · v{b.current_version.number}
           </p>
         </div>
+        <Link
+          to="/bundles/$bundleId/tour"
+          params={{ bundleId }}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
+        >
+          <Compass aria-hidden className="size-3.5" />
+          <span className="hidden sm:inline">Tour</span>
+          <span className="sr-only sm:hidden">Tour</span>
+        </Link>
         <Link
           to="/bundles/$bundleId/trace"
           params={{ bundleId }}
@@ -182,6 +196,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           runError={b.run_error}
           currentVersion={b.current_version.number}
           report={report.data}
+          bundleId={bundleId}
           onShowFindings={() => {
             setTab("findings");
             setPanel("rail");
@@ -246,6 +261,12 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               onDirtyChange={setDirty}
               focus={focus}
               readOnly={!canEdit}
+              findings={findings.data?.items}
+              onOpenFinding={(f) => {
+                setTab("findings");
+                setPanel("rail");
+                setSelectedFinding(f.id);
+              }}
               onComment={(sel) =>
                 startThread({
                   kind: "text",
@@ -309,6 +330,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               {tab === "findings" ? (
                 <FindingsPanel
                   runId={b.verdict?.run_id}
+                  selected={selectedFinding}
+                  canEdit={canEdit && !guest}
                   bundleId={bundleId}
                   member={!guest}
                   onOpen={openFinding}

@@ -216,39 +216,39 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 		return fail(err)
 	}
 
-	rc.publish(Event{Type: "stage", Stage: StageLint})
+	rc.enter(StageLint)
 	ev := lintStage(in)
 
 	stage = StageRubric
 	s.setStage(ctx, run, stage)
-	rc.publish(Event{Type: "stage", Stage: stage})
+	rc.enter(stage)
 	if err := s.rubricStage(ctx, rc, in, &ev, fingerprint); err != nil {
 		return fail(err)
 	}
 
 	stage = StageGrounding
 	s.setStage(ctx, run, stage)
-	rc.publish(Event{Type: "stage", Stage: stage})
+	rc.enter(stage)
 	if err := s.groundingStage(ctx, rc, in, &ev, fingerprint, native); err != nil {
 		return fail(err)
 	}
 
 	stage = StageDivergence
 	s.setStage(ctx, run, stage)
-	rc.publish(Event{Type: "stage", Stage: stage})
+	rc.enter(stage)
 	if err := s.divergenceStage(ctx, rc, in, &ev, fingerprint); err != nil {
 		return fail(err)
 	}
 
 	stage = StageCoherence
 	s.setStage(ctx, run, stage)
-	rc.publish(Event{Type: "stage", Stage: stage})
+	rc.enter(stage)
 	if err := s.contradictionStage(ctx, rc, in, &ev, fingerprint); err != nil {
 		return fail(err)
 	}
 
 	stage = StageVerdict
-	rc.publish(Event{Type: "stage", Stage: stage})
+	rc.enter(stage)
 	run.Status, run.Stage = "complete", StageVerdict
 	s.fillRun(&run, rc)
 	if err := s.save(ctx, run, in, ev, p.Profile, true); err != nil {
@@ -274,6 +274,15 @@ func (s *Service) fillRun(run *pgdb.ReviewRun, rc *runCtx) {
 		notes = []string{}
 	}
 	run.Notes, _ = json.Marshal(notes)
+	now := time.Now().UTC()
+	stages := slices.Clone(rc.stages)
+	if n := len(stages); n > 0 && stages[n-1].FinishedAt == nil {
+		stages[n-1].FinishedAt = &now
+	}
+	if stages == nil {
+		stages = []stageTiming{}
+	}
+	run.Stages, _ = json.Marshal(stages)
 }
 
 func (s *Service) parallel(ctx context.Context) int {

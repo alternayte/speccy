@@ -1,11 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, Plus, Sparkle } from "lucide-react";
 import { useState } from "react";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { ChangeStatus } from "@/lib/api";
-import { diffVersionsOptions, listVersionsOptions } from "@/lib/api/@tanstack/react-query.gen";
+import { Button } from "@/components/ui/button";
+import { useMe } from "@/features/account/me";
+import { verdictText } from "@/features/bundle/verdict";
+import type { ChangeStatus, FindingBrief } from "@/lib/api";
+import { diffVersionsOptions, listVersionsOptions, summarizeDiffMutation } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { SideBySide } from "./side-by-side";
 
@@ -36,6 +39,7 @@ function Status({ s }: { s: ChangeStatus }) {
 export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffSearch }) {
   const navigate = useNavigate();
   const [by, setBy] = useState<"section" | "file">("section");
+  const guest = !!useMe().data?.guest;
   const versions = useQuery(listVersionsOptions({ path: { bundleId }, query: { limit: 100 } }));
   const diff = useQuery({
     ...diffVersionsOptions({ path: { bundleId }, query: { from: search.from, to: search.to } }),
@@ -101,6 +105,10 @@ export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffS
           </div>
         </div>
 
+        {search.from && search.to && search.from !== search.to && !guest ? (
+          <AISummary key={search.from + search.to} bundleId={bundleId} from={search.from} to={search.to} />
+        ) : null}
+
         <div className="mt-5 space-y-4">
           {!search.from || !search.to ? (
             <Empty title="Choose two versions">Pick a version in From and in To to see what changed.</Empty>
@@ -143,6 +151,85 @@ export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffS
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// AISummary offers the AI diff summary: what changed in meaning, and the change in findings
+// (REQ-007). It calls a model, so it runs only on request.
+function AISummary({ bundleId, from, to }: { bundleId: string; from: string; to: string }) {
+  const sum = useMutation(summarizeDiffMutation());
+  const d = sum.data;
+  return (
+    <section className="mt-5 rounded-lg border border-line bg-surface p-4">
+      {!d ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="min-w-0 flex-1 text-sm text-ink-2">
+            Summarize what changed in meaning between these versions, and which findings were fixed or added.
+          </p>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<Sparkle className="size-3.5" />}
+            onClick={() => sum.mutate({ path: { bundleId }, query: { from, to } })}
+            disabled={sum.isPending}
+          >
+            {sum.isPending ? "Summarizing" : "Summarize the change"}
+          </Button>
+          {sum.isError ? (
+            <div className="w-full">
+              <ErrorState message={problemMessage(sum.error)} />
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Summary</h2>
+          <p className="text-md">{d.summary}</p>
+          {d.changes.length ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-ink-2">
+              {d.changes.map((c) => (
+                <li key={c}>{c}</li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="border-t border-line pt-3 text-sm">
+            {d.from_verdict && d.to_verdict ? (
+              <>
+                Verdict: {verdictText[d.from_verdict]} →{" "}
+                <span className="font-medium">{verdictText[d.to_verdict]}</span>.{" "}
+              </>
+            ) : null}
+            {d.from_verdict
+              ? `Fixed ${d.fixed.length} finding${d.fixed.length === 1 ? "" : "s"}, added ${d.added.length}.`
+              : "One of these versions has no review, so Speccy cannot compare findings."}
+          </p>
+          {d.fixed.length || d.added.length ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Briefs title="Fixed" icon={<Check aria-hidden className="size-3.5 text-ok" />} items={d.fixed} />
+              <Briefs title="Added" icon={<Plus aria-hidden className="size-3.5 text-bad" />} items={d.added} />
+            </div>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Briefs({ title, icon, items }: { title: string; icon: React.ReactNode; items: FindingBrief[] }) {
+  return (
+    <div>
+      <h3 className="flex items-center gap-1 text-xs font-medium text-ink-2">
+        {icon} {title} <span className="font-mono text-ink-3">{items.length}</span>
+      </h3>
+      <ul className="mt-1 space-y-1">
+        {items.slice(0, 12).map((f, i) => (
+          <li key={i} className="text-xs">
+            <span className="font-mono text-ink-3">{f.level}</span> {f.message}
+          </li>
+        ))}
+        {items.length > 12 ? <li className="text-xs text-ink-3">and {items.length - 12} more</li> : null}
+      </ul>
     </div>
   );
 }

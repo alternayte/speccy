@@ -255,6 +255,7 @@ type ReviewRun struct {
 	StartedAt      time.Time
 	FinishedAt     sql.NullTime
 	Notes          dbtype.JSON
+	Stages         dbtype.JSON
 }
 
 type RoleAssignment struct {
