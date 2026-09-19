@@ -180,12 +180,13 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			for _, a := range daysRe.FindAllStringSubmatch(this, -1) {
 				for _, b := range daysRe.FindAllStringSubmatch(other, -1) {
 					if a[1] != b[1] {
-						conflicts = append(conflicts, map[string]any{"this_quote": strings.TrimSpace(a[0]), "other_quote": strings.TrimSpace(b[0]), "explanation": "The docs give different refund times."})
+						conflicts = append(conflicts, map[string]any{"analysis": "Different days.", "both_can_hold": false, "this_quote": strings.TrimSpace(a[0]), "other_quote": strings.TrimSpace(b[0]), "explanation": "The docs give different refund times."})
 					}
 				}
 			}
 			if strings.Contains(this, "invented") {
-				conflicts = append(conflicts, map[string]any{"this_quote": "the refund is never paid", "other_quote": "refunds are free", "explanation": "Made up."})
+				conflicts = append(conflicts, map[string]any{"analysis": "Made up.", "both_can_hold": false, "this_quote": "the refund is never paid", "other_quote": "refunds are free", "explanation": "Made up."},
+					map[string]any{"analysis": "One adds a detail.", "both_can_hold": true, "this_quote": "The invented case is handled.", "other_quote": "within 5 working days", "explanation": "Not a conflict."})
 			}
 		}
 		out = map[string]any{"conflicts": nonNilMaps(conflicts)}

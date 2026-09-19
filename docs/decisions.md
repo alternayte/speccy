@@ -393,3 +393,63 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** The review rail is 320 px (`--review-rail`); the file explorer stays 248 px (`--rail`).
 - **Alternative:** Shorter tab labels.
 - **Reason:** Four tabs (Findings, Evidence, Questions, Versions) at caps tracking need about 300 px.
+
+## 2026-09-19 — Link targets
+
+- **Choice:** A frontmatter target is a bundle slug first. Otherwise, it is a path relative to the main doc's folder, and it matches a bundle folder, a main doc file, or a single-file bundle's file. A target with `://` is external (DEC-021) and nothing reads it. A link rule path is a single-file bundle's file or a folder bundle's folder, relative to the root; `{name}` matches within one path segment. A link to the same bundle with the same kind appears once; frontmatter wins over a rule.
+- **Alternative:** Slugs only.
+- **Reason:** SDD §10.2 allows "a relative path in local mode"; REQ-132 rules name files.
+
+## 2026-09-19 — Stored links
+
+- **Choice:** The `link` table holds the links of each bundle's current version. Every lint pass resolves every bundle's links and rewrites the rows that changed, because a new link rule or a new target bundle changes links without a new version. `trace_item` (SDD §11.1) is not built: trace IDs are read from the doc text when they are needed.
+- **Alternative:** Store links only when a bundle gets a new version; store trace items per version.
+- **Reason:** Stale link rows would give a wrong matrix. Reading IDs from text is fast and cannot drift.
+
+## 2026-09-19 — Where coherence checks run
+
+- **Choice:** Coverage (REQ-053), restatement (REQ-055), and dangling upstream references run with lint on every save, because they are deterministic. Contradiction (REQ-054) needs a model, so it runs only in a full run, in the coherence stage after divergence. A standalone doc (REQ-057) has no coherence checks.
+- **Alternative:** All coherence checks in full runs only.
+- **Reason:** DEC-027 limits model calls, not deterministic checks. An author sees a coverage gap at once.
+
+## 2026-09-19 — Which links each check reads
+
+- **Choice:** Coverage reads `implements` links (REQ-053). Restatement and dangling references read `implements` and `refines`. Contradiction reads `implements`, `refines`, and `references`. `supersedes` sets no check; the status change it causes arrives with bundle status (M9). Checks run from the doc that declares the link; findings anchor in that doc, and the evidence holds the other doc's anchor.
+- **Alternative:** Findings in both bundles' runs.
+- **Reason:** One run reviews one bundle. The evidence keeps the second anchor, so the finding still points at both docs (REQ-054).
+
+## 2026-09-19 — Coverage and acknowledgements
+
+- **Choice:** An upstream ID is covered when the downstream doc mentions it anywhere, or when `trace:` in the frontmatter acknowledges it: `out_of_scope` with a reason, or `covered_by` with a target and a reason. Each upstream ID is one Coherence item. A gap is one `trace.coverage` finding per ID, anchored on the frontmatter. Approval of acknowledgements follows the waiver policy at M9; until then the frontmatter is honoured as written (SDD §9.3).
+- **Alternative:** Check that a `covered_by` target covers the ID.
+- **Reason:** REQ-053 asks for a reference or an acknowledgement; M9 adds who may approve one.
+
+## 2026-09-19 — Restatement measure
+
+- **Choice:** Words are lower-cased with punctuation removed. The overlap is the share of a downstream paragraph's distinct 8-word shingles that are in one upstream paragraph; above 0.5 is a `coherence.restatement` SHOULD finding. A paragraph under 8 words is never checked.
+- **Alternative:** Jaccard similarity of the two paragraphs.
+- **Reason:** A short downstream paragraph that copies part of a long upstream one is still a restatement.
+
+## 2026-09-19 — Upstream staleness
+
+- **Choice:** `run_link` records the linked versions a run read. A verdict is stale with the reason `upstream_changed` when one of them is no longer current. A lint verdict is linted again at once, because lint is cheap. A full verdict stays stale until the next full run, so its model results stay visible.
+- **Alternative:** Lint again and hide the full verdict.
+- **Reason:** REQ-056 says the verdict becomes stale; it does not say to replace it.
+
+## 2026-09-19 — Contradiction check
+
+- **Choice:** One reviewer call per linked doc, with this bundle and the other main doc as data (`contradiction-v2`). Each conflict has `analysis` and `both_can_hold` before the quotes; a conflict with `both_can_hold` true, or with a quote that is not in its doc, is dropped. Slug `coherence.contradiction`, MUST.
+- **Alternative:** Ask for the conflicts only.
+- **Reason:** In a live DeepSeek run, `contradiction-v1` reported an added detail ("up to 3 times" against a PRD with no number) as a MUST conflict. With v2, the same docs give none, and a real conflict (10 against 5 working days) is still found.
+
+## 2026-09-19 — Trace ID suggestions
+
+- **Choice:** Speccy suggests an ID for each top-level list item without one, under a heading that contains "requirement" (REQ), "non-functional", "nonfunctional", or "quality" (NFR), or "decision" (DEC), for the profile's prefixes. Numbers continue after the highest number the doc uses. The trace page lists them; `POST /bundles/{id}/trace/ids` inserts the chosen ones as `**ID:** ` at the item start, from a base version, as a new version.
+- **Alternative:** Ask a model which items are requirements.
+- **Reason:** REQ-136 counts a suggested trace ID as a deterministic fix, so the suggestion must be deterministic too.
+
+## 2026-09-19 — Traceability view
+
+- **Choice:** A page per bundle (`/bundles/{id}/trace`) with the links both ways, one matrix for the bundle's own IDs when others implement it, and one for each bundle it implements. Rows are the upstream IDs with a prefix that a downstream profile covers; columns are the implementing bundles.
+- **Alternative:** A tab in the review rail.
+- **Reason:** A matrix needs width; the rail is 320 px.

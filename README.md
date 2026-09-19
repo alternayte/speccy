@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M6. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save. **Run review** adds the AI rubric checks, fact checks, and the divergence test. Linked-doc checks arrive next.
+Speccy is at milestone M7. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. **Traceability** shows which upstream IDs each downstream doc covers.
 
 ## Quick start
 
@@ -55,6 +55,11 @@ This table lists only the guarantees whose tests pass today.
 | An answer with an invented quote is treated as `NOT SPECIFIED`. | [`TestDivergence_InventedQuoteRejected`](internal/features/review/divergence_test.go) |
 | One model for all readers gives "low reader diversity" and does not block. | [`TestDivergence_LowDiversityFlagged`](internal/features/review/divergence_test.go) |
 | Readers never receive other readers' answers or the rubric. | [`TestDivergence_ReaderIsolation`](internal/features/review/divergence_test.go) |
+| An uncovered upstream REQ is a MUST finding. | [`TestCoherence_UncoveredReqIsMust`](internal/features/review/coherence_test.go) |
+| A standalone acknowledgement makes coherence not applicable. | [`TestCoherence_StandaloneAck`](internal/features/review/coherence_test.go) |
+| An upstream edit marks downstream verdicts stale. | [`TestCoherence_UpstreamEditStales`](internal/features/review/coherence_test.go) |
+| Restatement above the threshold is a SHOULD finding. | [`TestCoherence_RestatementShingles`](internal/features/review/coherence_test.go) |
+| A link rule creates a link only when both files exist. | [`TestConfig_LinkRules`](internal/features/review/coherence_test.go) |
 | Secrets are not stored in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go) |
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
 
@@ -66,7 +71,7 @@ A review has six stages: lint, rubric, grounding, divergence, coherence, and the
 - **Rubric** asks the reviewer model each yes-or-no check of the doc type, with quotes as evidence.
 - **Grounding** finds the doc's factual claims and checks each against a source: the model's web search, or an MCP search connection. A claim with no source is unverified. Start a sentence with "Assumption:" to state something you cannot source.
 - **Divergence** asks the reviewer for 10 to 20 build questions. Three readers answer each question from the doc alone. Each answer must quote the doc; Speccy checks each quote. A judge groups the answers by meaning. When the readers give different answers, the doc is ambiguous. When no reader finds an answer, the doc has a gap.
-- **Coherence** arrives in the next milestone.
+- **Coherence** compares linked docs. Each upstream requirement must be referenced downstream, or acknowledged in the frontmatter. A paragraph that repeats the upstream doc gets "link, do not repeat". The reviewer looks for statements that conflict between the docs. When a linked doc changes, the verdict becomes stale.
 
 A model never sets the verdict. Speccy computes it from the checks. Doc text and search results go to the model as marked data, never as instructions.
 
@@ -92,6 +97,8 @@ map:                      # single files, with assets in <name>.assets/
     profile: prd
   - glob: docs/**/sdd-*.md
     profile: sdd
+link_rules:               # a link exists only when both files exist
+  - "docs/sdd-{name}.md implements docs/prd-{name}.md"
 adoption:                 # these checks report as INFO for now
   relaxed: [links.has-upstream, lint.required-headings]
 ```

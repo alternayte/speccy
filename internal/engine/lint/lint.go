@@ -281,3 +281,37 @@ func Paragraphs(src []byte) []Paragraph {
 	}
 	return out
 }
+
+// Item is the first block of one top-level list item: Start is where its text begins, after
+// the list marker, as an offset in the file.
+type Item struct {
+	Start int
+	Text  string
+}
+
+// ListItems returns the top-level list items of src (items not inside another item), in order.
+func ListItems(src []byte) []Item {
+	sd := section.Parse(src)
+	body := src[sd.BodyStart:]
+	root := section.Markdown().Parser().Parse(text.NewReader(body))
+	var out []Item
+	_ = ast.Walk(root, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering || n.Kind() != ast.KindListItem {
+			return ast.WalkContinue, nil
+		}
+		for p := n.Parent(); p != nil; p = p.Parent() {
+			if p.Kind() == ast.KindListItem {
+				return ast.WalkSkipChildren, nil
+			}
+		}
+		first := n.FirstChild()
+		if first == nil || first.Lines().Len() == 0 {
+			return ast.WalkSkipChildren, nil
+		}
+		seg := first.Lines().At(0)
+		line := first.Lines().At(first.Lines().Len() - 1)
+		out = append(out, Item{Start: seg.Start + sd.BodyStart, Text: string(body[seg.Start:line.Stop])})
+		return ast.WalkSkipChildren, nil
+	})
+	return out
+}

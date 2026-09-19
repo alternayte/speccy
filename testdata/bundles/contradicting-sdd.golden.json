@@ -1,0 +1,36 @@
+{
+  "verdict": "not_build_ready",
+  "score": 94,
+  "findings": [
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Bank transfer retries — design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Bank transfer retries — design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Bank transfer retries — design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Bank transfer retries — design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Bank transfer retries — design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Bank transfer retries — design"
+    }
+  ]
+}

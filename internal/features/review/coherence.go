@@ -129,6 +129,8 @@ func coherenceChecks(in input, ev *evaluation) {
 }
 
 type conflict struct {
+	Analysis    string `json:"analysis"`
+	BothCanHold bool   `json:"both_can_hold"`
 	ThisQuote   string `json:"this_quote"`
 	OtherQuote  string `json:"other_quote"`
 	Explanation string `json:"explanation"`
@@ -180,6 +182,9 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 		}
 		kept, dropped := 0, 0
 		for _, c := range out.Conflicts {
+			if c.BothCanHold {
+				continue // the reviewer found that a builder can follow both
+			}
 			ts, te, ok1 := anchor.Find(in.main, c.ThisQuote)
 			os, oe, ok2 := anchor.Find(l.main, c.OtherQuote)
 			if !ok1 || !ok2 {

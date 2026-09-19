@@ -1,0 +1,46 @@
+{
+  "verdict": "not_build_ready",
+  "score": 88,
+  "findings": [
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "lint.required-headings",
+      "level": "MUST",
+      "quote": "# Payment retries — restated design"
+    },
+    {
+      "check": "coherence.restatement",
+      "level": "SHOULD",
+      "quote": "Card payments fail on a temporary provider error. In June, 2.1% of payment attempts failed\nwith a timeout or an HTTP 503 from the provider (ticket PAY-231). Each failure asks the\ncustomer to pay again, and 38% of them leave the checkout."
+    }
+  ]
+}

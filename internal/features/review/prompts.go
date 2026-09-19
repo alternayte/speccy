@@ -21,7 +21,7 @@ const (
 	PromptReader    = "reader-v1"
 	PromptJudge     = "judge-v3"
 	// PromptContradiction checks two linked docs for conflicts (REQ-054).
-	PromptContradiction = "contradiction-v1"
+	PromptContradiction = "contradiction-v2"
 )
 
 // SDD §14.3: every prompt says that marked content is data, and marks it.
@@ -291,11 +291,14 @@ func contradictionPrompt(kind, thisDoc, otherDoc string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "This doc %s the other doc. Find statements in this doc that conflict with a statement in the other doc: both cannot be true, or a builder cannot follow both. Examples: a different number for the same limit, a different owner for the same step, a behaviour that the other doc rules out.\n", kind)
 	b.WriteString("A detail that one doc adds and the other leaves out is not a conflict. A difference in wording is not a conflict.\n")
-	b.WriteString("For each conflict, quote the statement from this doc and the statement from the other doc, word for word, and explain the conflict in one sentence. Most linked docs have no conflict; then list none.\n\n")
+	b.WriteString("When one doc gives a value or a rule and the other gives none, both can hold: that is not a conflict.\n")
+	b.WriteString("For each possible conflict: first, in \"analysis\", state what each doc says. Then set \"both_can_hold\" to true when a builder can follow both statements, and false only when they cannot. Quote the statement from this doc and from the other doc, word for word, and explain the conflict in one sentence. Most linked docs have no conflict; then list none.\n\n")
 	b.WriteString(thisDoc)
 	b.WriteString("\n")
 	b.WriteString(otherDoc)
 	return b.String()
 }
 
-var contradictionSchema = []byte(`{"type":"object","additionalProperties":false,"required":["conflicts"],"properties":{"conflicts":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["this_quote","other_quote","explanation"],"properties":{"this_quote":{"type":"string"},"other_quote":{"type":"string"},"explanation":{"type":"string"}}}}}}`)
+// contradictionSchema puts "analysis" and "both_can_hold" before the quotes: the keys sort
+// that way, so the model compares before it decides.
+var contradictionSchema = []byte(`{"type":"object","additionalProperties":false,"required":["conflicts"],"properties":{"conflicts":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["analysis","both_can_hold","explanation","other_quote","this_quote"],"properties":{"analysis":{"type":"string"},"both_can_hold":{"type":"boolean"},"explanation":{"type":"string"},"other_quote":{"type":"string"},"this_quote":{"type":"string"}}}}}}`)

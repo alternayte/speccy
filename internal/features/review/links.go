@@ -86,14 +86,33 @@ func (s *Service) allBundles(ctx context.Context) ([]pgdb.Bundle, error) {
 	}
 }
 
-// resolveLinks returns the links of b whose main doc is main: frontmatter links first, then
-// link rules. A rule creates a link only when its target bundle exists (REQ-132). A link to
-// the same bundle with the same kind appears once.
+// resolveLinks returns the links of b whose main doc is main.
 func (s *Service) resolveLinks(ctx context.Context, b pgdb.Bundle, main []byte) ([]link, error) {
 	all, err := s.allBundles(ctx)
 	if err != nil {
 		return nil, err
 	}
+	return resolveLinksIn(all, b, main, s.linkRules()), nil
+}
+
+// linkRules returns the valid link rules of .speccy.yaml. The scan reports a bad rule.
+func (s *Service) linkRules() []source.LinkRule {
+	if s.Repo == nil {
+		return nil
+	}
+	var out []source.LinkRule
+	for _, raw := range s.Repo().LinkRules {
+		if r, err := source.ParseLinkRule(raw); err == nil {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// resolveLinksIn resolves b's links against all bundles: frontmatter links first, then link
+// rules. A rule creates a link only when its target bundle exists (REQ-132). A link to the
+// same bundle with the same kind appears once.
+func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []source.LinkRule) []link {
 	var out []link
 	seen := map[string]bool{}
 	add := func(l link) {
@@ -123,26 +142,20 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.Bundle, main []byte) 
 		}
 		add(l)
 	}
-	if s.Repo != nil {
-		from := bundlePath(b)
-		for _, raw := range s.Repo().LinkRules {
-			rule, err := source.ParseLinkRule(raw)
-			if err != nil {
-				continue // the scan reports a bad .speccy.yaml
-			}
-			to, ok := rule.Target(from)
-			if !ok {
-				continue
-			}
-			for i := range all {
-				if bundlePath(all[i]) == to && !all[i].ArchivedAt.Valid {
-					add(link{kind: rule.Kind, targetKind: "bundle", ref: to, origin: originRule, target: &all[i]})
-					break
-				}
+	from := bundlePath(b)
+	for _, rule := range rules {
+		to, ok := rule.Target(from)
+		if !ok {
+			continue
+		}
+		for i := range all {
+			if bundlePath(all[i]) == to && !all[i].ArchivedAt.Valid {
+				add(link{kind: rule.Kind, targetKind: "bundle", ref: to, origin: originRule, target: &all[i]})
+				break
 			}
 		}
 	}
-	return out, nil
+	return out
 }
 
 // findTarget resolves a frontmatter target (SDD §10.2): a bundle slug, or in local mode a

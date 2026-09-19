@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { assignRole, createBackend, createBundle, createMcpConnection, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, importBundle, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listMcpConnections, listMcpTools, listPresets, listProfiles, listQuestions, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
-import type { AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
+import { addTraceIds, assignRole, createBackend, createBundle, createMcpConnection, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, getTrace, importBundle, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listMcpConnections, listMcpTools, listPresets, listProfiles, listQuestions, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
+import type { AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -432,6 +432,41 @@ export const listAssumptionsOptions = (options: Options<ListAssumptionsData>) =>
     },
     queryKey: listAssumptionsQueryKey(options)
 });
+
+export const getTraceQueryKey = (options: Options<GetTraceData>) => createQueryKey('getTrace', options);
+
+/**
+ * The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+ */
+export const getTraceOptions = (options: Options<GetTraceData>) => queryOptions<GetTraceResponse, GetTraceError, GetTraceResponse, ReturnType<typeof getTraceQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getTrace({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getTraceQueryKey(options)
+});
+
+/**
+ * Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+ */
+export const addTraceIdsMutation = (options?: Partial<Options<AddTraceIdsData>>): UseMutationOptions<AddTraceIdsResponse, AddTraceIdsError, Options<AddTraceIdsData>> => {
+    const mutationOptions: UseMutationOptions<AddTraceIdsResponse, AddTraceIdsError, Options<AddTraceIdsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await addTraceIds({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const listClaimsQueryKey = (options: Options<ListClaimsData>) => createQueryKey('listClaims', options);
 

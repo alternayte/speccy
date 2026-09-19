@@ -320,26 +320,24 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 func (s *Service) EnsureLinted(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	q := s.DB.Queries()
-	after := ""
-	for {
-		page, err := q.ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: s.Workspace, AfterSlug: after, PageSize: 100})
-		if err != nil {
-			return err
-		}
-		for _, b := range page {
-			if err := s.lintIfNeeded(ctx, b); err != nil {
-				return fmt.Errorf("lint %s: %w", b.Slug, err)
-			}
-		}
-		if len(page) < 100 {
-			return nil
-		}
-		after = page[len(page)-1].Slug
+	all, err := s.allBundles(ctx)
+	if err != nil {
+		return err
 	}
+	for _, b := range all {
+		if err := s.lintIfNeeded(ctx, b, all); err != nil {
+			return fmt.Errorf("lint %s: %w", b.Slug, err)
+		}
+	}
+	return nil
 }
 
-func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle) error {
+// lintIfNeeded lints b when its current version has no run with the current profile version.
+// Otherwise it refreshes b's stored links, which change without a new version when a link
+// rule or a target bundle changes, and lints again when a lint verdict read other linked
+// versions than the current ones (REQ-056). A full verdict stays stale until the next full
+// run, so its model results are not hidden.
+func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bundle) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
@@ -348,27 +346,90 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle) error {
 	if ok {
 		pv = p.Version
 	}
-	latest, err := s.DB.Queries().LatestRunFor(ctx, pgdb.LatestRunForParams{
+	q := s.DB.Queries()
+	latest, err := q.LatestRunFor(ctx, pgdb.LatestRunForParams{
 		BundleID: b.ID, VersionID: b.CurrentVersionID.UUID, ProfileKey: b.ProfileKey, ProfileVersion: pv,
 	})
-	if err == nil {
-		// REQ-056: a lint verdict whose upstream moved is linted again. A full verdict stays
-		// stale until the next full run, so its model results are not hidden.
-		if latest.Kind != "lint" {
-			return nil
-		}
-		moved, err := upstreamMoved(ctx, s.DB.Queries(), b.WorkspaceID, latest.ID)
-		if err != nil || !moved {
-			return err
-		}
+	if errors.Is(err, sql.ErrNoRows) {
 		_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
 		return err
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return err
+	}
+	files, err := version.Files(ctx, q, b.CurrentVersionID.UUID)
+	if err != nil {
+		return err
+	}
+	var main []byte
+	for _, f := range files {
+		if f.Path == b.MainDoc {
+			main = f.Content
+		}
+	}
+	links := resolveLinksIn(all, b, main, s.linkRules())
+	stored, err := q.ListLinksFrom(ctx, b.ID)
+	if err != nil {
+		return err
+	}
+	if !sameLinks(stored, links) {
+		if err := s.DB.InTx(ctx, func(tx store.Tx) error { return storeLinks(ctx, tx.Queries(), s.Workspace, b, links) }); err != nil {
+			return err
+		}
+	}
+	if latest.Kind != "lint" || latest.Status != "complete" {
+		return nil
+	}
+	used, err := q.ListRunLinks(ctx, latest.ID)
+	if err != nil {
+		return err
+	}
+	if sameVersions(used, links) {
+		return nil
 	}
 	_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
 	return err
+}
+
+// sameLinks reports whether the stored links equal links.
+func sameLinks(stored []pgdb.Link, links []link) bool {
+	key := func(kind, ref, origin, targetKind string, target uuid.NullUUID) string {
+		return strings.Join([]string{kind, ref, origin, targetKind, target.UUID.String(), fmt.Sprint(target.Valid)}, "|")
+	}
+	a := make([]string, 0, len(stored))
+	for _, l := range stored {
+		a = append(a, key(l.Kind, l.TargetRef, l.Origin, l.TargetKind, l.TargetBundleID))
+	}
+	b := make([]string, 0, len(links))
+	for _, l := range links {
+		var t uuid.NullUUID
+		if l.target != nil {
+			t = uuid.NullUUID{UUID: l.target.ID, Valid: true}
+		}
+		b = append(b, key(l.kind, l.ref, l.origin, l.targetKind, t))
+	}
+	sort.Strings(a)
+	sort.Strings(b)
+	return slices.Equal(a, b)
+}
+
+// sameVersions reports whether a run read the current version of each linked bundle.
+func sameVersions(used []pgdb.RunLink, links []link) bool {
+	now := map[uuid.UUID]uuid.UUID{}
+	for _, l := range links {
+		if l.target != nil && l.target.CurrentVersionID.Valid {
+			now[l.target.ID] = l.target.CurrentVersionID.UUID
+		}
+	}
+	if len(used) != len(now) {
+		return false
+	}
+	for _, u := range used {
+		if now[u.BundleID] != u.VersionID {
+			return false
+		}
+	}
+	return true
 }
 
 // noProfile is the error of a run on a doc whose type has no profile.

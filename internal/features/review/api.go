@@ -23,6 +23,8 @@ type API struct {
 	DB        *store.DB
 	Workspace uuid.UUID
 	Service   *Service
+	// Change writes accepted trace IDs (REQ-052); the bundle feature provides it.
+	Change Change
 }
 
 // Summary returns the verdict to show for a bundle, and the error of the latest run when it
