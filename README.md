@@ -77,6 +77,9 @@ This table lists only the guarantees whose tests pass today.
 | Speccy never changes a doc without an accept. | [`TestSuggestFix_RequiresAccept`](internal/features/review/fix_test.go) |
 | CLI exit codes match SDD §12.2. | [`TestCLI_ExitCodes`](cmd/speccy/review_test.go) |
 | `speccy review --summary` works with no server and no `speccy init`. | [`TestCLI_SummaryNoSetup`](cmd/speccy/review_test.go) |
+| In advisory mode, a verdict never fails the Action's job. | [`TestAction_AdvisoryNeverFails`](internal/action/action_test.go) |
+| Inline comments go only on changed lines, keep to the limit, and are not posted twice. | [`TestAction_InlineComments`](internal/action/action_test.go) |
+| Suggestion blocks are only for fixes that need no model. | [`TestAction_SuggestionsDeterministicOnly`](internal/action/action_test.go) |
 
 ## How the verdict works
 
