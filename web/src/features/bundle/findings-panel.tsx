@@ -1,20 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ShieldCheck, Unlink, Wand2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { Finding } from "@/lib/api";
+import type { Finding, FixSuggestion } from "@/lib/api";
 import {
+  acceptFixMutation,
   approveWaiverMutation,
   getBundleOptions,
+  listBundleThreadsOptions,
   listFindingsOptions,
   listWaiversOptions,
   listWaiversQueryKey,
   rejectWaiverMutation,
   requestWaiverMutation,
+  suggestFixMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { levelStyle } from "./verdict";
@@ -23,21 +26,30 @@ const order = { MUST: 0, SHOULD: 1, INFO: 2 } as const;
 
 // FindingsPanel lists the findings of a run: MUST first, then in document order. A click
 // opens the text the finding points at. A member can discuss a finding or ask for a waiver
-// (REQ-072); the waivers of the bundle follow the findings.
+// (REQ-072), and an author can ask for a fix (REQ-025); the waivers of the bundle follow the
+// findings, then the detached findings and threads (SDD §8.8).
 export function FindingsPanel({
   runId,
   bundleId,
   member,
+  canEdit,
+  selected,
   onOpen,
   onDiscuss,
 }: {
   runId?: string;
   bundleId: string;
   member: boolean;
+  canEdit: boolean;
+  selected?: string;
   onOpen: (f: Finding) => void;
   onDiscuss: (f: Finding) => void;
 }) {
   const [waiving, setWaiving] = useState<Finding>();
+  const selectedRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selected]);
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
   const { refetch } = findings;
   useEffect(() => {
@@ -45,7 +57,12 @@ export function FindingsPanel({
   }, [runId, refetch]);
 
   if (!runId) return <Empty title="No review yet" />;
-  const waivers = <WaiversList bundleId={bundleId} />;
+  const waivers = (
+    <>
+      <WaiversList bundleId={bundleId} />
+      <DetachedList bundleId={bundleId} findings={findings.data?.items ?? []} />
+    </>
+  );
   if (findings.isPending) return <Loading label="Loading findings" />;
   if (findings.isError)
     return (
@@ -53,7 +70,7 @@ export function FindingsPanel({
         <ErrorState message={problemMessage(findings.error)} />
       </div>
     );
-  const items = [...findings.data.items].sort((a, b) => order[a.level] - order[b.level]);
+  const items = findings.data.items.filter((f) => !f.anchor.detached).sort((a, b) => order[a.level] - order[b.level]);
   if (items.length === 0)
     return (
       <>
@@ -67,7 +84,11 @@ export function FindingsPanel({
         {items.map((f) => {
           const { icon: Icon, tone, label } = levelStyle[f.level];
           return (
-            <li key={f.id}>
+            <li
+              key={f.id}
+              ref={f.id === selected ? selectedRef : undefined}
+              className={clsx(f.id === selected && "bg-accent-soft/60")}
+            >
               <button
                 type="button"
                 onClick={() => onOpen(f)}
@@ -111,6 +132,7 @@ export function FindingsPanel({
                   ) : null}
                 </div>
               ) : null}
+              {canEdit && !f.waived ? <SuggestFix runId={runId} bundleId={bundleId} finding={f} /> : null}
             </li>
           );
         })}
@@ -250,6 +272,111 @@ function WaiversList({ bundleId }: { bundleId: string }) {
           <ErrorState message={problemMessage(error)} />
         </div>
       ) : null}
+    </section>
+  );
+}
+
+// SuggestFix asks the AI for a patch for one finding and shows it. The doc changes only when
+// the author accepts the patch (REQ-025, T-092).
+function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: string; finding: Finding }) {
+  const qc = useQueryClient();
+  const [patch, setPatch] = useState<FixSuggestion>();
+  const [accepted, setAccepted] = useState<number>();
+  const path = { runId, findingId: finding.id };
+  const suggest = useMutation({ ...suggestFixMutation(), onSuccess: (p) => setPatch(p) });
+  const accept = useMutation({
+    ...acceptFixMutation(),
+    onSuccess: (r) => {
+      setPatch(undefined);
+      setAccepted(r.version.number);
+      qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+    },
+  });
+  if (accepted)
+    return (
+      <p className="px-3 pb-2 text-xs text-ok">Fix applied as version {accepted}. Run the review again to check it.</p>
+    );
+  if (!patch)
+    return (
+      <div className="px-3 pb-2">
+        <button
+          type="button"
+          onClick={() => suggest.mutate({ path })}
+          disabled={suggest.isPending}
+          className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
+        >
+          <Wand2 aria-hidden className="size-3.5" />
+          {suggest.isPending ? "Writing a fix" : "Suggest fix"}
+        </button>
+        {suggest.isError ? (
+          <div className="mt-1.5">
+            <ErrorState message={problemMessage(suggest.error)} />
+          </div>
+        ) : null}
+      </div>
+    );
+  return (
+    <div className="mx-3 mb-2.5 rounded-md border border-line bg-sunken p-2 text-xs">
+      <p className="text-ink-2">{patch.explanation}</p>
+      <p className="mt-1.5 font-mono text-2xs text-ink-3">{patch.file}</p>
+      <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-del)] px-1.5 py-1 font-mono whitespace-pre-wrap line-through decoration-ink-3">
+        {patch.old}
+      </pre>
+      <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-add)] px-1.5 py-1 font-mono whitespace-pre-wrap">
+        {patch.new}
+      </pre>
+      {accept.isError ? (
+        <div className="mt-1.5">
+          <ErrorState message={problemMessage(accept.error)} />
+        </div>
+      ) : null}
+      <div className="mt-2 flex justify-end gap-1.5">
+        <Button size="sm" onClick={() => setPatch(undefined)}>
+          Reject
+        </Button>
+        <Button size="sm" variant="primary" onClick={() => accept.mutate({ path })} disabled={accept.isPending}>
+          {accept.isPending ? "Applying" : "Accept"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// DetachedList lists findings and threads whose text changed so that Speccy cannot find it
+// again (SDD §8.8). They are never shown at a wrong place.
+function DetachedList({ bundleId, findings }: { bundleId: string; findings: Finding[] }) {
+  const threads = useQuery(listBundleThreadsOptions({ path: { bundleId } }));
+  const lost = findings.filter((f) => f.anchor.detached);
+  const lostThreads = (threads.data?.items ?? []).filter(
+    (t) => t.status === "open" && t.anchor_kind === "text" && t.anchor.detached,
+  );
+  if (lost.length + lostThreads.length === 0) return null;
+  return (
+    <section className="border-t border-line">
+      <h3 className="flex items-center gap-1.5 px-3 pt-3 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
+        <Unlink aria-hidden className="size-3.5" /> Detached
+      </h3>
+      <p className="px-3 pt-1 text-xs text-ink-3">The text changed. Speccy cannot find these quotes in this version.</p>
+      <ul className="divide-y divide-line">
+        {lost.map((f) => (
+          <li key={f.id} className="px-3 py-2.5">
+            <p className="font-mono text-2xs text-ink-3">{f.check_slug}</p>
+            <p className="mt-0.5 text-sm">{f.message}</p>
+            <p className="mt-1 line-clamp-2 border-l-2 border-warn pl-2 font-mono text-xs text-ink-2">
+              {f.anchor.quote}
+            </p>
+          </li>
+        ))}
+        {lostThreads.map((t) => (
+          <li key={t.id} className="px-3 py-2.5">
+            <p className="text-2xs text-ink-3">Thread</p>
+            <p className="mt-0.5 text-sm">{t.title}</p>
+            <p className="mt-1 line-clamp-2 border-l-2 border-warn pl-2 font-mono text-xs text-ink-2">
+              {String(t.anchor.quote ?? "")}
+            </p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

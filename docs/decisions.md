@@ -555,3 +555,33 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** The review rail has Findings, Threads, Evidence, and Versions. Evidence holds the claims, the assumptions, and the build questions.
 - **Alternative:** Five tabs.
 - **Reason:** Five tabs do not fit 320 px.
+
+## 2026-09-19 — Re-anchoring
+
+- **Choice:** Findings of a run on an older version, and text threads, move to the current version when they are read (SDD §8.8). The fuzzy step searches only the own content of the section with the same heading path, and accepts a match that differs from the quote by at most 30% of its length. A whole-doc anchor on the frontmatter follows the frontmatter. A detached anchor keeps its old text and shows in the Detached list.
+- **Alternative:** Store a re-anchored copy per version.
+- **Reason:** Reading is cheap, and a stored copy can drift from the text.
+
+## 2026-09-19 — Overlay
+
+- **Choice:** Each finding has at most one layer: ambiguous (divergence and gaps), contradicted (contradicted claims and conflicts between docs), unverified, risk (other MUST findings), and slop (other lint findings). The preview underlines the quote with the CSS Custom Highlight API and puts an icon beside the block. A quote over 300 characters gets the icon only. The switched-on layers are kept in the browser.
+- **Alternative:** Wrap the quote in marks inside the server's HTML.
+- **Reason:** The server HTML is shared by preview and print; highlights leave its DOM as it is.
+
+## 2026-09-19 — Tour
+
+- **Choice:** The tour is its own feature (`features/tour`) built from the verdict's run, the threads, and the waivers. MUST findings that need a decision are divergence, gaps, contradictions, contradicted claims, uncovered trace items, and a missing upstream link. An open decision is an open thread for humans that is not blocking and has no decision. A decision in the tour posts to the point's thread, or opens a thread on the finding, and marks the message as the decision.
+- **Alternative:** Put all MUST findings in the tour.
+- **Reason:** SDD §13.3: findings that the author can fix without a decision are not tour points.
+
+## 2026-09-19 — Suggested fixes
+
+- **Choice:** The writer role returns one patch: an exact text that occurs once in the file, and its replacement. A patch that does not apply gets one more try, then the request fails. The patch is stored on the finding; accept applies it to the current version only if the text still occurs once, then clears it. The request is synchronous.
+- **Alternative:** A unified diff from the model.
+- **Reason:** Models write unreliable diff hunks; an exact replacement can be checked.
+
+## 2026-09-19 — Diff summary and run report
+
+- **Choice:** The diff summary sends the section diff of the main doc and the diff of other text files to the writer role, cached by the content of both versions. The finding change compares the full reviews of both versions, or their lint runs when one has no full review; findings match by check, message, and quote. Runs record when each stage started and ended in `review_run.stages`.
+- **Alternative:** Compare a full review with a lint run.
+- **Reason:** A lint run has no model findings, so the comparison would report them as fixed.

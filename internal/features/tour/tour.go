@@ -147,7 +147,7 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 		out.Points = append(out.Points, api.TourPoint{
 			Key: "waiver:" + w.Id.String(), Kind: api.TourPointKindWaiver,
 			Ask:     fmt.Sprintf("Approve or reject the waiver of %s in %s.", w.CheckSlug, where),
-			Context: fmt.Sprintf("%s asks: %s", w.RequestedBy, w.Reason),
+			Context: "Reason: " + w.Reason,
 			Level:   &level, CheckSlug: &slug, Anchor: sectionAnchor(w.Section), WaiverId: &id, CanApprove: &can,
 		})
 	}

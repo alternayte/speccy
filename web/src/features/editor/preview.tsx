@@ -1,16 +1,29 @@
-import { forwardRef, useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useState } from "react";
 import { ErrorState } from "@/components/ui/states";
-import { renderMarkdown } from "@/lib/api";
+import { Gutter, layerCounts, OverlayLegend, useLayers, useOverlay } from "@/features/overlay/overlay";
+import { type Finding, renderMarkdown } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 
 // The server renders the preview with the review engine's parser (DEC-017).
 export const Preview = forwardRef<
   HTMLDivElement,
-  { markdown: string; bundleId: string; path: string; onOpenPath: (path: string) => void; onScroll?: () => void }
->(function Preview({ markdown, bundleId, path, onOpenPath, onScroll }, ref) {
+  {
+    markdown: string;
+    bundleId: string;
+    path: string;
+    onOpenPath: (path: string) => void;
+    onScroll?: () => void;
+    // findings are the current review's findings; the overlay shows those of this file (SDD §13.2).
+    findings?: Finding[];
+    onOpenFinding?: (f: Finding) => void;
+  }
+>(function Preview({ markdown, bundleId, path, onOpenPath, onScroll, findings, onOpenFinding }, ref) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const docRef = useRef<HTMLDivElement>(null);
+  const [article, setArticle] = useState<HTMLElement | null>(null);
+  const { on, toggle } = useLayers();
+  const mine = useMemo(() => (findings ?? []).filter((f) => f.anchor.file === path && f.layer), [findings, path]);
+  const markers = useOverlay(article, html, mine, on);
   const [theme, setTheme] = useState(() => document.documentElement.classList.contains("dark"));
 
   useEffect(() => {
@@ -39,7 +52,7 @@ export const Preview = forwardRef<
 
   // REQ-004: Mermaid loads only when a doc has a diagram.
   useEffect(() => {
-    const nodes = docRef.current?.querySelectorAll<HTMLElement>("pre.mermaid");
+    const nodes = article?.querySelectorAll<HTMLElement>("pre.mermaid");
     if (!nodes || nodes.length === 0) return;
     let cancelled = false;
     import("mermaid").then(({ default: mermaid }) => {
@@ -50,7 +63,7 @@ export const Preview = forwardRef<
     return () => {
       cancelled = true;
     };
-  }, [html, theme]);
+  }, [article, html, theme]);
 
   const click = (e: React.MouseEvent) => {
     const a = (e.target as HTMLElement).closest<HTMLAnchorElement>("a[data-bundle-path]");
@@ -61,12 +74,16 @@ export const Preview = forwardRef<
 
   return (
     <div ref={ref} onScroll={onScroll} className="print-only-doc h-full overflow-y-auto bg-surface">
+      {findings && mine.length > 0 ? <OverlayLegend on={on} toggle={toggle} counts={layerCounts(mine)} /> : null}
       <div className="mx-auto max-w-[calc(var(--measure)+var(--space-16))] px-6 py-10 sm:px-8">
         {error ? <ErrorState message={error} /> : null}
         {html === null && !error ? <p className="text-sm text-ink-3">Rendering</p> : null}
         {html !== null ? (
-          // The server escapes doc text and drops raw HTML (SDD §14.3).
-          <article ref={docRef} className="doc" onClick={click} dangerouslySetInnerHTML={{ __html: html }} />
+          <div className="relative">
+            {onOpenFinding ? <Gutter markers={markers} onOpen={onOpenFinding} /> : null}
+            {/* The server escapes doc text and drops raw HTML (SDD §14.3). */}
+            <article ref={setArticle} className="doc" onClick={click} dangerouslySetInnerHTML={{ __html: html }} />
+          </div>
         ) : null}
       </div>
     </div>
