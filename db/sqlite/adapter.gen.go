@@ -64,6 +64,14 @@ func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams
 	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
 }
 
+func (a Adapter) DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error {
+	return a.q.DeleteGithubConnection(ctx, workspaceID)
+}
+
+func (a Adapter) DeleteGithubSource(ctx context.Context, arg pgdb.DeleteGithubSourceParams) error {
+	return a.q.DeleteGithubSource(ctx, DeleteGithubSourceParams(arg))
+}
+
 func (a Adapter) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
 	return a.q.DeleteLinksFrom(ctx, fromBundleID)
 }
@@ -130,6 +138,16 @@ func (a Adapter) GetFinding(ctx context.Context, id uuid.UUID) (pgdb.Finding, er
 func (a Adapter) GetFirstWorkspace(ctx context.Context) (pgdb.Workspace, error) {
 	r, err := a.q.GetFirstWorkspace(ctx)
 	return pgdb.Workspace(r), err
+}
+
+func (a Adapter) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID) (pgdb.GithubConnection, error) {
+	r, err := a.q.GetGithubConnection(ctx, workspaceID)
+	return pgdb.GithubConnection(r), err
+}
+
+func (a Adapter) GetGithubSource(ctx context.Context, arg pgdb.GetGithubSourceParams) (pgdb.GithubSource, error) {
+	r, err := a.q.GetGithubSource(ctx, GetGithubSourceParams(arg))
+	return pgdb.GithubSource(r), err
 }
 
 func (a Adapter) GetMCPConnection(ctx context.Context, arg pgdb.GetMCPConnectionParams) (pgdb.McpConnection, error) {
@@ -240,6 +258,10 @@ func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) er
 
 func (a Adapter) InsertFinding(ctx context.Context, arg pgdb.InsertFindingParams) error {
 	return a.q.InsertFinding(ctx, InsertFindingParams(arg))
+}
+
+func (a Adapter) InsertGithubSource(ctx context.Context, arg pgdb.InsertGithubSourceParams) error {
+	return a.q.InsertGithubSource(ctx, InsertGithubSourceParams(arg))
 }
 
 func (a Adapter) InsertInvite(ctx context.Context, arg pgdb.InsertInviteParams) error {
@@ -522,6 +544,18 @@ func (a Adapter) ListFullRunsSince(ctx context.Context, arg pgdb.ListFullRunsSin
 	return out, nil
 }
 
+func (a Adapter) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.GithubSource, error) {
+	rows, err := a.q.ListGithubSources(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.GithubSource, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.GithubSource(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Invite, error) {
 	rows, err := a.q.ListInvites(ctx, workspaceID)
 	if err != nil {
@@ -785,12 +819,20 @@ func (a Adapter) SetBundleShare(ctx context.Context, arg pgdb.SetBundleSharePara
 	return a.q.SetBundleShare(ctx, SetBundleShareParams(arg))
 }
 
+func (a Adapter) SetBundleSourceRef(ctx context.Context, arg pgdb.SetBundleSourceRefParams) error {
+	return a.q.SetBundleSourceRef(ctx, SetBundleSourceRefParams(arg))
+}
+
 func (a Adapter) SetBundleVisibility(ctx context.Context, arg pgdb.SetBundleVisibilityParams) error {
 	return a.q.SetBundleVisibility(ctx, SetBundleVisibilityParams(arg))
 }
 
 func (a Adapter) SetFindingSuggestion(ctx context.Context, arg pgdb.SetFindingSuggestionParams) error {
 	return a.q.SetFindingSuggestion(ctx, SetFindingSuggestionParams(arg))
+}
+
+func (a Adapter) SetGithubSourceSynced(ctx context.Context, arg pgdb.SetGithubSourceSyncedParams) error {
+	return a.q.SetGithubSourceSynced(ctx, SetGithubSourceSyncedParams(arg))
 }
 
 func (a Adapter) SetInboxSeen(ctx context.Context, arg pgdb.SetInboxSeenParams) error {
@@ -853,6 +895,10 @@ func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignment
 
 func (a Adapter) UpsertBundleStatusView(ctx context.Context, arg pgdb.UpsertBundleStatusViewParams) error {
 	return a.q.UpsertBundleStatusView(ctx, UpsertBundleStatusViewParams(arg))
+}
+
+func (a Adapter) UpsertGithubConnection(ctx context.Context, arg pgdb.UpsertGithubConnectionParams) error {
+	return a.q.UpsertGithubConnection(ctx, UpsertGithubConnectionParams(arg))
 }
 
 func (a Adapter) UpsertThreadView(ctx context.Context, arg pgdb.UpsertThreadViewParams) error {

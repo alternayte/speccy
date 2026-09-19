@@ -1605,6 +1605,179 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /admin/github:
+    get:
+      operationId: getGithubConnection
+      summary: The GitHub token of the workspace (DEC-019). The token itself is never returned.
+      responses:
+        "200":
+          description: The connection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubConnection"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: setGithubConnection
+      summary: Set the fine-grained personal access token that reads repos and opens pull requests.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 1
+                api_url:
+                  type: string
+                  description: The GitHub API. The default is https://api.github.com. GitHub Enterprise Server uses https://<host>/api/v3.
+      responses:
+        "200":
+          description: The connection, after a check with GitHub.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubConnection"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteGithubConnection
+      summary: Remove the GitHub token. The GitHub sources stop syncing.
+      responses:
+        "204":
+          description: Removed.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /github/sources:
+    get:
+      operationId: listGithubSources
+      summary: The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+      responses:
+        "200":
+          description: The sources.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GithubSource"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: addGithubSource
+      summary: Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [repo]
+              properties:
+                repo:
+                  type: string
+                  description: owner/name
+                branch:
+                  type: string
+                  description: The default is the repo's default branch.
+                path:
+                  type: string
+                  description: The folder in the repo. The default is the whole repo.
+      responses:
+        "200":
+          description: The source, after its first sync.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubSource"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /github/sources/{sourceId}:
+    parameters:
+      - $ref: "#/components/parameters/SourceId"
+    delete:
+      operationId: deleteGithubSource
+      summary: Stop reading a source. Its bundles are archived; their reviews and threads stay.
+      responses:
+        "204":
+          description: Removed.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /github/sources/{sourceId}/sync:
+    parameters:
+      - $ref: "#/components/parameters/SourceId"
+    post:
+      operationId: syncGithubSource
+      summary: Read the source's branch now.
+      responses:
+        "200":
+          description: The source after the sync.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubSource"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/publish:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: publishBundle
+      summary: Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: The commit message and pull request title.
+      responses:
+        "200":
+          description: The pull request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pr_url, pr_number]
+                properties:
+                  pr_url:
+                    type: string
+                  pr_number:
+                    type: integer
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/draft/discard:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: discardDraft
+      summary: Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+      responses:
+        "200":
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /admin/budget:
     get:
       operationId: getBudget
@@ -1688,6 +1861,13 @@ components:
         format: uuid
     FindingId:
       name: findingId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SourceId:
+      name: sourceId
       in: path
       required: true
       schema:
@@ -1941,6 +2121,8 @@ components:
         source_kind:
           type: string
           enum: [local, db, github]
+        github:
+          $ref: "#/components/schemas/BundleGithub"
         main_doc:
           type: string
           description: The path of the main doc in the bundle.
@@ -2748,6 +2930,63 @@ components:
         should:
           type: integer
         info:
+          type: integer
+
+    BundleGithub:
+      type: object
+      description: Where a GitHub bundle comes from, and its draft (REQ-123).
+      required: [repo, branch, path, draft, ahead]
+      properties:
+        repo:
+          type: string
+        branch:
+          type: string
+        path:
+          type: string
+        draft:
+          type: boolean
+          description: The current version has changes that are not on GitHub.
+        ahead:
+          type: boolean
+          description: GitHub changed after the draft started.
+        pr_url:
+          type: string
+
+    GithubConnection:
+      type: object
+      required: [configured, api_url]
+      properties:
+        configured:
+          type: boolean
+        token_last4:
+          type: string
+        api_url:
+          type: string
+        login:
+          type: string
+          description: The GitHub account of the token, from the last check.
+
+    GithubSource:
+      type: object
+      required: [id, repo, branch, path, head_commit, error, bundles]
+      properties:
+        id:
+          type: string
+          format: uuid
+        repo:
+          type: string
+        branch:
+          type: string
+        path:
+          type: string
+        head_commit:
+          type: string
+        synced_at:
+          type: string
+          format: date-time
+        error:
+          type: string
+        bundles:
           type: integer
 
     FindingList:

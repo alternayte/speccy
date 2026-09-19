@@ -1169,8 +1169,11 @@ type BuildQuestionResult string
 
 // Bundle defines model for Bundle.
 type Bundle struct {
-	CurrentVersion Version            `json:"current_version"`
-	Id             openapi_types.UUID `json:"id"`
+	CurrentVersion Version `json:"current_version"`
+
+	// Github Where a GitHub bundle comes from, and its draft (REQ-123).
+	Github *BundleGithub      `json:"github,omitempty"`
+	Id     openapi_types.UUID `json:"id"`
 
 	// MainDoc The path of the main doc in the bundle.
 	MainDoc string `json:"main_doc"`
@@ -1215,6 +1218,19 @@ type BundleFile struct {
 	Path      string `json:"path"`
 	Sha256    string `json:"sha256"`
 	Size      int64  `json:"size"`
+}
+
+// BundleGithub Where a GitHub bundle comes from, and its draft (REQ-123).
+type BundleGithub struct {
+	// Ahead GitHub changed after the draft started.
+	Ahead  bool   `json:"ahead"`
+	Branch string `json:"branch"`
+
+	// Draft The current version has changes that are not on GitHub.
+	Draft bool    `json:"draft"`
+	Path  string  `json:"path"`
+	PrUrl *string `json:"pr_url,omitempty"`
+	Repo  string  `json:"repo"`
 }
 
 // BundleLink defines model for BundleLink.
@@ -1505,6 +1521,28 @@ type FixSuggestion struct {
 
 	// VersionId The version the patch was written for.
 	VersionId openapi_types.UUID `json:"version_id"`
+}
+
+// GithubConnection defines model for GithubConnection.
+type GithubConnection struct {
+	ApiUrl     string `json:"api_url"`
+	Configured bool   `json:"configured"`
+
+	// Login The GitHub account of the token, from the last check.
+	Login      *string `json:"login,omitempty"`
+	TokenLast4 *string `json:"token_last4,omitempty"`
+}
+
+// GithubSource defines model for GithubSource.
+type GithubSource struct {
+	Branch     string             `json:"branch"`
+	Bundles    int                `json:"bundles"`
+	Error      string             `json:"error"`
+	HeadCommit string             `json:"head_commit"`
+	Id         openapi_types.UUID `json:"id"`
+	Path       string             `json:"path"`
+	Repo       string             `json:"repo"`
+	SyncedAt   *time.Time         `json:"synced_at,omitempty"`
 }
 
 // IdSuggestion defines model for IdSuggestion.
@@ -2219,6 +2257,9 @@ type ProfileKey = string
 // RunId defines model for RunId.
 type RunId = openapi_types.UUID
 
+// SourceId defines model for SourceId.
+type SourceId = openapi_types.UUID
+
 // ThreadId defines model for ThreadId.
 type ThreadId = openapi_types.UUID
 
@@ -2237,6 +2278,13 @@ type TestBackendJSONBody struct {
 type SetBudgetJSONBody struct {
 	// TokenLimit Leave it out for no limit.
 	TokenLimit *int64 `json:"token_limit,omitempty"`
+}
+
+// SetGithubConnectionJSONBody defines parameters for SetGithubConnection.
+type SetGithubConnectionJSONBody struct {
+	// ApiUrl The GitHub API. The default is https://api.github.com. GitHub Enterprise Server uses https://<host>/api/v3.
+	ApiUrl *string `json:"api_url,omitempty"`
+	Token  string  `json:"token"`
 }
 
 // CreateInviteJSONBody defines parameters for CreateInvite.
@@ -2310,6 +2358,12 @@ type PutFileContentParams struct {
 	Path PathQuery `form:"path" json:"path"`
 }
 
+// PublishBundleJSONBody defines parameters for PublishBundle.
+type PublishBundleJSONBody struct {
+	// Message The commit message and pull request title.
+	Message *string `json:"message,omitempty"`
+}
+
 // RequestReviewJSONBody defines parameters for RequestReview.
 type RequestReviewJSONBody struct {
 	// Reviewers User IDs.
@@ -2353,6 +2407,18 @@ type SetVisibilityJSONBody struct {
 type RequestWaiverJSONBody struct {
 	FindingId openapi_types.UUID `json:"finding_id"`
 	Reason    string             `json:"reason"`
+}
+
+// AddGithubSourceJSONBody defines parameters for AddGithubSource.
+type AddGithubSourceJSONBody struct {
+	// Branch The default is the repo's default branch.
+	Branch *string `json:"branch,omitempty"`
+
+	// Path The folder in the repo. The default is the whole repo.
+	Path *string `json:"path,omitempty"`
+
+	// Repo owner/name
+	Repo string `json:"repo"`
 }
 
 // CreateProfileJSONBody defines parameters for CreateProfile.
@@ -2399,6 +2465,9 @@ type TestBackendJSONRequestBody TestBackendJSONBody
 // SetBudgetJSONRequestBody defines body for SetBudget for application/json ContentType.
 type SetBudgetJSONRequestBody SetBudgetJSONBody
 
+// SetGithubConnectionJSONRequestBody defines body for SetGithubConnection for application/json ContentType.
+type SetGithubConnectionJSONRequestBody SetGithubConnectionJSONBody
+
 // CreateInviteJSONRequestBody defines body for CreateInvite for application/json ContentType.
 type CreateInviteJSONRequestBody CreateInviteJSONBody
 
@@ -2426,6 +2495,9 @@ type ImportBundleMultipartRequestBody = ImportRequest
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
 
+// PublishBundleJSONRequestBody defines body for PublishBundle for application/json ContentType.
+type PublishBundleJSONRequestBody PublishBundleJSONBody
+
 // RequestReviewJSONRequestBody defines body for RequestReview for application/json ContentType.
 type RequestReviewJSONRequestBody RequestReviewJSONBody
 
@@ -2446,6 +2518,9 @@ type SetVisibilityJSONRequestBody SetVisibilityJSONBody
 
 // RequestWaiverJSONRequestBody defines body for RequestWaiver for application/json ContentType.
 type RequestWaiverJSONRequestBody RequestWaiverJSONBody
+
+// AddGithubSourceJSONRequestBody defines body for AddGithubSource for application/json ContentType.
+type AddGithubSourceJSONRequestBody AddGithubSourceJSONBody
 
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
@@ -2503,6 +2578,15 @@ type ServerInterface interface {
 	// SetBudget Set the monthly token limit. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(w http.ResponseWriter, r *http.Request)
+	// DeleteGithubConnection Remove the GitHub token. The GitHub sources stop syncing.
+	// (DELETE /admin/github)
+	DeleteGithubConnection(w http.ResponseWriter, r *http.Request)
+	// GetGithubConnection The GitHub token of the workspace (DEC-019). The token itself is never returned.
+	// (GET /admin/github)
+	GetGithubConnection(w http.ResponseWriter, r *http.Request)
+	// SetGithubConnection Set the fine-grained personal access token that reads repos and opens pull requests.
+	// (PUT /admin/github)
+	SetGithubConnection(w http.ResponseWriter, r *http.Request)
 	// ListInvites List invite links, newest first (REQ-081).
 	// (GET /admin/invites)
 	ListInvites(w http.ResponseWriter, r *http.Request)
@@ -2575,6 +2659,9 @@ type ServerInterface interface {
 	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
 	// (POST /bundles/{bundleId}/diff/summary)
 	SummarizeDiff(w http.ResponseWriter, r *http.Request, bundleId BundleId, params SummarizeDiffParams)
+	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	// (POST /bundles/{bundleId}/draft/discard)
+	DiscardDraft(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	// (GET /bundles/{bundleId}/export)
 	ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams)
@@ -2593,6 +2680,9 @@ type ServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /bundles/{bundleId}/files/rename)
 	RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	// (POST /bundles/{bundleId}/publish)
+	PublishBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	// (POST /bundles/{bundleId}/review-request)
 	RequestReview(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -2641,6 +2731,18 @@ type ServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /bundles/{bundleId}/waivers)
 	RequestWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+	// (GET /github/sources)
+	ListGithubSources(w http.ResponseWriter, r *http.Request)
+	// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// (POST /github/sources)
+	AddGithubSource(w http.ResponseWriter, r *http.Request)
+	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
+	// (DELETE /github/sources/{sourceId})
+	DeleteGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId)
+	// SyncGithubSource Read the source's branch now.
+	// (POST /github/sources/{sourceId}/sync)
+	SyncGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId)
 	// GetInbox The caller's inbox (REQ-091).
 	// (GET /inbox)
 	GetInbox(w http.ResponseWriter, r *http.Request)
@@ -2873,6 +2975,48 @@ func (siw *ServerInterfaceWrapper) SetBudget(w http.ResponseWriter, r *http.Requ
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetBudget(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGithubConnection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGithubConnection(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGithubConnection(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetGithubConnection operation middleware
+func (siw *ServerInterfaceWrapper) GetGithubConnection(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetGithubConnection(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetGithubConnection operation middleware
+func (siw *ServerInterfaceWrapper) SetGithubConnection(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetGithubConnection(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3452,6 +3596,32 @@ func (siw *ServerInterfaceWrapper) SummarizeDiff(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// DiscardDraft operation middleware
+func (siw *ServerInterfaceWrapper) DiscardDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscardDraft(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ExportBundle operation middleware
 func (siw *ServerInterfaceWrapper) ExportBundle(w http.ResponseWriter, r *http.Request) {
 
@@ -3731,6 +3901,32 @@ func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RenameFile(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishBundle operation middleware
+func (siw *ServerInterfaceWrapper) PublishBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishBundle(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4208,6 +4404,86 @@ func (siw *ServerInterfaceWrapper) RequestWaiver(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RequestWaiver(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListGithubSources operation middleware
+func (siw *ServerInterfaceWrapper) ListGithubSources(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListGithubSources(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddGithubSource operation middleware
+func (siw *ServerInterfaceWrapper) AddGithubSource(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddGithubSource(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGithubSource operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGithubSource(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId SourceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGithubSource(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SyncGithubSource operation middleware
+func (siw *ServerInterfaceWrapper) SyncGithubSource(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId SourceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SyncGithubSource(w, r, sourceId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5149,6 +5425,15 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/roles", wrapper.ListRoles)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/roles/{role}", wrapper.UnassignRole)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/roles/{role}", wrapper.AssignRole)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/github", wrapper.DeleteGithubConnection)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/github", wrapper.GetGithubConnection)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/github", wrapper.SetGithubConnection)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/github/sources", wrapper.ListGithubSources)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources", wrapper.AddGithubSource)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/github/sources/{sourceId}", wrapper.DeleteGithubSource)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/sync", wrapper.SyncGithubSource)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/publish", wrapper.PublishBundle)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/draft/discard", wrapper.DiscardDraft)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/budget", wrapper.GetBudget)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/budget", wrapper.SetBudget)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
@@ -5414,6 +5699,115 @@ type SetBudgetdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response SetBudgetdefaultApplicationProblemPlusJSONResponse) VisitSetBudgetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteGithubConnectionRequestObject struct {
+}
+
+type DeleteGithubConnectionResponseObject interface {
+	VisitDeleteGithubConnectionResponse(w http.ResponseWriter) error
+}
+
+type DeleteGithubConnection204Response struct {
+}
+
+func (response DeleteGithubConnection204Response) VisitDeleteGithubConnectionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteGithubConnectiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteGithubConnectiondefaultApplicationProblemPlusJSONResponse) VisitDeleteGithubConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGithubConnectionRequestObject struct {
+}
+
+type GetGithubConnectionResponseObject interface {
+	VisitGetGithubConnectionResponse(w http.ResponseWriter) error
+}
+
+type GetGithubConnection200JSONResponse GithubConnection
+
+func (response GetGithubConnection200JSONResponse) VisitGetGithubConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetGithubConnectiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetGithubConnectiondefaultApplicationProblemPlusJSONResponse) VisitGetGithubConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGithubConnectionRequestObject struct {
+	Body *SetGithubConnectionJSONRequestBody
+}
+
+type SetGithubConnectionResponseObject interface {
+	VisitSetGithubConnectionResponse(w http.ResponseWriter) error
+}
+
+type SetGithubConnection200JSONResponse GithubConnection
+
+func (response SetGithubConnection200JSONResponse) VisitSetGithubConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetGithubConnectiondefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetGithubConnectiondefaultApplicationProblemPlusJSONResponse) VisitSetGithubConnectionResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -6355,6 +6749,45 @@ func (response SummarizeDiffdefaultApplicationProblemPlusJSONResponse) VisitSumm
 	return err
 }
 
+type DiscardDraftRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type DiscardDraftResponseObject interface {
+	VisitDiscardDraftResponse(w http.ResponseWriter) error
+}
+
+type DiscardDraft200JSONResponse WriteResult
+
+func (response DiscardDraft200JSONResponse) VisitDiscardDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardDraftdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DiscardDraftdefaultApplicationProblemPlusJSONResponse) VisitDiscardDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ExportBundleRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 	Params   ExportBundleParams
@@ -6617,6 +7050,49 @@ type RenameFiledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishBundleRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *PublishBundleJSONRequestBody
+}
+
+type PublishBundleResponseObject interface {
+	VisitPublishBundleResponse(w http.ResponseWriter) error
+}
+
+type PublishBundle200JSONResponse struct {
+	PrNumber int    `json:"pr_number"`
+	PrUrl    string `json:"pr_url"`
+}
+
+func (response PublishBundle200JSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PublishBundledefaultApplicationProblemPlusJSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -7258,6 +7734,157 @@ type RequestWaiverdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response RequestWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequestWaiverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGithubSourcesRequestObject struct {
+}
+
+type ListGithubSourcesResponseObject interface {
+	VisitListGithubSourcesResponse(w http.ResponseWriter) error
+}
+
+type ListGithubSources200JSONResponse struct {
+	Items []GithubSource `json:"items"`
+}
+
+func (response ListGithubSources200JSONResponse) VisitListGithubSourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListGithubSourcesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListGithubSourcesdefaultApplicationProblemPlusJSONResponse) VisitListGithubSourcesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGithubSourceRequestObject struct {
+	Body *AddGithubSourceJSONRequestBody
+}
+
+type AddGithubSourceResponseObject interface {
+	VisitAddGithubSourceResponse(w http.ResponseWriter) error
+}
+
+type AddGithubSource200JSONResponse GithubSource
+
+func (response AddGithubSource200JSONResponse) VisitAddGithubSourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddGithubSourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AddGithubSourcedefaultApplicationProblemPlusJSONResponse) VisitAddGithubSourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteGithubSourceRequestObject struct {
+	SourceId SourceId `json:"sourceId"`
+}
+
+type DeleteGithubSourceResponseObject interface {
+	VisitDeleteGithubSourceResponse(w http.ResponseWriter) error
+}
+
+type DeleteGithubSource204Response struct {
+}
+
+func (response DeleteGithubSource204Response) VisitDeleteGithubSourceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteGithubSourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteGithubSourcedefaultApplicationProblemPlusJSONResponse) VisitDeleteGithubSourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncGithubSourceRequestObject struct {
+	SourceId SourceId `json:"sourceId"`
+}
+
+type SyncGithubSourceResponseObject interface {
+	VisitSyncGithubSourceResponse(w http.ResponseWriter) error
+}
+
+type SyncGithubSource200JSONResponse GithubSource
+
+func (response SyncGithubSource200JSONResponse) VisitSyncGithubSourceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SyncGithubSourcedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SyncGithubSourcedefaultApplicationProblemPlusJSONResponse) VisitSyncGithubSourceResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8574,6 +9201,15 @@ type StrictServerInterface interface {
 	// SetBudget Set the monthly token limit. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(ctx context.Context, request SetBudgetRequestObject) (SetBudgetResponseObject, error)
+	// DeleteGithubConnection Remove the GitHub token. The GitHub sources stop syncing.
+	// (DELETE /admin/github)
+	DeleteGithubConnection(ctx context.Context, request DeleteGithubConnectionRequestObject) (DeleteGithubConnectionResponseObject, error)
+	// GetGithubConnection The GitHub token of the workspace (DEC-019). The token itself is never returned.
+	// (GET /admin/github)
+	GetGithubConnection(ctx context.Context, request GetGithubConnectionRequestObject) (GetGithubConnectionResponseObject, error)
+	// SetGithubConnection Set the fine-grained personal access token that reads repos and opens pull requests.
+	// (PUT /admin/github)
+	SetGithubConnection(ctx context.Context, request SetGithubConnectionRequestObject) (SetGithubConnectionResponseObject, error)
 	// ListInvites List invite links, newest first (REQ-081).
 	// (GET /admin/invites)
 	ListInvites(ctx context.Context, request ListInvitesRequestObject) (ListInvitesResponseObject, error)
@@ -8646,6 +9282,9 @@ type StrictServerInterface interface {
 	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
 	// (POST /bundles/{bundleId}/diff/summary)
 	SummarizeDiff(ctx context.Context, request SummarizeDiffRequestObject) (SummarizeDiffResponseObject, error)
+	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	// (POST /bundles/{bundleId}/draft/discard)
+	DiscardDraft(ctx context.Context, request DiscardDraftRequestObject) (DiscardDraftResponseObject, error)
 	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	// (GET /bundles/{bundleId}/export)
 	ExportBundle(ctx context.Context, request ExportBundleRequestObject) (ExportBundleResponseObject, error)
@@ -8664,6 +9303,9 @@ type StrictServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /bundles/{bundleId}/files/rename)
 	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
+	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	// (POST /bundles/{bundleId}/publish)
+	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
 	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	// (POST /bundles/{bundleId}/review-request)
 	RequestReview(ctx context.Context, request RequestReviewRequestObject) (RequestReviewResponseObject, error)
@@ -8712,6 +9354,18 @@ type StrictServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /bundles/{bundleId}/waivers)
 	RequestWaiver(ctx context.Context, request RequestWaiverRequestObject) (RequestWaiverResponseObject, error)
+	// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+	// (GET /github/sources)
+	ListGithubSources(ctx context.Context, request ListGithubSourcesRequestObject) (ListGithubSourcesResponseObject, error)
+	// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// (POST /github/sources)
+	AddGithubSource(ctx context.Context, request AddGithubSourceRequestObject) (AddGithubSourceResponseObject, error)
+	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
+	// (DELETE /github/sources/{sourceId})
+	DeleteGithubSource(ctx context.Context, request DeleteGithubSourceRequestObject) (DeleteGithubSourceResponseObject, error)
+	// SyncGithubSource Read the source's branch now.
+	// (POST /github/sources/{sourceId}/sync)
+	SyncGithubSource(ctx context.Context, request SyncGithubSourceRequestObject) (SyncGithubSourceResponseObject, error)
 	// GetInbox The caller's inbox (REQ-091).
 	// (GET /inbox)
 	GetInbox(ctx context.Context, request GetInboxRequestObject) (GetInboxResponseObject, error)
@@ -9044,6 +9698,85 @@ func (sh *strictHandler) SetBudget(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetBudgetResponseObject); ok {
 		if err := validResponse.VisitSetBudgetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteGithubConnection operation middleware
+func (sh *strictHandler) DeleteGithubConnection(w http.ResponseWriter, r *http.Request) {
+	var request DeleteGithubConnectionRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteGithubConnection(ctx, request.(DeleteGithubConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteGithubConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteGithubConnectionResponseObject); ok {
+		if err := validResponse.VisitDeleteGithubConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetGithubConnection operation middleware
+func (sh *strictHandler) GetGithubConnection(w http.ResponseWriter, r *http.Request) {
+	var request GetGithubConnectionRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetGithubConnection(ctx, request.(GetGithubConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetGithubConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetGithubConnectionResponseObject); ok {
+		if err := validResponse.VisitGetGithubConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetGithubConnection operation middleware
+func (sh *strictHandler) SetGithubConnection(w http.ResponseWriter, r *http.Request) {
+	var request SetGithubConnectionRequestObject
+
+	var body SetGithubConnectionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetGithubConnection(ctx, request.(SetGithubConnectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetGithubConnection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetGithubConnectionResponseObject); ok {
+		if err := validResponse.VisitSetGithubConnectionResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9711,6 +10444,32 @@ func (sh *strictHandler) SummarizeDiff(w http.ResponseWriter, r *http.Request, b
 	}
 }
 
+// DiscardDraft operation middleware
+func (sh *strictHandler) DiscardDraft(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request DiscardDraftRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscardDraft(ctx, request.(DiscardDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscardDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscardDraftResponseObject); ok {
+		if err := validResponse.VisitDiscardDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ExportBundle operation middleware
 func (sh *strictHandler) ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams) {
 	var request ExportBundleRequestObject
@@ -9874,6 +10633,42 @@ func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, bund
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RenameFileResponseObject); ok {
 		if err := validResponse.VisitRenameFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishBundle operation middleware
+func (sh *strictHandler) PublishBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request PublishBundleRequestObject
+
+	request.BundleId = bundleId
+
+	var body PublishBundleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishBundle(ctx, request.(PublishBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishBundleResponseObject); ok {
+		if err := validResponse.VisitPublishBundleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -10345,6 +11140,113 @@ func (sh *strictHandler) RequestWaiver(w http.ResponseWriter, r *http.Request, b
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RequestWaiverResponseObject); ok {
 		if err := validResponse.VisitRequestWaiverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListGithubSources operation middleware
+func (sh *strictHandler) ListGithubSources(w http.ResponseWriter, r *http.Request) {
+	var request ListGithubSourcesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListGithubSources(ctx, request.(ListGithubSourcesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListGithubSources")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListGithubSourcesResponseObject); ok {
+		if err := validResponse.VisitListGithubSourcesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddGithubSource operation middleware
+func (sh *strictHandler) AddGithubSource(w http.ResponseWriter, r *http.Request) {
+	var request AddGithubSourceRequestObject
+
+	var body AddGithubSourceJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddGithubSource(ctx, request.(AddGithubSourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddGithubSource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddGithubSourceResponseObject); ok {
+		if err := validResponse.VisitAddGithubSourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteGithubSource operation middleware
+func (sh *strictHandler) DeleteGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId) {
+	var request DeleteGithubSourceRequestObject
+
+	request.SourceId = sourceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteGithubSource(ctx, request.(DeleteGithubSourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteGithubSource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteGithubSourceResponseObject); ok {
+		if err := validResponse.VisitDeleteGithubSourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SyncGithubSource operation middleware
+func (sh *strictHandler) SyncGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId) {
+	var request SyncGithubSourceRequestObject
+
+	request.SourceId = sourceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SyncGithubSource(ctx, request.(SyncGithubSourceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SyncGithubSource")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SyncGithubSourceResponseObject); ok {
+		if err := validResponse.VisitSyncGithubSourceResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

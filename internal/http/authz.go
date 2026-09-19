@@ -110,8 +110,11 @@ var operations = map[string]access{
 	"renameFile":     bundleEdit,
 	"addTraceIds":    bundleEdit,
 	// REQ-025: the author asks for a fix and accepts it.
-	"suggestFix":      bundleEdit,
-	"acceptFix":       bundleEdit,
+	"suggestFix": bundleEdit,
+	"acceptFix":  bundleEdit,
+	// REQ-123: authors publish and discard drafts of GitHub bundles.
+	"publishBundle":   bundleEdit,
+	"discardDraft":    bundleEdit,
 	"setVisibility":   bundleEdit,
 	"createShareLink": bundleEdit,
 	"revokeShareLink": bundleEdit,
@@ -137,7 +140,15 @@ var operations = map[string]access{
 	"revokeInvite":        adminOnly,
 	"createResetLink":     adminOnly,
 	"getSettings":         adminOnly,
-	"setSettings":         adminOnly,
+	// DEC-019: the GitHub token and its sources are workspace setup.
+	"getGithubConnection":    adminOnly,
+	"setGithubConnection":    adminOnly,
+	"deleteGithubConnection": adminOnly,
+	"listGithubSources":      member,
+	"addGithubSource":        adminOnly,
+	"deleteGithubSource":     adminOnly,
+	"syncGithubSource":       adminOnly,
+	"setSettings":            adminOnly,
 }
 
 // Authz enforces the role table for one workspace.

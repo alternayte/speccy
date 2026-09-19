@@ -24,6 +24,8 @@ type Querier interface {
 	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
+	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
 	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
 	DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error
@@ -39,6 +41,8 @@ type Querier interface {
 	GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error)
 	GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
+	GetGithubConnection(ctx context.Context, workspaceID uuid.UUID) (GithubConnection, error)
+	GetGithubSource(ctx context.Context, arg GetGithubSourceParams) (GithubSource, error)
 	GetMCPConnection(ctx context.Context, arg GetMCPConnectionParams) (McpConnection, error)
 	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
 	GetProfileVersion(ctx context.Context, arg GetProfileVersionParams) (ProfileVersion, error)
@@ -63,6 +67,7 @@ type Querier interface {
 	InsertClaim(ctx context.Context, arg InsertClaimParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
+	InsertGithubSource(ctx context.Context, arg InsertGithubSourceParams) error
 	InsertInvite(ctx context.Context, arg InsertInviteParams) error
 	InsertJob(ctx context.Context, arg InsertJobParams) error
 	InsertLink(ctx context.Context, arg InsertLinkParams) error
@@ -109,6 +114,7 @@ type Querier interface {
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
+	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
 	ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error)
@@ -140,8 +146,10 @@ type Querier interface {
 	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
+	SetBundleSourceRef(ctx context.Context, arg SetBundleSourceRefParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
 	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
+	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
 	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
@@ -159,6 +167,7 @@ type Querier interface {
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
 	UpsertBundleStatusView(ctx context.Context, arg UpsertBundleStatusViewParams) error
+	UpsertGithubConnection(ctx context.Context, arg UpsertGithubConnectionParams) error
 	UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error
 	UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewParams) error
 }

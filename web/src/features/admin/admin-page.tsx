@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { BackendDialog, kinds } from "./backend-dialog";
+import { GitHubSection } from "./github-section";
 import { MCPSection } from "./mcp-section";
 import { InvitesSection, PeopleSection, SettingsSection } from "./people-section";
 import { useMe } from "@/features/account/me";
@@ -53,6 +54,13 @@ export function AdminPage() {
             </header>
             <PeopleSection />
             <InvitesSection />
+            <header>
+              <h1 className="text-xl font-semibold tracking-tight">GitHub</h1>
+              <p className="mt-1 text-sm text-ink-2">
+                Read bundles from GitHub repos. Speccy never changes a branch: it publishes edits as pull requests.
+              </p>
+            </header>
+            <GitHubSection />
           </>
         ) : null}
         <header>

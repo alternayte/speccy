@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -90,6 +91,8 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		ES:       events,
 	}
 	if root == nil {
+		// REQ-123: hosted mode reads bundles from GitHub with the workspace token.
+		svc.GitHub = adminAPI.GitHubClient
 		// REQ-009: the admin sets the size limits of hosted mode.
 		svc.Limits = func(ctx context.Context) source.Limits { return settings(ctx).Limits() }
 	}
@@ -109,6 +112,9 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}
 	// SDD §7.2: one worker runs queued reviews.
 	go reviews.Work(ctx)
+	if root == nil {
+		go svc.WatchGitHub(ctx, 5*time.Minute)
+	}
 	shareAPI := &share.API{DB: db, Workspace: ws}
 	reviewAPI := &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change}
 	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}

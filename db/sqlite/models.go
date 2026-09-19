@@ -120,6 +120,28 @@ type Finding struct {
 	Waived     bool
 }
 
+type GithubConnection struct {
+	WorkspaceID    uuid.UUID
+	TokenEncrypted []byte
+	TokenLast4     string
+	ApiUrl         string
+	UpdatedBy      string
+	UpdatedAt      time.Time
+}
+
+type GithubSource struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Repo        string
+	Branch      string
+	Path        string
+	HeadCommit  string
+	SyncedAt    sql.NullTime
+	Error       string
+	CreatedBy   string
+	CreatedAt   time.Time
+}
+
 type Invite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

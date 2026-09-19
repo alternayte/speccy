@@ -134,6 +134,16 @@ Any member suggests a change to a profile under **Profiles → Suggestions**.
 
 A person makes an API token under **Account**. The CLI, CI, and MCP clients send it as `Authorization: Bearer <token>`. A token has the role of the person, and it stops when the person loses the role.
 
+### GitHub
+
+An admin sets one GitHub token for the workspace in **Admin → GitHub**. Use a fine-grained personal access token with read and write access to **Contents** and **Pull requests** on the repos Speccy reads. For GitHub Enterprise Server, set the API address, such as `https://github.example.com/api/v3`.
+
+A **GitHub source** is a repo, a branch, and a folder. Speccy reads the bundles in the folder with the same rules as local mode, including the `.speccy.yaml` at the root of the repo. It reads the branch again every 5 minutes, and when an admin selects **Sync**.
+
+An edit in Speccy to a bundle from GitHub stays unpublished. The author selects **Unpublished → Open a pull request**. Speccy puts the changed files on a new branch, `speccy/<bundle>-v<version>-<time>`, and opens a pull request into the source branch. It never changes the source branch itself. When the pull request merges, the next sync marks the bundle as published. **Discard the changes** takes the text from GitHub again.
+
+The admin who adds a source becomes the author of its bundles.
+
 ### Workspace settings
 
 An admin sets these under **Admin → Workspace settings**.

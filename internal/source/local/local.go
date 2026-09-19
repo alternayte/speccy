@@ -20,10 +20,16 @@ import (
 // listed as a problem, so one stray file cannot fill memory on each scan.
 const MaxFileBytes = source.MaxFileBytes
 
-// Root is the folder that local mode serves.
+// Root is the folder that local mode serves. Scans read it through fsys, so a tree that is
+// not on disk (a GitHub repo) scans with the same rules; such a root has no dir and cannot
+// persist changes.
 type Root struct {
-	dir string // absolute, symlinks resolved
+	dir  string // absolute, symlinks resolved; "" for a tree that is not on disk
+	fsys fs.FS
 }
+
+// FromFS returns a read-only root over fsys, for scans only.
+func FromFS(fsys fs.FS) *Root { return &Root{fsys: fsys} }
 
 // Open returns the root at dir.
 func Open(dir string) (*Root, error) {
@@ -42,7 +48,7 @@ func Open(dir string) (*Root, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("%s is not a folder", abs)
 	}
-	return &Root{dir: abs}, nil
+	return &Root{dir: abs, fsys: os.DirFS(abs)}, nil
 }
 
 // Dir returns the absolute root folder.
@@ -101,18 +107,17 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 	s := &Scan{bundleDirs: map[string]bool{}, excluded: map[string]bool{}, bySlug: map[string]int{}}
 	var dirs []string
 	var mapped []string
-	err := filepath.WalkDir(r.dir, func(p string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(r.fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if p == r.dir {
+			if rel == "." {
 				return err
 			}
-			s.Problems = append(s.Problems, Problem{Path: r.rel(p), Message: err.Error()})
+			s.Problems = append(s.Problems, Problem{Path: rel, Message: err.Error()})
 			return nil
 		}
-		rel := r.rel(p)
 		if d.IsDir() {
-			if p != r.dir && skipDir(d.Name()) {
-				return filepath.SkipDir
+			if rel != "." && skipDir(d.Name()) {
+				return fs.SkipDir
 			}
 			dirs = append(dirs, rel)
 			return nil
@@ -203,14 +208,14 @@ func (s *Scan) skipFor(dir string) func(rel string) bool {
 func (r *Root) loadSingle(rel string, cfg source.RepoConfig) (Bundle, []Problem, error) {
 	dir := path.Dir(rel)
 	file := path.Base(rel)
-	content, err := readCapped(r.abs(rel))
+	content, err := r.readCapped(rel)
 	if err != nil {
 		return Bundle{}, nil, err
 	}
 	files := []source.File{{Path: file, Content: content}}
 	var problems []Problem
 	assets := path.Join(dir, source.AssetsDir(file))
-	if info, err := os.Stat(r.abs(assets)); err == nil && info.IsDir() {
+	if info, err := fs.Stat(r.fsys, assets); err == nil && info.IsDir() {
 		more, p, err := r.load(assets, func(string) bool { return false })
 		if err != nil {
 			return Bundle{}, nil, err
@@ -233,7 +238,7 @@ func (r *Root) loadSingle(rel string, cfg source.RepoConfig) (Bundle, []Problem,
 // mainDocCandidates returns the markdown files directly in dir that have a frontmatter type.
 // A file whose frontmatter does not parse, but has a type line, is a problem.
 func (r *Root) mainDocCandidates(dir string, excluded map[string]bool) ([]string, []Problem) {
-	entries, err := os.ReadDir(r.abs(dir))
+	entries, err := fs.ReadDir(r.fsys, dir)
 	if err != nil {
 		return nil, []Problem{{Path: dir, Message: err.Error()}}
 	}
@@ -247,7 +252,7 @@ func (r *Root) mainDocCandidates(dir string, excluded map[string]bool) ([]string
 		if excluded[rel] {
 			continue
 		}
-		content, err := readCapped(r.abs(rel))
+		content, err := r.readCapped(rel)
 		if err != nil {
 			continue // load reports it when the folder is a bundle
 		}
@@ -283,15 +288,13 @@ func (r *Root) Load(s *Scan, slug string) ([]source.File, error) {
 func (r *Root) load(dir string, skip func(rel string) bool) ([]source.File, []Problem, error) {
 	var files []source.File
 	var problems []Problem
-	base := r.abs(dir)
-	err := filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(r.fsys, dir, func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel := r.rel(p)
 		if d.IsDir() {
-			if p != base && (skipDir(d.Name()) || skip(rel)) {
-				return filepath.SkipDir
+			if rel != dir && (skipDir(d.Name()) || skip(rel)) {
+				return fs.SkipDir
 			}
 			return nil
 		}
@@ -299,7 +302,7 @@ func (r *Root) load(dir string, skip func(rel string) bool) ([]source.File, []Pr
 		if !d.Type().IsRegular() || strings.HasPrefix(d.Name(), ".") || skip(rel) {
 			return nil
 		}
-		content, err := readCapped(p)
+		content, err := r.readCapped(rel)
 		if errors.Is(err, errTooLarge) {
 			problems = append(problems, Problem{Path: rel, Message: fmt.Sprintf("The file is larger than %d MB. Speccy does not read it.", MaxFileBytes>>20)})
 			return nil
@@ -307,8 +310,11 @@ func (r *Root) load(dir string, skip func(rel string) bool) ([]source.File, []Pr
 		if err != nil {
 			return err
 		}
-		inBundle, _ := filepath.Rel(base, p)
-		files = append(files, source.File{Path: filepath.ToSlash(inBundle), Content: content})
+		inBundle := rel
+		if dir != "." {
+			inBundle = strings.TrimPrefix(rel, dir+"/")
+		}
+		files = append(files, source.File{Path: inBundle, Content: content})
 		return nil
 	})
 	if err != nil {
@@ -320,20 +326,26 @@ func (r *Root) load(dir string, skip func(rel string) bool) ([]source.File, []Pr
 
 var errTooLarge = errors.New("file too large")
 
-func readCapped(p string) ([]byte, error) {
-	info, err := os.Stat(p)
+// errReadOnly is a write to a root that is not on disk.
+var errReadOnly = errors.New("this tree is not on disk, so Speccy cannot write to it")
+
+func (r *Root) readCapped(rel string) ([]byte, error) {
+	info, err := fs.Stat(r.fsys, rel)
 	if err != nil {
 		return nil, err
 	}
 	if info.Size() > MaxFileBytes {
 		return nil, errTooLarge
 	}
-	return os.ReadFile(p)
+	return fs.ReadFile(r.fsys, rel)
 }
 
 // Persist applies op to the bundle with slug on disk. The caller has checked op with
 // source.Apply.
 func (r *Root) Persist(s *Scan, slug string, op source.Op) error {
+	if r.dir == "" {
+		return errReadOnly
+	}
 	b, ok := s.Bundle(slug)
 	if !ok {
 		return fmt.Errorf("no bundle %q on disk", slug)
@@ -412,6 +424,9 @@ func (r *Root) Persist(s *Scan, slug string, op source.Op) error {
 
 // CreateBundle writes files into the new folder name under the root. The folder must not exist.
 func (r *Root) CreateBundle(name string, files []source.File) (string, error) {
+	if r.dir == "" {
+		return "", errReadOnly
+	}
 	dir, err := source.CleanPath(name)
 	if err != nil {
 		return "", err

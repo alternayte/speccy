@@ -22,6 +22,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
+	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/store"
 )
@@ -46,11 +47,14 @@ type Service struct {
 	AfterChange func(context.Context) error
 	// Limits returns the REQ-009 limits in force. Nil means the defaults.
 	Limits func(context.Context) source.Limits
+	// GitHub returns the client with the workspace token (hosted mode), and nil in local mode.
+	GitHub func(context.Context) (*github.Client, error)
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan
 	repo     source.RepoConfig
 	problems []local.Problem
+	blobs    blobCache
 }
 
 // RepoConfig returns the .speccy.yaml of the last local scan.
@@ -213,7 +217,8 @@ func (s *Service) change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 		if err := s.Local.Persist(s.scan, b.Slug, op); err != nil {
 			return pgdb.Version{}, false, applyError(err)
 		}
-	case KindDB:
+	case KindDB, KindGitHub:
+		// A change to a GitHub bundle is a draft until Publish (REQ-123).
 		if err := source.CheckLimits(next, s.limits(ctx)); err != nil {
 			return pgdb.Version{}, false, err
 		}
@@ -236,8 +241,13 @@ func (s *Service) change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 // REQ-001 rule for a folder.
 func (s *Service) mainDoc(b pgdb.Bundle, files []source.File) (source.MainDoc, error) {
 	var ref localRef
-	if b.SourceKind == KindLocal {
+	var gh githubRef
+	switch b.SourceKind {
+	case KindLocal:
 		_ = json.Unmarshal(b.SourceRef, &ref)
+	case KindGitHub:
+		_ = json.Unmarshal(b.SourceRef, &gh)
+		ref = localRef{Dir: gh.Dir, File: gh.File}
 	}
 	if ref.File == "" {
 		return source.FindMainDoc(files)
@@ -245,6 +255,9 @@ func (s *Service) mainDoc(b pgdb.Bundle, files []source.File) (source.MainDoc, e
 	for _, f := range files {
 		if f.Path == ref.File {
 			mapped, _ := s.repo.MappedProfile(path.Join(ref.Dir, ref.File))
+			if b.SourceKind == KindGitHub {
+				mapped = gh.Profile
+			}
 			return source.SingleFileMainDoc(f.Path, f.Content, mapped)
 		}
 	}

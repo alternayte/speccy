@@ -35,12 +35,19 @@ func toAPI(ctx context.Context, q store.Querier, b pgdb.Bundle) (api.Bundle, err
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return api.Bundle{}, err
 	}
-	return api.Bundle{
+	out := api.Bundle{
 		Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey, MainDoc: b.MainDoc,
 		SourceKind: api.BundleSourceKind(b.SourceKind), CurrentVersion: version.ToAPI(v), UpdatedAt: b.UpdatedAt.UTC(),
 		Verdict: verdict, RunError: runErr, Visibility: ptr(api.Visibility(b.Visibility)),
 		Status: ptr(api.ReviewStatus(status)),
-	}, nil
+	}
+	if gh, ok := GitHubStateOf(ctx, q, b); ok {
+		out.Github = &api.BundleGithub{Repo: gh.Repo, Branch: gh.Branch, Path: gh.Path, Draft: gh.Draft, Ahead: gh.Ahead}
+		if gh.PR != "" {
+			out.Github.PrUrl = &gh.PR
+		}
+	}
+	return out, nil
 }
 
 func ptr[T any](v T) *T { return &v }
