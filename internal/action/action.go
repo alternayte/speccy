@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -439,6 +440,8 @@ func summary(o Options, bundles []Bundle, rest map[string][]string) string {
 	}
 	if o.RunURL != "" {
 		fmt.Fprintf(&b, "\nThe full HTML reports are in the artifacts of [this run](%s).\n", o.RunURL)
+	} else if slices.ContainsFunc(bundles, func(x Bundle) bool { return x.Report != "" }) {
+		b.WriteString("\nEach bundle name links to its full report on the Speccy server.\n")
 	}
 	if !o.Blocking {
 		b.WriteString("\nAdvisory mode: the verdict does not fail the check.\n")

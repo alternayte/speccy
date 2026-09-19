@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -27,8 +28,10 @@ type Content struct {
 	Files   []source.File
 }
 
-// ContentResult is the review of Content. Nothing is stored except the cache.
+// ContentResult is the review of Content. The API stores it for the report (SDD §12.4).
 type ContentResult struct {
+	Title          string
+	Slug           string
 	ProfileKey     string
 	ProfileVersion int64
 	MainDoc        string
@@ -126,6 +129,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	}
 	out.Verdict = verdict.Decide(vin)
 	out.ProfileKey, out.ProfileVersion, out.MainDoc = p.Profile.Key, p.Version, main.Path
+	out.Title, out.Slug = main.Title, slug
 	out.RelaxedCount = relaxedCount(p.Profile, ev.relaxed)
 	rc.mu.Lock()
 	out.Notes = append([]string{}, rc.notes...)
@@ -211,7 +215,47 @@ func (a *API) ReviewContent(ctx context.Context, req api.ReviewContentRequestObj
 	out.Verdict = contentVerdict(res)
 	cost := float32(res.CostUSD)
 	out.TokensIn, out.TokensOut, out.CostEstimate, out.CacheHits = &res.TokensIn, &res.TokensOut, &cost, &res.CacheHits
+	out.Id = kernel.NewID()
+	out.ReportPath = "/reviews/" + out.Id.String()
+	if err := a.storeContentReview(ctx, res, c.Files, out); err != nil {
+		return nil, err
+	}
 	return api.ReviewContent200JSONResponse(out), nil
+}
+
+// ContentReviewDays is how long the server keeps a content review for its report (SDD §15.3).
+const ContentReviewDays = 90
+
+// StoredFile is one file of a stored content review.
+type StoredFile struct {
+	Path    string `json:"path"`
+	Content []byte `json:"content"` // base64 in JSON
+}
+
+// storeContentReview keeps the files and the result, so the Action can link to the report
+// (SDD §12.4). It also removes the reviews older than ContentReviewDays.
+func (a *API) storeContentReview(ctx context.Context, res ContentResult, files []source.File, out api.ContentReview) error {
+	stored := make([]StoredFile, len(files))
+	for i, f := range files {
+		stored[i] = StoredFile{Path: f.Path, Content: f.Content}
+	}
+	fj, err := json.Marshal(stored)
+	if err != nil {
+		return err
+	}
+	rj, err := json.Marshal(out)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	q := a.DB.Queries()
+	if err := q.DeleteContentReviewsBefore(ctx, pgdb.DeleteContentReviewsBeforeParams{WorkspaceID: a.Workspace,
+		Before: now.AddDate(0, 0, -ContentReviewDays)}); err != nil {
+		return err
+	}
+	return q.InsertContentReview(ctx, pgdb.InsertContentReviewParams{ID: out.Id, WorkspaceID: a.Workspace, Slug: res.Slug,
+		Title: res.Title, MainDoc: res.MainDoc, ProfileKey: res.ProfileKey, ProfileVersion: res.ProfileVersion,
+		Files: fj, Result: rj, CreatedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: now})
 }
 
 func contentVerdict(res ContentResult) api.ContentVerdict {

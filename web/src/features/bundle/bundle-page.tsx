@@ -1,7 +1,8 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { Compass, Download, FileText, FolderTree, ListChecks, Network, Printer } from "lucide-react";
+import { ChevronDown, Compass, Download, FileText, FolderTree, ListChecks, Network, Printer } from "lucide-react";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -134,25 +135,17 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           />
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-md font-semibold tracking-tight">{b.title}</h1>
+          <h1 className="truncate text-lg font-semibold tracking-tight">{b.title}</h1>
           <p className="truncate font-mono text-2xs text-ink-3">
             {b.slug} · <span className="uppercase">{b.profile_key}</span> · v{b.current_version.number}
           </p>
         </div>
-        <Link
-          to="/bundles/$bundleId/tour"
-          params={{ bundleId }}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
-        >
+        <Link to="/bundles/$bundleId/tour" params={{ bundleId }} className={navLink}>
           <Compass aria-hidden className="size-3.5" />
           <span className="hidden sm:inline">Tour</span>
           <span className="sr-only sm:hidden">Tour</span>
         </Link>
-        <Link
-          to="/bundles/$bundleId/trace"
-          params={{ bundleId }}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
-        >
+        <Link to="/bundles/$bundleId/trace" params={{ bundleId }} className={navLink}>
           <Network aria-hidden className="size-3.5" />
           <span className="hidden sm:inline">Traceability</span>
           <span className="sr-only sm:hidden">Traceability</span>
@@ -170,35 +163,36 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             icon={<ListChecks className="size-4" />}
             onClick={() => setPanel(panel === "rail" ? null : "rail")}
           />
-          <a
-            href={`/api/v1/bundles/${bundleId}/export`}
-            title="Download the bundle as a .zip file"
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
+          <Menu
+            trigger={
+              <Button variant="ghost" size="sm" icon={<Download className="size-3.5" />} aria-label="Export">
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown aria-hidden className="size-3.5" />
+              </Button>
+            }
           >
-            <Download aria-hidden className="size-3.5" />
-            <span className="hidden sm:inline">Export .zip</span>
-            <span className="sr-only sm:hidden">Export .zip</span>
-          </a>
-          <a
-            href={`/api/v1/bundles/${bundleId}/export?format=html`}
-            title="Download one HTML file with the verdict, the findings, and the doc"
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
-          >
-            <FileText aria-hidden className="size-3.5" />
-            <span className="hidden sm:inline">Report</span>
-            <span className="sr-only sm:hidden">HTML report</span>
-          </a>
-          <Button
-            size="sm"
-            icon={<Printer className="size-3.5" />}
-            onClick={() => {
-              if (view === "code") setSearch({ ...search, view: "preview" });
-              setTimeout(() => window.print(), 300);
-            }}
-            title="Print, or save as PDF"
-          >
-            <span className="hidden sm:inline">PDF</span>
-          </Button>
+            <MenuItem
+              icon={<FileText className="size-3.5" />}
+              onSelect={() => window.location.assign(`/api/v1/bundles/${bundleId}/export?format=html`)}
+            >
+              HTML report
+            </MenuItem>
+            <MenuItem
+              icon={<Printer className="size-3.5" />}
+              onSelect={() => {
+                if (view === "code") setSearch({ ...search, view: "preview" });
+                setTimeout(() => window.print(), 300);
+              }}
+            >
+              Print, or save as PDF
+            </MenuItem>
+            <MenuItem
+              icon={<Download className="size-3.5" />}
+              onSelect={() => window.location.assign(`/api/v1/bundles/${bundleId}/export`)}
+            >
+              Bundle as .zip
+            </MenuItem>
+          </Menu>
         </div>
       </div>
 
@@ -391,3 +385,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
     </div>
   );
 }
+
+// Tour and Traceability are places to go, not actions, so they carry no button weight.
+const navLink =
+  "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-ink-2 hover:bg-sunken hover:text-ink";

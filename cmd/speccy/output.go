@@ -81,6 +81,9 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 				fmt.Fprint(w, " Lint checks only.")
 			}
 			fmt.Fprint(w, "\n\n")
+			if r.Report != "" {
+				fmt.Fprintf(w, "[Full report](%s)\n\n", r.Report)
+			}
 			if r.Relaxed > 0 {
 				fmt.Fprintf(w, "Adoption mode: %d check%s relaxed.\n\n", r.Relaxed, plural(r.Relaxed))
 			}
@@ -117,6 +120,9 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 				kind = ", lint checks only"
 			}
 			fmt.Fprintf(w, "  Score %d. %d MUST, %d SHOULD, %d INFO%s.\n", r.Score, r.Must, r.Should, r.Info, kind)
+			if r.Report != "" {
+				fmt.Fprintf(w, "  Report: %s\n", r.Report)
+			}
 			if r.Relaxed > 0 {
 				fmt.Fprintf(w, "  Adoption mode: %d check%s relaxed.\n", r.Relaxed, plural(r.Relaxed))
 			}

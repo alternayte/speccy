@@ -92,7 +92,7 @@ export function FindingsPanel({
               <button
                 type="button"
                 onClick={() => onOpen(f)}
-                className="group block w-full px-3 py-2.5 text-left transition-colors hover:bg-sunken"
+                className="group block w-full px-4 py-3.5 text-left transition-colors hover:bg-sunken"
               >
                 <div className="flex items-center gap-1.5">
                   <Icon aria-hidden className={clsx("size-3.5 shrink-0", tone)} />
@@ -100,9 +100,9 @@ export function FindingsPanel({
                   <span className="min-w-0 truncate font-mono text-2xs text-ink-3">{f.check_slug}</span>
                   {f.relaxed ? <span className="ml-auto text-2xs text-warn">relaxed</span> : null}
                 </div>
-                <p className="mt-1 text-sm text-ink">{f.message}</p>
+                <p className="mt-1.5 text-sm text-ink">{f.message}</p>
                 {f.anchor.quote.trim() ? (
-                  <p className="mt-1 line-clamp-2 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2 group-hover:border-accent">
+                  <p className="mt-2 line-clamp-2 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2 group-hover:border-accent">
                     {f.anchor.quote}
                   </p>
                 ) : null}
@@ -112,7 +112,7 @@ export function FindingsPanel({
                 {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
               </button>
               {f.waived || member ? (
-                <div className="flex items-center gap-3 px-3 pb-2 text-xs">
+                <div className="flex items-center gap-3 px-4 pb-3.5 text-xs">
                   {f.waived ? (
                     <span className="inline-flex items-center gap-1 font-medium text-ok">
                       <ShieldCheck aria-hidden className="size-3.5" /> Waived
@@ -228,10 +228,10 @@ function WaiversList({ bundleId }: { bundleId: string }) {
   const error = approve.error ?? reject.error;
   return (
     <section className="border-t border-line">
-      <h3 className="px-3 pt-3 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Waivers</h3>
+      <h3 className="px-4 pt-4 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Waivers</h3>
       <ul className="divide-y divide-line">
         {items.map((w) => (
-          <li key={w.id} className="px-3 py-2.5 text-sm">
+          <li key={w.id} className="px-4 py-3.5 text-sm">
             <p className="flex items-center gap-1.5 text-2xs">
               <span className={clsx("font-semibold tracking-wide uppercase", waiverStatus[w.status])}>{w.status}</span>
               <span className="font-mono text-ink-3">{w.check_slug}</span>
@@ -294,11 +294,11 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
   });
   if (accepted)
     return (
-      <p className="px-3 pb-2 text-xs text-ok">Fix applied as version {accepted}. Run the review again to check it.</p>
+      <p className="px-4 pb-3 text-xs text-ok">Fix applied as version {accepted}. Run the review again to check it.</p>
     );
   if (!patch)
     return (
-      <div className="px-3 pb-2">
+      <div className="px-4 pb-3">
         <button
           type="button"
           onClick={() => suggest.mutate({ path })}
@@ -316,7 +316,7 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
       </div>
     );
   return (
-    <div className="mx-3 mb-2.5 rounded-md border border-line bg-sunken p-2 text-xs">
+    <div className="mx-4 mb-3 rounded-md border border-line bg-sunken p-2 text-xs">
       <p className="text-ink-2">{patch.explanation}</p>
       <p className="mt-1.5 font-mono text-2xs text-ink-3">{patch.file}</p>
       <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-del)] px-1.5 py-1 font-mono whitespace-pre-wrap line-through decoration-ink-3">
@@ -353,13 +353,13 @@ function DetachedList({ bundleId, findings }: { bundleId: string; findings: Find
   if (lost.length + lostThreads.length === 0) return null;
   return (
     <section className="border-t border-line">
-      <h3 className="flex items-center gap-1.5 px-3 pt-3 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
+      <h3 className="flex items-center gap-1.5 px-4 pt-4 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
         <Unlink aria-hidden className="size-3.5" /> Detached
       </h3>
-      <p className="px-3 pt-1 text-xs text-ink-3">The text changed. Speccy cannot find these quotes in this version.</p>
+      <p className="px-4 pt-1 text-xs text-ink-3">The text changed. Speccy cannot find these quotes in this version.</p>
       <ul className="divide-y divide-line">
         {lost.map((f) => (
-          <li key={f.id} className="px-3 py-2.5">
+          <li key={f.id} className="px-4 py-3.5">
             <p className="font-mono text-2xs text-ink-3">{f.check_slug}</p>
             <p className="mt-0.5 text-sm">{f.message}</p>
             <p className="mt-1 line-clamp-2 border-l-2 border-warn pl-2 font-mono text-xs text-ink-2">
@@ -368,7 +368,7 @@ function DetachedList({ bundleId, findings }: { bundleId: string; findings: Find
           </li>
         ))}
         {lostThreads.map((t) => (
-          <li key={t.id} className="px-3 py-2.5">
+          <li key={t.id} className="px-4 py-3.5">
             <p className="text-2xs text-ink-3">Thread</p>
             <p className="mt-0.5 text-sm">{t.title}</p>
             <p className="mt-1 line-clamp-2 border-l-2 border-warn pl-2 font-mono text-xs text-ink-2">

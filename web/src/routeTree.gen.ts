@@ -19,6 +19,7 @@ import { Route as ResetRouteImport } from './routes/reset'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as ProfilesIndexRouteImport } from './routes/profiles/index'
 import { Route as ProfilesKeyRouteImport } from './routes/profiles/$key'
+import { Route as ReviewsReviewIdRouteImport } from './routes/reviews/$reviewId'
 import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
 import { Route as BundlesBundleIdDiffRouteImport } from './routes/bundles/$bundleId/diff'
@@ -76,6 +77,11 @@ const ProfilesKeyRoute = ProfilesKeyRouteImport.update({
   path: '/profiles/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
+  id: '/reviews/$reviewId',
+  path: '/reviews/$reviewId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
   id: '/share/$token',
   path: '/share/$token',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/reset': typeof ResetRoute
   '/sign-in': typeof SignInRoute
   '/profiles/$key': typeof ProfilesKeyRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/reset': typeof ResetRoute
   '/sign-in': typeof SignInRoute
   '/profiles/$key': typeof ProfilesKeyRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/reset': typeof ResetRoute
   '/sign-in': typeof SignInRoute
   '/profiles/$key': typeof ProfilesKeyRoute
+  '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
@@ -175,6 +184,7 @@ export interface FileRouteTypes {
     | '/reset'
     | '/sign-in'
     | '/profiles/$key'
+    | '/reviews/$reviewId'
     | '/share/$token'
     | '/profiles/'
     | '/bundles/$bundleId/diff'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/reset'
     | '/sign-in'
     | '/profiles/$key'
+    | '/reviews/$reviewId'
     | '/share/$token'
     | '/profiles'
     | '/bundles/$bundleId/diff'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/reset'
     | '/sign-in'
     | '/profiles/$key'
+    | '/reviews/$reviewId'
     | '/share/$token'
     | '/profiles/'
     | '/bundles/$bundleId/diff'
@@ -230,6 +242,7 @@ export interface RootRouteChildren {
   ResetRoute: typeof ResetRoute
   SignInRoute: typeof SignInRoute
   ProfilesKeyRoute: typeof ProfilesKeyRoute
+  ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ProfilesIndexRoute: typeof ProfilesIndexRoute
   BundlesBundleIdDiffRoute: typeof BundlesBundleIdDiffRoute
@@ -311,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProfilesKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reviews/$reviewId': {
+      id: '/reviews/$reviewId'
+      path: '/reviews/$reviewId'
+      fullPath: '/reviews/$reviewId'
+      preLoaderRoute: typeof ReviewsReviewIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/share/$token': {
       id: '/share/$token'
       path: '/share/$token'
@@ -366,6 +386,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetRoute: ResetRoute,
   SignInRoute: SignInRoute,
   ProfilesKeyRoute: ProfilesKeyRoute,
+  ReviewsReviewIdRoute: ReviewsReviewIdRoute,
   ShareTokenRoute: ShareTokenRoute,
   ProfilesIndexRoute: ProfilesIndexRoute,
   BundlesBundleIdDiffRoute: BundlesBundleIdDiffRoute,

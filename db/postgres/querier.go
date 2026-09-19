@@ -24,6 +24,7 @@ type Querier interface {
 	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error
 	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
 	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
@@ -39,6 +40,7 @@ type Querier interface {
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
 	GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (BundleStatusView, error)
 	GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error)
+	GetContentReview(ctx context.Context, arg GetContentReviewParams) (ContentReview, error)
 	GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
 	GetGithubConnection(ctx context.Context, workspaceID uuid.UUID) (GithubConnection, error)
@@ -65,6 +67,7 @@ type Querier interface {
 	InsertBundleAuthor(ctx context.Context, arg InsertBundleAuthorParams) error
 	InsertBundleReviewer(ctx context.Context, arg InsertBundleReviewerParams) error
 	InsertClaim(ctx context.Context, arg InsertClaimParams) error
+	InsertContentReview(ctx context.Context, arg InsertContentReviewParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
 	InsertGithubSource(ctx context.Context, arg InsertGithubSourceParams) error

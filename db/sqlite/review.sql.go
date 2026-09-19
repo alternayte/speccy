@@ -14,6 +14,48 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteContentReviewsBefore = `-- name: DeleteContentReviewsBefore :exec
+DELETE FROM content_review WHERE workspace_id = ?1 AND created_at < ?2
+`
+
+type DeleteContentReviewsBeforeParams struct {
+	WorkspaceID uuid.UUID
+	Before      time.Time
+}
+
+func (q *Queries) DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteContentReviewsBefore, arg.WorkspaceID, arg.Before)
+	return err
+}
+
+const getContentReview = `-- name: GetContentReview :one
+SELECT id, workspace_id, slug, title, main_doc, profile_key, profile_version, files, result, created_by, created_at FROM content_review WHERE workspace_id = ?1 AND id = ?2
+`
+
+type GetContentReviewParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetContentReview(ctx context.Context, arg GetContentReviewParams) (ContentReview, error) {
+	row := q.db.QueryRowContext(ctx, getContentReview, arg.WorkspaceID, arg.ID)
+	var i ContentReview
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Slug,
+		&i.Title,
+		&i.MainDoc,
+		&i.ProfileKey,
+		&i.ProfileVersion,
+		&i.Files,
+		&i.Result,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getProfileByKey = `-- name: GetProfileByKey :one
 SELECT id, workspace_id, "key", name, current_version FROM profile WHERE workspace_id = ?1 AND key = ?2
 `
@@ -114,6 +156,43 @@ func (q *Queries) GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, err
 		&i.BlockingFindingIds,
 	)
 	return i, err
+}
+
+const insertContentReview = `-- name: InsertContentReview :exec
+INSERT INTO content_review (id, workspace_id, slug, title, main_doc, profile_key, profile_version, files, result, created_by, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+    ?7, ?8, ?9, ?10, ?11)
+`
+
+type InsertContentReviewParams struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	Slug           string
+	Title          string
+	MainDoc        string
+	ProfileKey     string
+	ProfileVersion int64
+	Files          dbtype.JSON
+	Result         dbtype.JSON
+	CreatedBy      string
+	CreatedAt      time.Time
+}
+
+func (q *Queries) InsertContentReview(ctx context.Context, arg InsertContentReviewParams) error {
+	_, err := q.db.ExecContext(ctx, insertContentReview,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Slug,
+		arg.Title,
+		arg.MainDoc,
+		arg.ProfileKey,
+		arg.ProfileVersion,
+		arg.Files,
+		arg.Result,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const insertFinding = `-- name: InsertFinding :exec

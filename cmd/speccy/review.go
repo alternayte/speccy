@@ -47,7 +47,9 @@ type reviewed struct {
 	Relaxed  int           `json:"relaxed"`
 	Findings []api.Finding `json:"findings"`
 	Notes    []string      `json:"notes"`
-	Error    string        `json:"error,omitempty"`
+	// Report links to the report on the server, in connected mode (SDD §12.4).
+	Report string `json:"report,omitempty"`
+	Error  string `json:"error,omitempty"`
 	// lines maps a file of the bundle to its text, to print line numbers.
 	lines map[string][]byte
 }
@@ -503,6 +505,7 @@ func reviewRemote(ctx context.Context, fl reviewFlags, stages review.Stages, sel
 			Path: b.Slug, Title: b.Main.Title, Profile: v.ProfileKey, MainDoc: path.Join(b.Dir, v.MainDoc), Kind: kind,
 			Verdict: string(v.Verdict.Result), Score: v.Verdict.Score, Must: v.Verdict.Must, Should: v.Verdict.Should, Info: v.Verdict.Info,
 			Waivers: v.Verdict.WaiverCount, Relaxed: v.Verdict.RelaxedCount, Findings: v.Findings, Notes: v.Notes,
+			Report: strings.TrimRight(fl.server, "/") + v.ReportPath,
 		})
 	}
 	return out, exitOK

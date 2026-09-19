@@ -134,7 +134,7 @@ export function TourPage({ bundleId }: { bundleId: string }) {
         >
           <ArrowLeft aria-hidden className="size-3.5" /> {bundle.data.title}
         </Link>
-        <h1 className="text-md font-semibold tracking-tight">Tour</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Tour</h1>
         {points.length ? (
           <span className="font-mono text-xs text-ink-3">
             {index + 1} of {points.length}

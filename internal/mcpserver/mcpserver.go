@@ -36,7 +36,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "list_bundles", "List the bundles with their verdicts.", t.listBundles)
 	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its main doc.", t.getBundle)
 	add(s, t, "review_bundle", "Run a review of a saved bundle and wait for the verdict. The model stages can take minutes.", t.reviewBundle)
-	add(s, t, "review_content", "Review markdown files that are not saved: a main doc with a type in its frontmatter, and its assets. Nothing is stored.", t.reviewContent)
+	add(s, t, "review_content", "Review markdown files that are not saved: a main doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.", t.reviewContent)
 	add(s, t, "get_verdict", "Get the current verdict of a bundle.", t.getVerdict)
 	add(s, t, "get_findings", "Get the findings of a bundle's current verdict, MUST first. Each has a message, a suggested fix, and the text it points at.", t.getFindings)
 	add(s, t, "get_tour", "Get the points of a bundle that need a human decision, in order.", t.getTour)

@@ -73,3 +73,14 @@ VALUES (sqlc.arg(run_id), sqlc.arg(result), sqlc.arg(score), sqlc.arg(radar), sq
 
 -- name: GetVerdict :one
 SELECT * FROM verdict WHERE run_id = sqlc.arg(run_id);
+
+-- name: InsertContentReview :exec
+INSERT INTO content_review (id, workspace_id, slug, title, main_doc, profile_key, profile_version, files, result, created_by, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(slug), sqlc.arg(title), sqlc.arg(main_doc), sqlc.arg(profile_key),
+    sqlc.arg(profile_version), sqlc.arg(files), sqlc.arg(result), sqlc.arg(created_by), sqlc.arg(created_at));
+
+-- name: GetContentReview :one
+SELECT * FROM content_review WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: DeleteContentReviewsBefore :exec
+DELETE FROM content_review WHERE workspace_id = sqlc.arg(workspace_id) AND created_at < sqlc.arg(before);

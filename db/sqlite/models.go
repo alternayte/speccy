@@ -89,6 +89,20 @@ type Claim struct {
 	Anchor  dbtype.JSON
 }
 
+type ContentReview struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	Slug           string
+	Title          string
+	MainDoc        string
+	ProfileKey     string
+	ProfileVersion int64
+	Files          dbtype.JSON
+	Result         dbtype.JSON
+	CreatedBy      string
+	CreatedAt      time.Time
+}
+
 type EsEvent struct {
 	StreamID   uuid.UUID
 	Version    int64

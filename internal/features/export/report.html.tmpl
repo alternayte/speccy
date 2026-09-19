@@ -46,7 +46,7 @@ footer{margin-top:32px;font-size:12px;color:var(--ink-3)}
 </head>
 <body>
 <main>
-<p class="meta">{{.Slug}} · {{.Profile}} · v{{.Version}}</p>
+<p class="meta">{{.Slug}} · {{.Profile}} · {{if .Version}}v{{.Version}}{{else}}files not saved on the server{{end}}</p>
 <h1>{{.Title}}</h1>
 
 <section class="verdict {{.VerdictClass}}">

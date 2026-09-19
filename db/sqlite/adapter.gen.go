@@ -64,6 +64,10 @@ func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams
 	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
 }
 
+func (a Adapter) DeleteContentReviewsBefore(ctx context.Context, arg pgdb.DeleteContentReviewsBeforeParams) error {
+	return a.q.DeleteContentReviewsBefore(ctx, DeleteContentReviewsBeforeParams(arg))
+}
+
 func (a Adapter) DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error {
 	return a.q.DeleteGithubConnection(ctx, workspaceID)
 }
@@ -128,6 +132,11 @@ func (a Adapter) GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (p
 
 func (a Adapter) GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error) {
 	return a.q.GetCache(ctx, keyHash)
+}
+
+func (a Adapter) GetContentReview(ctx context.Context, arg pgdb.GetContentReviewParams) (pgdb.ContentReview, error) {
+	r, err := a.q.GetContentReview(ctx, GetContentReviewParams(arg))
+	return pgdb.ContentReview(r), err
 }
 
 func (a Adapter) GetFinding(ctx context.Context, id uuid.UUID) (pgdb.Finding, error) {
@@ -250,6 +259,10 @@ func (a Adapter) InsertBundleReviewer(ctx context.Context, arg pgdb.InsertBundle
 
 func (a Adapter) InsertClaim(ctx context.Context, arg pgdb.InsertClaimParams) error {
 	return a.q.InsertClaim(ctx, InsertClaimParams(arg))
+}
+
+func (a Adapter) InsertContentReview(ctx context.Context, arg pgdb.InsertContentReviewParams) error {
+	return a.q.InsertContentReview(ctx, InsertContentReviewParams(arg))
 }
 
 func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) error {

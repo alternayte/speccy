@@ -580,7 +580,7 @@ paths:
   /reviews:
     post:
       operationId: reviewContent
-      summary: Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+      summary: Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
       requestBody:
         required: true
         content:
@@ -594,6 +594,27 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ContentReview"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /reviews/{reviewId}/report:
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getContentReviewReport
+      summary: The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+      responses:
+        "200":
+          description: The HTML report.
+          content:
+            text/html:
+              schema:
+                type: string
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2879,8 +2900,14 @@ components:
 
     ContentReview:
       type: object
-      required: [profile_key, profile_version, main_doc, verdict, findings, notes]
+      required: [id, report_path, profile_key, profile_version, main_doc, verdict, findings, notes]
       properties:
+        id:
+          type: string
+          format: uuid
+        report_path:
+          type: string
+          description: The app page of the report, relative to the server, such as /reviews/{id}.
         profile_key:
           type: string
         profile_version:

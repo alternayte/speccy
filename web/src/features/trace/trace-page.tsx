@@ -48,7 +48,7 @@ export function TracePage({ bundleId }: { bundleId: string }) {
         >
           <ArrowLeft aria-hidden className="size-3.5" /> Back to the bundle
         </Link>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight">Traceability</h1>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Traceability</h1>
         {bundle.data ? <p className="mt-0.5 text-sm text-ink-2">{bundle.data.title}</p> : null}
 
         {trace.isPending ? (
@@ -173,11 +173,11 @@ function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-line bg-sunken text-left text-xs text-ink-2">
-                <th scope="col" className="sticky left-0 z-10 bg-sunken px-3 py-2 font-medium">
+                <th scope="col" className="sticky left-0 z-10 bg-sunken px-4 py-2.5 font-medium">
                   Upstream ID
                 </th>
                 {m.columns.map((c) => (
-                  <th key={c.id} scope="col" className="px-3 py-2 font-medium">
+                  <th key={c.id} scope="col" className="px-4 py-2.5 font-medium">
                     <Link to="/bundles/$bundleId" params={{ bundleId: c.id }} className="hover:underline">
                       {c.title}
                     </Link>
@@ -190,7 +190,7 @@ function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
                 <tr key={r.id} className="border-b border-line last:border-b-0">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 w-[45vw] max-w-[360px] min-w-[150px] bg-surface px-3 py-2 text-left font-normal"
+                    className="sticky left-0 z-10 w-[45vw] max-w-[360px] min-w-[150px] bg-surface px-4 py-3 text-left font-normal"
                   >
                     <span className="font-mono text-xs font-semibold">{r.id}</span>
                     <span className="mt-0.5 line-clamp-2 block text-xs text-ink-2">
@@ -219,7 +219,7 @@ function Cell({ cell: c }: { cell: TraceCell }) {
         ? `${c.target ?? ""}: ${c.reason ?? ""}`
         : (c.reason ?? "");
   return (
-    <td className={clsx("px-3 py-2 align-top", c.state === "gap" && "bg-bad/10")}>
+    <td className={clsx("px-4 py-3 align-top", c.state === "gap" && "bg-bad/10")}>
       <span className={clsx("inline-flex items-center gap-1 text-xs font-medium", tone)}>
         <Icon aria-hidden className="size-3.5" />
         {text}

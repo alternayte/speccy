@@ -33,7 +33,7 @@ Flags of `speccy review`:
 | `--summary` | off | One table for all bundles, with totals. |
 | `--stages` | all, or lint when no model is assigned | A comma-separated list of `lint`, `rubric`, `grounding`, `divergence`, and `coherence`. Lint always runs. |
 | `--enforcement` | `enforcement` in `.speccy.yaml`, else `advisory` | With `blocking`, a Not Build Ready verdict exits 1. |
-| `--server` | none | Send the files to a Speccy server, which reviews them with its models and its linked docs, and stores nothing. The API token is in `SPECCY_TOKEN`. |
+| `--server` | none | Send the files to a Speccy server, which reviews them with its models and its linked docs. The server changes no bundle. It keeps the files and the result for 90 days, and the output links to the report. The API token is in `SPECCY_TOKEN`. |
 
 ### The GitHub Action
 
