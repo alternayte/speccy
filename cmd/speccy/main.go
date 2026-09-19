@@ -66,6 +66,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runLocal(args[1:], false, stdout, stderr)
 	case "admin":
 		return runAdmin(args[1:], stdout, stderr)
+	case "review":
+		return runReview(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK
@@ -137,24 +139,7 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	if err != nil {
 		return nil, err
 	}
-	stateDir := filepath.Join(root.Dir(), ".speccy", "state")
-	if err := os.MkdirAll(stateDir, 0o700); err != nil {
-		return nil, err
-	}
-	db, err := store.OpenSQLite(ctx, filepath.Join(stateDir, "speccy.db"))
-	if err != nil {
-		return nil, err
-	}
-	context.AfterFunc(ctx, func() { _ = db.Close() })
-	if err := db.Migrate(ctx); err != nil {
-		return nil, err
-	}
-	// SDD §14.1: local mode keeps the secret key in .speccy/state/key, mode 0600.
-	sealer, err := kernel.LocalSealer(filepath.Join(stateDir, "key"))
-	if err != nil {
-		return nil, err
-	}
-	a, err := app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles")})
+	a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"))
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +153,39 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 			}
 		})
 	}()
+	return func(spa fs.FS) nethttp.Handler { return localHandler(spa, a, db) }, nil
+}
+
+// openApp opens the SQLite store in stateDir and builds the services over the folder of root.
+// It syncs the bundles on disk once. The store closes when ctx ends.
+func openApp(ctx context.Context, root *local.Root, stateDir string) (*app.App, *store.DB, error) {
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return nil, nil, err
+	}
+	db, err := store.OpenSQLite(ctx, filepath.Join(stateDir, "speccy.db"))
+	if err != nil {
+		return nil, nil, err
+	}
+	context.AfterFunc(ctx, func() { _ = db.Close() })
+	if err := db.Migrate(ctx); err != nil {
+		return nil, nil, err
+	}
+	// SDD §14.1: local mode keeps the secret key in .speccy/state/key, mode 0600.
+	sealer, err := kernel.LocalSealer(filepath.Join(stateDir, "key"))
+	if err != nil {
+		return nil, nil, err
+	}
+	a, err := app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles")})
+	if err != nil {
+		return nil, nil, err
+	}
+	return a, db, nil
+}
+
+// localHandler is the local-mode handler: the one local user, with the role table (DEC-015).
+func localHandler(spa fs.FS, a *app.App, db *store.DB) nethttp.Handler {
 	opts := speccyhttp.Options{Actor: speccyhttp.LocalActor, Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}}
-	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, a.API, opts) }, nil
+	return speccyhttp.Handler(spa, a.API, opts)
 }
 
 // openURL opens url in the default browser.
