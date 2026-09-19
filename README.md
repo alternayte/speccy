@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M8. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links.
+Speccy is at milestone M9. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs.
 
 ## Quick start
 
@@ -36,6 +36,13 @@ This table lists only the guarantees whose tests pass today.
 | Guarantee | Test |
 |---|---|
 | An open MUST finding gives Not Build Ready. | [`TestVerdict_OpenMustBlocks`](internal/engine/verdict/verdict_test.go) |
+| A valid waiver on the only MUST finding gives Build Ready. | [`TestVerdict_WaivedMustPasses`](internal/engine/verdict/verdict_test.go) |
+| An open blocking thread gives Not Build Ready. | [`TestVerdict_BlockingThreadBlocks`](internal/engine/verdict/verdict_test.go) |
+| A verdict for an old version reads as stale. | [`TestVerdict_OldVersionIsStale`](internal/engine/verdict/verdict_test.go) |
+| A waiver becomes invalid when its section changes. | [`TestWaiver_InvalidatedOnSectionEdit`](internal/app/collab_test.go) |
+| The waiver policy is enforced for each policy value. | [`TestWaiverPolicy_Table`](internal/features/waiver/waiver_test.go) |
+| The author cannot approve their own bundle. | [`TestApproval_AuthorCannotApprove`](internal/app/collab_test.go) |
+| A content change revokes approvals. | [`TestApproval_EditRevokes`](internal/app/collab_test.go) |
 | SHOULD findings never change the verdict. | [`TestVerdict_ShouldNeverBlocks`](internal/engine/verdict/verdict_test.go) |
 | The verdict function is pure: same input, same output. | [`TestVerdict_Deterministic`](internal/engine/verdict/verdict_test.go) |
 | Lint finishes a 10,000-word doc in under 1 second. | [`BenchmarkLint_10kWords`](internal/engine/lint/lint_test.go) |

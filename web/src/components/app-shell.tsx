@@ -1,7 +1,8 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { CircleUser, LogOut, UserRound } from "lucide-react";
 import { useMe } from "@/features/account/me";
+import { getInboxOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { auth } from "@/lib/auth";
 import { Loading } from "./ui/states";
 import { Menu, MenuItem } from "./ui/menu";
@@ -39,24 +40,17 @@ export function AppShell() {
           Speccy
         </Link>
         {member ? (
-          <nav className="flex items-center gap-1 text-sm">
-            <Link
-              to="/"
-              activeOptions={{ exact: true }}
-              className="rounded-md px-2 py-1 text-ink-2 hover:bg-sunken hover:text-ink"
-              activeProps={{ className: "text-ink" }}
-            >
+          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto text-sm">
+            <NavLink to="/" exact>
               Bundles
-            </Link>
-            {admin ? (
-              <Link
-                to="/admin"
-                className="rounded-md px-2 py-1 text-ink-2 hover:bg-sunken hover:text-ink"
-                activeProps={{ className: "text-ink" }}
-              >
-                Admin
-              </Link>
-            ) : null}
+            </NavLink>
+            <NavLink to="/inbox">
+              Inbox
+              <InboxCount />
+            </NavLink>
+            <NavLink to="/profiles">Profiles</NavLink>
+            {admin || m?.maintainer ? <NavLink to="/insights">Insights</NavLink> : null}
+            {admin ? <NavLink to="/admin">Admin</NavLink> : null}
           </nav>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
@@ -106,5 +100,38 @@ function UserMenu({ email }: { email: string }) {
         Sign out
       </MenuItem>
     </Menu>
+  );
+}
+
+function NavLink({
+  to,
+  exact,
+  children,
+}: {
+  to: "/" | "/inbox" | "/profiles" | "/insights" | "/admin";
+  exact?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      to={to}
+      activeOptions={{ exact: !!exact }}
+      className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-ink-2 hover:bg-sunken hover:text-ink"
+      activeProps={{ className: "text-ink" }}
+    >
+      {children}
+    </Link>
+  );
+}
+
+// InboxCount is the number of unread inbox items (REQ-091).
+function InboxCount() {
+  const inbox = useQuery({ ...getInboxOptions(), refetchInterval: 30_000 });
+  const n = inbox.data?.items.filter((i) => i.unread).length ?? 0;
+  if (!n) return null;
+  return (
+    <span className="rounded-full bg-accent px-1.5 text-2xs font-semibold text-accent-ink" aria-label={`${n} unread`}>
+      {n > 99 ? "99+" : n}
+    </span>
   );
 }

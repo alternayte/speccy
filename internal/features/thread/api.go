@@ -7,11 +7,15 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/engine/anchor"
+	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/es"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -70,6 +74,15 @@ func (a *API) open(ctx context.Context, bundleID *uuid.UUID, profileKey string, 
 		return api.ThreadDetail{}, err
 	}
 	anchor, _ := json.Marshal(in.Anchor)
+	if bundleID != nil && in.AnchorKind == api.OpenThreadAnchorKindText {
+		// The client sends a file and a byte range; the server builds the anchor from the
+		// current version, so the quote, the context, and the heading path are right (§8.8).
+		an, err := a.textAnchor(ctx, *bundleID, in.Anchor)
+		if err != nil {
+			return api.ThreadDetail{}, err
+		}
+		anchor, _ = json.Marshal(an)
+	}
 	c := Open{
 		ID: kernel.NewID(), BundleID: bundleID, ProfileKey: profileKey, AnchorKind: string(in.AnchorKind), Anchor: anchor,
 		AddressedTo: string(in.AddressedTo), Blocking: in.Blocking != nil && *in.Blocking, By: by, Body: in.Body,
@@ -288,4 +301,37 @@ func threadAPI(t pgdb.ThreadView) api.Thread {
 		out.ProfileKey = &t.ProfileKey
 	}
 	return out
+}
+
+// textAnchor builds a text anchor from {file, start, end} on the bundle's current version.
+func (a *API) textAnchor(ctx context.Context, bundleID uuid.UUID, raw map[string]any) (anchor.Anchor, error) {
+	file, _ := raw["file"].(string)
+	start, ok1 := raw["start"].(float64)
+	end, ok2 := raw["end"].(float64)
+	if file == "" || !ok1 || !ok2 || start < 0 || end <= start {
+		return anchor.Anchor{}, kernel.Invalid("bad_anchor", "A text anchor needs a file and a range of text. Select some text first.")
+	}
+	b, err := a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: bundleID})
+	if err != nil {
+		return anchor.Anchor{}, err
+	}
+	files, err := version.Files(ctx, a.DB.Queries(), b.CurrentVersionID.UUID)
+	if err != nil {
+		return anchor.Anchor{}, err
+	}
+	for _, f := range files {
+		if f.Path != file {
+			continue
+		}
+		s, e := int(start), int(end)
+		if e > len(f.Content) || !utf8.Valid(f.Content[s:e]) {
+			return anchor.Anchor{}, kernel.Invalid("bad_anchor", "The selected text is not in the current version. Reload the file, then select again.")
+		}
+		doc := section.Doc{}
+		if f.Path == b.MainDoc {
+			doc = section.Parse(f.Content)
+		}
+		return anchor.New(file, f.Content, doc, s, e), nil
+	}
+	return anchor.Anchor{}, kernel.NotFound("file_not_found", "The bundle has no file %s.", file)
 }

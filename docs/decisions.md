@@ -501,3 +501,57 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** `compose.yaml` runs Postgres 17 on 127.0.0.1:55432. `just dev-hosted` runs the server in hosted mode behind Vite, with a fixed development master key and base URL http://127.0.0.1:5173; `just invite <role>` prints an invite for it. `internal/app` builds the services for both modes, so tests use the same wiring as the binary.
 - **Alternative:** Docs that list the steps.
 - **Reason:** BUILD §3 names `just dev-hosted`.
+
+## 2026-09-19 — Event-sourced collaboration
+
+- **Choice:** Threads, waivers, and bundle status are streams (DEC-008) with pure decide and evolve functions in `features/thread`, `features/waiver`, and `features/approval`. `es.Run` loads the snapshot, decides, evolves, and appends with the version check, and decides again on a conflict, up to 3 times. A projection now receives the new snapshot with the events; each view is written from the snapshot in the append transaction. The bundle status stream ID is the bundle ID; a bundle with no stream is a draft.
+- **Alternative:** A handler per command that writes the views itself.
+- **Reason:** DEC-008. The M1 entry deferred the helper until three aggregates showed its shape.
+
+## 2026-09-19 — Waivers in the verdict
+
+- **Choice:** A finding is waived when a frontmatter waiver names its check and its section path, and the waiver's `section_hash` equals the section's hash now; an empty section is the whole doc body. A waiver added by hand counts the same way (DEC-009, §9.3). The waiver's section is the finding's heading path. A final approval writes the frontmatter first, as a new version, then records WaiverApproved; the approval fails if the section changed since the request. After every change, an approved waiver whose hash no longer matches gets WaiverInvalidated. `finding.waived` stores the result; a check's item counts as waived when all its findings are.
+- **Alternative:** Read waivers from waiver_view.
+- **Reason:** DEC-009: waivers travel with the doc to git and CI.
+
+## 2026-09-19 — Blocking threads and the verdict
+
+- **Choice:** A run counts open blocking threads when it saves its verdict. The bundle's summary also counts them at read time: a thread marked blocking later makes the verdict Not Build Ready at once, and resolving it restores the run's result.
+- **Alternative:** Run the lint stage again on each thread change.
+- **Reason:** §8.6 rule 2 holds now, not only at run time; a thread change makes no new version.
+
+## 2026-09-19 — Approvals
+
+- **Choice:** Authors and admins request a review and name reviewers; reviewers become `bundle_reviewer` rows, which are also a private bundle's named members. Any member except an author approves the current version when its verdict is Build Ready now; the bundle is approved when the approvals of that version reach `approvals.required`. After every change, a bundle whose approvals are for another version gets ApprovalsRevoked. A `supersedes` link marks its target superseded.
+- **Alternative:** Only named reviewers approve.
+- **Reason:** REQ-076 names "human approvals" by non-authors; REQ-090 uses reviewers for the inbox.
+
+## 2026-09-19 — Threads and the AI
+
+- **Choice:** A text anchor comes from the client as a file and a byte range of the saved file; the server builds the anchor. Guests open and write threads for humans only, at most 30 messages an hour (REQ-086); decisions, blocking, and resolving are for members. An AI thread queues a `thread_answer` job on the review worker; the writer role answers from the thread, the bundle, and its linked docs as data, with web search or MCP search results, and lists its sources (DEC-011). Mentions are `@` and an email, or the part of the email before the `@`.
+- **Alternative:** Answer in the request.
+- **Reason:** A model call can take 2 minutes (REQ-103).
+
+## 2026-09-19 — Inbox and insights
+
+- **Choice:** The inbox is computed on read for the last 30 days: review requests the caller has not approved, messages on bundles they author, mentions, and finished full reviews of their bundles. `user_state.inbox_seen_at` marks what is read. Insights count full runs only: a lint run happens on every save.
+- **Alternative:** A stored notification table.
+- **Reason:** REQ-091 is in-app only; one query path cannot drift from the data.
+
+## 2026-09-19 — Hosted profile editing
+
+- **Choice:** In hosted mode the store holds the profiles; the built-ins seed a doc type with no profile. Maintainers of a profile and admins save YAML and a template as a new version after schema validation; admins create profiles and name maintainers. In local mode a save writes `.speccy/profiles/<key>.yaml` and its template. Rubric suggestions are threads on a profile, anchored to a check (REQ-015).
+- **Alternative:** Profiles as files in hosted mode too.
+- **Reason:** The owner chose to build the editor in M9. Hosted mode has no persistent disk (DEC-028).
+
+## 2026-09-19 — Review input hashes leave out waivers
+
+- **Choice:** `bundleHash` hashes the main doc without its frontmatter `waivers:` key, and a version with the same input reuses the pinned build questions.
+- **Alternative:** Hash every byte.
+- **Reason:** A waiver approval writes a new version that no model reviews differently; without this, the next full review would call every doc-scope step again.
+
+## 2026-09-19 — Rail tabs
+
+- **Choice:** The review rail has Findings, Threads, Evidence, and Versions. Evidence holds the claims, the assumptions, and the build questions.
+- **Alternative:** Five tabs.
+- **Reason:** Five tabs do not fit 320 px.

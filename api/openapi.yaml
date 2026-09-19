@@ -1666,6 +1666,9 @@ components:
         role:
           type: string
           enum: [admin, member]
+        maintainer:
+          type: boolean
+          description: The caller maintains at least one profile.
         guest:
           type: object
           required: [name, bundle_id]

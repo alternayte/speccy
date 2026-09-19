@@ -1346,10 +1346,13 @@ type Me struct {
 		BundleId openapi_types.UUID `json:"bundle_id"`
 		Name     string             `json:"name"`
 	} `json:"guest,omitempty"`
-	Mode     MeMode  `json:"mode"`
-	Role     *MeRole `json:"role,omitempty"`
-	SignedIn bool    `json:"signed_in"`
-	UserId   *string `json:"user_id,omitempty"`
+
+	// Maintainer The caller maintains at least one profile.
+	Maintainer *bool   `json:"maintainer,omitempty"`
+	Mode       MeMode  `json:"mode"`
+	Role       *MeRole `json:"role,omitempty"`
+	SignedIn   bool    `json:"signed_in"`
+	UserId     *string `json:"user_id,omitempty"`
 }
 
 // MeMode defines model for Me.Mode.

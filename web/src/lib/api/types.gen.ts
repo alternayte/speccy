@@ -25,6 +25,10 @@ export type Me = {
     user_id?: string;
     email?: string;
     role?: 'admin' | 'member';
+    /**
+     * The caller maintains at least one profile.
+     */
+    maintainer?: boolean;
     guest?: {
         name: string;
         bundle_id: string;

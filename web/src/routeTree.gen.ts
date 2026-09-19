@@ -12,9 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as ResetRouteImport } from './routes/reset'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as ProfilesIndexRouteImport } from './routes/profiles/index'
+import { Route as ProfilesKeyRouteImport } from './routes/profiles/$key'
 import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
 import { Route as BundlesBundleIdDiffRouteImport } from './routes/bundles/$bundleId/diff'
@@ -35,6 +39,16 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InboxRoute = InboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InsightsRoute = InsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InviteRoute = InviteRouteImport.update({
   id: '/invite',
   path: '/invite',
@@ -48,6 +62,16 @@ const ResetRoute = ResetRouteImport.update({
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfilesIndexRoute = ProfilesIndexRouteImport.update({
+  id: '/profiles/',
+  path: '/profiles/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfilesKeyRoute = ProfilesKeyRouteImport.update({
+  id: '/profiles/$key',
+  path: '/profiles/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
@@ -75,10 +99,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/inbox': typeof InboxRoute
+  '/insights': typeof InsightsRoute
   '/invite': typeof InviteRoute
   '/reset': typeof ResetRoute
   '/sign-in': typeof SignInRoute
+  '/profiles/$key': typeof ProfilesKeyRoute
   '/share/$token': typeof ShareTokenRoute
+  '/profiles/': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
   '/bundles/$bundleId/trace': typeof BundlesBundleIdTraceRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
@@ -87,10 +115,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/inbox': typeof InboxRoute
+  '/insights': typeof InsightsRoute
   '/invite': typeof InviteRoute
   '/reset': typeof ResetRoute
   '/sign-in': typeof SignInRoute
+  '/profiles/$key': typeof ProfilesKeyRoute
   '/share/$token': typeof ShareTokenRoute
+  '/profiles': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
   '/bundles/$bundleId/trace': typeof BundlesBundleIdTraceRoute
   '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
@@ -100,10 +132,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/admin': typeof AdminRoute
+  '/inbox': typeof InboxRoute
+  '/insights': typeof InsightsRoute
   '/invite': typeof InviteRoute
   '/reset': typeof ResetRoute
   '/sign-in': typeof SignInRoute
+  '/profiles/$key': typeof ProfilesKeyRoute
   '/share/$token': typeof ShareTokenRoute
+  '/profiles/': typeof ProfilesIndexRoute
   '/bundles/$bundleId/diff': typeof BundlesBundleIdDiffRoute
   '/bundles/$bundleId/trace': typeof BundlesBundleIdTraceRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
@@ -114,10 +150,14 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/inbox'
+    | '/insights'
     | '/invite'
     | '/reset'
     | '/sign-in'
+    | '/profiles/$key'
     | '/share/$token'
+    | '/profiles/'
     | '/bundles/$bundleId/diff'
     | '/bundles/$bundleId/trace'
     | '/bundles/$bundleId/'
@@ -126,10 +166,14 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/inbox'
+    | '/insights'
     | '/invite'
     | '/reset'
     | '/sign-in'
+    | '/profiles/$key'
     | '/share/$token'
+    | '/profiles'
     | '/bundles/$bundleId/diff'
     | '/bundles/$bundleId/trace'
     | '/bundles/$bundleId'
@@ -138,10 +182,14 @@ export interface FileRouteTypes {
     | '/'
     | '/account'
     | '/admin'
+    | '/inbox'
+    | '/insights'
     | '/invite'
     | '/reset'
     | '/sign-in'
+    | '/profiles/$key'
     | '/share/$token'
+    | '/profiles/'
     | '/bundles/$bundleId/diff'
     | '/bundles/$bundleId/trace'
     | '/bundles/$bundleId/'
@@ -151,10 +199,14 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
   AdminRoute: typeof AdminRoute
+  InboxRoute: typeof InboxRoute
+  InsightsRoute: typeof InsightsRoute
   InviteRoute: typeof InviteRoute
   ResetRoute: typeof ResetRoute
   SignInRoute: typeof SignInRoute
+  ProfilesKeyRoute: typeof ProfilesKeyRoute
   ShareTokenRoute: typeof ShareTokenRoute
+  ProfilesIndexRoute: typeof ProfilesIndexRoute
   BundlesBundleIdDiffRoute: typeof BundlesBundleIdDiffRoute
   BundlesBundleIdTraceRoute: typeof BundlesBundleIdTraceRoute
   BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
@@ -183,6 +235,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inbox': {
+      id: '/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/insights': {
+      id: '/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof InsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invite': {
       id: '/invite'
       path: '/invite'
@@ -202,6 +268,20 @@ declare module '@tanstack/react-router' {
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profiles/': {
+      id: '/profiles/'
+      path: '/profiles'
+      fullPath: '/profiles/'
+      preLoaderRoute: typeof ProfilesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profiles/$key': {
+      id: '/profiles/$key'
+      path: '/profiles/$key'
+      fullPath: '/profiles/$key'
+      preLoaderRoute: typeof ProfilesKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/share/$token': {
@@ -239,10 +319,14 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
   AdminRoute: AdminRoute,
+  InboxRoute: InboxRoute,
+  InsightsRoute: InsightsRoute,
   InviteRoute: InviteRoute,
   ResetRoute: ResetRoute,
   SignInRoute: SignInRoute,
+  ProfilesKeyRoute: ProfilesKeyRoute,
   ShareTokenRoute: ShareTokenRoute,
+  ProfilesIndexRoute: ProfilesIndexRoute,
   BundlesBundleIdDiffRoute: BundlesBundleIdDiffRoute,
   BundlesBundleIdTraceRoute: BundlesBundleIdTraceRoute,
   BundlesBundleIdIndexRoute: BundlesBundleIdIndexRoute,

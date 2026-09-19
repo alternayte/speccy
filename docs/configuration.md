@@ -81,6 +81,20 @@ The author sets this under **Share** on the bundle page.
 
 A new share link replaces the old one. Revoking the link ends every guest's access at once.
 
+### Review, waivers, and approval
+
+- An author asks for a review and names the reviewers on the bundle page. The bundle moves from Draft to In review.
+- A reviewer approves the current version. Approval needs a current Build Ready verdict. An author cannot approve their own bundle. A profile sets how many approvals it needs (`approvals.required`).
+- Any change to the doc after approval revokes the approvals and moves the bundle back to In review.
+- A member asks for a waiver of one finding, with a reason of at least 20 characters. The profile's waiver policy says who approves it: `any_member`, `non_author`, `n_approvals: N`, `maintainer`, or `forbidden`. An approved waiver goes into the doc's frontmatter, as a new version. It ends when its section changes.
+- A thread marked blocking keeps the doc Not Build Ready until someone resolves it.
+
+### Profiles
+
+A profile sets the template, the checks, the limits, and the policies of one doc type. In hosted mode, maintainers of a profile and admins edit it under **Profiles**; each save is a new version, and earlier reviews keep theirs. An admin names the maintainers on the profile page. In local mode, **Profiles** saves to `.speccy/profiles/<key>.yaml` and its template file.
+
+Any member suggests a change to a profile under **Profiles → Suggestions**.
+
 ### API tokens
 
 A person makes an API token under **Account**. The CLI, CI, and MCP clients send it as `Authorization: Bearer <token>`. A token has the role of the person, and it stops when the person loses the role.

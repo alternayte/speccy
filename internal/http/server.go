@@ -73,6 +73,8 @@ type Core struct {
 	Hosted bool
 	// Providers are the configured OAuth provider IDs (REQ-080).
 	Providers []string
+	// Maintainer reports whether a user maintains any profile.
+	Maintainer func(ctx context.Context, userID string) bool
 }
 
 // Options are the parts of the handler that differ between local and hosted mode.
@@ -163,6 +165,8 @@ func (c Core) GetMe(ctx context.Context, _ api.GetMeRequestObject) (api.GetMeRes
 		out.UserId, out.Email = &a.UserID, &a.Email
 		role := api.MeRole(a.Role)
 		out.Role = &role
+		m := c.Maintainer != nil && c.Maintainer(ctx, a.UserID)
+		out.Maintainer = &m
 	}
 	if a.Guest != nil {
 		out.Guest = &struct {

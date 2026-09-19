@@ -112,6 +112,10 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	return &App{
 		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI,
 		API: speccyhttp.API{
+			Core: speccyhttp.Core{Maintainer: func(ctx context.Context, userID string) bool {
+				ok, _ := db.Queries().IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: ws, UserID: userID})
+				return ok
+			}},
 			BundleAPI:  &bundle.API{Service: svc, Profiles: profiles.Current},
 			VersionAPI: &version.API{DB: db, Workspace: ws},
 			ExportAPI:  &export.API{DB: db, Workspace: ws},

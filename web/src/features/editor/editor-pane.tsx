@@ -1,7 +1,7 @@
 import { EditorView } from "@codemirror/view";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { Columns2, Eye, FileCode2, Save } from "lucide-react";
+import { Columns2, Eye, FileCode2, MessageSquarePlus, Save } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -54,6 +54,7 @@ export function EditorPane({
   onDirtyChange,
   focus,
   readOnly = false,
+  onComment,
 }: {
   bundleId: string;
   path: string;
@@ -69,6 +70,8 @@ export function EditorPane({
   focus?: { start: number; end: number; seq: number };
   // readOnly is for a guest or a member who is not an author: no edits, no save.
   readOnly?: boolean;
+  // onComment opens a thread on the selected text (REQ-087), as a byte range of the saved file.
+  onComment?: (sel: { file: string; start: number; end: number; quote: string }) => void;
 }) {
   const qc = useQueryClient();
   // loadVersion is the version the editor text came from. base is the version a save builds on.
@@ -79,6 +82,7 @@ export function EditorPane({
   const [text, setText] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const editorView = useRef<EditorView | null>(null);
+  const [hint, setHint] = useState<string>();
   const previewRef = useRef<HTMLDivElement>(null);
   const syncing = useRef<"editor" | "preview" | null>(null);
   const wide = useWide();
@@ -253,6 +257,34 @@ export function EditorPane({
           </span>
         ) : null}
         <div className="ml-auto flex items-center gap-2">
+          {onComment && shown !== "preview" ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<MessageSquarePlus className="size-3.5" />}
+              title="Comment on the selected text"
+              onClick={() => {
+                const v = editorView.current;
+                const sel = v?.state.selection.main;
+                if (!v || !sel || sel.empty) {
+                  setHint("Select some text in the code view first.");
+                  return;
+                }
+                if (dirty) {
+                  setHint("Save the file first, so the comment points at saved text.");
+                  return;
+                }
+                const text = v.state.doc.toString();
+                const enc = new TextEncoder();
+                const start = enc.encode(text.slice(0, sel.from)).length;
+                const quote = text.slice(sel.from, sel.to);
+                setHint(undefined);
+                onComment({ file: path, start, end: start + enc.encode(quote).length, quote });
+              }}
+            >
+              <span className="hidden lg:inline">Comment</span>
+            </Button>
+          ) : null}
           {md ? <ViewToggle view={shown} onChange={onViewChange} /> : null}
           {readOnly ? (
             <span className="text-xs text-ink-3">Read only</span>
@@ -271,6 +303,11 @@ export function EditorPane({
         </div>
       </div>
 
+      {hint ? (
+        <div className="no-print border-b border-line bg-sunken px-3 py-1.5 text-xs text-ink-2" role="status">
+          {hint}
+        </div>
+      ) : null}
       {stale || conflict ? (
         <div className="no-print border-b border-line p-2">
           <ErrorState
