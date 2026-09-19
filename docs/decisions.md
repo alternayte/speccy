@@ -645,3 +645,9 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** goreleaser builds static binaries (`CGO_ENABLED=0`; SQLite is pure Go) for Linux, macOS, and Windows on amd64 and arm64, archives named `speccy_<version>_<os>_<arch>`, and images `ghcr.io/alternayte/speccy` on distroless static as `nonroot`, running `speccy serve --hosted` (SDD §15.1). A pushed `v*` tag runs `.github/workflows/release.yml`. `just release-check` builds a snapshot without publishing.
 - **Alternative:** A hand-written build script.
 - **Reason:** One config builds the archives the Action downloads and the image, with checksums.
+
+## 2026-09-19 — Overlay defaults
+
+- **Choice:** The Risk and Ambiguous layers are on until a reader chooses; the Writing, Unverified, and Contradicted layers are one click away. The reader's choice is kept in the browser.
+- **Alternative:** Every layer on.
+- **Reason:** Gauntlet runs 1 and 2: with every layer on, a paragraph can carry four colours of underline, and every critic named it as the largest difference.

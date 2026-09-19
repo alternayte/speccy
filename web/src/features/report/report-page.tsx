@@ -33,7 +33,7 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
   const total = r.finished_at ? new Date(r.finished_at).getTime() - new Date(r.started_at).getTime() : undefined;
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-[960px] px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-[960px] px-4 py-8 sm:px-6">
         <Link
           to="/bundles/$bundleId"
           params={{ bundleId }}
@@ -43,8 +43,8 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
         </Link>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Run report</h1>
-            <p className="mt-0.5 text-sm text-ink-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Run report</h1>
+            <p className="mt-1 text-sm text-ink-3">
               {r.kind === "full" ? "Full review" : "Lint"} of v{r.version_number} ·{" "}
               <span className="uppercase">{r.profile_key}</span> profile v{r.profile_version} ·{" "}
               {new Date(r.started_at).toLocaleString()}
@@ -58,7 +58,7 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
           </div>
         ) : null}
 
-        <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4">
+        <dl className="mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-4">
           <Stat label="Duration" value={total !== undefined ? duration(total) : "Running"} />
           <Stat label="Tokens" value={((r.tokens_in ?? 0) + (r.tokens_out ?? 0)).toLocaleString()} />
           <Stat
@@ -94,20 +94,20 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
           </p>
         ))}
 
-        <section className="mt-8">
+        <section className="mt-12">
           <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Stages</h2>
           <Stages stages={rep.stages} />
         </section>
 
-        <section className="mt-8 grid gap-8 md:grid-cols-[1fr_280px]">
+        <section className="mt-12 grid gap-10 md:grid-cols-[1fr_300px]">
           <div>
             <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
               Open findings by category
             </h2>
-            <table className="mt-2 w-full text-sm">
+            <table className="mt-3 w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs text-ink-3">
-                  <th className="py-1.5 font-medium">Category</th>
+                  <th className="py-2 font-medium">Category</th>
                   <th className="py-1.5 text-right font-medium">Score</th>
                   <th className="py-1.5 text-right font-medium">MUST</th>
                   <th className="py-1.5 text-right font-medium">SHOULD</th>
@@ -117,11 +117,11 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
               <tbody className="font-mono">
                 {rep.categories.map((c) => (
                   <tr key={c.category} className="border-b border-line">
-                    <td className="py-1.5 font-sans">{categoryLabel[c.category] ?? c.category}</td>
-                    <td className="py-1.5 text-right">{c.score ?? "–"}</td>
-                    <td className={c.must ? "py-1.5 text-right text-bad" : "py-1.5 text-right text-ink-3"}>{c.must}</td>
-                    <td className="py-1.5 text-right">{c.should}</td>
-                    <td className="py-1.5 text-right text-ink-3">{c.info}</td>
+                    <td className="py-2.5 font-sans">{categoryLabel[c.category] ?? c.category}</td>
+                    <td className="py-2.5 text-right">{c.score ?? "–"}</td>
+                    <td className={c.must ? "py-2.5 text-right text-bad" : "py-2.5 text-right text-ink-3"}>{c.must}</td>
+                    <td className="py-2.5 text-right">{c.should}</td>
+                    <td className="py-2.5 text-right text-ink-3">{c.info}</td>
                   </tr>
                 ))}
               </tbody>
@@ -143,9 +143,9 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-surface px-3 py-2.5">
+    <div className="bg-surface px-4 py-3.5">
       <dt className="text-xs text-ink-3">{label}</dt>
-      <dd className="mt-0.5 font-mono text-md text-ink">{value}</dd>
+      <dd className="mt-1 font-mono text-lg text-ink">{value}</dd>
     </div>
   );
 }
@@ -164,7 +164,7 @@ function Stages({ stages }: { stages: StageTiming[] }) {
   const end = (s: StageTiming) => (s.finished_at ? new Date(s.finished_at).getTime() : Date.now());
   const span = Math.max(...stages.map(end)) - t0 || 1;
   return (
-    <ol className="mt-2 space-y-1.5">
+    <ol className="mt-3 space-y-2.5">
       {stages.map((s) => {
         const a = new Date(s.started_at).getTime() - t0;
         const d = end(s) - new Date(s.started_at).getTime();

@@ -443,14 +443,29 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 		return err
 	}
 
-	// The bundle view with every overlay layer on, in its three views.
+	// The bundle view with every overlay layer on (BUILD.md §6.2), in its three views, and the
+	// preview with the default layers that a reader first sees.
 	for _, view := range []string{"preview", "code", "split"} {
 		if err := g.shot("bundle-"+view, u("/bundles/"+draft.ID+"?view="+view), func() error {
-			_, err := g.ab("eval", `localStorage.removeItem('speccy.overlay')`)
+			if _, err := g.ab("eval", `localStorage.setItem('speccy.overlay', JSON.stringify(["risk","ambiguous","contradicted","unverified","slop"]))`); err != nil {
+				return err
+			}
+			_, err := g.ab("reload")
+			g.settle()
 			return err
 		}); err != nil {
 			return err
 		}
+	}
+	if err := g.shot("bundle-default", u("/bundles/"+draft.ID+"?view=preview"), func() error {
+		if _, err := g.ab("eval", `localStorage.removeItem('speccy.overlay')`); err != nil {
+			return err
+		}
+		_, err := g.ab("reload")
+		g.settle()
+		return err
+	}); err != nil {
+		return err
 	}
 	draft, err = s.bundle(draft.ID)
 	if err != nil {
