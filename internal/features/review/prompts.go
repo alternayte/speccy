@@ -20,6 +20,8 @@ const (
 	PromptQuestions = "questions-v1"
 	PromptReader    = "reader-v1"
 	PromptJudge     = "judge-v3"
+	// PromptContradiction checks two linked docs for conflicts (REQ-054).
+	PromptContradiction = "contradiction-v1"
 )
 
 // SDD §14.3: every prompt says that marked content is data, and marks it.
@@ -282,3 +284,18 @@ func judgeSchema(n int) []byte {
 	out, _ := json.Marshal(s)
 	return out
 }
+
+// contradictionPrompt asks the reviewer for statements in this doc that conflict with a
+// linked doc (REQ-054).
+func contradictionPrompt(kind, thisDoc, otherDoc string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "This doc %s the other doc. Find statements in this doc that conflict with a statement in the other doc: both cannot be true, or a builder cannot follow both. Examples: a different number for the same limit, a different owner for the same step, a behaviour that the other doc rules out.\n", kind)
+	b.WriteString("A detail that one doc adds and the other leaves out is not a conflict. A difference in wording is not a conflict.\n")
+	b.WriteString("For each conflict, quote the statement from this doc and the statement from the other doc, word for word, and explain the conflict in one sentence. Most linked docs have no conflict; then list none.\n\n")
+	b.WriteString(thisDoc)
+	b.WriteString("\n")
+	b.WriteString(otherDoc)
+	return b.String()
+}
+
+var contradictionSchema = []byte(`{"type":"object","additionalProperties":false,"required":["conflicts"],"properties":{"conflicts":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["this_quote","other_quote","explanation"],"properties":{"this_quote":{"type":"string"},"other_quote":{"type":"string"},"explanation":{"type":"string"}}}}}}`)

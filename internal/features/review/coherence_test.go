@@ -203,3 +203,30 @@ func TestConfig_LinkRules(t *testing.T) {
 		})
 	}
 }
+
+// REQ-054: a conflict with a linked doc is a MUST finding anchored in both docs. A conflict
+// whose quotes are not in the docs is dropped.
+func TestCoherence_Contradiction(t *testing.T) {
+	ack := "trace:\n  - id: REQ-002\n    status: out_of_scope\n    reason: The mail service sends it.\n"
+	body := "\n## Timing\n\nThe worker pays each refund within 10 working days. The invented case is handled.\n"
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, body)}, "fake-1")
+	run, fs, v := pe.run(t, "refunds-sdd")
+	got := findingsOf(fs, review.ContradictionSlug)
+	if len(got) != 1 || got[0].Level != "MUST" {
+		t.Fatalf("contradiction findings %+v, want one MUST", got)
+	}
+	var ev struct {
+		Upstream       string
+		UpstreamAnchor struct{ Quote string } `json:"upstream_anchor"`
+	}
+	_ = json.Unmarshal(got[0].Evidence, &ev)
+	if !strings.Contains(string(got[0].Anchor), "10 working days") || ev.Upstream != "refunds-prd" || !strings.Contains(ev.UpstreamAnchor.Quote, "5 working days") {
+		t.Errorf("anchors: this %s; upstream %+v", got[0].Anchor, ev)
+	}
+	if !strings.Contains(string(v.BlockingFindingIds), got[0].ID.String()) {
+		t.Error("the contradiction does not block")
+	}
+	if !strings.Contains(string(run.Notes), "were dropped") {
+		t.Errorf("the invented conflict is not noted: %s", run.Notes)
+	}
+}

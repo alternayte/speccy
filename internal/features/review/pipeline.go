@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -233,6 +234,13 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 		return fail(err)
 	}
 
+	stage = StageCoherence
+	s.setStage(ctx, run, stage)
+	rc.publish(Event{Type: "stage", Stage: stage})
+	if err := s.contradictionStage(ctx, rc, in, &ev, fingerprint); err != nil {
+		return fail(err)
+	}
+
 	stage = StageVerdict
 	rc.publish(Event{Type: "stage", Stage: stage})
 	run.Status, run.Stage = "complete", StageVerdict
@@ -367,6 +375,22 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, err
 	}
 	if len(readers) > 1 {
 		add(model.RoleJudge, nq, int64(nq)*800, int64(nq)*150)
+	}
+
+	// Coherence: one call per linked doc that the contradiction check reads.
+	if !standalone(in.fm) {
+		for _, l := range in.linked {
+			if !slices.Contains(contradictionKinds, l.kind) {
+				continue
+			}
+			k := cacheKey{Step: "contradiction", InputHash: hashOf(bundleHash(in), l.target.ID.String(), l.version.String()),
+				ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptContradiction, Extra: l.kind}
+			if hit, _ := s.cached(ctx, k, &scratch); hit {
+				est.CachedHits++
+				continue
+			}
+			add(model.RoleReviewer, 1, bundleTokens+int64(len(l.main))/4+800, 800)
+		}
 	}
 
 	roles, err := s.DB.Queries().ListAssignments(ctx, s.Workspace)

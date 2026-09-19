@@ -1,6 +1,8 @@
 package review
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
 )
 
@@ -123,4 +126,81 @@ func coherenceChecks(in input, ev *evaluation) {
 			}
 		}
 	}
+}
+
+type conflict struct {
+	ThisQuote   string `json:"this_quote"`
+	OtherQuote  string `json:"other_quote"`
+	Explanation string `json:"explanation"`
+}
+
+// contradictionStage asks the reviewer for conflicts between the doc and each linked doc
+// (REQ-054). A conflict is kept only when both quotes are in their docs; it becomes a MUST
+// finding anchored in this doc, with the other doc's anchor in its evidence.
+func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, ev *evaluation, fingerprint string) error {
+	if standalone(in.fm) {
+		return nil
+	}
+	var targets []linked
+	for _, l := range in.linked {
+		if slices.Contains(contradictionKinds, l.kind) {
+			targets = append(targets, l)
+		}
+	}
+	lvl := in.level(ContradictionSlug, kernel.Must)
+	this := bundleData(in.bundle.MainDoc, in.main, textAssets(in))
+	for i, l := range targets {
+		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Comparing with " + l.target.Slug, Done: i, Total: len(targets)})
+		key := cacheKey{Step: "contradiction", InputHash: hashOf(bundleHash(in), l.target.ID.String(), l.version.String()),
+			ProfileVer: in.profile.Version, Fingerprint: fingerprint, PromptVersion: PromptContradiction, Extra: l.kind}
+		var out struct {
+			Conflicts []conflict `json:"conflicts"`
+		}
+		ok, err := s.cached(ctx, key, &out)
+		if err != nil {
+			return err
+		}
+		if ok {
+			rc.hit()
+		} else {
+			res, err := rc.call(ctx, s.Gateway, model.Call{
+				Role: model.RoleReviewer, PromptVersion: PromptContradiction, System: systemPrompt,
+				Prompt: contradictionPrompt(l.kind, this, data("Other doc "+l.target.Slug, string(l.main))),
+				Schema: contradictionSchema, MaxTokens: 4000,
+			})
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(res.JSON, &out); err != nil {
+				return err
+			}
+			if err := s.putCache(ctx, key, out); err != nil {
+				return err
+			}
+		}
+		kept, dropped := 0, 0
+		for _, c := range out.Conflicts {
+			ts, te, ok1 := anchor.Find(in.main, c.ThisQuote)
+			os, oe, ok2 := anchor.Find(l.main, c.OtherQuote)
+			if !ok1 || !ok2 {
+				dropped++ // the REQ-043 rule: a quote that is not in the doc is not evidence
+				continue
+			}
+			kept++
+			ev.findings = append(ev.findings, pending{
+				slug: ContradictionSlug, level: lvl, stage: StageCoherence,
+				anchor:  anchor.New(in.bundle.MainDoc, in.main, in.doc, ts, te),
+				message: fmt.Sprintf("This conflicts with %s: %s", l.target.Slug, sentence(c.Explanation)),
+				fix:     fmt.Sprintf("Change this doc or %s so that both say the same thing.", l.target.Slug),
+				evidence: map[string]any{"upstream": l.target.Slug, "upstream_bundle_id": l.target.ID, "explanation": c.Explanation,
+					"quote": c.ThisQuote, "upstream_quote": c.OtherQuote,
+					"upstream_anchor": anchor.New(l.target.MainDoc, l.main, l.doc, os, oe)},
+			})
+		}
+		if dropped > 0 {
+			rc.note(fmt.Sprintf("%d possible conflicts with %s quoted text that is not in the docs, so they were dropped.", dropped, l.target.Slug))
+		}
+		ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: lvl, Passed: kept == 0, Applicable: true})
+	}
+	return nil
 }
