@@ -573,7 +573,7 @@ export const diffVersionsOptions = (options: Options<DiffVersionsData>) => query
 export const exportBundleQueryKey = (options: Options<ExportBundleData>) => createQueryKey('exportBundle', options);
 
 /**
- * Download a bundle version as a .zip file. The default is the current version (REQ-008).
+ * Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
  */
 export const exportBundleOptions = (options: Options<ExportBundleData>) => queryOptions<ExportBundleResponse, ExportBundleError, ExportBundleResponse, ReturnType<typeof exportBundleQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

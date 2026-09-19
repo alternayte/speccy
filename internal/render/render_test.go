@@ -1,6 +1,7 @@
-package http
+package render
 
 import (
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -11,7 +12,7 @@ import (
 // DEC-017: each block carries its source position; the preview and overlays depend on it.
 func TestRender_SourcePositions(t *testing.T) {
 	src := "---\ntype: sdd\n---\n# Title\n\nPara one\ncontinues.\n\n```go\nx := 1\n```\n\n![d](img/a.png)\n"
-	out, err := Render([]byte(src), nil, "")
+	out, err := HTML([]byte(src), Links{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +28,8 @@ func TestRender_SourcePositions(t *testing.T) {
 	}
 
 	id := uuid.MustParse("01a0b65d-8f0a-7b1b-b8bc-b89126821393")
-	out, err = Render([]byte("![d](../img/a.png)\n![e](img/b.png)\n<script>alert(1)</script>\n"), &id, "docs")
+	out, err = HTML([]byte("![d](../img/a.png)\n![e](img/b.png)\n<script>alert(1)</script>\n"), Links{Dir: "docs", MarkFiles: true,
+		Image: func(p string) string { return "/api/v1/bundles/" + id.String() + "/files/content?path=" + url.QueryEscape(p) }})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +42,7 @@ func TestRender_SourcePositions(t *testing.T) {
 	}
 
 	// A placeholder that parses as HTML shows as text; real HTML stays out.
-	out, err = Render([]byte("- <One thing this system will not do.>\n\n<Product name>\n\nA <b>bold</b> word.\n"), nil, "")
+	out, err = HTML([]byte("- <One thing this system will not do.>\n\n<Product name>\n\nA <b>bold</b> word.\n"), Links{})
 	if err != nil {
 		t.Fatal(err)
 	}

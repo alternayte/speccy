@@ -353,7 +353,7 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
 	SummarizeDiff(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
+	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	//
 	// Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
 	ExportBundle(ctx context.Context, bundleId BundleId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1479,7 +1479,7 @@ func (c *Client) SummarizeDiff(ctx context.Context, bundleId BundleId, params *S
 	return c.Client.Do(req)
 }
 
-// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
+// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 //
 // Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
 func (c *Client) ExportBundle(ctx context.Context, bundleId BundleId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -3878,6 +3878,18 @@ func NewExportBundleRequest(server string, bundleId BundleId, params *ExportBund
 		if params.Version != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Format != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "format", *params.Format, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -6453,7 +6465,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
 	SummarizeDiffWithResponse(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*SummarizeDiffResponse, error)
 
-	// ExportBundleWithResponse Download a bundle version as a .zip file. The default is the current version (REQ-008).
+	// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -11597,7 +11609,7 @@ func (c *ClientWithResponses) SummarizeDiffWithResponse(ctx context.Context, bun
 	return ParseSummarizeDiffResponse(rsp)
 }
 
-// ExportBundleWithResponse Download a bundle version as a .zip file. The default is the current version (REQ-008).
+// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 //
 // Returns a wrapper object for the known response body format(s).
 //

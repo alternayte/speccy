@@ -1,5 +1,5 @@
-// Package export writes bundles out of Speccy (REQ-008). M2 has the .zip export; the HTML
-// report arrives with the verdict.
+// Package export writes bundles out of Speccy (REQ-008): a .zip of a version, and a
+// self-contained HTML report with the verdict.
 package export
 
 import (
@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/store"
@@ -23,6 +24,8 @@ import (
 type API struct {
 	DB        *store.DB
 	Workspace uuid.UUID
+	// Reviews lists a run's findings for the HTML report, with anchors in the current version.
+	Reviews *review.API
 }
 
 // ExportBundle returns a version of a bundle as a .zip file. The files are inside one folder
@@ -32,6 +35,9 @@ func (a *API) ExportBundle(ctx context.Context, req api.ExportBundleRequestObjec
 	b, err := version.Bundle(ctx, q, a.Workspace, req.BundleId)
 	if err != nil {
 		return nil, err
+	}
+	if req.Params.Format != nil && *req.Params.Format == api.Html {
+		return a.report(ctx, b)
 	}
 	v, err := version.Get(ctx, q, b, req.Params.Version)
 	if err != nil {

@@ -1046,6 +1046,24 @@ func (e CreateInviteJSONBodyRole) Valid() bool {
 	}
 }
 
+// Defines values for ExportBundleParamsFormat.
+const (
+	Html ExportBundleParamsFormat = "html"
+	Zip  ExportBundleParamsFormat = "zip"
+)
+
+// Valid indicates whether the value is a known member of the ExportBundleParamsFormat enum.
+func (e ExportBundleParamsFormat) Valid() bool {
+	switch e {
+	case Html:
+		return true
+	case Zip:
+		return true
+	default:
+		return false
+	}
+}
+
 // Anchor A range of text with context (SDD §8.8).
 type Anchor struct {
 	// Detached The text changed, and Speccy cannot find the quote in the current version (SDD §8.8).
@@ -2254,8 +2272,12 @@ type SummarizeDiffParams struct {
 
 // ExportBundleParams defines parameters for ExportBundle.
 type ExportBundleParams struct {
-	Version *VersionQuery `form:"version,omitempty" json:"version,omitempty"`
+	Version *VersionQuery             `form:"version,omitempty" json:"version,omitempty"`
+	Format  *ExportBundleParamsFormat `form:"format,omitempty" json:"format,omitempty"`
 }
+
+// ExportBundleParamsFormat defines parameters for ExportBundle.
+type ExportBundleParamsFormat string
 
 // DeleteFileParams defines parameters for DeleteFile.
 type DeleteFileParams struct {
@@ -2553,7 +2575,7 @@ type ServerInterface interface {
 	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
 	// (POST /bundles/{bundleId}/diff/summary)
 	SummarizeDiff(w http.ResponseWriter, r *http.Request, bundleId BundleId, params SummarizeDiffParams)
-	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
+	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	// (GET /bundles/{bundleId}/export)
 	ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams)
 	// DeleteFile Delete a file. Creates a version (REQ-005).
@@ -3457,6 +3479,19 @@ func (siw *ServerInterfaceWrapper) ExportBundle(w http.ResponseWriter, r *http.R
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "format" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "format", r.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "format"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "format", Err: err})
 		}
 		return
 	}
@@ -6349,6 +6384,26 @@ func (response ExportBundle200ApplicationzipResponse) VisitExportBundleResponse(
 	return err
 }
 
+type ExportBundle200TexthtmlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportBundle200TexthtmlResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/html")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
 type ExportBundledefaultApplicationProblemPlusJSONResponse struct {
 	Body       Problem
 	StatusCode int
@@ -8591,7 +8646,7 @@ type StrictServerInterface interface {
 	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
 	// (POST /bundles/{bundleId}/diff/summary)
 	SummarizeDiff(ctx context.Context, request SummarizeDiffRequestObject) (SummarizeDiffResponseObject, error)
-	// ExportBundle Download a bundle version as a .zip file. The default is the current version (REQ-008).
+	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	// (GET /bundles/{bundleId}/export)
 	ExportBundle(ctx context.Context, request ExportBundleRequestObject) (ExportBundleResponseObject, error)
 	// DeleteFile Delete a file. Creates a version (REQ-005).

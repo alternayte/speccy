@@ -517,17 +517,27 @@ paths:
       - $ref: "#/components/parameters/BundleId"
     get:
       operationId: exportBundle
-      summary: Download a bundle version as a .zip file. The default is the current version (REQ-008).
+      summary: Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
       parameters:
         - $ref: "#/components/parameters/VersionQuery"
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [zip, html]
+            default: zip
       responses:
         "200":
-          description: The .zip file.
+          description: The .zip file, or the HTML report.
           content:
             application/zip:
               schema:
                 type: string
                 contentMediaType: application/zip
+            text/html:
+              schema:
+                type: string
         default:
           $ref: "#/components/responses/Problem"
 

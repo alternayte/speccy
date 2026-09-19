@@ -221,7 +221,7 @@ export const listVersions = <ThrowOnError extends boolean = false>(options: Opti
 export const diffVersions = <ThrowOnError extends boolean = false>(options: Options<DiffVersionsData, ThrowOnError>): RequestResult<DiffVersionsResponses, DiffVersionsErrors, ThrowOnError> => (options.client ?? client).get<DiffVersionsResponses, DiffVersionsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/diff', ...options });
 
 /**
- * Download a bundle version as a .zip file. The default is the current version (REQ-008).
+ * Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
  */
 export const exportBundle = <ThrowOnError extends boolean = false>(options: Options<ExportBundleData, ThrowOnError>): RequestResult<ExportBundleResponses, ExportBundleErrors, ThrowOnError> => (options.client ?? client).get<ExportBundleResponses, ExportBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}/export', ...options });
 

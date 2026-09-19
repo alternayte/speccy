@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/term"
+
 	"github.com/alternayte/speccy/internal/app"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -68,6 +70,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runAdmin(args[1:], stdout, stderr)
 	case "review":
 		return runReview(args[1:], stdout, stderr)
+	case "init":
+		return runInit(args[1:], os.Stdin, stdout, stderr, isTerminal(os.Stdin))
+	case "profile":
+		return runProfile(args[1:], stdout, stderr)
+	case "export":
+		return runExport(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK
@@ -187,6 +195,9 @@ func localHandler(spa fs.FS, a *app.App, db *store.DB) nethttp.Handler {
 	opts := speccyhttp.Options{Actor: speccyhttp.LocalActor, Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}}
 	return speccyhttp.Handler(spa, a.API, opts)
 }
+
+// isTerminal reports whether f is a terminal, so a command may ask questions.
+func isTerminal(f *os.File) bool { return term.IsTerminal(int(f.Fd())) }
 
 // openURL opens url in the default browser.
 func openURL(url string) error {

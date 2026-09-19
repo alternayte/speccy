@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}: {{.Verdict}}</title>
+<style>
+:root{--ground:#fbfbfa;--surface:#fff;--sunken:#f3f3f1;--ink:#1b1b1a;--ink-2:#4a4a47;--ink-3:#686863;--line:#e6e6e2;--ok:#047a4a;--ok-soft:#e4f4ec;--bad:#b42318;--bad-soft:#fdecea;--warn:#8a5a00;--warn-soft:#fbf1dc}
+@media (prefers-color-scheme:dark){:root{--ground:#0c0d0d;--surface:#131414;--sunken:#0f1010;--ink:#ececea;--ink-2:#b3b3ae;--ink-3:#85857f;--line:#242525;--ok:#34d399;--ok-soft:#0f2a1f;--bad:#f87171;--bad-soft:#2c1414;--warn:#fbbf24;--warn-soft:#2a2110}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:880px;margin:0 auto;padding:32px 20px 64px}
+.meta{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-3)}
+h1{font-size:23px;margin:4px 0 0;letter-spacing:-.02em}
+.verdict{margin:20px 0;padding:16px 18px;border:1px solid;border-radius:10px}
+.verdict.build_ready{background:var(--ok-soft);border-color:color-mix(in srgb,var(--ok) 30%,transparent)}
+.verdict.not_build_ready{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.verdict.stale{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.verdict .label{font-size:19px;font-weight:650}
+.build_ready .label{color:var(--ok)}.not_build_ready .label{color:var(--bad)}.stale .label{color:var(--warn)}
+.counts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-size:12px;color:var(--ink-2)}
+.counts b{font-family:ui-monospace,monospace;color:var(--ink)}
+h2{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:32px 0 8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--ink-3);font-size:12px}
+.num{text-align:right;font-family:ui-monospace,monospace}
+.finding{padding:10px 0;border-bottom:1px solid var(--line)}
+.lvl{font-size:11px;font-weight:600;letter-spacing:.03em}
+.lvl.MUST{color:var(--bad)}.lvl.SHOULD{color:var(--warn)}.lvl.INFO{color:var(--ink-3)}
+.slug,.where{font:12px ui-monospace,monospace;color:var(--ink-3)}
+blockquote{margin:6px 0 0;padding-left:8px;border-left:2px solid var(--line);font:12px ui-monospace,monospace;color:var(--ink-2);white-space:pre-wrap}
+.fix{margin-top:4px;font-size:12px;color:var(--ink-2)}
+.note{color:var(--ink-2);font-size:13px}
+.doc{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px 28px;font-size:16px;line-height:1.7}
+.doc>*+*{margin-top:16px}.doc h1,.doc h2,.doc h3,.doc h4{line-height:1.25;font-weight:650;letter-spacing:-.02em;color:var(--ink);text-transform:none;font-size:revert;margin-top:28px}
+.doc pre{background:var(--sunken);border:1px solid var(--line);border-radius:6px;padding:10px 12px;overflow:auto;font-size:13px;line-height:1.5}
+.doc code{font-family:ui-monospace,monospace;font-size:.875em}
+.doc table{font-size:14px}.doc img{max-width:100%}
+.doc blockquote{font:inherit;color:var(--ink-2);padding-left:14px;border-left-width:3px}
+.placeholder{background:var(--warn-soft);color:var(--warn);border-radius:3px;padding:0 3px}
+.frontmatter{font-size:12px!important;color:var(--ink-3)}
+footer{margin-top:32px;font-size:12px;color:var(--ink-3)}
+@media print{body{background:#fff}.doc{border:0;padding:0}}
+</style>
+</head>
+<body>
+<main>
+<p class="meta">{{.Slug}} · {{.Profile}} · v{{.Version}}</p>
+<h1>{{.Title}}</h1>
+
+<section class="verdict {{.VerdictClass}}">
+  <div class="label">{{.Verdict}}</div>
+  <div>{{.Next}}</div>
+  <div class="counts">
+    <span><b>{{.Must}}</b> MUST</span><span><b>{{.Should}}</b> SHOULD</span><span><b>{{.Info}}</b> INFO</span>
+    <span>Score <b>{{.Score}}</b></span>{{if .Kind}}<span>{{.Kind}}</span>{{end}}
+    {{if .Relaxed}}<span>Adoption mode: {{.Relaxed}} checks relaxed</span>{{end}}
+  </div>
+</section>
+{{range .Notes}}<p class="note">{{.}}</p>{{end}}
+
+{{if .Radar}}
+<h2>Score by category</h2>
+<table>
+  <tr><th>Category</th><th class="num">Score</th></tr>
+  {{range .Radar}}<tr><td>{{.Name}}</td><td class="num">{{if .Has}}{{.Score}}{{else}}–{{end}}</td></tr>{{end}}
+</table>
+<p class="note">The score is passed checks divided by applicable checks. It is for metrics only. It does not decide the verdict.</p>
+{{end}}
+
+<h2>Findings ({{len .Findings}})</h2>
+{{if not .Findings}}<p class="note">No open findings.</p>{{end}}
+{{range .Findings}}
+<div class="finding">
+  <span class="lvl {{.Level}}">{{.Level}}</span> <span class="slug">{{.Check}}</span> <span class="where">{{.Where}}</span>
+  <div>{{.Message}}</div>
+  {{if .Section}}<div class="where">{{.Section}}</div>{{end}}
+  {{if .Quote}}<blockquote>{{.Quote}}</blockquote>{{end}}
+  {{if .Fix}}<div class="fix">Fix: {{.Fix}}</div>{{end}}
+</div>
+{{end}}
+
+{{if .Waived}}
+<h2>Waived ({{len .Waived}})</h2>
+{{range .Waived}}
+<div class="finding"><span class="lvl {{.Level}}">{{.Level}}</span> <span class="slug">{{.Check}}</span> <span class="where">{{.Where}}</span><div>{{.Message}}</div></div>
+{{end}}
+{{end}}
+
+<h2>{{.MainDoc}}</h2>
+<article class="doc">{{.Doc}}</article>
+{{if .Assets}}<h2>Assets</h2><ul class="slug">{{range .Assets}}<li>{{.}}</li>{{end}}</ul>{{end}}
+
+<footer>Speccy report, made {{.Generated}}.</footer>
+</main>
+</body>
+</html>

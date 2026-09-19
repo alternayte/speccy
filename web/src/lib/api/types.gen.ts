@@ -1783,6 +1783,7 @@ export type ExportBundleData = {
     };
     query?: {
         version?: string;
+        format?: 'zip' | 'html';
     };
     url: '/bundles/{bundleId}/export';
 };
@@ -1798,7 +1799,7 @@ export type ExportBundleError = ExportBundleErrors[keyof ExportBundleErrors];
 
 export type ExportBundleResponses = {
     /**
-     * The .zip file.
+     * The .zip file, or the HTML report.
      */
     200: Blob | File;
 };
