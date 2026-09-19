@@ -62,9 +62,9 @@ type Append struct {
 	Events []Event
 }
 
-// Projection updates a read model. It runs in the append transaction, so a projection
-// error rolls back the append.
-type Projection func(ctx context.Context, tx store.Tx, events []Recorded) error
+// Projection updates a read model from the new snapshot and the new events. It runs in the
+// append transaction, so a projection error rolls back the append.
+type Projection func(ctx context.Context, tx store.Tx, snap Stream, events []Recorded) error
 
 // Store appends to and reads streams.
 type Store struct {
@@ -133,7 +133,7 @@ func (s *Store) Append(ctx context.Context, a Append) ([]Recorded, error) {
 		}
 		// T-031: projections run in the append transaction.
 		for _, p := range s.projections[a.StreamType] {
-			if err := p(ctx, tx, recorded); err != nil {
+			if err := p(ctx, tx, snap, recorded); err != nil {
 				return fmt.Errorf("event store: projection for %s: %w", a.StreamType, err)
 			}
 		}
@@ -171,4 +171,52 @@ func (s *Store) Events(ctx context.Context, id uuid.UUID) ([]Recorded, error) {
 		}
 	}
 	return out, nil
+}
+
+// Run loads a stream's snapshot, decides new events from it, evolves the snapshot, and
+// appends, in the pure decide/evolve style of DEC-008. A stream that does not exist starts
+// from the zero state. On a version conflict it loads and decides again, up to 3 times.
+func Run[S any](ctx context.Context, s *Store, streamType string, id uuid.UUID,
+	decide func(S) ([]Event, error), evolve func(S, Event) S) (S, error) {
+	var state S
+	for attempt := 0; ; attempt++ {
+		state = *new(S)
+		var expected int64
+		snap, err := s.Load(ctx, id)
+		switch {
+		case err == nil:
+			if err := json.Unmarshal(snap.State, &state); err != nil {
+				return state, fmt.Errorf("read the snapshot of %s %s: %w", streamType, id, err)
+			}
+			expected = snap.Version
+		case errors.Is(err, ErrNotFound):
+		default:
+			return state, err
+		}
+		events, err := decide(state)
+		if err != nil || len(events) == 0 {
+			return state, err
+		}
+		for _, e := range events {
+			state = evolve(state, e)
+		}
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return state, err
+		}
+		_, err = s.Append(ctx, Append{StreamID: id, StreamType: streamType, Expected: expected, State: raw, Events: events})
+		if errors.Is(err, ErrConflict) && attempt < 2 {
+			continue
+		}
+		return state, err
+	}
+}
+
+// NewEvent marshals data as the payload of an event of type t. Every payload carries v.
+func NewEvent(t string, data any) Event {
+	b, err := json.Marshal(data)
+	if err != nil {
+		panic(fmt.Sprintf("event %s does not marshal: %v", t, err))
+	}
+	return Event{Type: t, Payload: b}
 }

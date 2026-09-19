@@ -49,9 +49,9 @@ ORDER BY started_at DESC, id DESC
 LIMIT sqlc.arg(page_size)::bigint;
 
 -- name: InsertFinding :exec
-INSERT INTO finding (id, run_id, check_slug, level, stage, relaxed, anchor, message, evidence, suggestion)
+INSERT INTO finding (id, run_id, check_slug, level, stage, relaxed, anchor, message, evidence, suggestion, waived)
 VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(check_slug), sqlc.arg(level), sqlc.arg(stage), sqlc.arg(relaxed),
-        sqlc.arg(anchor), sqlc.arg(message), sqlc.arg(evidence), sqlc.arg(suggestion));
+        sqlc.arg(anchor), sqlc.arg(message), sqlc.arg(evidence), sqlc.arg(suggestion), sqlc.arg(waived));
 
 -- name: ListFindings :many
 SELECT * FROM finding WHERE run_id = sqlc.arg(run_id) ORDER BY id;

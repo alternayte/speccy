@@ -133,7 +133,7 @@ func runHosted(stdout, stderr io.Writer) int {
 		return exitRun
 	}
 	defer func() { _ = db.Close() }()
-	a, err := app.New(ctx, db, sealer, nil, "")
+	a, err := app.New(ctx, db, sealer, app.Options{People: auth})
 	if err != nil {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun

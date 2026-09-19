@@ -154,7 +154,7 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	if err != nil {
 		return nil, err
 	}
-	a, err := app.New(ctx, db, sealer, root, filepath.Join(root.Dir(), ".speccy", "profiles"))
+	a, err := app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles")})
 	if err != nil {
 		return nil, err
 	}

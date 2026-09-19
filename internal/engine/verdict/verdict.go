@@ -43,6 +43,8 @@ type Finding struct {
 
 // Item is one scored item: a check result, a build question, or a coherence item.
 type Item struct {
+	// Slug names the check, so a waiver of every finding of the check can mark it waived.
+	Slug       string
 	Category   Category
 	Level      kernel.Level
 	Passed     bool

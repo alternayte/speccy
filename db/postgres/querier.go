@@ -17,10 +17,16 @@ type Querier interface {
 	// The oldest queued job, or a running job whose lock expired (its worker died).
 	ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 	CountAssignmentsForBackend(ctx context.Context, arg CountAssignmentsForBackendParams) (int64, error)
+	// REQ-086: a guest's posts in the last hour.
+	CountAuthorMessagesSince(ctx context.Context, arg CountAuthorMessagesSinceParams) (int64, error)
+	// For insights: failing checks in the latest completed run of each bundle.
+	CountFindingsByCheck(ctx context.Context, arg CountFindingsByCheckParams) ([]CountFindingsByCheckRow, error)
+	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
 	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
+	DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
@@ -29,7 +35,9 @@ type Querier interface {
 	GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error)
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
+	GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (BundleStatusView, error)
 	GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error)
+	GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
 	GetMCPConnection(ctx context.Context, arg GetMCPConnectionParams) (McpConnection, error)
 	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
@@ -38,9 +46,12 @@ type Querier interface {
 	GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error)
 	GetShareGuest(ctx context.Context, id uuid.UUID) (ShareGuest, error)
 	GetStream(ctx context.Context, streamID uuid.UUID) (EsStream, error)
+	GetThreadView(ctx context.Context, arg GetThreadViewParams) (ThreadView, error)
+	GetUserState(ctx context.Context, userID string) (UserState, error)
 	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
 	GetVersion(ctx context.Context, arg GetVersionParams) (Version, error)
 	GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error)
+	GetWaiverView(ctx context.Context, arg GetWaiverViewParams) (WaiverView, error)
 	GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error)
 	InsertAnswer(ctx context.Context, arg InsertAnswerParams) error
 	InsertBackend(ctx context.Context, arg InsertBackendParams) error
@@ -48,6 +59,7 @@ type Querier interface {
 	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
 	InsertBundleAuthor(ctx context.Context, arg InsertBundleAuthorParams) error
+	InsertBundleReviewer(ctx context.Context, arg InsertBundleReviewerParams) error
 	InsertClaim(ctx context.Context, arg InsertClaimParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
@@ -56,6 +68,7 @@ type Querier interface {
 	InsertLink(ctx context.Context, arg InsertLinkParams) error
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
+	InsertProfileMaintainer(ctx context.Context, arg InsertProfileMaintainerParams) error
 	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
 	InsertQuestion(ctx context.Context, arg InsertQuestionParams) error
 	InsertQuestionResult(ctx context.Context, arg InsertQuestionResultParams) error
@@ -64,37 +77,58 @@ type Querier interface {
 	InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error
 	InsertShareGuest(ctx context.Context, arg InsertShareGuestParams) error
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
+	InsertThreadMessage(ctx context.Context, arg InsertThreadMessageParams) error
 	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
 	InsertVersion(ctx context.Context, arg InsertVersionParams) error
 	InsertVersionFile(ctx context.Context, arg InsertVersionFileParams) error
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error
+	IsAnyMaintainer(ctx context.Context, arg IsAnyMaintainerParams) (bool, error)
 	IsBundleAuthor(ctx context.Context, arg IsBundleAuthorParams) (bool, error)
 	// An author or a named member (reviewer) of the bundle.
 	IsBundleMember(ctx context.Context, arg IsBundleMemberParams) (bool, error)
+	IsProfileMaintainer(ctx context.Context, arg IsProfileMaintainerParams) (bool, error)
 	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
+	// For insights: every finished run of the workspace, oldest first.
+	ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]ListAllRunsRow, error)
 	ListAnswers(ctx context.Context, runID uuid.UUID) ([]Answer, error)
 	ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]RoleAssignment, error)
+	ListAuthorBundles(ctx context.Context, userID string) ([]uuid.UUID, error)
 	ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]ModelBackend, error)
 	ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]string, error)
 	ListBundleReviewers(ctx context.Context, bundleID uuid.UUID) ([]string, error)
+	ListBundleStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]BundleStatusView, error)
+	ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID) ([]ThreadView, error)
+	ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]WaiverView, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
 	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
+	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
 	ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error)
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
+	// Messages in threads of the workspace after a time, newest first, for the inbox.
+	ListMessagesSince(ctx context.Context, arg ListMessagesSinceParams) ([]ListMessagesSinceRow, error)
+	ListProfileMaintainers(ctx context.Context, profileID uuid.UUID) ([]string, error)
+	ListProfileThreads(ctx context.Context, arg ListProfileThreadsParams) ([]ThreadView, error)
+	ListProfileVersions(ctx context.Context, profileID uuid.UUID) ([]ListProfileVersionsRow, error)
 	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
 	ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]QuestionResult, error)
 	ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error)
+	// REQ-047: the questions of an earlier version of the bundle with the same content.
+	ListQuestionsByInput(ctx context.Context, arg ListQuestionsByInputParams) ([]Question, error)
+	ListReviewerBundles(ctx context.Context, userID string) ([]uuid.UUID, error)
 	ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
+	ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error)
+	ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]ThreadMessageView, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
+	ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error)
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
 	PeekInvite(ctx context.Context, arg PeekInviteParams) (Invite, error)
 	PeekResetLink(ctx context.Context, arg PeekResetLinkParams) (ResetLink, error)
@@ -105,6 +139,8 @@ type Querier interface {
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
+	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
+	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
 	SetWorkspaceSettings(ctx context.Context, arg SetWorkspaceSettingsParams) error
 	// One conditional update spends an invite, so two parallel acceptances use it once.
@@ -119,6 +155,9 @@ type Querier interface {
 	UpdateRunProgress(ctx context.Context, arg UpdateRunProgressParams) error
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
+	UpsertBundleStatusView(ctx context.Context, arg UpsertBundleStatusViewParams) error
+	UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error
+	UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewParams) error
 }
 
 var _ Querier = (*Queries)(nil)

@@ -55,3 +55,46 @@ func (a Actor) Anonymous() bool { return a.UserID == "" && a.Guest == nil }
 
 // IsAdmin reports whether the actor has the admin role.
 func (a Actor) IsAdmin() bool { return a.Guest == nil && a.Role == RoleAdmin }
+
+// Person is a member of the workspace.
+type Person struct {
+	ID    string
+	Name  string
+	Email string
+	Role  string
+}
+
+// Label is how the UI names a person: the name, else the email.
+func (p Person) Label() string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return p.Email
+}
+
+// Directory lists the people of the workspace. Hosted mode reads auth-all's users; local mode
+// has one person.
+type Directory interface {
+	People(ctx context.Context) ([]Person, error)
+}
+
+// LocalDirectory is local mode's one person.
+type LocalDirectory struct{}
+
+func (LocalDirectory) People(context.Context) ([]Person, error) {
+	return []Person{{ID: LocalActor.UserID, Name: "You", Role: RoleAdmin}}, nil
+}
+
+// PersonByID finds a person in a directory; an unknown ID gives a Person with the ID as its name.
+func PersonByID(ctx context.Context, d Directory, id string) Person {
+	if d != nil {
+		if ps, err := d.People(ctx); err == nil {
+			for _, p := range ps {
+				if p.ID == id {
+					return p
+				}
+			}
+		}
+	}
+	return Person{ID: id, Name: id}
+}

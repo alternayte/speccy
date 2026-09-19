@@ -14,6 +14,8 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { ShareDialog } from "./share-dialog";
+import { ReviewStatus } from "./review-status";
+import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
 import type { Anchor, Finding } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 import { EvidencePanel } from "./evidence-panel";
@@ -26,12 +28,12 @@ import { VerdictBar } from "./verdict";
 import { VersionsPanel } from "./versions-panel";
 
 type Panel = "files" | "rail" | null;
-type RailTab = "findings" | "evidence" | "questions" | "versions";
+type RailTab = "findings" | "threads" | "evidence" | "versions";
 
 const railLabels: Record<RailTab, string> = {
   findings: "Findings",
+  threads: "Threads",
   evidence: "Evidence",
-  questions: "Questions",
   versions: "Versions",
 };
 
@@ -51,6 +53,13 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<RailTab>("findings");
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
+  // newThread is the anchor of a thread the user is starting (REQ-087).
+  const [newThread, setNewThread] = useState<NewAnchor>();
+  const startThread = (a: NewAnchor) => {
+    setNewThread(a);
+    setTab("threads");
+    setPanel("rail");
+  };
 
   useEffect(() => {
     if (!dirty) return;
@@ -134,6 +143,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           <span className="sr-only sm:hidden">Traceability</span>
         </Link>
         <div className="flex items-center gap-1.5">
+          {guest ? null : <ReviewStatus bundleId={bundleId} signedIn={!guest} />}
           {hosted && canEdit ? <ShareDialog bundleId={bundleId} /> : null}
           {guest ? null : <RunReviewButton bundleId={bundleId} active={!!run.active} onStarted={() => run.refetch()} />}
           <Button
@@ -183,7 +193,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         <aside
           className={clsx(
             "no-print w-[var(--rail)] shrink-0 border-r border-line bg-surface",
-            panel === "files" ? "absolute inset-y-0 left-0 z-20 shadow-pop" : "hidden lg:block",
+            panel === "files"
+              ? "absolute inset-y-0 left-0 z-20 shadow-pop lg:static lg:shadow-none"
+              : "hidden lg:block",
           )}
         >
           {files.isError ? (
@@ -234,6 +246,21 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               onDirtyChange={setDirty}
               focus={focus}
               readOnly={!canEdit}
+              onComment={(sel) =>
+                startThread({
+                  kind: "text",
+                  anchor: {
+                    file: sel.file,
+                    start: sel.start,
+                    end: sel.end,
+                    quote: sel.quote,
+                    prefix: "",
+                    suffix: "",
+                    heading_path: [],
+                  },
+                  label: sel.quote.length > 120 ? `${sel.quote.slice(0, 119)}…` : sel.quote,
+                })
+              }
             />
           ) : (
             <Loading />
@@ -243,7 +270,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         <aside
           className={clsx(
             "no-print w-[var(--review-rail)] shrink-0 border-l border-line bg-surface",
-            panel === "rail" ? "absolute inset-y-0 right-0 z-20 w-[min(100%,360px)] shadow-pop" : "hidden xl:block",
+            panel === "rail"
+              ? "absolute inset-y-0 right-0 z-20 w-[min(100%,360px)] shadow-pop xl:static xl:w-[var(--review-rail)] xl:shadow-none"
+              : "hidden xl:block",
           )}
         >
           <div className="flex h-full min-h-0 flex-col">
@@ -252,7 +281,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               aria-label="Review"
               className="flex h-10 shrink-0 items-end gap-2 border-b border-line px-3 whitespace-nowrap"
             >
-              {(["findings", "evidence", "questions", "versions"] as const).map((t) => (
+              {(["findings", "threads", "evidence", "versions"] as const).map((t) => (
                 <button
                   key={t}
                   role="tab"
@@ -270,21 +299,52 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                       {b.verdict.must + b.verdict.should + b.verdict.info}
                     </span>
                   ) : null}
+                  {t === "threads" && b.verdict?.blocking_threads ? (
+                    <span className="ml-1 font-mono text-bad">{b.verdict.blocking_threads}</span>
+                  ) : null}
                 </button>
               ))}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {tab === "findings" ? (
-                <FindingsPanel runId={b.verdict?.run_id} onOpen={openFinding} />
-              ) : tab === "evidence" ? (
-                <EvidencePanel
+                <FindingsPanel
+                  runId={b.verdict?.run_id}
                   bundleId={bundleId}
-                  runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined}
-                  version={b.current_version.id}
-                  onOpen={openAnchor}
+                  member={!guest}
+                  onOpen={openFinding}
+                  onDiscuss={(f) =>
+                    startThread({
+                      kind: "finding",
+                      finding_id: f.id,
+                      check_slug: f.check_slug,
+                      label: `${f.check_slug}: ${f.message}`,
+                    })
+                  }
                 />
-              ) : tab === "questions" ? (
-                <QuestionsPanel runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined} onOpen={openAnchor} />
+              ) : tab === "threads" ? (
+                <ThreadsPanel
+                  bundleId={bundleId}
+                  member={!guest}
+                  pending={newThread}
+                  onPendingDone={() => setNewThread(undefined)}
+                  onOpenAnchor={openAnchor}
+                />
+              ) : tab === "evidence" ? (
+                <>
+                  <EvidencePanel
+                    bundleId={bundleId}
+                    runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined}
+                    version={b.current_version.id}
+                    onOpen={openAnchor}
+                  />
+                  <h3 className="mt-2 border-t border-line px-3 pt-3 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
+                    Build questions
+                  </h3>
+                  <QuestionsPanel
+                    runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined}
+                    onOpen={openAnchor}
+                  />
+                </>
               ) : (
                 <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
               )}

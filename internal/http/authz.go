@@ -21,13 +21,15 @@ import (
 type access int
 
 const (
-	public     access = iota + 1 // anyone, signed in or not
-	reader                       // a member, or a guest on any share link
-	member                       // a signed-in member
-	bundleRead                   // a member or guest who can see the path's bundle (REQ-084)
-	bundleAI                     // like bundleRead, but never a guest: guests do not ask the AI (REQ-086)
-	bundleEdit                   // an author of the path's bundle, or an admin
-	adminOnly                    // an admin (SDD §3: the only role that sees model configuration)
+	public      access = iota + 1 // anyone, signed in or not
+	reader                        // a member, or a guest on any share link
+	member                        // a signed-in member
+	bundleRead                    // a member or guest who can see the path's bundle (REQ-084)
+	bundleAI                      // like bundleRead, but never a guest: guests do not ask the AI, waive, or approve (REQ-086)
+	bundleEdit                    // an author of the path's bundle, or an admin
+	adminOnly                     // an admin (SDD §3: the only role that sees model configuration)
+	profileEdit                   // a maintainer of the path's profile, or an admin
+	maintainer                    // a maintainer of any profile, or an admin (REQ-092)
 )
 
 // operations is the role table: one row for every operation in api/openapi.yaml. An
@@ -64,6 +66,38 @@ var operations = map[string]access{
 
 	"startRun":    bundleAI,
 	"estimateRun": bundleAI,
+
+	// Threads (REQ-087): a guest reads and writes threads for humans on the shared bundle;
+	// the thread rules refuse the rest. A thread's bundle comes from its path.
+	"listBundleThreads": bundleRead,
+	"openBundleThread":  bundleRead,
+	"getThread":         bundleRead,
+	"postMessage":       bundleRead,
+	"markDecision":      bundleAI,
+	"setThreadBlocking": bundleAI,
+	"setThreadStatus":   bundleAI,
+
+	// Waivers and approvals (REQ-072 to REQ-076): members who can see the bundle; the waiver
+	// policy and the approval rules decide the rest.
+	"listWaivers":     bundleRead,
+	"requestWaiver":   bundleAI,
+	"approveWaiver":   bundleAI,
+	"rejectWaiver":    bundleAI,
+	"getBundleStatus": bundleRead,
+	"approveBundle":   bundleAI,
+	"requestReview":   bundleEdit,
+
+	"listPeople":    member,
+	"getInbox":      member,
+	"markInboxSeen": member,
+	"getInsights":   maintainer,
+
+	"getProfile":         member,
+	"listProfileThreads": member,
+	"openProfileThread":  member,
+	"updateProfile":      profileEdit,
+	"createProfile":      adminOnly,
+	"setMaintainers":     adminOnly,
 
 	"putFileContent":  bundleEdit,
 	"deleteFile":      bundleEdit,
@@ -141,6 +175,28 @@ func (z *Authz) check(ctx context.Context, r *nethttp.Request, op string) error 
 		return nil
 	case member:
 		return z.memberOnly(a)
+	case profileEdit, maintainer:
+		if err := z.memberOnly(a); err != nil {
+			return err
+		}
+		if a.IsAdmin() {
+			return nil
+		}
+		q := z.DB.Queries()
+		var ok bool
+		var err error
+		if need == profileEdit {
+			ok, err = q.IsProfileMaintainer(ctx, pgdb.IsProfileMaintainerParams{WorkspaceID: z.Workspace, Key: r.PathValue("key"), UserID: a.UserID})
+		} else {
+			ok, err = q.IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: z.Workspace, UserID: a.UserID})
+		}
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return kernel.Forbidden("not_maintainer", "Only a maintainer of this profile or an admin can do this.")
+		}
+		return nil
 	case adminOnly:
 		if err := z.memberOnly(a); err != nil {
 			return err
@@ -158,6 +214,10 @@ func (z *Authz) check(ctx context.Context, r *nethttp.Request, op string) error 
 		return errGuest
 	}
 	b, err := z.pathBundle(ctx, r)
+	if errors.Is(err, errProfileThread) {
+		// A suggestion thread on a profile (REQ-015): members only.
+		return z.memberOnly(a)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return errNoBundle
 	}
@@ -215,5 +275,39 @@ func (z *Authz) pathBundle(ctx context.Context, r *nethttp.Request) (pgdb.Bundle
 		}
 		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: run.BundleID})
 	}
+	if s := r.PathValue("threadId"); s != "" {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return pgdb.Bundle{}, sql.ErrNoRows
+		}
+		t, err := q.GetThreadView(ctx, pgdb.GetThreadViewParams{WorkspaceID: z.Workspace, ID: id})
+		if errors.Is(err, sql.ErrNoRows) {
+			return pgdb.Bundle{}, kernel.NotFound("thread_not_found", "No thread has this ID.")
+		}
+		if err != nil {
+			return pgdb.Bundle{}, err
+		}
+		if !t.BundleID.Valid {
+			return pgdb.Bundle{}, errProfileThread
+		}
+		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: t.BundleID.UUID})
+	}
+	if s := r.PathValue("waiverId"); s != "" {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return pgdb.Bundle{}, sql.ErrNoRows
+		}
+		w, err := q.GetWaiverView(ctx, pgdb.GetWaiverViewParams{WorkspaceID: z.Workspace, ID: id})
+		if errors.Is(err, sql.ErrNoRows) {
+			return pgdb.Bundle{}, kernel.NotFound("waiver_not_found", "No waiver has this ID.")
+		}
+		if err != nil {
+			return pgdb.Bundle{}, err
+		}
+		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: w.BundleID})
+	}
 	return pgdb.Bundle{}, errors.New("the operation names no bundle in its path")
 }
+
+// errProfileThread marks a thread that belongs to a profile, not a bundle.
+var errProfileThread = errors.New("the thread belongs to a profile")

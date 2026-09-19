@@ -1,6 +1,7 @@
 package source
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -101,5 +102,33 @@ func TestLinkRule(t *testing.T) {
 		if _, err := ParseLinkRule(bad); err == nil {
 			t.Errorf("ParseLinkRule(%q) gave no error", bad)
 		}
+	}
+}
+
+func TestAddWaiver(t *testing.T) {
+	doc := []byte("---\ntype: sdd # the type\ntitle: Pay\n---\n\n# Pay\n\n## Limits\n\nText.\n")
+	w := Waiver{Check: "sdd.limits", Section: []string{"Pay", "Limits"}, Reason: "The provider sets them.", SectionHash: "sha256:x", ApprovedBy: "maria"}
+	out, err := AddWaiver(doc, w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fm, _, err := ReadFrontmatter(out)
+	if err != nil || fm.Type != "sdd" || len(fm.Waivers) != 1 || fm.Waivers[0].SectionHash != "sha256:x" {
+		t.Fatalf("frontmatter %+v, %v:\n%s", fm, err, out)
+	}
+	if !bytes.HasSuffix(out, []byte("\n# Pay\n\n## Limits\n\nText.\n")) || !bytes.Contains(out, []byte("# the type")) {
+		t.Errorf("the body or the comment changed:\n%s", out)
+	}
+	// The same check and section replaces the entry.
+	w.SectionHash = "sha256:y"
+	out, _ = AddWaiver(out, w)
+	fm, _, _ = ReadFrontmatter(out)
+	if len(fm.Waivers) != 1 || fm.Waivers[0].SectionHash != "sha256:y" {
+		t.Errorf("waivers after a second approval: %+v", fm.Waivers)
+	}
+	// A doc with no frontmatter gets one.
+	out, _ = AddWaiver([]byte("# Doc\n"), w)
+	if fm, ok, _ := ReadFrontmatter(out); !ok || len(fm.Waivers) != 1 {
+		t.Errorf("no frontmatter: %s", out)
 	}
 }

@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { addTraceIds, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createResetLink, createShareLink, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getFileContent, getMe, getMeta, getRun, getSettings, getShare, getTrace, importBundle, joinShare, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listInvites, listMcpConnections, listMcpTools, listPresets, listProfiles, listQuestions, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, revokeInvite, revokeShareLink, setBudget, setSettings, setVisibility, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
-import type { AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
+import { addTraceIds, approveBundle, approveWaiver, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createProfile, createResetLink, createShareLink, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getBundleStatus, getFileContent, getInbox, getInsights, getMe, getMeta, getProfile, getRun, getSettings, getShare, getThread, getTrace, importBundle, joinShare, listAssumptions, listBackends, listBundles, listBundleThreads, listClaims, listFiles, listFindings, listInvites, listMcpConnections, listMcpTools, listPeople, listPresets, listProfiles, listProfileThreads, listQuestions, listRoles, listRuns, listVersions, listWaivers, markDecision, markInboxSeen, openBundleThread, openProfileThread, type Options, postMessage, putFileContent, rejectWaiver, renameFile, renderMarkdown, requestReview, requestWaiver, revokeInvite, revokeShareLink, setBudget, setMaintainers, setSettings, setThreadBlocking, setThreadStatus, setVisibility, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection, updateProfile } from '../sdk.gen';
+import type { AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, ApproveBundleData, ApproveBundleError, ApproveBundleResponse, ApproveWaiverData, ApproveWaiverError, ApproveWaiverResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateProfileData, CreateProfileError, CreateProfileResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetBundleStatusData, GetBundleStatusError, GetBundleStatusResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetInboxData, GetInboxError, GetInboxResponse, GetInsightsData, GetInsightsError, GetInsightsResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetProfileData, GetProfileError, GetProfileResponse, GetRunData, GetRunError, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetThreadData, GetThreadError, GetThreadResponse, GetTraceData, GetTraceError, GetTraceResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListBundleThreadsData, ListBundleThreadsError, ListBundleThreadsResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPeopleData, ListPeopleError, ListPeopleResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListProfileThreadsData, ListProfileThreadsError, ListProfileThreadsResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, ListWaiversData, ListWaiversError, ListWaiversResponse, MarkDecisionData, MarkDecisionError, MarkDecisionResponse, MarkInboxSeenData, MarkInboxSeenError, MarkInboxSeenResponse, OpenBundleThreadData, OpenBundleThreadError, OpenBundleThreadResponse, OpenProfileThreadData, OpenProfileThreadError, OpenProfileThreadResponse, PostMessageData, PostMessageError, PostMessageResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RejectWaiverData, RejectWaiverError, RejectWaiverResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, RequestReviewData, RequestReviewError, RequestReviewResponse, RequestWaiverData, RequestWaiverError, RequestWaiverResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetMaintainersData, SetMaintainersError, SetMaintainersResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetThreadBlockingData, SetThreadBlockingError, SetThreadBlockingResponse, SetThreadStatusData, SetThreadStatusError, SetThreadStatusResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -853,6 +853,406 @@ export const listFindingsOptions = (options: Options<ListFindingsData>) => query
     queryKey: listFindingsQueryKey(options)
 });
 
+export const listBundleThreadsQueryKey = (options: Options<ListBundleThreadsData>) => createQueryKey('listBundleThreads', options);
+
+/**
+ * List the threads of a bundle, open first (REQ-087).
+ */
+export const listBundleThreadsOptions = (options: Options<ListBundleThreadsData>) => queryOptions<ListBundleThreadsResponse, ListBundleThreadsError, ListBundleThreadsResponse, ReturnType<typeof listBundleThreadsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listBundleThreads({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listBundleThreadsQueryKey(options)
+});
+
+/**
+ * Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+ */
+export const openBundleThreadMutation = (options?: Partial<Options<OpenBundleThreadData>>): UseMutationOptions<OpenBundleThreadResponse, OpenBundleThreadError, Options<OpenBundleThreadData>> => {
+    const mutationOptions: UseMutationOptions<OpenBundleThreadResponse, OpenBundleThreadError, Options<OpenBundleThreadData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await openBundleThread({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getThreadQueryKey = (options: Options<GetThreadData>) => createQueryKey('getThread', options);
+
+/**
+ * A thread with its messages.
+ */
+export const getThreadOptions = (options: Options<GetThreadData>) => queryOptions<GetThreadResponse, GetThreadError, GetThreadResponse, ReturnType<typeof getThreadQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getThread({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getThreadQueryKey(options)
+});
+
+/**
+ * Post a message. In a thread for the AI, the AI answers with sources (REQ-088).
+ */
+export const postMessageMutation = (options?: Partial<Options<PostMessageData>>): UseMutationOptions<PostMessageResponse, PostMessageError, Options<PostMessageData>> => {
+    const mutationOptions: UseMutationOptions<PostMessageResponse, PostMessageError, Options<PostMessageData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await postMessage({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Mark a message as the thread's decision. A later decision is recorded as a reversal (REQ-089).
+ */
+export const markDecisionMutation = (options?: Partial<Options<MarkDecisionData>>): UseMutationOptions<MarkDecisionResponse, MarkDecisionError, Options<MarkDecisionData>> => {
+    const mutationOptions: UseMutationOptions<MarkDecisionResponse, MarkDecisionError, Options<MarkDecisionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await markDecision({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Mark the thread blocking or not. An open blocking thread prevents Build Ready (REQ-089).
+ */
+export const setThreadBlockingMutation = (options?: Partial<Options<SetThreadBlockingData>>): UseMutationOptions<SetThreadBlockingResponse, SetThreadBlockingError, Options<SetThreadBlockingData>> => {
+    const mutationOptions: UseMutationOptions<SetThreadBlockingResponse, SetThreadBlockingError, Options<SetThreadBlockingData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setThreadBlocking({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Resolve or reopen the thread.
+ */
+export const setThreadStatusMutation = (options?: Partial<Options<SetThreadStatusData>>): UseMutationOptions<SetThreadStatusResponse, SetThreadStatusError, Options<SetThreadStatusData>> => {
+    const mutationOptions: UseMutationOptions<SetThreadStatusResponse, SetThreadStatusError, Options<SetThreadStatusData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setThreadStatus({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listWaiversQueryKey = (options: Options<ListWaiversData>) => createQueryKey('listWaivers', options);
+
+/**
+ * List the waivers of a bundle (REQ-072 to REQ-074).
+ */
+export const listWaiversOptions = (options: Options<ListWaiversData>) => queryOptions<ListWaiversResponse, ListWaiversError, ListWaiversResponse, ReturnType<typeof listWaiversQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listWaivers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listWaiversQueryKey(options)
+});
+
+/**
+ * Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+ */
+export const requestWaiverMutation = (options?: Partial<Options<RequestWaiverData>>): UseMutationOptions<RequestWaiverResponse, RequestWaiverError, Options<RequestWaiverData>> => {
+    const mutationOptions: UseMutationOptions<RequestWaiverResponse, RequestWaiverError, Options<RequestWaiverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await requestWaiver({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+ */
+export const approveWaiverMutation = (options?: Partial<Options<ApproveWaiverData>>): UseMutationOptions<ApproveWaiverResponse, ApproveWaiverError, Options<ApproveWaiverData>> => {
+    const mutationOptions: UseMutationOptions<ApproveWaiverResponse, ApproveWaiverError, Options<ApproveWaiverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await approveWaiver({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Reject a waiver.
+ */
+export const rejectWaiverMutation = (options?: Partial<Options<RejectWaiverData>>): UseMutationOptions<RejectWaiverResponse, RejectWaiverError, Options<RejectWaiverData>> => {
+    const mutationOptions: UseMutationOptions<RejectWaiverResponse, RejectWaiverError, Options<RejectWaiverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await rejectWaiver({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getBundleStatusQueryKey = (options: Options<GetBundleStatusData>) => createQueryKey('getBundleStatus', options);
+
+/**
+ * The review status of a bundle (§9.5).
+ */
+export const getBundleStatusOptions = (options: Options<GetBundleStatusData>) => queryOptions<GetBundleStatusResponse, GetBundleStatusError, GetBundleStatusResponse, ReturnType<typeof getBundleStatusQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getBundleStatus({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getBundleStatusQueryKey(options)
+});
+
+/**
+ * Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+ */
+export const requestReviewMutation = (options?: Partial<Options<RequestReviewData>>): UseMutationOptions<RequestReviewResponse, RequestReviewError, Options<RequestReviewData>> => {
+    const mutationOptions: UseMutationOptions<RequestReviewResponse, RequestReviewError, Options<RequestReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await requestReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+ */
+export const approveBundleMutation = (options?: Partial<Options<ApproveBundleData>>): UseMutationOptions<ApproveBundleResponse, ApproveBundleError, Options<ApproveBundleData>> => {
+    const mutationOptions: UseMutationOptions<ApproveBundleResponse, ApproveBundleError, Options<ApproveBundleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await approveBundle({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listPeopleQueryKey = (options?: Options<ListPeopleData>) => createQueryKey('listPeople', options);
+
+/**
+ * The members of the workspace, for reviewers and mentions. Empty in local mode.
+ */
+export const listPeopleOptions = (options?: Options<ListPeopleData>) => queryOptions<ListPeopleResponse, ListPeopleError, ListPeopleResponse, ReturnType<typeof listPeopleQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listPeople({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listPeopleQueryKey(options)
+});
+
+export const getInboxQueryKey = (options?: Options<GetInboxData>) => createQueryKey('getInbox', options);
+
+/**
+ * The caller's inbox (REQ-091).
+ */
+export const getInboxOptions = (options?: Options<GetInboxData>) => queryOptions<GetInboxResponse, GetInboxError, GetInboxResponse, ReturnType<typeof getInboxQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getInbox({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getInboxQueryKey(options)
+});
+
+/**
+ * Mark the inbox as read up to now.
+ */
+export const markInboxSeenMutation = (options?: Partial<Options<MarkInboxSeenData>>): UseMutationOptions<MarkInboxSeenResponse, MarkInboxSeenError, Options<MarkInboxSeenData>> => {
+    const mutationOptions: UseMutationOptions<MarkInboxSeenResponse, MarkInboxSeenError, Options<MarkInboxSeenData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await markInboxSeen({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getInsightsQueryKey = (options?: Options<GetInsightsData>) => createQueryKey('getInsights', options);
+
+/**
+ * The metrics of SDD §8.9, per profile (REQ-092). Maintainers and admins.
+ */
+export const getInsightsOptions = (options?: Options<GetInsightsData>) => queryOptions<GetInsightsResponse, GetInsightsError, GetInsightsResponse, ReturnType<typeof getInsightsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getInsights({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getInsightsQueryKey(options)
+});
+
+export const getProfileQueryKey = (options: Options<GetProfileData>) => createQueryKey('getProfile', options);
+
+/**
+ * A profile with its YAML, template, versions, and maintainers (REQ-013).
+ */
+export const getProfileOptions = (options: Options<GetProfileData>) => queryOptions<GetProfileResponse, GetProfileError, GetProfileResponse, ReturnType<typeof getProfileQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getProfile({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getProfileQueryKey(options)
+});
+
+/**
+ * Save a profile as a new version (REQ-012, REQ-013). Maintainers of the profile and admins.
+ */
+export const updateProfileMutation = (options?: Partial<Options<UpdateProfileData>>): UseMutationOptions<UpdateProfileResponse, UpdateProfileError, Options<UpdateProfileData>> => {
+    const mutationOptions: UseMutationOptions<UpdateProfileResponse, UpdateProfileError, Options<UpdateProfileData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateProfile({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set the maintainers of a profile. Admins only.
+ */
+export const setMaintainersMutation = (options?: Partial<Options<SetMaintainersData>>): UseMutationOptions<SetMaintainersResponse, SetMaintainersError, Options<SetMaintainersData>> => {
+    const mutationOptions: UseMutationOptions<SetMaintainersResponse, SetMaintainersError, Options<SetMaintainersData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setMaintainers({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listProfileThreadsQueryKey = (options: Options<ListProfileThreadsData>) => createQueryKey('listProfileThreads', options);
+
+/**
+ * The suggestions for a profile, as threads on its checks (REQ-015).
+ */
+export const listProfileThreadsOptions = (options: Options<ListProfileThreadsData>) => queryOptions<ListProfileThreadsResponse, ListProfileThreadsError, ListProfileThreadsResponse, ReturnType<typeof listProfileThreadsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listProfileThreads({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listProfileThreadsQueryKey(options)
+});
+
+/**
+ * Suggest a change to a check, the template, or a limit (REQ-015).
+ */
+export const openProfileThreadMutation = (options?: Partial<Options<OpenProfileThreadData>>): UseMutationOptions<OpenProfileThreadResponse, OpenProfileThreadError, Options<OpenProfileThreadData>> => {
+    const mutationOptions: UseMutationOptions<OpenProfileThreadResponse, OpenProfileThreadError, Options<OpenProfileThreadData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await openProfileThread({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const listProfilesQueryKey = (options?: Options<ListProfilesData>) => createQueryKey('listProfiles', options);
 
 /**
@@ -870,6 +1270,23 @@ export const listProfilesOptions = (options?: Options<ListProfilesData>) => quer
     },
     queryKey: listProfilesQueryKey(options)
 });
+
+/**
+ * Create a profile for a new doc type. Admins only.
+ */
+export const createProfileMutation = (options?: Partial<Options<CreateProfileData>>): UseMutationOptions<CreateProfileResponse, CreateProfileError, Options<CreateProfileData>> => {
+    const mutationOptions: UseMutationOptions<CreateProfileResponse, CreateProfileError, Options<CreateProfileData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createProfile({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const listBackendsQueryKey = (options?: Options<ListBackendsData>) => createQueryKey('listBackends', options);
 

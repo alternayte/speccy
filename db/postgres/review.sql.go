@@ -116,9 +116,9 @@ func (q *Queries) GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, err
 }
 
 const insertFinding = `-- name: InsertFinding :exec
-INSERT INTO finding (id, run_id, check_slug, level, stage, relaxed, anchor, message, evidence, suggestion)
+INSERT INTO finding (id, run_id, check_slug, level, stage, relaxed, anchor, message, evidence, suggestion, waived)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10)
+        $7, $8, $9, $10, $11)
 `
 
 type InsertFindingParams struct {
@@ -132,6 +132,7 @@ type InsertFindingParams struct {
 	Message    string
 	Evidence   dbtype.JSON
 	Suggestion dbtype.JSON
+	Waived     bool
 }
 
 func (q *Queries) InsertFinding(ctx context.Context, arg InsertFindingParams) error {
@@ -146,6 +147,7 @@ func (q *Queries) InsertFinding(ctx context.Context, arg InsertFindingParams) er
 		arg.Message,
 		arg.Evidence,
 		arg.Suggestion,
+		arg.Waived,
 	)
 	return err
 }
@@ -355,7 +357,7 @@ func (q *Queries) LatestRunFor(ctx context.Context, arg LatestRunForParams) (Rev
 }
 
 const listFindings = `-- name: ListFindings :many
-SELECT id, run_id, check_slug, level, stage, relaxed, anchor, message, evidence, suggestion FROM finding WHERE run_id = $1 ORDER BY id
+SELECT id, run_id, check_slug, level, stage, relaxed, anchor, message, evidence, suggestion, waived FROM finding WHERE run_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error) {
@@ -378,6 +380,7 @@ func (q *Queries) ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding,
 			&i.Message,
 			&i.Evidence,
 			&i.Suggestion,
+			&i.Waived,
 		); err != nil {
 			return nil, err
 		}

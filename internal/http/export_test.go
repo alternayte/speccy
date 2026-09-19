@@ -11,11 +11,13 @@ func Operations() map[string]int {
 
 // Access levels, for the external tests.
 const (
-	Public     = int(public)
-	Reader     = int(reader)
-	Member     = int(member)
-	BundleRead = int(bundleRead)
-	BundleAI   = int(bundleAI)
-	BundleEdit = int(bundleEdit)
-	AdminOnly  = int(adminOnly)
+	Public      = int(public)
+	Reader      = int(reader)
+	Member      = int(member)
+	BundleRead  = int(bundleRead)
+	BundleAI    = int(bundleAI)
+	BundleEdit  = int(bundleEdit)
+	AdminOnly   = int(adminOnly)
+	ProfileEdit = int(profileEdit)
+	Maintainer  = int(maintainer)
 )

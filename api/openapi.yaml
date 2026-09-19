@@ -828,7 +828,489 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/threads:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listBundleThreads
+      summary: List the threads of a bundle, open first (REQ-087).
+      responses:
+        "200":
+          description: The threads.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Thread"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: openBundleThread
+      summary: Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenThread"
+      responses:
+        "200":
+          description: The new thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /threads/{threadId}:
+    parameters:
+      - $ref: "#/components/parameters/ThreadId"
+    get:
+      operationId: getThread
+      summary: A thread with its messages.
+      responses:
+        "200":
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /threads/{threadId}/messages:
+    parameters:
+      - $ref: "#/components/parameters/ThreadId"
+    post:
+      operationId: postMessage
+      summary: Post a message. In a thread for the AI, the AI answers with sources (REQ-088).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostMessage"
+      responses:
+        "200":
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /threads/{threadId}/decision:
+    parameters:
+      - $ref: "#/components/parameters/ThreadId"
+    post:
+      operationId: markDecision
+      summary: Mark a message as the thread's decision. A later decision is recorded as a reversal (REQ-089).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message_id]
+              properties:
+                message_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /threads/{threadId}/blocking:
+    parameters:
+      - $ref: "#/components/parameters/ThreadId"
+    put:
+      operationId: setThreadBlocking
+      summary: Mark the thread blocking or not. An open blocking thread prevents Build Ready (REQ-089).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [blocking]
+              properties:
+                blocking:
+                  type: boolean
+      responses:
+        "200":
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /threads/{threadId}/status:
+    parameters:
+      - $ref: "#/components/parameters/ThreadId"
+    put:
+      operationId: setThreadStatus
+      summary: Resolve or reopen the thread.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [open]
+              properties:
+                open:
+                  type: boolean
+      responses:
+        "200":
+          description: The thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/waivers:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listWaivers
+      summary: List the waivers of a bundle (REQ-072 to REQ-074).
+      responses:
+        "200":
+          description: The waivers, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Waiver"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: requestWaiver
+      summary: Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [finding_id, reason]
+              properties:
+                finding_id:
+                  type: string
+                  format: uuid
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: The waiver.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Waiver"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /waivers/{waiverId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/WaiverId"
+    post:
+      operationId: approveWaiver
+      summary: Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+      responses:
+        "200":
+          description: The waiver.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Waiver"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /waivers/{waiverId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/WaiverId"
+    post:
+      operationId: rejectWaiver
+      summary: Reject a waiver.
+      responses:
+        "200":
+          description: The waiver.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Waiver"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/status:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: getBundleStatus
+      summary: The review status of a bundle (§9.5).
+      responses:
+        "200":
+          description: The status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BundleStatus"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/review-request:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: requestReview
+      summary: Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reviewers]
+              properties:
+                reviewers:
+                  type: array
+                  items:
+                    type: string
+                  description: User IDs.
+      responses:
+        "200":
+          description: The status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BundleStatus"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: approveBundle
+      summary: Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+      responses:
+        "200":
+          description: The status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BundleStatus"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /people:
+    get:
+      operationId: listPeople
+      summary: The members of the workspace, for reviewers and mentions. Empty in local mode.
+      responses:
+        "200":
+          description: The people.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Person"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /inbox:
+    get:
+      operationId: getInbox
+      summary: The caller's inbox (REQ-091).
+      responses:
+        "200":
+          description: The inbox.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Inbox"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /inbox/seen:
+    post:
+      operationId: markInboxSeen
+      summary: Mark the inbox as read up to now.
+      responses:
+        "204":
+          description: Marked.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /insights:
+    get:
+      operationId: getInsights
+      summary: The metrics of SDD §8.9, per profile (REQ-092). Maintainers and admins.
+      responses:
+        "200":
+          description: The metrics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insights"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles/{key}:
+    parameters:
+      - $ref: "#/components/parameters/ProfileKey"
+    get:
+      operationId: getProfile
+      summary: A profile with its YAML, template, versions, and maintainers (REQ-013).
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: updateProfile
+      summary: Save a profile as a new version (REQ-012, REQ-013). Maintainers of the profile and admins.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles/{key}/maintainers:
+    parameters:
+      - $ref: "#/components/parameters/ProfileKey"
+    put:
+      operationId: setMaintainers
+      summary: Set the maintainers of a profile. Admins only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_ids]
+              properties:
+                user_ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles/{key}/threads:
+    parameters:
+      - $ref: "#/components/parameters/ProfileKey"
+    get:
+      operationId: listProfileThreads
+      summary: The suggestions for a profile, as threads on its checks (REQ-015).
+      responses:
+        "200":
+          description: The threads.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Thread"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: openProfileThread
+      summary: Suggest a change to a check, the template, or a limit (REQ-015).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenThread"
+      responses:
+        "200":
+          description: The new thread.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /profiles:
+    post:
+      operationId: createProfile
+      summary: Create a profile for a new doc type. Admins only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/ProfileInput"
+                - type: object
+                  required: [key]
+                  properties:
+                    key:
+                      type: string
+                      pattern: "^[a-z][a-z0-9-]{1,30}$"
+      responses:
+        "200":
+          description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDetail"
+        default:
+          $ref: "#/components/responses/Problem"
     get:
       operationId: listProfiles
       summary: List the profiles, with their current versions.
@@ -1073,6 +1555,26 @@ components:
       schema:
         type: string
         format: uuid
+    ThreadId:
+      name: threadId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    WaiverId:
+      name: waiverId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ProfileKey:
+      name: key
+      in: path
+      required: true
+      schema:
+        type: string
     BundleId:
       name: bundleId
       in: path
@@ -1164,6 +1666,9 @@ components:
         role:
           type: string
           enum: [admin, member]
+        maintainer:
+          type: boolean
+          description: The caller maintains at least one profile.
         guest:
           type: object
           required: [name, bundle_id]
@@ -1313,6 +1818,8 @@ components:
           description: Why the latest run on the current version failed, when it failed.
         visibility:
           $ref: "#/components/schemas/Visibility"
+        status:
+          $ref: "#/components/schemas/ReviewStatus"
 
     BundleVerdict:
       type: object
@@ -1349,6 +1856,9 @@ components:
           type: integer
         info:
           type: integer
+        blocking_threads:
+          type: integer
+          description: Open blocking threads. Any makes the verdict Not Build Ready (§8.6 rule 2).
         stale_reason:
           type: string
           enum: [upstream_changed]
@@ -1803,8 +2313,11 @@ components:
 
     Finding:
       type: object
-      required: [id, check_slug, level, stage, relaxed, message, anchor]
+      required: [id, check_slug, level, stage, relaxed, message, anchor, waived]
       properties:
+        waived:
+          type: boolean
+          description: A valid waiver covers this finding (REQ-074).
         id:
           type: string
           format: uuid
@@ -1833,6 +2346,350 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Finding"
+
+    Thread:
+      type: object
+      required: [id, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+        profile_key:
+          type: string
+        anchor_kind:
+          type: string
+          enum: [text, section, finding, check]
+        anchor:
+          type: object
+          additionalProperties: true
+          description: For text, an Anchor. For a section, {heading_path}. For a finding, {finding_id, check_slug}. For a check, {check_slug}.
+        addressed_to:
+          type: string
+          enum: [humans, ai]
+        title:
+          type: string
+        blocking:
+          type: boolean
+        status:
+          type: string
+          enum: [open, resolved]
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_message_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+
+    ThreadDetail:
+      allOf:
+        - $ref: "#/components/schemas/Thread"
+        - type: object
+          required: [messages, answering]
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: "#/components/schemas/ThreadMessage"
+            answering:
+              type: boolean
+              description: The AI is writing an answer.
+
+    ThreadMessage:
+      type: object
+      required: [id, seq, author_kind, author_name, body, sources, decision, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        seq:
+          type: integer
+        author_kind:
+          type: string
+          enum: [user, guest, ai]
+        author_id:
+          type: string
+        author_name:
+          type: string
+        body:
+          type: string
+        sources:
+          type: array
+          items:
+            type: string
+        decision:
+          type: string
+          enum: ["", decision, reversal]
+        created_at:
+          type: string
+          format: date-time
+
+    OpenThread:
+      type: object
+      required: [anchor_kind, anchor, addressed_to, body]
+      properties:
+        anchor_kind:
+          type: string
+          enum: [text, section, finding, check]
+        anchor:
+          type: object
+          additionalProperties: true
+        addressed_to:
+          type: string
+          enum: [humans, ai]
+        title:
+          type: string
+        body:
+          type: string
+        blocking:
+          type: boolean
+
+    PostMessage:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+
+    Waiver:
+      type: object
+      required: [id, bundle_id, check_slug, level, section, reason, status, requested_by, approvals, policy, needed, can_approve, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+        check_slug:
+          type: string
+        level:
+          type: string
+        section:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [requested, approved, rejected, invalidated]
+        requested_by:
+          type: string
+        approvals:
+          type: array
+          items:
+            type: string
+        policy:
+          type: string
+          description: The waiver policy (§9.1).
+        needed:
+          type: integer
+          description: The approvals the policy needs.
+        can_approve:
+          type: boolean
+          description: Whether the caller can approve or reject it now.
+        created_at:
+          type: string
+          format: date-time
+
+    ReviewStatus:
+      type: string
+      enum: [draft, in_review, approved, superseded]
+
+    BundleStatus:
+      type: object
+      required: [status, reviewers, approvals, required, can_request, can_approve]
+      properties:
+        status:
+          $ref: "#/components/schemas/ReviewStatus"
+        reviewers:
+          type: array
+          items:
+            type: string
+        approvals:
+          type: array
+          items:
+            type: object
+            required: [by, version_id, at]
+            properties:
+              by:
+                type: string
+              version_id:
+                type: string
+                format: uuid
+              at:
+                type: string
+                format: date-time
+        required:
+          type: integer
+        can_request:
+          type: boolean
+        can_approve:
+          type: boolean
+        approve_blocked_by:
+          type: string
+          description: Why the caller cannot approve now, when they cannot.
+
+    Person:
+      type: object
+      required: [id, name, email, role]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+
+    Inbox:
+      type: object
+      required: [items, seen_at]
+      properties:
+        seen_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InboxItem"
+
+    InboxItem:
+      type: object
+      required: [kind, bundle_id, bundle_title, text, at, unread]
+      properties:
+        kind:
+          type: string
+          enum: [review_request, message, mention, run]
+        bundle_id:
+          type: string
+          format: uuid
+        bundle_title:
+          type: string
+        thread_id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        at:
+          type: string
+          format: date-time
+        unread:
+          type: boolean
+
+    Insights:
+      type: object
+      required: [profiles]
+      properties:
+        profiles:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProfileInsights"
+
+    ProfileInsights:
+      type: object
+      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        bundles:
+          type: integer
+        standalone:
+          type: integer
+        build_ready:
+          type: integer
+          description: Bundles whose current verdict is Build Ready.
+        runs_to_build_ready:
+          type: number
+          description: The median number of review runs before the first Build Ready verdict. 0 with no data.
+        hours_to_build_ready:
+          type: number
+          description: The median hours from the first review to the first Build Ready verdict.
+        hours_to_approval:
+          type: number
+          description: The median hours from in review to approved.
+        top_failing:
+          type: array
+          items:
+            type: object
+            required: [check_slug, count]
+            properties:
+              check_slug:
+                type: string
+              count:
+                type: integer
+        waiver_rate:
+          type: array
+          items:
+            type: object
+            required: [check_slug, waived, requested]
+            properties:
+              check_slug:
+                type: string
+              waived:
+                type: integer
+              requested:
+                type: integer
+
+    ProfileInput:
+      type: object
+      required: [yaml, template]
+      properties:
+        yaml:
+          type: string
+        template:
+          type: string
+
+    ProfileDetail:
+      type: object
+      required: [key, name, version, origin, yaml, template, versions, maintainers, can_edit, editable]
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+          format: int64
+        origin:
+          type: string
+        yaml:
+          type: string
+        template:
+          type: string
+        versions:
+          type: array
+          items:
+            type: object
+            required: [version, created_by, created_at]
+            properties:
+              version:
+                type: integer
+                format: int64
+              created_by:
+                type: string
+              created_at:
+                type: string
+                format: date-time
+        maintainers:
+          type: array
+          items:
+            type: string
+        can_edit:
+          type: boolean
+        editable:
+          type: boolean
+          description: False when the profile cannot be saved here, such as a built-in in local mode with no .speccy/profiles folder rights.
 
     Profile:
       type: object
