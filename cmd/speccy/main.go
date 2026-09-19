@@ -76,6 +76,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runProfile(args[1:], stdout, stderr)
 	case "export":
 		return runExport(args[1:], stdout, stderr)
+	case "mcp":
+		return runMCP(args[1:], stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK

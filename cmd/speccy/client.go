@@ -5,25 +5,15 @@ import (
 	"fmt"
 	"io/fs"
 	nethttp "net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing/fstest"
 
 	"github.com/alternayte/speccy/internal/app"
+	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source/local"
 )
-
-// handlerDoer sends API requests to a handler in this process: the CLI, the TUI, and the MCP
-// server use the same API and role table as the browser, with no port.
-type handlerDoer struct{ h nethttp.Handler }
-
-func (d handlerDoer) Do(req *nethttp.Request) (*nethttp.Response, error) {
-	rec := httptest.NewRecorder()
-	d.h.ServeHTTP(rec, req)
-	return rec.Result(), nil
-}
 
 // session is an open workspace for a headless command: local mode over a folder, in process.
 type session struct {
@@ -58,7 +48,7 @@ func openSession(ctx context.Context, dir string) (*session, error) {
 	}
 	s.app = a
 	h := localHandler(fs.FS(fstest.MapFS{}), a, db)
-	if s.client, err = api.NewClientWithResponses("http://speccy.local/api/v1", api.WithHTTPClient(handlerDoer{h})); err != nil {
+	if s.client, err = api.NewClientWithResponses("http://speccy.local/api/v1", api.WithHTTPClient(speccyhttp.InProcess{Handler: h})); err != nil {
 		return nil, err
 	}
 	return s, nil
