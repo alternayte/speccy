@@ -80,3 +80,26 @@ WHERE id = sqlc.arg(id);
 
 -- name: GetRunByID :one
 SELECT * FROM review_run WHERE id = sqlc.arg(id);
+
+-- name: ListQuestions :many
+SELECT * FROM question WHERE version_id = sqlc.arg(version_id) ORDER BY number;
+
+-- name: InsertQuestion :exec
+INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.arg(number),
+        sqlc.arg(text), sqlc.arg(level), sqlc.arg(cites), sqlc.arg(anchor));
+
+-- name: InsertAnswer :exec
+INSERT INTO answer (question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found)
+VALUES (sqlc.arg(question_id), sqlc.arg(run_id), sqlc.arg(reader_role), sqlc.arg(model_fingerprint),
+        sqlc.arg(answer), sqlc.arg(quotes), sqlc.arg(quotes_found));
+
+-- name: ListAnswers :many
+SELECT * FROM answer WHERE run_id = sqlc.arg(run_id) ORDER BY question_id, reader_role;
+
+-- name: InsertQuestionResult :exec
+INSERT INTO question_result (run_id, question_id, result, groups)
+VALUES (sqlc.arg(run_id), sqlc.arg(question_id), sqlc.arg(result), sqlc.arg(groups));
+
+-- name: ListQuestionResults :many
+SELECT * FROM question_result WHERE run_id = sqlc.arg(run_id);

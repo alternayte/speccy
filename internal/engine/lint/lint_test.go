@@ -162,3 +162,14 @@ func TestRun_Deterministic(t *testing.T) {
 		t.Error("two runs on the same doc differ")
 	}
 }
+
+func TestDefinitions(t *testing.T) {
+	src := []byte("---\ntype: sdd\n---\n# Reqs\n\n- **REQ-001:** The API MUST reject a bad token.\n- See REQ-001 for this.\n- DEC-002: Use Go.\n- XYZ-003: Not a prefix.\n")
+	defs := Definitions(src, []string{"REQ", "DEC"})
+	if len(defs) != 2 || defs[0].ID != "REQ-001" || defs[1].ID != "DEC-002" {
+		t.Fatalf("definitions %+v", defs)
+	}
+	if string(src[defs[0].Start:defs[0].End]) != "REQ-001" || defs[0].Text != "REQ-001: The API MUST reject a bad token." {
+		t.Errorf("REQ-001 at %q, text %q", src[defs[0].Start:defs[0].End], defs[0].Text)
+	}
+}

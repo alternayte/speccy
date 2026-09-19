@@ -42,6 +42,7 @@
   --radius-md: 6px;
   --radius-lg: 10px;
   --rail: 248px;
+  --review-rail: 320px; /* four tabs at caps tracking */
   --bar: 44px;
 
   /* Colour, light: warm paper ground, graphite ink, a deep green for the accent so it passes

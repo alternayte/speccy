@@ -38,6 +38,7 @@ type Querier interface {
 	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
 	GetVersion(ctx context.Context, arg GetVersionParams) (Version, error)
 	GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error)
+	InsertAnswer(ctx context.Context, arg InsertAnswerParams) error
 	InsertBackend(ctx context.Context, arg InsertBackendParams) error
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
 	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
@@ -49,6 +50,8 @@ type Querier interface {
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
 	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
+	InsertQuestion(ctx context.Context, arg InsertQuestionParams) error
+	InsertQuestionResult(ctx context.Context, arg InsertQuestionResultParams) error
 	InsertRun(ctx context.Context, arg InsertRunParams) error
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
 	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
@@ -58,6 +61,7 @@ type Querier interface {
 	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
+	ListAnswers(ctx context.Context, runID uuid.UUID) ([]Answer, error)
 	ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]RoleAssignment, error)
 	ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]ModelBackend, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
@@ -67,6 +71,8 @@ type Querier interface {
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
 	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
+	ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]QuestionResult, error)
+	ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)

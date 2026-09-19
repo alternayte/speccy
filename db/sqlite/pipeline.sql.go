@@ -192,6 +192,35 @@ func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, erro
 	return i, err
 }
 
+const insertAnswer = `-- name: InsertAnswer :exec
+INSERT INTO answer (question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found)
+VALUES (?1, ?2, ?3, ?4,
+        ?5, ?6, ?7)
+`
+
+type InsertAnswerParams struct {
+	QuestionID       uuid.UUID
+	RunID            uuid.UUID
+	ReaderRole       string
+	ModelFingerprint string
+	Answer           string
+	Quotes           dbtype.JSON
+	QuotesFound      bool
+}
+
+func (q *Queries) InsertAnswer(ctx context.Context, arg InsertAnswerParams) error {
+	_, err := q.db.ExecContext(ctx, insertAnswer,
+		arg.QuestionID,
+		arg.RunID,
+		arg.ReaderRole,
+		arg.ModelFingerprint,
+		arg.Answer,
+		arg.Quotes,
+		arg.QuotesFound,
+	)
+	return err
+}
+
 const insertClaim = `-- name: InsertClaim :exec
 INSERT INTO claim (id, run_id, text, label, reason, sources, anchor)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
@@ -283,6 +312,96 @@ func (q *Queries) InsertMCPConnection(ctx context.Context, arg InsertMCPConnecti
 	return err
 }
 
+const insertQuestion = `-- name: InsertQuestion :exec
+INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor)
+VALUES (?1, ?2, ?3, ?4, ?5,
+        ?6, ?7, ?8, ?9)
+`
+
+type InsertQuestionParams struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	BundleID    uuid.UUID
+	VersionID   uuid.UUID
+	Number      int64
+	Text        string
+	Level       string
+	Cites       dbtype.JSON
+	Anchor      dbtype.JSON
+}
+
+func (q *Queries) InsertQuestion(ctx context.Context, arg InsertQuestionParams) error {
+	_, err := q.db.ExecContext(ctx, insertQuestion,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.BundleID,
+		arg.VersionID,
+		arg.Number,
+		arg.Text,
+		arg.Level,
+		arg.Cites,
+		arg.Anchor,
+	)
+	return err
+}
+
+const insertQuestionResult = `-- name: InsertQuestionResult :exec
+INSERT INTO question_result (run_id, question_id, result, groups)
+VALUES (?1, ?2, ?3, ?4)
+`
+
+type InsertQuestionResultParams struct {
+	RunID      uuid.UUID
+	QuestionID uuid.UUID
+	Result     string
+	Groups     dbtype.JSON
+}
+
+func (q *Queries) InsertQuestionResult(ctx context.Context, arg InsertQuestionResultParams) error {
+	_, err := q.db.ExecContext(ctx, insertQuestionResult,
+		arg.RunID,
+		arg.QuestionID,
+		arg.Result,
+		arg.Groups,
+	)
+	return err
+}
+
+const listAnswers = `-- name: ListAnswers :many
+SELECT question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found FROM answer WHERE run_id = ?1 ORDER BY question_id, reader_role
+`
+
+func (q *Queries) ListAnswers(ctx context.Context, runID uuid.UUID) ([]Answer, error) {
+	rows, err := q.db.QueryContext(ctx, listAnswers, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Answer
+	for rows.Next() {
+		var i Answer
+		if err := rows.Scan(
+			&i.QuestionID,
+			&i.RunID,
+			&i.ReaderRole,
+			&i.ModelFingerprint,
+			&i.Answer,
+			&i.Quotes,
+			&i.QuotesFound,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listClaims = `-- name: ListClaims :many
 SELECT id, run_id, text, label, reason, sources, anchor FROM claim WHERE run_id = ?1 ORDER BY id
 `
@@ -343,6 +462,75 @@ func (q *Queries) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID)
 			&i.IsSearch,
 			&i.SearchTool,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuestionResults = `-- name: ListQuestionResults :many
+SELECT run_id, question_id, result, "groups" FROM question_result WHERE run_id = ?1
+`
+
+func (q *Queries) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]QuestionResult, error) {
+	rows, err := q.db.QueryContext(ctx, listQuestionResults, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []QuestionResult
+	for rows.Next() {
+		var i QuestionResult
+		if err := rows.Scan(
+			&i.RunID,
+			&i.QuestionID,
+			&i.Result,
+			&i.Groups,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuestions = `-- name: ListQuestions :many
+SELECT id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor FROM question WHERE version_id = ?1 ORDER BY number
+`
+
+func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error) {
+	rows, err := q.db.QueryContext(ctx, listQuestions, versionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Question
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.BundleID,
+			&i.VersionID,
+			&i.Number,
+			&i.Text,
+			&i.Level,
+			&i.Cites,
+			&i.Anchor,
 		); err != nil {
 			return nil, err
 		}

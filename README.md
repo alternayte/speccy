@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M5. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save. **Run review** adds the AI rubric checks and fact checks. The divergence test and linked-doc checks arrive next.
+Speccy is at milestone M6. In local mode you can create, edit, import, compare, and export bundles. Lint runs on every save. **Run review** adds the AI rubric checks, fact checks, and the divergence test. Linked-doc checks arrive next.
 
 ## Quick start
 
@@ -50,6 +50,11 @@ This table lists only the guarantees whose tests pass today.
 | An unverified claim is a SHOULD finding; a contradicted claim is MUST. | [`TestGrounding_Labels`](internal/features/review/pipeline_test.go) |
 | An unchanged section is not sent to a model again. | [`TestCache_UnchangedSectionReused`](internal/features/review/pipeline_test.go) |
 | Every run records the profile version it used. | [`TestRun_PinsProfileVersion`](internal/features/review/pipeline_test.go) |
+| A split in reader answers creates a divergence finding. | [`TestDivergence_SplitIsFinding`](internal/features/review/divergence_test.go) |
+| All `NOT SPECIFIED` on a MUST question creates a MUST gap finding. | [`TestDivergence_GapOnMust`](internal/features/review/divergence_test.go) |
+| An answer with an invented quote is treated as `NOT SPECIFIED`. | [`TestDivergence_InventedQuoteRejected`](internal/features/review/divergence_test.go) |
+| One model for all readers gives "low reader diversity" and does not block. | [`TestDivergence_LowDiversityFlagged`](internal/features/review/divergence_test.go) |
+| Readers never receive other readers' answers or the rubric. | [`TestDivergence_ReaderIsolation`](internal/features/review/divergence_test.go) |
 | Secrets are not stored in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go) |
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
 
@@ -60,7 +65,8 @@ A review has six stages: lint, rubric, grounding, divergence, coherence, and the
 - **Lint** checks the writing with fixed rules: placeholders, missing required sections, broken links, duplicate IDs, filler phrases, vague words, long sentences, and more. It runs on every save and takes well under a second.
 - **Rubric** asks the reviewer model each yes-or-no check of the doc type, with quotes as evidence.
 - **Grounding** finds the doc's factual claims and checks each against a source: the model's web search, or an MCP search connection. A claim with no source is unverified. Start a sentence with "Assumption:" to state something you cannot source.
-- **Divergence and coherence** arrive in the next milestones.
+- **Divergence** asks the reviewer for 10 to 20 build questions. Three readers answer each question from the doc alone. Each answer must quote the doc; Speccy checks each quote. A judge groups the answers by meaning. When the readers give different answers, the doc is ambiguous. When no reader finds an answer, the doc has a gap.
+- **Coherence** arrives in the next milestone.
 
 A model never sets the verdict. Speccy computes it from the checks. Doc text and search results go to the model as marked data, never as instructions.
 

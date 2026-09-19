@@ -12,6 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type Answer struct {
+	QuestionID       uuid.UUID
+	RunID            uuid.UUID
+	ReaderRole       string
+	ModelFingerprint string
+	Answer           string
+	Quotes           dbtype.JSON
+	QuotesFound      bool
+}
+
 type Blob struct {
 	Sha256  string
 	Content []byte
@@ -139,6 +149,25 @@ type ProfileVersion struct {
 	Origin    string
 	CreatedBy string
 	CreatedAt time.Time
+}
+
+type Question struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	BundleID    uuid.UUID
+	VersionID   uuid.UUID
+	Number      int64
+	Text        string
+	Level       string
+	Cites       dbtype.JSON
+	Anchor      dbtype.JSON
+}
+
+type QuestionResult struct {
+	RunID      uuid.UUID
+	QuestionID uuid.UUID
+	Result     string
+	Groups     dbtype.JSON
 }
 
 type ReviewRun struct {

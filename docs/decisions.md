@@ -357,3 +357,39 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** 4 model calls at a time per run (REQ-105), as `review.Service.Parallel`. The setting reaches the admin screen with the other workspace settings (M8).
 - **Alternative:** An environment variable now.
 - **Reason:** One default serves local mode; a setting belongs with the admin settings.
+
+## 2026-09-19 — Divergence roles
+
+- **Choice:** A full run needs a model for each reader role the profile uses, and for the judge when there are two or more readers. An unassigned role stops the run before it starts, and the estimate dialog links to Admin. `divergence.readers` is at most 3, because REQ-101 names three reader roles.
+- **Alternative:** Fall back to the reviewer's model for an unassigned role.
+- **Reason:** REQ-101: an admin assigns each role. A silent fallback would hide low reader diversity (REQ-046) behind a default.
+
+## 2026-09-19 — Build questions
+
+- **Choice:** The reviewer writes the questions in one call, with the heading paths of the doc in the prompt. A cite is a trace ID that the doc defines or mentions, or a heading path (or a unique heading title). A question with no valid cite is dropped, with a run note. A question is MUST when a cite is a definition whose text has "MUST", or a section whose title the template marks as required (REQ-041). An upstream ID (REQ in an SDD) gives SHOULD until M7 resolves linked bundles. Questions, their level, and their anchor are pinned per version in `question` (REQ-047).
+- **Alternative:** Let the model give each question its level.
+- **Reason:** REQ-041 defines the level from the doc; deterministic code applies it.
+
+## 2026-09-19 — Readers and the quote check
+
+- **Choice:** Each reader answers up to 10 questions per call, with its own system prompt that says nothing of the rubric. A question the reader skips gets one more call; still missing, it is NOT SPECIFIED, with a run note. Answers are cached per reader role, model, bundle hash, and question text. A quote is found when `anchor.Find` (whitespace and emphasis normalized) finds it in any text file of the bundle. An answer with no found quote is NOT SPECIFIED (REQ-043).
+- **Alternative:** One call per question per reader.
+- **Reason:** Fewer calls. A reader still sees only the bundle and the questions (REQ-042).
+
+## 2026-09-19 — The judge
+
+- **Choice:** The judge runs only when every reader answered and there are two or more readers; the §8.5 table needs no groups in the other cases. Answers carry letters in an order that depends only on their content, so the prompt is stable for the cache. The answer schema puts `analysis` before `groups`, so the model compares before it groups. `divergence.Groups` repairs the grouping: an answer that the judge leaves out gets its own group.
+- **Alternative:** A `reason` field after the groups.
+- **Reason:** A live run on DeepSeek gave groups that contradicted its own reason ("10 s" and "10 seconds" split). With `analysis` first and a rule for units and extra detail (`judge-v3`), the same answers group together.
+
+## 2026-09-19 — Divergence results
+
+- **Choice:** Finding slugs `divergence.ambiguous` (diverge) and `divergence.gap` (gap), at the question's level, anchored on the first cite. Each question is one item on the Precision axis. Answers are stored in `answer`; the groups and result in `question_result`, a table beyond SDD §11.1. `GET /runs/{runId}/questions` returns them, with readers named by number (DEC-013). Evidence never names a model.
+- **Alternative:** Keep results only in finding evidence.
+- **Reason:** Questions the readers agree on have no finding, and the run report lists every question.
+
+## 2026-09-19 — Review rail width
+
+- **Choice:** The review rail is 320 px (`--review-rail`); the file explorer stays 248 px (`--rail`).
+- **Alternative:** Shorter tab labels.
+- **Reason:** Four tabs (Findings, Evidence, Questions, Versions) at caps tracking need about 300 px.

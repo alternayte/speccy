@@ -10,6 +10,7 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
+	"github.com/alternayte/speccy/internal/engine/divergence"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
@@ -112,6 +113,79 @@ func (a *API) ListClaims(ctx context.Context, req api.ListClaimsRequestObject) (
 		out.Items = append(out.Items, api.Claim{Id: c.ID, Text: c.Text, Label: api.ClaimLabel(c.Label), Reason: c.Reason, Sources: sources, Anchor: anchorAPI(an)})
 	}
 	return out, nil
+}
+
+// ListQuestions lists a run's build questions with each reader's answer and the result
+// (REQ-040 to REQ-046). Readers are named by number only (DEC-013).
+func (a *API) ListQuestions(ctx context.Context, req api.ListQuestionsRequestObject) (api.ListQuestionsResponseObject, error) {
+	run, _, err := a.run(ctx, req.RunId)
+	if err != nil {
+		return nil, err
+	}
+	q := a.DB.Queries()
+	results, err := q.ListQuestionResults(ctx, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := api.ListQuestions200JSONResponse{Items: []api.BuildQuestion{}}
+	if len(results) == 0 {
+		return out, nil
+	}
+	byQuestion := map[[16]byte]pgdb.QuestionResult{}
+	for _, r := range results {
+		byQuestion[r.QuestionID] = r
+	}
+	answers, err := q.ListAnswers(ctx, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	questions, err := q.ListQuestions(ctx, run.VersionID)
+	if err != nil {
+		return nil, err
+	}
+	for _, qu := range questions {
+		r, ok := byQuestion[qu.ID]
+		if !ok {
+			continue
+		}
+		item := api.BuildQuestion{Id: qu.ID, Number: int(qu.Number), Text: qu.Text, Level: api.BuildQuestionLevel(qu.Level),
+			Result: api.BuildQuestionResult(r.Result), Cites: []api.Cite{}, Answers: []api.ReaderAnswer{}, Groups: [][]int{}}
+		var cites []cite
+		_ = json.Unmarshal(qu.Cites, &cites)
+		for _, c := range cites {
+			ac := api.Cite{Kind: api.CiteKind(c.Kind)}
+			if c.Kind == "trace" {
+				ac.Id = &c.ID
+			} else {
+				ac.Path = &c.Path
+			}
+			item.Cites = append(item.Cites, ac)
+		}
+		var an anchor.Anchor
+		_ = json.Unmarshal(qu.Anchor, &an)
+		item.Anchor = anchorAPI(an)
+		_ = json.Unmarshal(r.Groups, &item.Groups)
+		for _, ans := range answers {
+			if ans.QuestionID != qu.ID {
+				continue
+			}
+			quotes := []api.QuoteCheck{}
+			_ = json.Unmarshal(ans.Quotes, &quotes)
+			item.Answers = append(item.Answers, api.ReaderAnswer{Reader: readerNumber(ans.ReaderRole), Answer: ans.Answer, Answered: ans.QuotesFound && !divergence.IsNotSpecified(ans.Answer), Quotes: quotes})
+		}
+		out.Items = append(out.Items, item)
+	}
+	return out, nil
+}
+
+// readerNumber is 1 for reader_1, and so on.
+func readerNumber(role string) int {
+	for i, r := range readerRoles(3) {
+		if r == role {
+			return i + 1
+		}
+	}
+	return 0
 }
 
 // RunEvents streams a run's progress as server-sent events (REQ-026).

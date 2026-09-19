@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { assignRole, createBackend, createBundle, createMcpConnection, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, importBundle, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listMcpConnections, listMcpTools, listPresets, listProfiles, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
-import type { AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
+import { assignRole, createBackend, createBundle, createMcpConnection, deleteBackend, deleteFile, deleteMcpConnection, diffVersions, estimateRun, exportBundle, getBudget, getBundle, getFileContent, getMeta, getRun, importBundle, listAssumptions, listBackends, listBundles, listClaims, listFiles, listFindings, listMcpConnections, listMcpTools, listPresets, listProfiles, listQuestions, listRoles, listRuns, listVersions, type Options, putFileContent, renameFile, renderMarkdown, setBudget, startRun, testBackend, unassignRole, updateBackend, updateMcpConnection } from '../sdk.gen';
+import type { AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleData, GetBundleError, GetBundleResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetMetaData, GetMetaError, GetMetaResponse, GetRunData, GetRunError, GetRunResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, StartRunData, StartRunError, StartRunResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -449,6 +449,24 @@ export const listClaimsOptions = (options: Options<ListClaimsData>) => queryOpti
         return data;
     },
     queryKey: listClaimsQueryKey(options)
+});
+
+export const listQuestionsQueryKey = (options: Options<ListQuestionsData>) => createQueryKey('listQuestions', options);
+
+/**
+ * List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
+ */
+export const listQuestionsOptions = (options: Options<ListQuestionsData>) => queryOptions<ListQuestionsResponse, ListQuestionsError, ListQuestionsResponse, ReturnType<typeof listQuestionsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listQuestions({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listQuestionsQueryKey(options)
 });
 
 export const listMcpConnectionsQueryKey = (options?: Options<ListMcpConnectionsData>) => createQueryKey('listMcpConnections', options);

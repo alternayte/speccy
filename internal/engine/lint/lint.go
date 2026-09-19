@@ -212,3 +212,32 @@ func (p prose) span(i, j int) (int, int) {
 	}
 	return p.pos[i], p.pos[j-1] + 1
 }
+
+// Definition is one trace ID definition (REQ-051): the ID, its offsets in the file, and the
+// text of the item or heading that defines it.
+type Definition struct {
+	ID    string
+	Start int
+	End   int
+	Text  string
+}
+
+// Definitions returns the trace ID definitions in src with one of prefixes, in order.
+func Definitions(src []byte, prefixes []string) []Definition {
+	sd := section.Parse(src)
+	body := src[sd.BodyStart:]
+	own := set(prefixes)
+	var out []Definition
+	for _, p := range collectProse(section.Markdown().Parser().Parse(text.NewReader(body)), body) {
+		if p.kind == kindCell || !isDefinitionBlock(p.node) {
+			continue
+		}
+		m := idRe.FindSubmatchIndex(p.text)
+		if m == nil || !own[string(p.text[m[2]:m[3]])] || !definitionAt(p.text, m[0], m[1]) {
+			continue
+		}
+		s, e := p.span(m[0], m[1])
+		out = append(out, Definition{ID: string(p.text[m[0]:m[1]]), Start: s + sd.BodyStart, End: e + sd.BodyStart, Text: string(p.text)})
+	}
+	return out
+}

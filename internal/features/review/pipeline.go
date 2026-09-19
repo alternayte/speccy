@@ -41,8 +41,10 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle) (pgdb.ReviewRun, 
 	if !ok {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
 	}
-	if _, err := s.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
-		return pgdb.ReviewRun{}, err
+	for _, role := range append([]string{model.RoleReviewer}, divergenceRoles(p.Profile)...) {
+		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
+			return pgdb.ReviewRun{}, err
+		}
 	}
 	q := s.DB.Queries()
 	if _, err := q.RunningRunFor(ctx, b.ID); err == nil {
@@ -224,6 +226,13 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 		return fail(err)
 	}
 
+	stage = StageDivergence
+	s.setStage(ctx, run, stage)
+	rc.publish(Event{Type: "stage", Stage: stage})
+	if err := s.divergenceStage(ctx, rc, in, &ev, fingerprint); err != nil {
+		return fail(err)
+	}
+
 	stage = StageVerdict
 	rc.publish(Event{Type: "stage", Stage: stage})
 	run.Status, run.Stage = "complete", StageVerdict
@@ -282,6 +291,11 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, err
 	if err != nil {
 		return est, err
 	}
+	for _, role := range divergenceRoles(p.Profile) {
+		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
+			return est, err
+		}
+	}
 	in, err := s.load(ctx, b, b.CurrentVersionID.UUID, p)
 	if err != nil {
 		return est, err
@@ -324,17 +338,46 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, err
 		est.TokensOut += 300
 	}
 	labelCalls := (sections + 1) / 2
-	est.Calls += labelCalls
-	est.TokensIn += int64(labelCalls) * 4000
-	est.TokensOut += int64(labelCalls) * 1500
+	tokens := map[string][2]int64{model.RoleReviewer: {est.TokensIn, est.TokensOut}}
+	add := func(role string, calls int, in, out int64) {
+		est.Calls += calls
+		est.TokensIn += in
+		est.TokensOut += out
+		tokens[role] = [2]int64{tokens[role][0] + in, tokens[role][1] + out}
+	}
+	add(model.RoleReviewer, labelCalls, int64(labelCalls)*4000, int64(labelCalls)*1500)
+
+	// Divergence: the questions (unless pinned), one call per reader per batch of questions,
+	// and about one judge call per question. The reader and judge caches are not counted.
+	pinned, err := s.DB.Queries().ListQuestions(ctx, b.CurrentVersionID.UUID)
+	if err != nil {
+		return est, err
+	}
+	nq := len(pinned)
+	if nq == 0 {
+		nq = p.Profile.Divergence.Questions.Max
+		add(model.RoleReviewer, 1, bundleTokens+1500, 3000)
+	} else {
+		est.CachedHits++
+	}
+	readers := readerRoles(p.Profile.Divergence.Readers)
+	batches := (nq + readerBatch - 1) / readerBatch
+	for _, r := range readers {
+		add(r, batches, int64(batches)*(bundleTokens+1000), int64(nq)*150)
+	}
+	if len(readers) > 1 {
+		add(model.RoleJudge, nq, int64(nq)*800, int64(nq)*150)
+	}
+
 	roles, err := s.DB.Queries().ListAssignments(ctx, s.Workspace)
 	if err != nil {
 		return est, err
 	}
 	for _, r := range roles {
-		if r.Role == model.RoleReviewer && (r.PriceInPerMtok > 0 || r.PriceOutPerMtok > 0) {
+		t, used := tokens[r.Role]
+		if used && (r.PriceInPerMtok > 0 || r.PriceOutPerMtok > 0) {
 			est.Priced = true
-			est.CostUSD = float64(est.TokensIn)/1e6*r.PriceInPerMtok + float64(est.TokensOut)/1e6*r.PriceOutPerMtok
+			est.CostUSD += float64(t[0])/1e6*r.PriceInPerMtok + float64(t[1])/1e6*r.PriceOutPerMtok
 		}
 	}
 	return est, nil
