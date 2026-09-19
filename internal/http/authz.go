@@ -47,6 +47,8 @@ var operations = map[string]access{
 	"createBundle": member,
 	"importBundle": member,
 	"listProfiles": member,
+	// A content review calls the models; guests do not ask the AI (REQ-086).
+	"reviewContent": member,
 
 	"getBundle":       bundleRead,
 	"listFiles":       bundleRead,

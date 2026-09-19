@@ -281,6 +281,48 @@ func (e ClaimLabel) Valid() bool {
 	}
 }
 
+// Defines values for ContentFileEncoding.
+const (
+	ContentFileEncodingBase64 ContentFileEncoding = "base64"
+	ContentFileEncodingText   ContentFileEncoding = "text"
+)
+
+// Valid indicates whether the value is a known member of the ContentFileEncoding enum.
+func (e ContentFileEncoding) Valid() bool {
+	switch e {
+	case ContentFileEncodingBase64:
+		return true
+	case ContentFileEncodingText:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ContentReviewRequestStages.
+const (
+	ContentReviewRequestStagesCoherence  ContentReviewRequestStages = "coherence"
+	ContentReviewRequestStagesDivergence ContentReviewRequestStages = "divergence"
+	ContentReviewRequestStagesGrounding  ContentReviewRequestStages = "grounding"
+	ContentReviewRequestStagesRubric     ContentReviewRequestStages = "rubric"
+)
+
+// Valid indicates whether the value is a known member of the ContentReviewRequestStages enum.
+func (e ContentReviewRequestStages) Valid() bool {
+	switch e {
+	case ContentReviewRequestStagesCoherence:
+		return true
+	case ContentReviewRequestStagesDivergence:
+		return true
+	case ContentReviewRequestStagesGrounding:
+		return true
+	case ContentReviewRequestStagesRubric:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingLayer.
 const (
 	FindingLayerAmbiguous    FindingLayer = "ambiguous"
@@ -659,6 +701,30 @@ func (e RunStatus) Valid() bool {
 	case Queued:
 		return true
 	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StartRunRequestStages.
+const (
+	StartRunRequestStagesCoherence  StartRunRequestStages = "coherence"
+	StartRunRequestStagesDivergence StartRunRequestStages = "divergence"
+	StartRunRequestStagesGrounding  StartRunRequestStages = "grounding"
+	StartRunRequestStagesRubric     StartRunRequestStages = "rubric"
+)
+
+// Valid indicates whether the value is a known member of the StartRunRequestStages enum.
+func (e StartRunRequestStages) Valid() bool {
+	switch e {
+	case StartRunRequestStagesCoherence:
+		return true
+	case StartRunRequestStagesDivergence:
+		return true
+	case StartRunRequestStagesGrounding:
+		return true
+	case StartRunRequestStagesRubric:
 		return true
 	default:
 		return false
@@ -1262,6 +1328,63 @@ type Claim struct {
 // ClaimLabel defines model for Claim.Label.
 type ClaimLabel string
 
+// ContentFile defines model for ContentFile.
+type ContentFile struct {
+	// Content The file text, or base64 when encoding is base64.
+	Content  string               `json:"content"`
+	Encoding *ContentFileEncoding `json:"encoding,omitempty"`
+
+	// Path The path in the bundle.
+	Path string `json:"path"`
+}
+
+// ContentFileEncoding defines model for ContentFile.Encoding.
+type ContentFileEncoding string
+
+// ContentReview defines model for ContentReview.
+type ContentReview struct {
+	CacheHits      *int           `json:"cache_hits,omitempty"`
+	CostEstimate   *float32       `json:"cost_estimate,omitempty"`
+	Findings       []Finding      `json:"findings"`
+	MainDoc        string         `json:"main_doc"`
+	Notes          []string       `json:"notes"`
+	ProfileKey     string         `json:"profile_key"`
+	ProfileVersion int64          `json:"profile_version"`
+	TokensIn       *int64         `json:"tokens_in,omitempty"`
+	TokensOut      *int64         `json:"tokens_out,omitempty"`
+	Verdict        ContentVerdict `json:"verdict"`
+}
+
+// ContentReviewRequest defines model for ContentReviewRequest.
+type ContentReviewRequest struct {
+	Files []ContentFile `json:"files"`
+
+	// MainDoc The main doc of a single-file bundle (REQ-001 form b). Absent means the one file with a type in its frontmatter.
+	MainDoc *string `json:"main_doc,omitempty"`
+
+	// Profile The profile for a main doc with no type in its frontmatter (REQ-130).
+	Profile *string `json:"profile,omitempty"`
+
+	// Slug The bundle's slug. Links from other bundles and to this one use it.
+	Slug   *string                       `json:"slug,omitempty"`
+	Stages *[]ContentReviewRequestStages `json:"stages,omitempty"`
+}
+
+// ContentReviewRequestStages defines model for ContentReviewRequest.Stages.
+type ContentReviewRequestStages string
+
+// ContentVerdict defines model for ContentVerdict.
+type ContentVerdict struct {
+	Info         int            `json:"info"`
+	Must         int            `json:"must"`
+	Radar        map[string]int `json:"radar"`
+	RelaxedCount int            `json:"relaxed_count"`
+	Result       VerdictResult  `json:"result"`
+	Score        int            `json:"score"`
+	Should       int            `json:"should"`
+	WaiverCount  int            `json:"waiver_count"`
+}
+
 // CreateBundleRequest defines model for CreateBundleRequest.
 type CreateBundleRequest struct {
 	// Name The bundle folder name.
@@ -1830,6 +1953,15 @@ type Standalone struct {
 	Reason         string `json:"reason"`
 }
 
+// StartRunRequest defines model for StartRunRequest.
+type StartRunRequest struct {
+	// Stages The model stages to run. Absent means all. Lint and the verdict always run.
+	Stages *[]StartRunRequestStages `json:"stages,omitempty"`
+}
+
+// StartRunRequestStages defines model for StartRunRequest.Stages.
+type StartRunRequestStages string
+
 // Thread defines model for Thread.
 type Thread struct {
 	AddressedTo ThreadAddressedTo `json:"addressed_to"`
@@ -2275,6 +2407,9 @@ type RenameFileJSONRequestBody = RenameRequest
 // RequestReviewJSONRequestBody defines body for RequestReview for application/json ContentType.
 type RequestReviewJSONRequestBody RequestReviewJSONBody
 
+// StartRunJSONRequestBody defines body for StartRun for application/json ContentType.
+type StartRunJSONRequestBody = StartRunRequest
+
 // CreateShareLinkJSONRequestBody defines body for CreateShareLink for application/json ContentType.
 type CreateShareLinkJSONRequestBody CreateShareLinkJSONBody
 
@@ -2304,6 +2439,9 @@ type OpenProfileThreadJSONRequestBody = OpenThread
 
 // RenderMarkdownJSONRequestBody defines body for RenderMarkdown for application/json ContentType.
 type RenderMarkdownJSONRequestBody = RenderRequest
+
+// ReviewContentJSONRequestBody defines body for ReviewContent for application/json ContentType.
+type ReviewContentJSONRequestBody = ContentReviewRequest
 
 // JoinShareJSONRequestBody defines body for JoinShare for application/json ContentType.
 type JoinShareJSONRequestBody JoinShareJSONBody
@@ -2523,6 +2661,9 @@ type ServerInterface interface {
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(w http.ResponseWriter, r *http.Request)
+	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// (POST /reviews)
+	ReviewContent(w http.ResponseWriter, r *http.Request)
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -4297,6 +4438,20 @@ func (siw *ServerInterfaceWrapper) RenderMarkdown(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// ReviewContent operation middleware
+func (siw *ServerInterfaceWrapper) ReviewContent(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReviewContent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetRun operation middleware
 func (siw *ServerInterfaceWrapper) GetRun(w http.ResponseWriter, r *http.Request) {
 
@@ -4905,6 +5060,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/export", wrapper.ExportBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.StartRun)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs/estimate", wrapper.EstimateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/assumptions", wrapper.ListAssumptions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/trace", wrapper.GetTrace)
@@ -6499,6 +6655,7 @@ func (response ListRunsdefaultApplicationProblemPlusJSONResponse) VisitListRunsR
 
 type StartRunRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
+	Body     *StartRunJSONRequestBody
 }
 
 type StartRunResponseObject interface {
@@ -7597,6 +7754,45 @@ func (response RenderMarkdowndefaultApplicationProblemPlusJSONResponse) VisitRen
 	return err
 }
 
+type ReviewContentRequestObject struct {
+	Body *ReviewContentJSONRequestBody
+}
+
+type ReviewContentResponseObject interface {
+	VisitReviewContentResponse(w http.ResponseWriter) error
+}
+
+type ReviewContent200JSONResponse ContentReview
+
+func (response ReviewContent200JSONResponse) VisitReviewContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReviewContentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ReviewContentdefaultApplicationProblemPlusJSONResponse) VisitReviewContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetRunRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -8503,6 +8699,9 @@ type StrictServerInterface interface {
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(ctx context.Context, request RenderMarkdownRequestObject) (RenderMarkdownResponseObject, error)
+	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// (POST /reviews)
+	ReviewContent(ctx context.Context, request ReviewContentRequestObject) (ReviewContentResponseObject, error)
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(ctx context.Context, request GetRunRequestObject) (GetRunResponseObject, error)
@@ -9693,6 +9892,16 @@ func (sh *strictHandler) StartRun(w http.ResponseWriter, r *http.Request, bundle
 
 	request.BundleId = bundleId
 
+	var body StartRunJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.StartRun(ctx, request.(StartRunRequestObject))
 	}
@@ -10462,6 +10671,37 @@ func (sh *strictHandler) RenderMarkdown(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RenderMarkdownResponseObject); ok {
 		if err := validResponse.VisitRenderMarkdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReviewContent operation middleware
+func (sh *strictHandler) ReviewContent(w http.ResponseWriter, r *http.Request) {
+	var request ReviewContentRequestObject
+
+	var body ReviewContentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReviewContent(ctx, request.(ReviewContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReviewContent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReviewContentResponseObject); ok {
+		if err := validResponse.VisitReviewContentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

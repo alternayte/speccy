@@ -134,6 +134,12 @@ func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, 
 	if err != nil {
 		return input{}, err
 	}
+	return s.loadFiles(ctx, b, versionID, files, p)
+}
+
+// loadFiles builds the input from files. versionID is uuid.Nil for content that is not saved.
+func (s *Service) loadFiles(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, files []source.File, p profile.Versioned) (input, error) {
+	var err error
 	in := input{bundle: b, version: versionID, files: files, profile: p, relaxed: map[string]bool{}}
 	for _, f := range files {
 		if f.Path == b.MainDoc {

@@ -537,6 +537,12 @@ paths:
     post:
       operationId: startRun
       summary: Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartRunRequest"
       responses:
         "202":
           description: The queued run. Follow its progress at /runs/{runId}/events.
@@ -558,6 +564,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /reviews:
+    post:
+      operationId: reviewContent
+      summary: Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContentReviewRequest"
+      responses:
+        "200":
+          description: The findings and the verdict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ContentReview"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2609,6 +2635,110 @@ components:
           enum: [MUST, SHOULD, INFO]
         message:
           type: string
+
+    StartRunRequest:
+      type: object
+      properties:
+        stages:
+          type: array
+          description: The model stages to run. Absent means all. Lint and the verdict always run.
+          items:
+            type: string
+            enum: [rubric, grounding, divergence, coherence]
+
+    ContentFile:
+      type: object
+      required: [path, content]
+      properties:
+        path:
+          type: string
+          description: The path in the bundle.
+        content:
+          type: string
+          description: The file text, or base64 when encoding is base64.
+        encoding:
+          type: string
+          enum: [text, base64]
+
+    ContentReviewRequest:
+      type: object
+      required: [files]
+      properties:
+        slug:
+          type: string
+          description: The bundle's slug. Links from other bundles and to this one use it.
+        main_doc:
+          type: string
+          description: The main doc of a single-file bundle (REQ-001 form b). Absent means the one file with a type in its frontmatter.
+        profile:
+          type: string
+          description: The profile for a main doc with no type in its frontmatter (REQ-130).
+        stages:
+          type: array
+          items:
+            type: string
+            enum: [rubric, grounding, divergence, coherence]
+        files:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: "#/components/schemas/ContentFile"
+
+    ContentReview:
+      type: object
+      required: [profile_key, profile_version, main_doc, verdict, findings, notes]
+      properties:
+        profile_key:
+          type: string
+        profile_version:
+          type: integer
+          format: int64
+        main_doc:
+          type: string
+        verdict:
+          $ref: "#/components/schemas/ContentVerdict"
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Finding"
+        notes:
+          type: array
+          items:
+            type: string
+        tokens_in:
+          type: integer
+          format: int64
+        tokens_out:
+          type: integer
+          format: int64
+        cost_estimate:
+          type: number
+        cache_hits:
+          type: integer
+
+    ContentVerdict:
+      type: object
+      required: [result, score, radar, waiver_count, relaxed_count, must, should, info]
+      properties:
+        result:
+          $ref: "#/components/schemas/VerdictResult"
+        score:
+          type: integer
+        radar:
+          type: object
+          additionalProperties:
+            type: integer
+        waiver_count:
+          type: integer
+        relaxed_count:
+          type: integer
+        must:
+          type: integer
+        should:
+          type: integer
+        info:
+          type: integer
 
     FindingList:
       type: object

@@ -16,6 +16,7 @@ import (
 	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/store"
@@ -32,9 +33,54 @@ const jobKindRun = "review_run"
 // ErrRunActive means the bundle already has a queued or running full run.
 var ErrRunActive = kernel.Conflict("run_active", "A review of this bundle is already running. Wait for it to finish.")
 
-// StartRun queues a full review of the bundle's current version (REQ-020). It checks the
-// setup first, so a missing profile or model fails at once, not in the worker.
-func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle) (pgdb.ReviewRun, error) {
+// ModelStages are the stages after lint, in REQ-020 order. Each calls a model.
+var ModelStages = []string{StageRubric, StageGrounding, StageDivergence, StageCoherence}
+
+// Stages is a choice of model stages for a run (SDD §12.2 --stages). Nil means all of them.
+// Lint and the verdict always run.
+type Stages []string
+
+func (st Stages) has(stage string) bool { return st == nil || slices.Contains(st, stage) }
+
+// ParseStages reads a comma-separated list of stage names. "all" is every stage.
+func ParseStages(list string) (Stages, error) {
+	if list == "" || list == "all" {
+		return nil, nil
+	}
+	out := Stages{}
+	for _, name := range strings.Split(list, ",") {
+		name = strings.TrimSpace(name)
+		switch {
+		case name == StageLint || name == StageVerdict:
+		case slices.Contains(ModelStages, name):
+			if !slices.Contains(out, name) {
+				out = append(out, name)
+			}
+		default:
+			return nil, kernel.Invalid("bad_stage", "There is no stage %q. The stages are lint, rubric, grounding, divergence, and coherence.", name)
+		}
+	}
+	return out, nil
+}
+
+// roles returns the model roles that the chosen stages call.
+func (st Stages) roles(p profile.Profile) []string {
+	var roles []string
+	for _, stage := range ModelStages {
+		if st.has(stage) {
+			roles = append(roles, model.RoleReviewer)
+			break
+		}
+	}
+	if st.has(StageDivergence) {
+		roles = append(roles, divergenceRoles(p)...)
+	}
+	return roles
+}
+
+// StartRun queues a review of the bundle's current version with the chosen stages (REQ-020).
+// It checks the setup first, so a missing profile or model fails at once, not in the worker.
+func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle, stages Stages) (pgdb.ReviewRun, error) {
 	if !b.CurrentVersionID.Valid {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_version", "The bundle has no version to review.")
 	}
@@ -42,7 +88,7 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle) (pgdb.ReviewRun, 
 	if !ok {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
 	}
-	for _, role := range append([]string{model.RoleReviewer}, divergenceRoles(p.Profile)...) {
+	for _, role := range stages.roles(p.Profile) {
 		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
 			return pgdb.ReviewRun{}, err
 		}
@@ -58,7 +104,7 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle) (pgdb.ReviewRun, 
 		ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
 		ProfileKey: b.ProfileKey, ProfileVersion: p.Version, Kind: "full", Status: "queued", Stage: "queued", StartedAt: now,
 	}
-	payload, _ := json.Marshal(map[string]string{"run_id": run.ID.String()})
+	payload, _ := json.Marshal(runJob{RunID: run.ID.String(), Stages: stages})
 	err := s.DB.InTx(ctx, func(tx store.Tx) error {
 		tq := tx.Queries()
 		if err := tq.InsertRun(ctx, pgdb.InsertRunParams{
@@ -126,17 +172,14 @@ func (s *Service) RunNext(ctx context.Context) (ran bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	var p struct {
-		RunID    string `json:"run_id"`
-		ThreadID string `json:"thread_id"`
-	}
+	var p runJob
 	runErr := json.Unmarshal(job.Payload, &p)
 	if runErr == nil {
 		switch job.Kind {
 		case jobKindAnswer:
 			runErr = s.answerThread(ctx, uuidOf(p.ThreadID))
 		default:
-			runErr = s.execute(ctx, p.RunID)
+			runErr = s.execute(ctx, p.RunID, p.Stages)
 		}
 	}
 	status, msg := "done", ""
@@ -150,8 +193,15 @@ func (s *Service) RunNext(ctx context.Context) (ran bool, err error) {
 	return true, runErr
 }
 
-// execute runs one full review (SDD §7.3): the stages in REQ-020 order, then the verdict.
-func (s *Service) execute(parent context.Context, runIDText string) error {
+// runJob is the payload of a review job: the run and its stages, or a thread to answer.
+type runJob struct {
+	RunID    string `json:"run_id,omitempty"`
+	Stages   Stages `json:"stages,omitempty"`
+	ThreadID string `json:"thread_id,omitempty"`
+}
+
+// execute runs one review (SDD §7.3): the chosen stages in REQ-020 order, then the verdict.
+func (s *Service) execute(parent context.Context, runIDText string, stages Stages) error {
 	q := s.DB.Queries()
 	run, err := q.GetRunByID(parent, uuidOf(runIDText))
 	if err != nil {
@@ -195,9 +245,15 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 	if err := q.StartRunExecution(ctx, pgdb.StartRunExecutionParams{ID: run.ID, Stage: stage, ProfileVersion: p.Version}); err != nil {
 		return err
 	}
-	assigned, err := s.Gateway.Assigned(ctx, model.RoleReviewer)
-	if err != nil {
-		return fail(err)
+	var assigned model.Assignment
+	if len(stages.roles(p.Profile)) > 0 {
+		if assigned, err = s.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
+			return fail(err)
+		}
+	}
+	if stages != nil {
+		names := append([]string{StageLint}, stages...)
+		rc.note("Stages in this run: " + strings.Join(names, ", ") + ". The verdict counts only these stages.")
 	}
 	if roles, err := q.ListAssignments(ctx, s.Workspace); err == nil {
 		for _, r := range roles {
@@ -216,34 +272,13 @@ func (s *Service) execute(parent context.Context, runIDText string) error {
 		return fail(err)
 	}
 
-	rc.enter(StageLint)
-	ev := lintStage(in)
-
-	stage = StageRubric
-	s.setStage(ctx, run, stage)
-	rc.enter(stage)
-	if err := s.rubricStage(ctx, rc, in, &ev, fingerprint); err != nil {
-		return fail(err)
-	}
-
-	stage = StageGrounding
-	s.setStage(ctx, run, stage)
-	rc.enter(stage)
-	if err := s.groundingStage(ctx, rc, in, &ev, fingerprint, native); err != nil {
-		return fail(err)
-	}
-
-	stage = StageDivergence
-	s.setStage(ctx, run, stage)
-	rc.enter(stage)
-	if err := s.divergenceStage(ctx, rc, in, &ev, fingerprint); err != nil {
-		return fail(err)
-	}
-
-	stage = StageCoherence
-	s.setStage(ctx, run, stage)
-	rc.enter(stage)
-	if err := s.contradictionStage(ctx, rc, in, &ev, fingerprint); err != nil {
+	ev, err := s.runStages(ctx, rc, in, stages, fingerprint, native, func(st string) {
+		stage = st
+		if st != StageLint {
+			s.setStage(ctx, run, st)
+		}
+	})
+	if err != nil {
 		return fail(err)
 	}
 
@@ -430,4 +465,32 @@ func uuidOf(s string) uuid.UUID {
 		return uuid.Nil
 	}
 	return id
+}
+
+// runStages runs lint and the chosen model stages in REQ-020 order. enter is told of each
+// stage before it starts.
+func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages Stages, fingerprint string, native bool, enter func(string)) (evaluation, error) {
+	enter(StageLint)
+	rc.enter(StageLint)
+	ev := lintStage(in)
+	steps := []struct {
+		stage string
+		run   func() error
+	}{
+		{StageRubric, func() error { return s.rubricStage(ctx, rc, in, &ev, fingerprint) }},
+		{StageGrounding, func() error { return s.groundingStage(ctx, rc, in, &ev, fingerprint, native) }},
+		{StageDivergence, func() error { return s.divergenceStage(ctx, rc, in, &ev, fingerprint) }},
+		{StageCoherence, func() error { return s.contradictionStage(ctx, rc, in, &ev, fingerprint) }},
+	}
+	for _, st := range steps {
+		if !stages.has(st.stage) {
+			continue
+		}
+		enter(st.stage)
+		rc.enter(st.stage)
+		if err := st.run(); err != nil {
+			return ev, err
+		}
+	}
+	return ev, nil
 }
