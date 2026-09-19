@@ -310,3 +310,16 @@ func TestSecrets_TokensHashedAtRest(t *testing.T) {
 		_ = rows.Close()
 	}
 }
+
+// SDD §14.2: the invite route is rate limited, so a token cannot be guessed by brute force.
+func TestInvite_RateLimited(t *testing.T) {
+	e := newEnv(t, storetest.Engines()[0])
+	c := e.client(t)
+	var last int
+	for range 11 {
+		last, _ = c.call("POST", "/api/auth/speccy/invites/accept", map[string]string{"token": "guess", "email": "x@x.test", "password": password})
+	}
+	if last != 429 {
+		t.Errorf("the 11th acceptance in an hour: %d, want 429", last)
+	}
+}

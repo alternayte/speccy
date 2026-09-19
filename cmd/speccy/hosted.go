@@ -140,7 +140,8 @@ func runHosted(stdout, stderr io.Writer) int {
 	}
 	a.Admin.Accounts = auth
 	a.Share.Sealer, a.Share.BaseURL, a.Share.Secure = sealer, c.baseURL, !c.insecure()
-	a.API.Hosted = true
+	a.API.Hosted, a.API.Providers = true, auth.Providers
+	go auth.CleanUp(ctx)
 	spa, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)

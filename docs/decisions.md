@@ -453,3 +453,51 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** A page per bundle (`/bundles/{id}/trace`) with the links both ways, one matrix for the bundle's own IDs when others implement it, and one for each bundle it implements. Rows are the upstream IDs with a prefix that a downstream profile covers; columns are the implementing bundles.
 - **Alternative:** A tab in the review rail.
 - **Reason:** A matrix needs width; the rail is 320 px.
+
+## 2026-09-19 — auth-all in hosted mode
+
+- **Choice:** auth-all v0.5.1 with email and password, the roles plugin (member, admin), the admin plugin, the API keys plugin (`spy_` tokens), optional OIDC (ID `oidc`) and GitHub, and Speccy's `internal/authinvite` plugin. auth-all tables have the prefix `auth_` and UUID keys; their migrations run from auth-all's export in their own goose table, `auth_goose_db_version`, out of order allowed, because enabling a feature adds a unit with an older version. The workspace role is auth-all's user role, so SDD §11.1's `membership` and `api_token` tables are not built.
+- **Alternative:** Speccy's own `membership` and `api_token` tables.
+- **Reason:** DEC-016. auth-all keeps the role on the user and caps an API key at its owner's role, so a second copy would drift. The live dev database hit the out-of-order case when the rate limiter was added.
+
+## 2026-09-19 — Invites, reset links, and sign-up
+
+- **Choice:** `internal/authinvite` stores invites and reset links in Speccy's `invite` and `reset_link` tables (SHA-256 of 32 random bytes). A link carries its token in the URL fragment. Accepting an invite spends it in one conditional update, then creates the user with the invite's role and password through the admin plugin, then issues a session; when the account cannot be made (an address in use), the invite stays usable. A reset link sets a new password through the admin plugin, which ends every session. An `OnBeforeUserCreate` hook refuses every user creation that Speccy did not start, so there is no open sign-up and no account from a first OAuth sign-in. Passwords need 12 characters.
+- **Alternative:** auth-all's organization invitations.
+- **Reason:** Those need an account whose email matches, and Speccy has no open sign-up. No mail server (DEC-016).
+
+## 2026-09-19 — OAuth providers link, never auto-link
+
+- **Choice:** OIDC and GitHub sign in a person who linked the provider under Account after a password sign-in. auth-all's email auto-link stays off.
+- **Alternative:** Link by a verified provider email.
+- **Reason:** An invite does not prove the email, so an auto-link could hand an account to whoever holds the provider address.
+
+## 2026-09-19 — The role table
+
+- **Choice:** One map in `internal/http/authz.go` from each operationId to an access level: public, reader, member, bundle read, bundle AI, bundle edit, admin. A strict-server middleware applies it before the handler; an operation with no row is refused. A hidden bundle answers 404, not 403. Bundle edits are for authors and admins; members read internal and link bundles and run reviews on them. The actor comes from auth-all (session or API token), else the guest cookie, else nobody; local mode sets the local admin on every request, and a request with no actor has no permission.
+- **Alternative:** Checks inside each handler.
+- **Reason:** SDD §14.2 asks for one table in code. T-041 reads api/openapi.yaml, checks the table is complete, and calls every endpoint as five actors.
+
+## 2026-09-19 — Visibility, share links, and guests
+
+- **Choice:** `bundle.visibility` (default internal), `share_token_hash`, and `share_expires_at`. A new share link replaces the old one and sets link visibility; leaving link visibility revokes it. A guest enters a display name; the guest cookie holds the guest ID, the share token hash, and an expiry of 30 days, with an HMAC under a key derived from the master key. A new or revoked link ends the guest at once. A guest reads the shared bundle only. Named members of a private bundle are its reviewers; assigning reviewers arrives with M9 (REQ-090).
+- **Alternative:** A server-side guest session table.
+- **Reason:** REQ-086 asks for a signed cookie.
+
+## 2026-09-19 — Workspace settings
+
+- **Choice:** `workspace.settings` holds the file and bundle limits (REQ-009, up to 50 MB and 500 MB), the invite expiry (REQ-081), and the parallel model calls (REQ-105). The limits apply to hosted mode; local mode keeps 10 MB and 50 MB.
+- **Alternative:** Environment variables.
+- **Reason:** REQ-009 and REQ-081 name an admin.
+
+## 2026-09-19 — Rate limits
+
+- **Choice:** auth-all's store limiter (counts in the database) in strict mode, with auth-all's sign-in rules, and per-address limits for TOTP (10 a minute), password change (10 in 15 minutes), invite and reset checks (30 a minute), invite acceptance and reset (10 an hour). Expired counters are removed every hour.
+- **Alternative:** The in-memory limiter.
+- **Reason:** SDD §14.2. Every instance shares one count.
+
+## 2026-09-19 — Hosted development
+
+- **Choice:** `compose.yaml` runs Postgres 17 on 127.0.0.1:55432. `just dev-hosted` runs the server in hosted mode behind Vite, with a fixed development master key and base URL http://127.0.0.1:5173; `just invite <role>` prints an invite for it. `internal/app` builds the services for both modes, so tests use the same wiring as the binary.
+- **Alternative:** Docs that list the steps.
+- **Reason:** BUILD §3 names `just dev-hosted`.

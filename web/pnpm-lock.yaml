@@ -166,6 +166,9 @@ importers:
 
   .:
     dependencies:
+      '@alternayte/auth-all-client':
+        specifier: 0.5.1
+        version: 0.5.1(react@19.3.0)
       '@codemirror/commands':
         specifier: ^6.11.1
         version: 6.11.1
@@ -277,6 +280,14 @@ importers:
         version: 5.0.1(@types/node@24.13.5)(vite@8.3.0(@types/node@24.13.5)(jiti@2.7.0))
 
 packages:
+
+  '@alternayte/auth-all-client@0.5.1':
+    resolution: {integrity: sha512-9MNmfcvdc3NVbY0Qx7my/7LKLRP6IgYHR4Va36y9UqNcWfSpzy5wY6Eh389Nstd18iiofNrsOH6fB0GlVqBKwA==}
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@antfu/install-pkg@2.1.0':
     resolution: {integrity: sha512-sdg9NxU3zR4Mnawfbc/x6GB5Wf17WYud5qOuEuxXjaKpYpMkISSJEjItGebXJ2bQ4DIcly4NYH23mtkGJjvKUw==}
@@ -3016,6 +3027,10 @@ packages:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
 
 snapshots:
+
+  '@alternayte/auth-all-client@0.5.1(react@19.3.0)':
+    optionalDependencies:
+      react: 19.3.0
 
   '@antfu/install-pkg@2.1.0':
     dependencies:

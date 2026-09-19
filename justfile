@@ -4,6 +4,8 @@ version := `git describe --tags --always --dirty 2>/dev/null || echo dev`
 ldflags := "-s -w -X github.com/alternayte/speccy/internal/kernel.Version=" + version
 # pnpm runs at the version pinned in web/package.json, so a global pnpm is not needed.
 pnpm := "npx --yes pnpm@12.4.2"
+# The environment of `just dev-hosted` (SDD §15.1). Development values only.
+hosted_env := "export SPECCY_DATABASE_URL='postgres://speccy:speccy@127.0.0.1:55432/speccy?sslmode=disable' SPECCY_MASTER_KEY='c3BlY2N5LWRldi1vbmx5LW1hc3Rlci1rZXktMDAwMCE=' SPECCY_BASE_URL='http://127.0.0.1:5173' SPECCY_LISTEN='127.0.0.1:7878'"
 
 default:
     @just --list
@@ -24,6 +26,26 @@ dev: setup
     (cd web && {{pnpm}} run dev) &
     echo "Open http://127.0.0.1:5173"
     wait
+
+# Hosted mode for development: Postgres from compose.yaml, the Go server with live reload,
+# and the Vite dev server. The master key and the URLs are for development only.
+dev-hosted: setup
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'kill 0' EXIT
+    docker compose up -d --wait postgres
+    {{hosted_env}}
+    go tool air -build.full_bin "build/air/speccy serve --hosted" &
+    (cd web && {{pnpm}} run dev) &
+    echo "Open http://127.0.0.1:5173. Make the first admin with: just invite admin"
+    wait
+
+# Print an invite link for the dev-hosted server (REQ-083). role is admin or member.
+invite role="member":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{hosted_env}}
+    go run ./cmd/speccy admin invite --role {{role}}
 
 # Generate code: sqlc (both engines), oapi-codegen, and the TypeScript API client.
 gen: setup

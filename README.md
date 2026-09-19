@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-Speccy is at milestone M7. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. **Traceability** shows which upstream IDs each downstream doc covers.
+Speccy is at milestone M8. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links.
 
 ## Quick start
 
@@ -62,6 +62,8 @@ This table lists only the guarantees whose tests pass today.
 | A link rule creates a link only when both files exist. | [`TestConfig_LinkRules`](internal/features/review/coherence_test.go) |
 | Secrets are not stored in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go) |
 | Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
+| Each endpoint enforces its role table. | [`TestAuthz_EndpointRoleTable`](internal/http/authz_test.go) |
+| A guest cannot edit or ask the AI. | [`TestGuest_Restrictions`](internal/hostauth/hostauth_test.go) |
 
 ## How the verdict works
 
@@ -84,7 +86,7 @@ The **score** is passed checks divided by applicable checks. It is for tracking,
 | Mode | Command | Status |
 |---|---|---|
 | Local | `speccy` | Edit, import, compare, and export bundles on 127.0.0.1. |
-| Hosted | `speccy serve --hosted` | Not built yet. |
+| Hosted | `speccy serve --hosted` | Accounts from invite links, admin and member roles, private and shared bundles, guests, and API tokens. Needs Postgres. See [configuration](docs/configuration.md). |
 | Headless | `speccy review <path>` | Not built yet. |
 
 ## Try it on your existing specs
@@ -120,7 +122,7 @@ Use **Test** to check a backend and model with one short call. Set a monthly tok
 
 ## Configuration
 
-`docs/configuration.md` does not exist yet. Local mode takes `--dir` (default: the current folder) and `--addr` (default `127.0.0.1:7878`). The address must be a loopback address.
+See [docs/configuration.md](docs/configuration.md) for the flags of local mode, and the environment, accounts, roles, and sharing of hosted mode.
 
 ## Licence
 

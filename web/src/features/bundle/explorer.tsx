@@ -33,6 +33,7 @@ export function Explorer({
   selected,
   onSelect,
   onChanged,
+  readOnly = false,
 }: {
   bundleId: string;
   baseVersion: string;
@@ -40,6 +41,7 @@ export function Explorer({
   selected: string;
   onSelect: (path: string) => void;
   onChanged: (select?: string) => void;
+  readOnly?: boolean;
 }) {
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [files]);
   const main = files.find((f) => f.is_main_doc)?.path;
@@ -169,22 +171,26 @@ export function Explorer({
             <MenuItem icon={<Copy className="size-3.5" />} onSelect={() => copy(n.path)}>
               Copy markdown link
             </MenuItem>
-            <MenuItem
-              icon={<Pencil className="size-3.5" />}
-              onSelect={() => {
-                setName(n.path);
-                setPending({ kind: "rename", path: n.path });
-              }}
-            >
-              Rename or move
-            </MenuItem>
-            <MenuItem
-              danger
-              icon={<Trash2 className="size-3.5" />}
-              onSelect={() => setPending({ kind: "delete", path: n.path })}
-            >
-              Delete
-            </MenuItem>
+            {readOnly ? null : (
+              <>
+                <MenuItem
+                  icon={<Pencil className="size-3.5" />}
+                  onSelect={() => {
+                    setName(n.path);
+                    setPending({ kind: "rename", path: n.path });
+                  }}
+                >
+                  Rename or move
+                </MenuItem>
+                <MenuItem
+                  danger
+                  icon={<Trash2 className="size-3.5" />}
+                  onSelect={() => setPending({ kind: "delete", path: n.path })}
+                >
+                  Delete
+                </MenuItem>
+              </>
+            )}
           </Menu>
         </div>
       </li>
@@ -195,7 +201,7 @@ export function Explorer({
     <nav aria-label="Bundle files" className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-line px-2">
         <span className="px-1 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Files</span>
-        <div className="ml-auto flex gap-0.5">
+        <div className={clsx("ml-auto flex gap-0.5", readOnly && "hidden")}>
           <Button
             variant="ghost"
             size="sm"

@@ -6,6 +6,7 @@ package hostauth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing/fstest"
 	"time"
@@ -20,6 +21,8 @@ import (
 	"github.com/alternayte/auth-all/plugins/admin"
 	"github.com/alternayte/auth-all/plugins/apikeys"
 	"github.com/alternayte/auth-all/plugins/roles"
+	"github.com/alternayte/auth-all/ratelimit"
+	"github.com/alternayte/auth-all/ratelimit/storelimit"
 	"github.com/alternayte/auth-all/schema"
 	authpg "github.com/alternayte/auth-all/store/postgres"
 	authsqlite "github.com/alternayte/auth-all/store/sqlite"
@@ -35,6 +38,9 @@ const Prefix = "auth_"
 
 // versionTable is the goose version table of the auth-all migrations.
 const versionTable = "auth_goose_db_version"
+
+// OIDCProvider is the auth-all ID of the OIDC provider: /api/auth/oauth/oidc.
+const OIDCProvider = "oidc"
 
 // APIKeyPrefix starts every personal API token.
 const APIKeyPrefix = "spy_"
@@ -67,9 +73,12 @@ type Auth struct {
 	All     *authall.Auth
 	Admin   *admin.Plugin
 	Invites *authinvite.Plugin
-	db      *store.DB
-	ws      uuid.UUID
-	baseURL string
+	// Providers are the configured OAuth provider IDs.
+	Providers []string
+	limiter   *storelimit.Limiter
+	db        *store.DB
+	ws        uuid.UUID
+	baseURL   string
 }
 
 // New builds the auth-all instance.
@@ -81,8 +90,16 @@ func New(cfg Config) (*Auth, error) {
 	if cfg.DB.Engine == store.Postgres {
 		st = authpg.New(cfg.DB.SQL)
 	}
+	// SDD §14.2: rate limits on the auth endpoints, counted in the database, so every
+	// instance shares one count.
+	limiter, err := storelimit.New(st, Rules())
+	if err != nil {
+		return nil, fmt.Errorf("set up the rate limits: %w", err)
+	}
 	opts := []authall.Option{
 		authall.WithStore(st),
+		authall.WithRateLimiter(limiter),
+		authall.WithStrictRateLimiting(),
 		authall.WithSchema(schema.Options{Prefix: Prefix, IDType: schema.IDUUID}),
 		authall.WithBaseURL(cfg.BaseURL),
 		authall.WithEmailPassword(),
@@ -99,7 +116,8 @@ func New(cfg Config) (*Auth, error) {
 	}
 	var providers []oauth.Provider
 	if p := cfg.OIDC; p != nil {
-		providers = append(providers, oidc.New(oidc.WithIssuer(p.Issuer), oidc.WithClientID(p.ClientID), oidc.WithClientSecret(p.ClientSecret)))
+		// A fixed ID keeps the callback URL and the linked accounts when the issuer changes.
+		providers = append(providers, oidc.New(oidc.WithID(OIDCProvider), oidc.WithIssuer(p.Issuer), oidc.WithClientID(p.ClientID), oidc.WithClientSecret(p.ClientSecret)))
 	}
 	if p := cfg.GitHub; p != nil {
 		providers = append(providers, github.New(github.WithClientID(p.ClientID), github.WithClientSecret(p.ClientSecret)))
@@ -111,7 +129,43 @@ func New(cfg Config) (*Auth, error) {
 	if err != nil {
 		return nil, fmt.Errorf("set up sign-in: %w", err)
 	}
-	return &Auth{All: all, Admin: adm, Invites: inv, db: cfg.DB, ws: cfg.Workspace, baseURL: cfg.BaseURL}, nil
+	ids := make([]string, len(providers))
+	for i, p := range providers {
+		ids[i] = p.ID()
+	}
+	return &Auth{All: all, Admin: adm, Invites: inv, Providers: ids, limiter: limiter, db: cfg.DB, ws: cfg.Workspace, baseURL: cfg.BaseURL}, nil
+}
+
+// Rules are the rate limits of hosted mode: auth-all's sign-in defaults, and limits for the
+// other routes that take a secret.
+func Rules() []ratelimit.Rule {
+	ip := func(op ratelimit.Operation, limit int, window time.Duration) ratelimit.Rule {
+		return ratelimit.Rule{Operation: op, Scope: ratelimit.ScopeIP, Limit: limit, Window: window}
+	}
+	return append(ratelimit.DefaultSignInRules(),
+		ip(ratelimit.OpTOTP, 10, time.Minute),
+		ip(ratelimit.OpPasswordChange, 10, 15*time.Minute),
+		ip(authinvite.OpInviteCheck, 30, time.Minute),
+		ip(authinvite.OpInviteAccept, 10, time.Hour),
+		ip(authinvite.OpResetCheck, 30, time.Minute),
+		ip(authinvite.OpReset, 10, time.Hour),
+	)
+}
+
+// CleanUp removes expired rate-limit counters every hour until ctx ends.
+func (a *Auth) CleanUp(ctx context.Context) {
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if _, err := a.limiter.Cleanup(ctx, time.Now().Add(-time.Hour)); err != nil && ctx.Err() == nil {
+				slog.Error("clean-up of the rate-limit counters failed", "err", err)
+			}
+		}
+	}
 }
 
 // Migrate applies the auth-all migrations, in their own goose version table, and checks the

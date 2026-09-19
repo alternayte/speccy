@@ -56,6 +56,8 @@ type (
 type Core struct {
 	// Hosted is true for `speccy serve --hosted`.
 	Hosted bool
+	// Providers are the configured OAuth provider IDs (REQ-080).
+	Providers []string
 }
 
 // Options are the parts of the handler that differ between local and hosted mode.
@@ -127,7 +129,15 @@ func (c Core) mode() string {
 }
 
 func (c Core) GetMeta(context.Context, api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
-	return api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.MetaMode(c.mode())}, nil
+	out := api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.MetaMode(c.mode())}
+	if len(c.Providers) > 0 {
+		ps := make([]api.MetaSignInProviders, len(c.Providers))
+		for i, p := range c.Providers {
+			ps[i] = api.MetaSignInProviders(p)
+		}
+		out.SignInProviders = &ps
+	}
+	return out, nil
 }
 
 // GetMe returns the actor of the request.

@@ -1141,6 +1141,12 @@ components:
           type: string
           enum: [local, hosted]
           description: The mode the server runs in.
+        sign_in_providers:
+          type: array
+          description: The OAuth providers of hosted mode (REQ-080), by their auth-all ID. A provider signs in a person who linked it to their account.
+          items:
+            type: string
+            enum: [oidc, github]
 
     Me:
       type: object

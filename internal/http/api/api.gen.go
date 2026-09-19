@@ -437,6 +437,24 @@ func (e MetaMode) Valid() bool {
 	}
 }
 
+// Defines values for MetaSignInProviders.
+const (
+	MetaSignInProvidersGithub MetaSignInProviders = "github"
+	MetaSignInProvidersOidc   MetaSignInProviders = "oidc"
+)
+
+// Valid indicates whether the value is a known member of the MetaSignInProviders enum.
+func (e MetaSignInProviders) Valid() bool {
+	switch e {
+	case MetaSignInProvidersGithub:
+		return true
+	case MetaSignInProvidersOidc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RoleName.
 const (
 	Judge    RoleName = "judge"
@@ -1021,12 +1039,18 @@ type Meta struct {
 	// Mode The mode the server runs in.
 	Mode MetaMode `json:"mode"`
 
+	// SignInProviders The OAuth providers of hosted mode (REQ-080), by their auth-all ID. A provider signs in a person who linked it to their account.
+	SignInProviders *[]MetaSignInProviders `json:"sign_in_providers,omitempty"`
+
 	// Version The build version of the binary.
 	Version string `json:"version"`
 }
 
 // MetaMode The mode the server runs in.
 type MetaMode string
+
+// MetaSignInProviders defines model for Meta.SignInProviders.
+type MetaSignInProviders string
 
 // Preset defines model for Preset.
 type Preset struct {

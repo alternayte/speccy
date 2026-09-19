@@ -13,6 +13,10 @@ export type Meta = {
      * The mode the server runs in.
      */
     mode: 'local' | 'hosted';
+    /**
+     * The OAuth providers of hosted mode (REQ-080), by their auth-all ID. A provider signs in a person who linked it to their account.
+     */
+    sign_in_providers?: Array<'oidc' | 'github'>;
 };
 
 export type Me = {

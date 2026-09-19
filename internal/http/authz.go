@@ -106,7 +106,7 @@ type Authz struct {
 var (
 	errSignIn    = kernel.Unauthorized("sign_in_required", "Sign in to use Speccy.")
 	errForbidden = kernel.Forbidden("forbidden", "Your role does not allow this.")
-	errGuest     = kernel.Forbidden("guest_not_allowed", "A guest can read and comment. Sign in to do this.")
+	errGuest     = kernel.Forbidden("guest_not_allowed", "A guest can read this bundle only. Sign in to do this.")
 	errNoBundle  = kernel.NotFound("bundle_not_found", "No bundle has this ID, or you cannot see it.")
 )
 

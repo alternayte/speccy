@@ -42,6 +42,14 @@ const ResetTTL = 24 * time.Hour
 // DefaultInviteTTL is REQ-081's default expiry.
 const DefaultInviteTTL = 7 * 24 * time.Hour
 
+// Rate-limit operations of the plugin's routes. hostauth sets their rules.
+const (
+	OpInviteCheck  ratelimit.Operation = "speccy-invite-check"
+	OpInviteAccept ratelimit.Operation = "speccy-invite-accept"
+	OpResetCheck   ratelimit.Operation = "speccy-reset-check"
+	OpReset        ratelimit.Operation = "speccy-reset"
+)
+
 // Errors of the accept and reset routes. One message for every invalid link, so a holder of a
 // token learns nothing about it.
 var (
@@ -150,8 +158,8 @@ type tokenBody struct {
 }
 
 // limited applies the rate limit of auth-all's store limiter to one operation from one IP.
-func (p *Plugin) limited(w http.ResponseWriter, r *http.Request, op string) bool {
-	ok, err := p.svc.RateLimiter().Allow(r.Context(), ratelimit.Key{Operation: ratelimit.Operation(op), IP: p.svc.HTTP().ClientIP(r)})
+func (p *Plugin) limited(w http.ResponseWriter, r *http.Request, op ratelimit.Operation) bool {
+	ok, err := p.svc.RateLimiter().Allow(r.Context(), ratelimit.Key{Operation: op, IP: p.svc.HTTP().ClientIP(r)})
 	if err != nil || !ok {
 		p.svc.HTTP().WriteError(w, apierr.ErrRateLimited)
 		return true
@@ -160,7 +168,7 @@ func (p *Plugin) limited(w http.ResponseWriter, r *http.Request, op string) bool
 }
 
 func (p *Plugin) checkInvite(w http.ResponseWriter, r *http.Request) {
-	if p.limited(w, r, "speccy.invite.check") {
+	if p.limited(w, r, OpInviteCheck) {
 		return
 	}
 	var body tokenBody
@@ -191,7 +199,7 @@ func (p *Plugin) acceptInvite(w http.ResponseWriter, r *http.Request) {
 		h.WriteError(w, err)
 		return
 	}
-	if p.limited(w, r, "speccy.invite.accept") {
+	if p.limited(w, r, OpInviteAccept) {
 		return
 	}
 	var body acceptBody
@@ -238,7 +246,7 @@ func (p *Plugin) acceptInvite(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) checkReset(w http.ResponseWriter, r *http.Request) {
-	if p.limited(w, r, "speccy.reset.check") {
+	if p.limited(w, r, OpResetCheck) {
 		return
 	}
 	var body tokenBody
@@ -272,7 +280,7 @@ func (p *Plugin) reset(w http.ResponseWriter, r *http.Request) {
 		h.WriteError(w, err)
 		return
 	}
-	if p.limited(w, r, "speccy.reset") {
+	if p.limited(w, r, OpReset) {
 		return
 	}
 	var body resetBody
