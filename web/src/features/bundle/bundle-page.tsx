@@ -14,6 +14,7 @@ import {
   listFindingsOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
+import { GitHubControl } from "./github-control";
 import { ShareDialog } from "./share-dialog";
 import { ReviewStatus } from "./review-status";
 import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
@@ -157,6 +158,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           <span className="sr-only sm:hidden">Traceability</span>
         </Link>
         <div className="flex items-center gap-1.5">
+          {guest ? null : <GitHubControl bundle={b} canEdit={canEdit} />}
           {guest ? null : <ReviewStatus bundleId={bundleId} signedIn={!guest} />}
           {hosted && canEdit ? <ShareDialog bundleId={bundleId} /> : null}
           {guest ? null : <RunReviewButton bundleId={bundleId} active={!!run.active} onStarted={() => run.refetch()} />}

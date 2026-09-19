@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcceptFixData, AcceptFixErrors, AcceptFixResponses, AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, ApproveBundleData, ApproveBundleErrors, ApproveBundleResponses, ApproveWaiverData, ApproveWaiverErrors, ApproveWaiverResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateProfileData, CreateProfileErrors, CreateProfileResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetBundleStatusData, GetBundleStatusErrors, GetBundleStatusResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetInboxData, GetInboxErrors, GetInboxResponses, GetInsightsData, GetInsightsErrors, GetInsightsResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetProfileData, GetProfileErrors, GetProfileResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetThreadData, GetThreadErrors, GetThreadResponses, GetTourData, GetTourErrors, GetTourResponses, GetTraceData, GetTraceErrors, GetTraceResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListBundleThreadsData, ListBundleThreadsErrors, ListBundleThreadsResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPeopleData, ListPeopleErrors, ListPeopleResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListProfileThreadsData, ListProfileThreadsErrors, ListProfileThreadsResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, ListWaiversData, ListWaiversErrors, ListWaiversResponses, MarkDecisionData, MarkDecisionErrors, MarkDecisionResponses, MarkInboxSeenData, MarkInboxSeenErrors, MarkInboxSeenResponses, OpenBundleThreadData, OpenBundleThreadErrors, OpenBundleThreadResponses, OpenProfileThreadData, OpenProfileThreadErrors, OpenProfileThreadResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RejectWaiverData, RejectWaiverErrors, RejectWaiverResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, RequestReviewData, RequestReviewErrors, RequestReviewResponses, RequestWaiverData, RequestWaiverErrors, RequestWaiverResponses, ReviewContentData, ReviewContentErrors, ReviewContentResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetMaintainersData, SetMaintainersErrors, SetMaintainersResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetThreadBlockingData, SetThreadBlockingErrors, SetThreadBlockingResponses, SetThreadStatusData, SetThreadStatusErrors, SetThreadStatusResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, SuggestFixData, SuggestFixErrors, SuggestFixResponses, SummarizeDiffData, SummarizeDiffErrors, SummarizeDiffResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses } from './types.gen';
+import type { AcceptFixData, AcceptFixErrors, AcceptFixResponses, AddGithubSourceData, AddGithubSourceErrors, AddGithubSourceResponses, AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, ApproveBundleData, ApproveBundleErrors, ApproveBundleResponses, ApproveWaiverData, ApproveWaiverErrors, ApproveWaiverResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateProfileData, CreateProfileErrors, CreateProfileResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteGithubConnectionData, DeleteGithubConnectionErrors, DeleteGithubConnectionResponses, DeleteGithubSourceData, DeleteGithubSourceErrors, DeleteGithubSourceResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, DiscardDraftData, DiscardDraftErrors, DiscardDraftResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetBundleStatusData, GetBundleStatusErrors, GetBundleStatusResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetGithubConnectionData, GetGithubConnectionErrors, GetGithubConnectionResponses, GetInboxData, GetInboxErrors, GetInboxResponses, GetInsightsData, GetInsightsErrors, GetInsightsResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetProfileData, GetProfileErrors, GetProfileResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetThreadData, GetThreadErrors, GetThreadResponses, GetTourData, GetTourErrors, GetTourResponses, GetTraceData, GetTraceErrors, GetTraceResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListBundleThreadsData, ListBundleThreadsErrors, ListBundleThreadsResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListGithubSourcesData, ListGithubSourcesErrors, ListGithubSourcesResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPeopleData, ListPeopleErrors, ListPeopleResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListProfileThreadsData, ListProfileThreadsErrors, ListProfileThreadsResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, ListWaiversData, ListWaiversErrors, ListWaiversResponses, MarkDecisionData, MarkDecisionErrors, MarkDecisionResponses, MarkInboxSeenData, MarkInboxSeenErrors, MarkInboxSeenResponses, OpenBundleThreadData, OpenBundleThreadErrors, OpenBundleThreadResponses, OpenProfileThreadData, OpenProfileThreadErrors, OpenProfileThreadResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PublishBundleData, PublishBundleErrors, PublishBundleResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RejectWaiverData, RejectWaiverErrors, RejectWaiverResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, RequestReviewData, RequestReviewErrors, RequestReviewResponses, RequestWaiverData, RequestWaiverErrors, RequestWaiverResponses, ReviewContentData, ReviewContentErrors, ReviewContentResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetGithubConnectionData, SetGithubConnectionErrors, SetGithubConnectionResponses, SetMaintainersData, SetMaintainersErrors, SetMaintainersResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetThreadBlockingData, SetThreadBlockingErrors, SetThreadBlockingResponses, SetThreadStatusData, SetThreadStatusErrors, SetThreadStatusResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, SuggestFixData, SuggestFixErrors, SuggestFixResponses, SummarizeDiffData, SummarizeDiffErrors, SummarizeDiffResponses, SyncGithubSourceData, SyncGithubSourceErrors, SyncGithubSourceResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -644,6 +644,72 @@ export const assignRole = <ThrowOnError extends boolean = false>(options: Option
         ...options.headers
     }
 });
+
+/**
+ * Remove the GitHub token. The GitHub sources stop syncing.
+ */
+export const deleteGithubConnection = <ThrowOnError extends boolean = false>(options?: Options<DeleteGithubConnectionData, ThrowOnError>): RequestResult<DeleteGithubConnectionResponses, DeleteGithubConnectionErrors, ThrowOnError> => (options?.client ?? client).delete<DeleteGithubConnectionResponses, DeleteGithubConnectionErrors, ThrowOnError>({ url: '/admin/github', ...options });
+
+/**
+ * The GitHub token of the workspace (DEC-019). The token itself is never returned.
+ */
+export const getGithubConnection = <ThrowOnError extends boolean = false>(options?: Options<GetGithubConnectionData, ThrowOnError>): RequestResult<GetGithubConnectionResponses, GetGithubConnectionErrors, ThrowOnError> => (options?.client ?? client).get<GetGithubConnectionResponses, GetGithubConnectionErrors, ThrowOnError>({ url: '/admin/github', ...options });
+
+/**
+ * Set the fine-grained personal access token that reads repos and opens pull requests.
+ */
+export const setGithubConnection = <ThrowOnError extends boolean = false>(options: Options<SetGithubConnectionData, ThrowOnError>): RequestResult<SetGithubConnectionResponses, SetGithubConnectionErrors, ThrowOnError> => (options.client ?? client).put<SetGithubConnectionResponses, SetGithubConnectionErrors, ThrowOnError>({
+    url: '/admin/github',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+ */
+export const listGithubSources = <ThrowOnError extends boolean = false>(options?: Options<ListGithubSourcesData, ThrowOnError>): RequestResult<ListGithubSourcesResponses, ListGithubSourcesErrors, ThrowOnError> => (options?.client ?? client).get<ListGithubSourcesResponses, ListGithubSourcesErrors, ThrowOnError>({ url: '/github/sources', ...options });
+
+/**
+ * Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+ */
+export const addGithubSource = <ThrowOnError extends boolean = false>(options: Options<AddGithubSourceData, ThrowOnError>): RequestResult<AddGithubSourceResponses, AddGithubSourceErrors, ThrowOnError> => (options.client ?? client).post<AddGithubSourceResponses, AddGithubSourceErrors, ThrowOnError>({
+    url: '/github/sources',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Stop reading a source. Its bundles are archived; their reviews and threads stay.
+ */
+export const deleteGithubSource = <ThrowOnError extends boolean = false>(options: Options<DeleteGithubSourceData, ThrowOnError>): RequestResult<DeleteGithubSourceResponses, DeleteGithubSourceErrors, ThrowOnError> => (options.client ?? client).delete<DeleteGithubSourceResponses, DeleteGithubSourceErrors, ThrowOnError>({ url: '/github/sources/{sourceId}', ...options });
+
+/**
+ * Read the source's branch now.
+ */
+export const syncGithubSource = <ThrowOnError extends boolean = false>(options: Options<SyncGithubSourceData, ThrowOnError>): RequestResult<SyncGithubSourceResponses, SyncGithubSourceErrors, ThrowOnError> => (options.client ?? client).post<SyncGithubSourceResponses, SyncGithubSourceErrors, ThrowOnError>({ url: '/github/sources/{sourceId}/sync', ...options });
+
+/**
+ * Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+ */
+export const publishBundle = <ThrowOnError extends boolean = false>(options: Options<PublishBundleData, ThrowOnError>): RequestResult<PublishBundleResponses, PublishBundleErrors, ThrowOnError> => (options.client ?? client).post<PublishBundleResponses, PublishBundleErrors, ThrowOnError>({
+    url: '/bundles/{bundleId}/publish',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+ */
+export const discardDraft = <ThrowOnError extends boolean = false>(options: Options<DiscardDraftData, ThrowOnError>): RequestResult<DiscardDraftResponses, DiscardDraftErrors, ThrowOnError> => (options.client ?? client).post<DiscardDraftResponses, DiscardDraftErrors, ThrowOnError>({ url: '/bundles/{bundleId}/draft/discard', ...options });
 
 /**
  * Get this month's token budget and use (REQ-104).

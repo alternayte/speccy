@@ -162,6 +162,30 @@ type ClientInterface interface {
 	// Corresponds with PUT /admin/budget (the `SetBudget` operationId).
 	SetBudget(ctx context.Context, body SetBudgetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteGithubConnection Remove the GitHub token. The GitHub sources stop syncing.
+	//
+	// Corresponds with DELETE /admin/github (the `DeleteGithubConnection` operationId).
+	DeleteGithubConnection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetGithubConnection The GitHub token of the workspace (DEC-019). The token itself is never returned.
+	//
+	// Corresponds with GET /admin/github (the `GetGithubConnection` operationId).
+	GetGithubConnection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetGithubConnectionWithBody Set the fine-grained personal access token that reads repos and opens pull requests.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+	SetGithubConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetGithubConnection Set the fine-grained personal access token that reads repos and opens pull requests.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+	SetGithubConnection(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListInvites List invite links, newest first (REQ-081).
 	//
 	// Corresponds with GET /admin/invites (the `ListInvites` operationId).
@@ -353,6 +377,11 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
 	SummarizeDiff(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	//
+	// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
+	DiscardDraft(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	//
 	// Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
@@ -393,6 +422,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
 	RenameFile(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+	PublishBundleWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+	PublishBundle(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	//
@@ -536,6 +579,35 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+	//
+	// Corresponds with GET /github/sources (the `ListGithubSources` operationId).
+	ListGithubSources(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddGithubSourceWithBody Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+	AddGithubSourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+	AddGithubSource(ctx context.Context, body AddGithubSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
+	//
+	// Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
+	DeleteGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SyncGithubSource Read the source's branch now.
+	//
+	// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
+	SyncGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetInbox The caller's inbox (REQ-091).
 	//
@@ -968,6 +1040,70 @@ func (c *Client) SetBudgetWithBody(ctx context.Context, contentType string, body
 // Corresponds with PUT /admin/budget (the `SetBudget` operationId).
 func (c *Client) SetBudget(ctx context.Context, body SetBudgetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetBudgetRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteGithubConnection Remove the GitHub token. The GitHub sources stop syncing.
+//
+// Corresponds with DELETE /admin/github (the `DeleteGithubConnection` operationId).
+func (c *Client) DeleteGithubConnection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGithubConnectionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetGithubConnection The GitHub token of the workspace (DEC-019). The token itself is never returned.
+//
+// Corresponds with GET /admin/github (the `GetGithubConnection` operationId).
+func (c *Client) GetGithubConnection(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGithubConnectionRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetGithubConnectionWithBody Set the fine-grained personal access token that reads repos and opens pull requests.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+func (c *Client) SetGithubConnectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetGithubConnectionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetGithubConnection Set the fine-grained personal access token that reads repos and opens pull requests.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+func (c *Client) SetGithubConnection(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetGithubConnectionRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1479,6 +1615,21 @@ func (c *Client) SummarizeDiff(ctx context.Context, bundleId BundleId, params *S
 	return c.Client.Do(req)
 }
 
+// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+//
+// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
+func (c *Client) DiscardDraft(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscardDraftRequest(c.Server, bundleId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 //
 // Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
@@ -1580,6 +1731,40 @@ func (c *Client) RenameFileWithBody(ctx context.Context, bundleId BundleId, cont
 // Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
 func (c *Client) RenameFile(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenameFileRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+func (c *Client) PublishBundleWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishBundleRequestWithBody(c.Server, bundleId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+func (c *Client) PublishBundle(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishBundleRequest(c.Server, bundleId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1953,6 +2138,85 @@ func (c *Client) RequestWaiverWithBody(ctx context.Context, bundleId BundleId, c
 // Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 func (c *Client) RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRequestWaiverRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+//
+// Corresponds with GET /github/sources (the `ListGithubSources` operationId).
+func (c *Client) ListGithubSources(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListGithubSourcesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AddGithubSourceWithBody Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+func (c *Client) AddGithubSourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddGithubSourceRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+func (c *Client) AddGithubSource(ctx context.Context, body AddGithubSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddGithubSourceRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
+//
+// Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
+func (c *Client) DeleteGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGithubSourceRequest(c.Server, sourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SyncGithubSource Read the source's branch now.
+//
+// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
+func (c *Client) SyncGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSyncGithubSourceRequest(c.Server, sourceId)
 	if err != nil {
 		return nil, err
 	}
@@ -2914,6 +3178,100 @@ func NewSetBudgetRequestWithBody(server string, contentType string, body io.Read
 	return req, nil
 }
 
+// NewDeleteGithubConnectionRequest constructs an http.Request for the DeleteGithubConnection method
+func NewDeleteGithubConnectionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/github")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetGithubConnectionRequest constructs an http.Request for the GetGithubConnection method
+func NewGetGithubConnectionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/github")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetGithubConnectionRequest calls the generic SetGithubConnection builder with application/json body
+func NewSetGithubConnectionRequest(server string, body SetGithubConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetGithubConnectionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSetGithubConnectionRequestWithBody constructs an http.Request for the SetGithubConnection method, with any body, and a specified content type
+func NewSetGithubConnectionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/github")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListInvitesRequest constructs an http.Request for the ListInvites method
 func NewListInvitesRequest(server string) (*http.Request, error) {
 	var err error
@@ -3840,6 +4198,40 @@ func NewSummarizeDiffRequest(server string, bundleId BundleId, params *Summarize
 	return req, nil
 }
 
+// NewDiscardDraftRequest constructs an http.Request for the DiscardDraft method
+func NewDiscardDraftRequest(server string, bundleId BundleId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/draft/discard", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewExportBundleRequest constructs an http.Request for the ExportBundle method
 func NewExportBundleRequest(server string, bundleId BundleId, params *ExportBundleParams) (*http.Request, error) {
 	var err error
@@ -4203,6 +4595,53 @@ func NewRenameFileRequestWithBody(server string, bundleId BundleId, contentType 
 	}
 
 	operationPath := fmt.Sprintf("/bundles/%s/files/rename", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPublishBundleRequest calls the generic PublishBundle builder with application/json body
+func NewPublishBundleRequest(server string, bundleId BundleId, body PublishBundleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPublishBundleRequestWithBody(server, bundleId, "application/json", bodyReader)
+}
+
+// NewPublishBundleRequestWithBody constructs an http.Request for the PublishBundle method, with any body, and a specified content type
+func NewPublishBundleRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/publish", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -4942,6 +5381,141 @@ func NewRequestWaiverRequestWithBody(server string, bundleId BundleId, contentTy
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListGithubSourcesRequest constructs an http.Request for the ListGithubSources method
+func NewListGithubSourcesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAddGithubSourceRequest calls the generic AddGithubSource builder with application/json body
+func NewAddGithubSourceRequest(server string, body AddGithubSourceJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAddGithubSourceRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewAddGithubSourceRequestWithBody constructs an http.Request for the AddGithubSource method, with any body, and a specified content type
+func NewAddGithubSourceRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteGithubSourceRequest constructs an http.Request for the DeleteGithubSource method
+func NewDeleteGithubSourceRequest(server string, sourceId SourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "sourceId", sourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSyncGithubSourceRequest constructs an http.Request for the SyncGithubSource method
+func NewSyncGithubSourceRequest(server string, sourceId SourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "sourceId", sourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources/%s/sync", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -6242,6 +6816,34 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /admin/budget (the `SetBudget` operationId).
 	SetBudgetWithResponse(ctx context.Context, body SetBudgetJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBudgetResponse, error)
 
+	// DeleteGithubConnectionWithResponse Remove the GitHub token. The GitHub sources stop syncing.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/github (the `DeleteGithubConnection` operationId).
+	DeleteGithubConnectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteGithubConnectionResponse, error)
+
+	// GetGithubConnectionWithResponse The GitHub token of the workspace (DEC-019). The token itself is never returned.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/github (the `GetGithubConnection` operationId).
+	GetGithubConnectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetGithubConnectionResponse, error)
+
+	// SetGithubConnectionWithBodyWithResponse Set the fine-grained personal access token that reads repos and opens pull requests.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+	SetGithubConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetGithubConnectionResponse, error)
+
+	// SetGithubConnectionWithResponse Set the fine-grained personal access token that reads repos and opens pull requests.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+	SetGithubConnectionWithResponse(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*SetGithubConnectionResponse, error)
+
 	// ListInvitesWithResponse List invite links, newest first (REQ-081).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -6465,6 +7067,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
 	SummarizeDiffWithResponse(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*SummarizeDiffResponse, error)
 
+	// DiscardDraftWithResponse Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
+	DiscardDraftWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DiscardDraftResponse, error)
+
 	// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -6513,6 +7122,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
 	RenameFileWithResponse(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
+
+	// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+	PublishBundleWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
+
+	// PublishBundleWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+	PublishBundleWithResponse(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
 
 	// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	//
@@ -6674,6 +7297,41 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
+
+	// ListGithubSourcesWithResponse The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /github/sources (the `ListGithubSources` operationId).
+	ListGithubSourcesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGithubSourcesResponse, error)
+
+	// AddGithubSourceWithBodyWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+	AddGithubSourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddGithubSourceResponse, error)
+
+	// AddGithubSourceWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+	AddGithubSourceWithResponse(ctx context.Context, body AddGithubSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*AddGithubSourceResponse, error)
+
+	// DeleteGithubSourceWithResponse Stop reading a source. Its bundles are archived; their reviews and threads stay.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
+	DeleteGithubSourceWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*DeleteGithubSourceResponse, error)
+
+	// SyncGithubSourceWithResponse Read the source's branch now.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
+	SyncGithubSourceWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*SyncGithubSourceResponse, error)
 
 	// GetInboxWithResponse The caller's inbox (REQ-091).
 	//
@@ -7300,6 +7958,143 @@ func (r SetBudgetResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetBudgetResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteGithubConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteGithubConnectionResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteGithubConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGithubConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGithubConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteGithubConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetGithubConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubConnection
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetGithubConnectionResponse) GetJSON200() *GithubConnection {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetGithubConnectionResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetGithubConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetGithubConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetGithubConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetGithubConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetGithubConnectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubConnection
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetGithubConnectionResponse) GetJSON200() *GithubConnection {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetGithubConnectionResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetGithubConnectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetGithubConnectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetGithubConnectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetGithubConnectionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -8463,6 +9258,54 @@ func (r SummarizeDiffResponse) ContentType() string {
 	return ""
 }
 
+type DiscardDraftResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *WriteResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DiscardDraftResponse) GetJSON200() *WriteResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DiscardDraftResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DiscardDraftResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DiscardDraftResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DiscardDraftResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DiscardDraftResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ExportBundleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -8731,6 +9574,60 @@ func (r RenameFileResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RenameFileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PublishBundleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		PrNumber int    `json:"pr_number"`
+		PrUrl    string `json:"pr_url"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PublishBundleResponse) GetJSON200() *struct {
+	PrNumber int    `json:"pr_number"`
+	PrUrl    string `json:"pr_url"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PublishBundleResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PublishBundleResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PublishBundleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PublishBundleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PublishBundleResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -9513,6 +10410,195 @@ func (r RequestWaiverResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RequestWaiverResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListGithubSourcesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []GithubSource `json:"items"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListGithubSourcesResponse) GetJSON200() *struct {
+	Items []GithubSource `json:"items"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListGithubSourcesResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListGithubSourcesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListGithubSourcesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListGithubSourcesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListGithubSourcesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AddGithubSourceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubSource
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AddGithubSourceResponse) GetJSON200() *GithubSource {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AddGithubSourceResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AddGithubSourceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AddGithubSourceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AddGithubSourceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AddGithubSourceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteGithubSourceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteGithubSourceResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteGithubSourceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGithubSourceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGithubSourceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteGithubSourceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SyncGithubSourceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubSource
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SyncGithubSourceResponse) GetJSON200() *GithubSource {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SyncGithubSourceResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SyncGithubSourceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SyncGithubSourceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SyncGithubSourceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SyncGithubSourceResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -11200,6 +12286,58 @@ func (c *ClientWithResponses) SetBudgetWithResponse(ctx context.Context, body Se
 	return ParseSetBudgetResponse(rsp)
 }
 
+// DeleteGithubConnectionWithResponse Remove the GitHub token. The GitHub sources stop syncing.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/github (the `DeleteGithubConnection` operationId).
+func (c *ClientWithResponses) DeleteGithubConnectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteGithubConnectionResponse, error) {
+	rsp, err := c.DeleteGithubConnection(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGithubConnectionResponse(rsp)
+}
+
+// GetGithubConnectionWithResponse The GitHub token of the workspace (DEC-019). The token itself is never returned.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/github (the `GetGithubConnection` operationId).
+func (c *ClientWithResponses) GetGithubConnectionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetGithubConnectionResponse, error) {
+	rsp, err := c.GetGithubConnection(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetGithubConnectionResponse(rsp)
+}
+
+// SetGithubConnectionWithBodyWithResponse Set the fine-grained personal access token that reads repos and opens pull requests.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+func (c *ClientWithResponses) SetGithubConnectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetGithubConnectionResponse, error) {
+	rsp, err := c.SetGithubConnectionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetGithubConnectionResponse(rsp)
+}
+
+// SetGithubConnectionWithResponse Set the fine-grained personal access token that reads repos and opens pull requests.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
+func (c *ClientWithResponses) SetGithubConnectionWithResponse(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*SetGithubConnectionResponse, error) {
+	rsp, err := c.SetGithubConnection(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetGithubConnectionResponse(rsp)
+}
+
 // ListInvitesWithResponse List invite links, newest first (REQ-081).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -11609,6 +12747,19 @@ func (c *ClientWithResponses) SummarizeDiffWithResponse(ctx context.Context, bun
 	return ParseSummarizeDiffResponse(rsp)
 }
 
+// DiscardDraftWithResponse Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
+func (c *ClientWithResponses) DiscardDraftWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DiscardDraftResponse, error) {
+	rsp, err := c.DiscardDraft(ctx, bundleId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscardDraftResponse(rsp)
+}
+
 // ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -11698,6 +12849,32 @@ func (c *ClientWithResponses) RenameFileWithResponse(ctx context.Context, bundle
 		return nil, err
 	}
 	return ParseRenameFileResponse(rsp)
+}
+
+// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+func (c *ClientWithResponses) PublishBundleWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error) {
+	rsp, err := c.PublishBundleWithBody(ctx, bundleId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishBundleResponse(rsp)
+}
+
+// PublishBundleWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
+func (c *ClientWithResponses) PublishBundleWithResponse(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error) {
+	rsp, err := c.PublishBundle(ctx, bundleId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishBundleResponse(rsp)
 }
 
 // RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
@@ -11997,6 +13174,71 @@ func (c *ClientWithResponses) RequestWaiverWithResponse(ctx context.Context, bun
 		return nil, err
 	}
 	return ParseRequestWaiverResponse(rsp)
+}
+
+// ListGithubSourcesWithResponse The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /github/sources (the `ListGithubSources` operationId).
+func (c *ClientWithResponses) ListGithubSourcesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGithubSourcesResponse, error) {
+	rsp, err := c.ListGithubSources(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListGithubSourcesResponse(rsp)
+}
+
+// AddGithubSourceWithBodyWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+func (c *ClientWithResponses) AddGithubSourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddGithubSourceResponse, error) {
+	rsp, err := c.AddGithubSourceWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddGithubSourceResponse(rsp)
+}
+
+// AddGithubSourceWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
+func (c *ClientWithResponses) AddGithubSourceWithResponse(ctx context.Context, body AddGithubSourceJSONRequestBody, reqEditors ...RequestEditorFn) (*AddGithubSourceResponse, error) {
+	rsp, err := c.AddGithubSource(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddGithubSourceResponse(rsp)
+}
+
+// DeleteGithubSourceWithResponse Stop reading a source. Its bundles are archived; their reviews and threads stay.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
+func (c *ClientWithResponses) DeleteGithubSourceWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*DeleteGithubSourceResponse, error) {
+	rsp, err := c.DeleteGithubSource(ctx, sourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGithubSourceResponse(rsp)
+}
+
+// SyncGithubSourceWithResponse Read the source's branch now.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
+func (c *ClientWithResponses) SyncGithubSourceWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*SyncGithubSourceResponse, error) {
+	rsp, err := c.SyncGithubSource(ctx, sourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSyncGithubSourceResponse(rsp)
 }
 
 // GetInboxWithResponse The caller's inbox (REQ-091).
@@ -12768,6 +14010,101 @@ func ParseSetBudgetResponse(rsp *http.Response) (*SetBudgetResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Budget
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGithubConnectionResponse parses an HTTP response from a DeleteGithubConnectionWithResponse call
+func ParseDeleteGithubConnectionResponse(rsp *http.Response) (*DeleteGithubConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGithubConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetGithubConnectionResponse parses an HTTP response from a GetGithubConnectionWithResponse call
+func ParseGetGithubConnectionResponse(rsp *http.Response) (*GetGithubConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetGithubConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubConnection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetGithubConnectionResponse parses an HTTP response from a SetGithubConnectionWithResponse call
+func ParseSetGithubConnectionResponse(rsp *http.Response) (*SetGithubConnectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetGithubConnectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubConnection
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -13578,6 +14915,39 @@ func ParseSummarizeDiffResponse(rsp *http.Response) (*SummarizeDiffResponse, err
 	return response, nil
 }
 
+// ParseDiscardDraftResponse parses an HTTP response from a DiscardDraftWithResponse call
+func ParseDiscardDraftResponse(rsp *http.Response) (*DiscardDraftResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DiscardDraftResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WriteResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseExportBundleResponse parses an HTTP response from a ExportBundleWithResponse call
 func ParseExportBundleResponse(rsp *http.Response) (*ExportBundleResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -13745,6 +15115,42 @@ func ParseRenameFileResponse(rsp *http.Response) (*RenameFileResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WriteResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePublishBundleResponse parses an HTTP response from a PublishBundleWithResponse call
+func ParsePublishBundleResponse(rsp *http.Response) (*PublishBundleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PublishBundleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			PrNumber int    `json:"pr_number"`
+			PrUrl    string `json:"pr_url"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -14280,6 +15686,136 @@ func ParseRequestWaiverResponse(rsp *http.Response) (*RequestWaiverResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Waiver
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListGithubSourcesResponse parses an HTTP response from a ListGithubSourcesWithResponse call
+func ParseListGithubSourcesResponse(rsp *http.Response) (*ListGithubSourcesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListGithubSourcesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []GithubSource `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAddGithubSourceResponse parses an HTTP response from a AddGithubSourceWithResponse call
+func ParseAddGithubSourceResponse(rsp *http.Response) (*AddGithubSourceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AddGithubSourceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubSource
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGithubSourceResponse parses an HTTP response from a DeleteGithubSourceWithResponse call
+func ParseDeleteGithubSourceResponse(rsp *http.Response) (*DeleteGithubSourceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGithubSourceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSyncGithubSourceResponse parses an HTTP response from a SyncGithubSourceWithResponse call
+func ParseSyncGithubSourceResponse(rsp *http.Response) (*SyncGithubSourceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SyncGithubSourceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubSource
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

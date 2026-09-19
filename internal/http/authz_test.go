@@ -230,7 +230,7 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 	path := strings.NewReplacer(
 		"{bundleId}", env.bundle.ID.String(), "{runId}", env.run.ID.String(), "{token}", "not-a-token",
 		"{connectionId}", uuid.NewString(), "{backendId}", uuid.NewString(), "{inviteId}", uuid.NewString(), "{role}", "reviewer",
-		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding,
+		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding, "{sourceId}", uuid.NewString(),
 	).Replace(op.path)
 	query := "?path=SPEC.md&base_version=" + env.bundle.CurrentVersionID.UUID.String() +
 		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String()

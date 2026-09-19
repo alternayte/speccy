@@ -113,6 +113,7 @@ export type Bundle = {
      */
     profile_key: string;
     source_kind: 'local' | 'db' | 'github';
+    github?: BundleGithub;
     /**
      * The path of the main doc in the bundle.
      */
@@ -604,6 +605,45 @@ export type ContentVerdict = {
     info: number;
 };
 
+/**
+ * Where a GitHub bundle comes from, and its draft (REQ-123).
+ */
+export type BundleGithub = {
+    repo: string;
+    branch: string;
+    path: string;
+    /**
+     * The current version has changes that are not on GitHub.
+     */
+    draft: boolean;
+    /**
+     * GitHub changed after the draft started.
+     */
+    ahead: boolean;
+    pr_url?: string;
+};
+
+export type GithubConnection = {
+    configured: boolean;
+    token_last4?: string;
+    api_url: string;
+    /**
+     * The GitHub account of the token, from the last check.
+     */
+    login?: string;
+};
+
+export type GithubSource = {
+    id: string;
+    repo: string;
+    branch: string;
+    path: string;
+    head_commit: string;
+    synced_at?: string;
+    error: string;
+    bundles: number;
+};
+
 export type FindingList = {
     items: Array<Finding>;
 };
@@ -1038,6 +1078,8 @@ export type BackendId = string;
 export type RunId = string;
 
 export type FindingId = string;
+
+export type SourceId = string;
 
 export type ThreadId = string;
 
@@ -3347,6 +3389,268 @@ export type AssignRoleResponses = {
 };
 
 export type AssignRoleResponse = AssignRoleResponses[keyof AssignRoleResponses];
+
+export type DeleteGithubConnectionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/github';
+};
+
+export type DeleteGithubConnectionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteGithubConnectionError = DeleteGithubConnectionErrors[keyof DeleteGithubConnectionErrors];
+
+export type DeleteGithubConnectionResponses = {
+    /**
+     * Removed.
+     */
+    204: void;
+};
+
+export type DeleteGithubConnectionResponse = DeleteGithubConnectionResponses[keyof DeleteGithubConnectionResponses];
+
+export type GetGithubConnectionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/github';
+};
+
+export type GetGithubConnectionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetGithubConnectionError = GetGithubConnectionErrors[keyof GetGithubConnectionErrors];
+
+export type GetGithubConnectionResponses = {
+    /**
+     * The connection.
+     */
+    200: GithubConnection;
+};
+
+export type GetGithubConnectionResponse = GetGithubConnectionResponses[keyof GetGithubConnectionResponses];
+
+export type SetGithubConnectionData = {
+    body: {
+        token: string;
+        /**
+         * The GitHub API. The default is https://api.github.com. GitHub Enterprise Server uses https://<host>/api/v3.
+         */
+        api_url?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/admin/github';
+};
+
+export type SetGithubConnectionErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetGithubConnectionError = SetGithubConnectionErrors[keyof SetGithubConnectionErrors];
+
+export type SetGithubConnectionResponses = {
+    /**
+     * The connection, after a check with GitHub.
+     */
+    200: GithubConnection;
+};
+
+export type SetGithubConnectionResponse = SetGithubConnectionResponses[keyof SetGithubConnectionResponses];
+
+export type ListGithubSourcesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/github/sources';
+};
+
+export type ListGithubSourcesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListGithubSourcesError = ListGithubSourcesErrors[keyof ListGithubSourcesErrors];
+
+export type ListGithubSourcesResponses = {
+    /**
+     * The sources.
+     */
+    200: {
+        items: Array<GithubSource>;
+    };
+};
+
+export type ListGithubSourcesResponse = ListGithubSourcesResponses[keyof ListGithubSourcesResponses];
+
+export type AddGithubSourceData = {
+    body: {
+        /**
+         * owner/name
+         */
+        repo: string;
+        /**
+         * The default is the repo's default branch.
+         */
+        branch?: string;
+        /**
+         * The folder in the repo. The default is the whole repo.
+         */
+        path?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/github/sources';
+};
+
+export type AddGithubSourceErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AddGithubSourceError = AddGithubSourceErrors[keyof AddGithubSourceErrors];
+
+export type AddGithubSourceResponses = {
+    /**
+     * The source, after its first sync.
+     */
+    200: GithubSource;
+};
+
+export type AddGithubSourceResponse = AddGithubSourceResponses[keyof AddGithubSourceResponses];
+
+export type DeleteGithubSourceData = {
+    body?: never;
+    path: {
+        sourceId: string;
+    };
+    query?: never;
+    url: '/github/sources/{sourceId}';
+};
+
+export type DeleteGithubSourceErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteGithubSourceError = DeleteGithubSourceErrors[keyof DeleteGithubSourceErrors];
+
+export type DeleteGithubSourceResponses = {
+    /**
+     * Removed.
+     */
+    204: void;
+};
+
+export type DeleteGithubSourceResponse = DeleteGithubSourceResponses[keyof DeleteGithubSourceResponses];
+
+export type SyncGithubSourceData = {
+    body?: never;
+    path: {
+        sourceId: string;
+    };
+    query?: never;
+    url: '/github/sources/{sourceId}/sync';
+};
+
+export type SyncGithubSourceErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SyncGithubSourceError = SyncGithubSourceErrors[keyof SyncGithubSourceErrors];
+
+export type SyncGithubSourceResponses = {
+    /**
+     * The source after the sync.
+     */
+    200: GithubSource;
+};
+
+export type SyncGithubSourceResponse = SyncGithubSourceResponses[keyof SyncGithubSourceResponses];
+
+export type PublishBundleData = {
+    body?: {
+        /**
+         * The commit message and pull request title.
+         */
+        message?: string;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/publish';
+};
+
+export type PublishBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PublishBundleError = PublishBundleErrors[keyof PublishBundleErrors];
+
+export type PublishBundleResponses = {
+    /**
+     * The pull request.
+     */
+    200: {
+        pr_url: string;
+        pr_number: number;
+    };
+};
+
+export type PublishBundleResponse = PublishBundleResponses[keyof PublishBundleResponses];
+
+export type DiscardDraftData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/draft/discard';
+};
+
+export type DiscardDraftErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DiscardDraftError = DiscardDraftErrors[keyof DiscardDraftErrors];
+
+export type DiscardDraftResponses = {
+    /**
+     * The new version.
+     */
+    200: WriteResult;
+};
+
+export type DiscardDraftResponse = DiscardDraftResponses[keyof DiscardDraftResponses];
 
 export type GetBudgetData = {
     body?: never;

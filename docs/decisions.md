@@ -621,3 +621,9 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** `speccy tui` and `speccy mcp` use `.speccy/state/` and follow changes on disk, as local mode does. The TUI decides nothing: decisions and waivers stay in the app, and the tour screen says so. `e` opens `$VISUAL` or `$EDITOR` at the line (`+N`, or `--goto file:line` for VS Code and Cursor). The TUI logs to `.speccy/state/tui.log`. Over HTTP, MCP is stateless streamable HTTP with JSON answers.
 - **Alternative:** Decide and waive in the TUI.
 - **Reason:** REQ-122 lists the TUI's jobs; decisions need the thread context of the app.
+
+## 2026-09-19 — GitHub source and publish
+
+- **Choice:** A GitHub source is a repo, a branch, and a folder, read with the workspace's fine-grained token (DEC-019), which is encrypted at rest. The local scan reads an `fs.FS`, so a repo tree scans with the same rules as a folder on disk; blob contents load only when the scan reads them and are cached by SHA. Hosted mode polls every 5 minutes. A bundle's `source_ref` holds its published version and commit: an edit makes the current version differ from the published one, and a sync never overwrites it. When GitHub changes under unpublished edits, the bundle is marked ahead. Publish writes blobs, a tree, a commit, and a branch through the Git data API, and opens a pull request; the source branch never changes. A sync that finds the current text on GitHub marks it published. The admin who adds a source is the author of its bundles.
+- **Alternative:** Clone the repo.
+- **Reason:** DEC-018: Speccy never runs git, and hosted mode has no persistent disk.
