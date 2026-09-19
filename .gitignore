@@ -10,3 +10,6 @@ web/dist/*
 *.tsbuildinfo
 .DS_Store
 .speccy/state/
+
+# Third-party reference screenshots for the UI gauntlet (BUILD.md §6.1). Kept local only.
+docs/gauntlet/reference/
