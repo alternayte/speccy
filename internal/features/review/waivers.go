@@ -36,8 +36,8 @@ func applyWaivers(in input, ev *evaluation) []bool {
 	open := map[string]bool{}
 	for i, f := range ev.findings {
 		path := f.anchor.HeadingPath
-		if path == nil {
-			path = []string{}
+		if path == nil || in.profile.Profile.DocScope(f.slug) {
+			path = []string{} // a doc-scope check is waived for the whole doc
 		}
 		waived[i] = valid[waiverKey(f.slug, path)]
 		if !waived[i] {

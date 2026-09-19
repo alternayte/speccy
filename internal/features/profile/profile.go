@@ -367,3 +367,14 @@ func (l lineIndex) line(off int) int {
 	n := sort.Search(len(l), func(i int) bool { return l[i] > off })
 	return n
 }
+
+// DocScope reports whether the check with slug reads the whole doc (scope: doc). Its finding
+// is about the doc, so a waiver of it covers the whole doc, not the section the finding points at.
+func (p Profile) DocScope(slug string) bool {
+	for _, c := range p.Checks {
+		if c.Slug == slug {
+			return c.Scope != "section"
+		}
+	}
+	return false
+}

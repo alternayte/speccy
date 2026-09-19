@@ -96,3 +96,12 @@ verify: gen-check lint test test-pg budget
 # Docker for hosted mode, and the claude CLI for the full reviews (model: GAUNTLET_MODEL, default haiku).
 gauntlet run: build
     go run ./tools/buildtool gauntlet {{run}}
+
+# Build the release archives and images locally, without publishing (a snapshot).
+release-check:
+    goreleaser release --snapshot --clean
+
+# Publish a release from the current tag: archives, checksums, and images (BUILD.md §3).
+# CI runs this on a pushed v* tag; see .github/workflows/release.yml.
+release:
+    goreleaser release --clean

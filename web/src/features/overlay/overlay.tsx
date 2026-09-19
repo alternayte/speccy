@@ -19,7 +19,11 @@ export const layerIcon = Object.fromEntries(layers.map((l) => [l.key, l.icon])) 
 
 const storageKey = "speccy.overlay";
 
-// useLayers keeps the switched-on layers per browser. Every layer is on by default.
+// defaultLayers are on until the reader chooses: the findings that block and the ones that
+// need a decision. The writing, claim, and conflict layers are one click away.
+const defaultLayers: FindingLayer[] = ["risk", "ambiguous"];
+
+// useLayers keeps the switched-on layers per browser.
 export function useLayers() {
   const [on, setOn] = useState<Set<FindingLayer>>(() => {
     try {
@@ -28,7 +32,7 @@ export function useLayers() {
     } catch {
       // storage can be blocked; the default applies
     }
-    return new Set(layers.map((l) => l.key));
+    return new Set(defaultLayers);
   });
   const toggle = useCallback((k: FindingLayer) => {
     setOn((prev) => {

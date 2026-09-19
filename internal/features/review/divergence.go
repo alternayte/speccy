@@ -555,7 +555,7 @@ func newCiteIndex(in input) citeIndex {
 		}
 	}
 	for _, h := range profile.RequiredHeadings(in.profile.TemplateText) {
-		idx.required[strings.ToLower(strings.TrimSpace(h.Title))] = true
+		idx.required[lint.NormTitle(h.Title)] = true
 	}
 	return idx
 }
@@ -589,7 +589,7 @@ func (idx citeIndex) level(cites []cite) kernel.Level {
 				return kernel.Must
 			}
 		case "section":
-			if len(c.Path) > 0 && idx.required[strings.ToLower(strings.TrimSpace(c.Path[len(c.Path)-1]))] {
+			if len(c.Path) > 0 && idx.required[lint.NormTitle(c.Path[len(c.Path)-1])] {
 				return kernel.Must
 			}
 		}
