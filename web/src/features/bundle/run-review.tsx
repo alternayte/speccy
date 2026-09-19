@@ -10,7 +10,7 @@ import type { Run, RunEvent } from "@/lib/api";
 import { estimateRunOptions, listRunsOptions, startRunMutation } from "@/lib/api/@tanstack/react-query.gen";
 import { problemCode, problemMessage } from "@/lib/problem";
 
-const stages = ["lint", "rubric", "grounding", "verdict"] as const;
+const stages = ["lint", "rubric", "grounding", "divergence", "verdict"] as const;
 
 // RunReviewButton starts a full review after it shows the estimated cost (REQ-104).
 export function RunReviewButton({
@@ -50,7 +50,7 @@ export function RunReviewButton({
           setOpen(o);
         }}
         title="Run a full review"
-        description="Lint runs on every save. A full review adds the AI stages: the rubric checks and fact checks."
+        description="Lint runs on every save. A full review adds the AI stages: the rubric checks, fact checks, and the divergence test."
       >
         {estimate.isPending ? (
           <Loading label="Estimating the cost" />

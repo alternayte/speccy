@@ -10,6 +10,7 @@ import { getBundleOptions, getRunOptions, listFilesOptions } from "@/lib/api/@ta
 import type { Anchor, Finding } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 import { EvidencePanel } from "./evidence-panel";
+import { QuestionsPanel } from "./questions-panel";
 import { Explorer } from "./explorer";
 import { FindingsPanel } from "./findings-panel";
 import type { BundleSearch } from "./search";
@@ -18,9 +19,14 @@ import { VerdictBar } from "./verdict";
 import { VersionsPanel } from "./versions-panel";
 
 type Panel = "files" | "rail" | null;
-type RailTab = "findings" | "evidence" | "versions";
+type RailTab = "findings" | "evidence" | "questions" | "versions";
 
-const railLabels: Record<RailTab, string> = { findings: "Findings", evidence: "Evidence", versions: "Versions" };
+const railLabels: Record<RailTab, string> = {
+  findings: "Findings",
+  evidence: "Evidence",
+  questions: "Questions",
+  versions: "Versions",
+};
 
 export function BundlePage({ bundleId, search }: { bundleId: string; search: BundleSearch }) {
   const navigate = useNavigate();
@@ -211,7 +217,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
 
         <aside
           className={clsx(
-            "no-print w-[var(--rail)] shrink-0 border-l border-line bg-surface",
+            "no-print w-[var(--review-rail)] shrink-0 border-l border-line bg-surface",
             panel === "rail" ? "absolute inset-y-0 right-0 z-20 w-[min(100%,360px)] shadow-pop" : "hidden xl:block",
           )}
         >
@@ -219,9 +225,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             <div
               role="tablist"
               aria-label="Review"
-              className="flex h-10 shrink-0 items-end gap-3 border-b border-line px-3 whitespace-nowrap"
+              className="flex h-10 shrink-0 items-end gap-2 border-b border-line px-3 whitespace-nowrap"
             >
-              {(["findings", "evidence", "versions"] as const).map((t) => (
+              {(["findings", "evidence", "questions", "versions"] as const).map((t) => (
                 <button
                   key={t}
                   role="tab"
@@ -252,6 +258,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                   version={b.current_version.id}
                   onOpen={openAnchor}
                 />
+              ) : tab === "questions" ? (
+                <QuestionsPanel runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined} onOpen={openAnchor} />
               ) : (
                 <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
               )}
