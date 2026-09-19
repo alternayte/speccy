@@ -69,6 +69,7 @@ var sentenceRe = regexp.MustCompile(`[A-Z][^.\n]*\d[^.\n]*\.`)
 var claimRe = regexp.MustCompile(`(?s)Claim (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
 var questionRe = regexp.MustCompile(`(?s)Question (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
 var answerRe = regexp.MustCompile(`(?s)Answer ([A-Z]):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
+var dataBlockRe = regexp.MustCompile(`(?s)<<<DATA [0-9a-f]+\n(.*?)\nDATA [0-9a-f]+>>>`)
 var headingPathRe = regexp.MustCompile(`(?m)^- (.+)$`)
 
 // readerAnswer is how each fake reader answers a question. A question about retries splits
@@ -168,6 +169,27 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			answers = append(answers, a)
 		}
 		out = map[string]any{"answers": answers}
+	case review.PromptContradiction:
+		// A sentence about "working days" conflicts with one in the other doc that has a
+		// different number of days. "invented" adds a conflict with a quote not in either doc.
+		blocks := dataBlockRe.FindAllStringSubmatch(c.Prompt, -1)
+		daysRe := regexp.MustCompile(`[^.\n]*\b(\d+) working days[^.\n]*\.`)
+		var conflicts []map[string]any
+		if len(blocks) >= 2 {
+			this, other := blocks[0][1], blocks[len(blocks)-1][1]
+			for _, a := range daysRe.FindAllStringSubmatch(this, -1) {
+				for _, b := range daysRe.FindAllStringSubmatch(other, -1) {
+					if a[1] != b[1] {
+						conflicts = append(conflicts, map[string]any{"analysis": "Different days.", "both_can_hold": false, "this_quote": strings.TrimSpace(a[0]), "other_quote": strings.TrimSpace(b[0]), "explanation": "The docs give different refund times."})
+					}
+				}
+			}
+			if strings.Contains(this, "invented") {
+				conflicts = append(conflicts, map[string]any{"analysis": "Made up.", "both_can_hold": false, "this_quote": "the refund is never paid", "other_quote": "refunds are free", "explanation": "Made up."},
+					map[string]any{"analysis": "One adds a detail.", "both_can_hold": true, "this_quote": "The invented case is handled.", "other_quote": "within 5 working days", "explanation": "Not a conflict."})
+			}
+		}
+		out = map[string]any{"conflicts": nonNilMaps(conflicts)}
 	case review.PromptJudge:
 		byText := map[string][]string{}
 		var order []string
@@ -193,6 +215,13 @@ func (r *reviewer) count(prompt string) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.calls[prompt]
+}
+
+func nonNilMaps(xs []map[string]any) []map[string]any {
+	if xs == nil {
+		return []map[string]any{}
+	}
+	return xs
 }
 
 func nonNil(xs []string) []string {

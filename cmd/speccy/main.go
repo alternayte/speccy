@@ -183,7 +183,7 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 		VersionAPI: &version.API{DB: db, Workspace: ws},
 		ExportAPI:  &export.API{DB: db, Workspace: ws},
 		ProfileAPI: &profile.API{Registry: profiles},
-		ReviewAPI:  &review.API{DB: db, Workspace: ws, Service: reviews},
+		ReviewAPI:  &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change},
 		AdminAPI:   adminAPI,
 	}
 	return func(spa fs.FS) nethttp.Handler { return speccyhttp.Handler(spa, api) }, nil

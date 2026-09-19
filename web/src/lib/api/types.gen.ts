@@ -81,6 +81,10 @@ export type BundleVerdict = {
     must: number;
     should: number;
     info: number;
+    /**
+     * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+     */
+    stale_reason?: 'upstream_changed';
 };
 
 export type VerdictResult = 'build_ready' | 'not_build_ready' | 'stale';
@@ -154,6 +158,78 @@ export type Claim = {
     label: 'verified' | 'contradicted' | 'unverified';
     reason: string;
     sources: Array<string>;
+    anchor: Anchor;
+};
+
+export type TraceView = {
+    /**
+     * The links of the current version, from frontmatter and link rules.
+     */
+    links: Array<BundleLink>;
+    /**
+     * Links from other bundles to this one.
+     */
+    incoming: Array<BundleLink>;
+    standalone?: Standalone;
+    /**
+     * One matrix for this bundle's own IDs, when other bundles implement it, and one for each bundle it implements.
+     */
+    matrices: Array<TraceMatrix>;
+    suggestions: Array<IdSuggestion>;
+};
+
+export type BundleRef = {
+    id: string;
+    slug: string;
+    title: string;
+    profile_key: string;
+};
+
+export type BundleLink = {
+    kind: 'implements' | 'refines' | 'references' | 'supersedes';
+    origin: 'frontmatter' | 'rule';
+    target_kind: 'bundle' | 'external';
+    /**
+     * The target as written. For an incoming link, the source bundle's slug.
+     */
+    target_ref: string;
+    /**
+     * The linked bundle. Absent when no bundle matches the target.
+     */
+    bundle?: BundleRef;
+};
+
+export type Standalone = {
+    reason: string;
+    acknowledged_by: string;
+};
+
+export type TraceMatrix = {
+    upstream: BundleRef;
+    rows: Array<TraceRow>;
+    columns: Array<BundleRef>;
+    /**
+     * cells[row][column].
+     */
+    cells: Array<Array<TraceCell>>;
+};
+
+export type TraceRow = {
+    id: string;
+    text: string;
+    anchor: Anchor;
+};
+
+export type TraceCell = {
+    state: 'referenced' | 'covered_by' | 'out_of_scope' | 'gap';
+    refs: Array<Anchor>;
+    reason?: string;
+    target?: string;
+};
+
+export type IdSuggestion = {
+    id: string;
+    text: string;
     anchor: Anchor;
 };
 
@@ -1037,6 +1113,71 @@ export type ListAssumptionsResponses = {
 };
 
 export type ListAssumptionsResponse = ListAssumptionsResponses[keyof ListAssumptionsResponses];
+
+export type GetTraceData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/trace';
+};
+
+export type GetTraceErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetTraceError = GetTraceErrors[keyof GetTraceErrors];
+
+export type GetTraceResponses = {
+    /**
+     * The trace view of the current version.
+     */
+    200: TraceView;
+};
+
+export type GetTraceResponse = GetTraceResponses[keyof GetTraceResponses];
+
+export type AddTraceIdsData = {
+    body: {
+        /**
+         * The suggested IDs to insert, from GET /trace.
+         */
+        ids: Array<string>;
+    };
+    path: {
+        bundleId: string;
+    };
+    query: {
+        /**
+         * The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+         *
+         */
+        base_version: string;
+    };
+    url: '/bundles/{bundleId}/trace/ids';
+};
+
+export type AddTraceIdsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AddTraceIdsError = AddTraceIdsErrors[keyof AddTraceIdsErrors];
+
+export type AddTraceIdsResponses = {
+    /**
+     * The new version.
+     */
+    200: WriteResult;
+};
+
+export type AddTraceIdsResponse = AddTraceIdsResponses[keyof AddTraceIdsResponses];
 
 export type RunEventsData = {
     body?: never;

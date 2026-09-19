@@ -148,13 +148,24 @@ func Sort(files []File) {
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 }
 
-// Frontmatter is the part of a main doc's frontmatter that Speccy reads (SDD §10.2). Trace
-// acknowledgements and waivers arrive with coherence (M7) and waivers (M9).
+// Frontmatter is the part of a main doc's frontmatter that Speccy reads (SDD §10.2).
+// Waivers arrive with M9.
 type Frontmatter struct {
 	Type       string      `yaml:"type"`
 	Title      string      `yaml:"title"`
 	Links      []Link      `yaml:"links"`
 	Standalone *Standalone `yaml:"standalone"`
+	Trace      []TraceAck  `yaml:"trace"`
+}
+
+// TraceAck acknowledges that an upstream trace ID is intentionally not covered (SDD §9.4).
+type TraceAck struct {
+	ID             string `yaml:"id"`
+	Status         string `yaml:"status"` // covered_by | out_of_scope
+	Target         string `yaml:"target"`
+	Reason         string `yaml:"reason"`
+	AcknowledgedBy string `yaml:"acknowledged_by"`
+	ApprovedBy     string `yaml:"approved_by"`
 }
 
 // Link is a frontmatter link to another bundle (REQ-050).

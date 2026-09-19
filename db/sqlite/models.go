@@ -108,6 +108,17 @@ type Job struct {
 	CreatedAt   time.Time
 }
 
+type Link struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	FromBundleID   uuid.UUID
+	Kind           string
+	TargetKind     string
+	TargetBundleID uuid.NullUUID
+	TargetRef      string
+	Origin         string
+}
+
 type McpConnection struct {
 	ID              uuid.UUID
 	WorkspaceID     uuid.UUID
@@ -199,6 +210,12 @@ type RoleAssignment struct {
 	Model           string
 	PriceInPerMtok  float64
 	PriceOutPerMtok float64
+}
+
+type RunLink struct {
+	RunID     uuid.UUID
+	BundleID  uuid.UUID
+	VersionID uuid.UUID
 }
 
 type Verdict struct {

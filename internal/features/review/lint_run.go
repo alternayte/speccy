@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -119,6 +120,10 @@ type input struct {
 	doc     section.Doc
 	profile profile.Versioned
 	relaxed map[string]bool
+	fm      source.Frontmatter
+	// links are the version's links; linked are the bundle targets, at their current version.
+	links  []link
+	linked []linked
 }
 
 func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, p profile.Versioned) (input, error) {
@@ -133,6 +138,13 @@ func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, 
 		}
 	}
 	in.doc = section.Parse(in.main)
+	in.fm, _, _ = source.ReadFrontmatter(in.main)
+	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
+		return input{}, err
+	}
+	if in.linked, err = s.loadLinked(ctx, in.links); err != nil {
+		return input{}, err
+	}
 	if s.Repo != nil {
 		for _, slug := range s.Repo().Adoption.Relaxed {
 			in.relaxed[slug] = true
@@ -157,6 +169,7 @@ func lintStage(in input) evaluation {
 		paths[i] = f.Path
 	}
 	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.MainDoc, paths, in.relaxed)
+	cfg.UpstreamIDs = upstreamIDs(in)
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
 	for _, f := range res.Findings {
@@ -168,7 +181,7 @@ func lintStage(in input) evaluation {
 	}
 	if up := in.profile.Profile.Links.Upstream; up != nil && up.Required {
 		level := in.level(HasUpstreamSlug, checkLevel(in.profile.Profile, HasUpstreamSlug, kernel.Must))
-		has := hasUpstream(in.main, up.Kinds)
+		has, missing := hasUpstream(in, up.Kinds, up.Types)
 		ev.in.UpstreamRequired = level == kernel.Must
 		ev.in.HasUpstream = has
 		ev.items = append(ev.items, verdict.Item{Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
@@ -179,8 +192,14 @@ func lintStage(in input) evaluation {
 					strings.ToUpper(in.profile.Profile.Key), strings.Join(up.Kinds, " or "), strings.ToUpper(strings.Join(up.Types, " or "))),
 				fix: "Add a link under links: in the frontmatter, or a standalone: entry with the reason.",
 			})
+			if missing != "" {
+				f := &ev.findings[len(ev.findings)-1]
+				f.message = fmt.Sprintf("No bundle matches the link target %q, so this %s has no upstream doc.", missing, strings.ToUpper(in.profile.Profile.Key))
+				f.fix = "Use the target bundle's slug, or a path relative to this doc, or add a standalone: entry with the reason."
+			}
 		}
 	}
+	coherenceChecks(in, &ev)
 	return ev
 }
 
@@ -198,7 +217,8 @@ func docAnchor(in input) anchor.Anchor {
 
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
 func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
-	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, DivergenceAmbiguous: true, DivergenceGap: true}
+	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, DivergenceAmbiguous: true, DivergenceGap: true,
+		RestatementSlug: true, ContradictionSlug: true}
 	for _, r := range lint.Rules {
 		known[r.Slug] = true
 	}
@@ -216,9 +236,9 @@ func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
 
 // save stores a finished run with its findings, claims, and verdict, in one transaction.
 // An existing row (a queued full run) is finished; a new one (a lint run) is inserted.
-func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, ev evaluation, p profile.Profile, existing bool) error {
+func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev evaluation, p profile.Profile, existing bool) error {
 	var rows []pgdb.InsertFindingParams
-	in := ev.in
+	vin := ev.in
 	for _, f := range ev.findings {
 		id := kernel.NewID()
 		anchorJSON, _ := json.Marshal(f.anchor)
@@ -235,10 +255,10 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, ev evaluation, p
 			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
 			Anchor: anchorJSON, Message: f.message, Evidence: evidence, Suggestion: sugg,
 		})
-		in.Findings = append(in.Findings, verdict.Finding{ID: id.String(), Level: f.level})
+		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level})
 	}
-	in.Items = ev.items
-	v := verdict.Decide(in)
+	vin.Items = ev.items
+	v := verdict.Decide(vin)
 	finished := time.Now().UTC()
 	return s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
@@ -259,6 +279,17 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, ev evaluation, p
 			an, _ := json.Marshal(c.anchor)
 			if err := q.InsertClaim(ctx, pgdb.InsertClaimParams{ID: kernel.NewID(), RunID: run.ID, Text: c.text, Label: c.label,
 				Reason: c.reason, Sources: sources, Anchor: an}); err != nil {
+				return err
+			}
+		}
+		// REQ-056: the linked versions this run used.
+		for _, l := range in.linked {
+			if err := q.InsertRunLink(ctx, pgdb.InsertRunLinkParams{RunID: run.ID, BundleID: l.target.ID, VersionID: l.version}); err != nil {
+				return err
+			}
+		}
+		if in.bundle.CurrentVersionID.Valid && in.bundle.CurrentVersionID.UUID == run.VersionID {
+			if err := storeLinks(ctx, q, s.Workspace, in.bundle, in.links); err != nil {
 				return err
 			}
 		}
@@ -289,26 +320,24 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, ev evaluation, p
 func (s *Service) EnsureLinted(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	q := s.DB.Queries()
-	after := ""
-	for {
-		page, err := q.ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: s.Workspace, AfterSlug: after, PageSize: 100})
-		if err != nil {
-			return err
-		}
-		for _, b := range page {
-			if err := s.lintIfNeeded(ctx, b); err != nil {
-				return fmt.Errorf("lint %s: %w", b.Slug, err)
-			}
-		}
-		if len(page) < 100 {
-			return nil
-		}
-		after = page[len(page)-1].Slug
+	all, err := s.allBundles(ctx)
+	if err != nil {
+		return err
 	}
+	for _, b := range all {
+		if err := s.lintIfNeeded(ctx, b, all); err != nil {
+			return fmt.Errorf("lint %s: %w", b.Slug, err)
+		}
+	}
+	return nil
 }
 
-func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle) error {
+// lintIfNeeded lints b when its current version has no run with the current profile version.
+// Otherwise it refreshes b's stored links, which change without a new version when a link
+// rule or a target bundle changes, and lints again when a lint verdict read other linked
+// versions than the current ones (REQ-056). A full verdict stays stale until the next full
+// run, so its model results are not hidden.
+func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bundle) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
@@ -317,17 +346,90 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle) error {
 	if ok {
 		pv = p.Version
 	}
-	_, err := s.DB.Queries().LatestRunFor(ctx, pgdb.LatestRunForParams{
+	q := s.DB.Queries()
+	latest, err := q.LatestRunFor(ctx, pgdb.LatestRunForParams{
 		BundleID: b.ID, VersionID: b.CurrentVersionID.UUID, ProfileKey: b.ProfileKey, ProfileVersion: pv,
 	})
-	if err == nil {
+	if errors.Is(err, sql.ErrNoRows) {
+		_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
+		return err
+	}
+	if err != nil {
+		return err
+	}
+	files, err := version.Files(ctx, q, b.CurrentVersionID.UUID)
+	if err != nil {
+		return err
+	}
+	var main []byte
+	for _, f := range files {
+		if f.Path == b.MainDoc {
+			main = f.Content
+		}
+	}
+	links := resolveLinksIn(all, b, main, s.linkRules())
+	stored, err := q.ListLinksFrom(ctx, b.ID)
+	if err != nil {
+		return err
+	}
+	if !sameLinks(stored, links) {
+		if err := s.DB.InTx(ctx, func(tx store.Tx) error { return storeLinks(ctx, tx.Queries(), s.Workspace, b, links) }); err != nil {
+			return err
+		}
+	}
+	if latest.Kind != "lint" || latest.Status != "complete" {
 		return nil
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
+	used, err := q.ListRunLinks(ctx, latest.ID)
+	if err != nil {
 		return err
+	}
+	if sameVersions(used, links) {
+		return nil
 	}
 	_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
 	return err
+}
+
+// sameLinks reports whether the stored links equal links.
+func sameLinks(stored []pgdb.Link, links []link) bool {
+	key := func(kind, ref, origin, targetKind string, target uuid.NullUUID) string {
+		return strings.Join([]string{kind, ref, origin, targetKind, target.UUID.String(), fmt.Sprint(target.Valid)}, "|")
+	}
+	a := make([]string, 0, len(stored))
+	for _, l := range stored {
+		a = append(a, key(l.Kind, l.TargetRef, l.Origin, l.TargetKind, l.TargetBundleID))
+	}
+	b := make([]string, 0, len(links))
+	for _, l := range links {
+		var t uuid.NullUUID
+		if l.target != nil {
+			t = uuid.NullUUID{UUID: l.target.ID, Valid: true}
+		}
+		b = append(b, key(l.kind, l.ref, l.origin, l.targetKind, t))
+	}
+	sort.Strings(a)
+	sort.Strings(b)
+	return slices.Equal(a, b)
+}
+
+// sameVersions reports whether a run read the current version of each linked bundle.
+func sameVersions(used []pgdb.RunLink, links []link) bool {
+	now := map[uuid.UUID]uuid.UUID{}
+	for _, l := range links {
+		if l.target != nil && l.target.CurrentVersionID.Valid {
+			now[l.target.ID] = l.target.CurrentVersionID.UUID
+		}
+	}
+	if len(used) != len(now) {
+		return false
+	}
+	for _, u := range used {
+		if now[u.BundleID] != u.VersionID {
+			return false
+		}
+	}
+	return true
 }
 
 // noProfile is the error of a run on a doc whose type has no profile.
@@ -356,7 +458,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) 
 		return run, err
 	}
 	run.Status = "complete"
-	return run, s.save(ctx, run, lintStage(in), p.Profile, false)
+	return run, s.save(ctx, run, in, lintStage(in), p.Profile, false)
 }
 
 func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished time.Time) error {
@@ -426,24 +528,28 @@ func checkLevel(p profile.Profile, slug string, fallback kernel.Level) kernel.Le
 	return fallback
 }
 
-// hasUpstream reports whether the frontmatter links upstream with one of kinds, or has a
-// standalone acknowledgement with a reason.
-func hasUpstream(main []byte, kinds []string) bool {
-	fm, _, err := source.ReadFrontmatter(main)
-	if err != nil {
-		return false
+// hasUpstream reports whether the doc links to a bundle of one of types with one of kinds, or
+// has a standalone acknowledgement with a reason (REQ-057). missing is the first link target
+// of a right kind that no bundle matches.
+func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
+	if standalone(in.fm) {
+		return true, ""
 	}
-	if fm.Standalone != nil && strings.TrimSpace(fm.Standalone.Reason) != "" {
-		return true
-	}
-	for _, l := range fm.Links {
-		for _, k := range kinds {
-			if l.Kind == k && strings.TrimSpace(l.Target) != "" {
-				return true
+	for _, l := range in.links {
+		if !slices.Contains(kinds, l.kind) {
+			continue
+		}
+		if l.target == nil {
+			if l.targetKind == "bundle" && missing == "" {
+				missing = l.ref
 			}
+			continue
+		}
+		if len(types) == 0 || slices.Contains(types, l.target.ProfileKey) {
+			return true, ""
 		}
 	}
-	return false
+	return false, missing
 }
 
 func profileKeys(ps map[string]profile.Versioned) []string {
@@ -453,4 +559,22 @@ func profileKeys(ps map[string]profile.Versioned) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// upstreamMoved reports whether a bundle that the run read has a newer version now (REQ-056).
+func upstreamMoved(ctx context.Context, q store.Querier, workspace, runID uuid.UUID) (bool, error) {
+	links, err := q.ListRunLinks(ctx, runID)
+	if err != nil {
+		return false, err
+	}
+	for _, l := range links {
+		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: workspace, ID: l.BundleID})
+		if err != nil {
+			return false, err
+		}
+		if !b.CurrentVersionID.Valid || b.CurrentVersionID.UUID != l.VersionID {
+			return true, nil
+		}
+	}
+	return false, nil
 }

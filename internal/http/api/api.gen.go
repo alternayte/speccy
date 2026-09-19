@@ -85,19 +85,19 @@ func (e BuildQuestionLevel) Valid() bool {
 
 // Defines values for BuildQuestionResult.
 const (
-	Agree   BuildQuestionResult = "agree"
-	Diverge BuildQuestionResult = "diverge"
-	Gap     BuildQuestionResult = "gap"
+	BuildQuestionResultAgree   BuildQuestionResult = "agree"
+	BuildQuestionResultDiverge BuildQuestionResult = "diverge"
+	BuildQuestionResultGap     BuildQuestionResult = "gap"
 )
 
 // Valid indicates whether the value is a known member of the BuildQuestionResult enum.
 func (e BuildQuestionResult) Valid() bool {
 	switch e {
-	case Agree:
+	case BuildQuestionResultAgree:
 		return true
-	case Diverge:
+	case BuildQuestionResultDiverge:
 		return true
-	case Gap:
+	case BuildQuestionResultGap:
 		return true
 	default:
 		return false
@@ -125,6 +125,66 @@ func (e BundleSourceKind) Valid() bool {
 	}
 }
 
+// Defines values for BundleLinkKind.
+const (
+	Implements BundleLinkKind = "implements"
+	References BundleLinkKind = "references"
+	Refines    BundleLinkKind = "refines"
+	Supersedes BundleLinkKind = "supersedes"
+)
+
+// Valid indicates whether the value is a known member of the BundleLinkKind enum.
+func (e BundleLinkKind) Valid() bool {
+	switch e {
+	case Implements:
+		return true
+	case References:
+		return true
+	case Refines:
+		return true
+	case Supersedes:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BundleLinkOrigin.
+const (
+	Frontmatter BundleLinkOrigin = "frontmatter"
+	Rule        BundleLinkOrigin = "rule"
+)
+
+// Valid indicates whether the value is a known member of the BundleLinkOrigin enum.
+func (e BundleLinkOrigin) Valid() bool {
+	switch e {
+	case Frontmatter:
+		return true
+	case Rule:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BundleLinkTargetKind.
+const (
+	BundleLinkTargetKindBundle   BundleLinkTargetKind = "bundle"
+	BundleLinkTargetKindExternal BundleLinkTargetKind = "external"
+)
+
+// Valid indicates whether the value is a known member of the BundleLinkTargetKind enum.
+func (e BundleLinkTargetKind) Valid() bool {
+	switch e {
+	case BundleLinkTargetKindBundle:
+		return true
+	case BundleLinkTargetKindExternal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BundleVerdictKind.
 const (
 	BundleVerdictKindFull BundleVerdictKind = "full"
@@ -137,6 +197,21 @@ func (e BundleVerdictKind) Valid() bool {
 	case BundleVerdictKindFull:
 		return true
 	case BundleVerdictKindLint:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BundleVerdictStaleReason.
+const (
+	UpstreamChanged BundleVerdictStaleReason = "upstream_changed"
+)
+
+// Valid indicates whether the value is a known member of the BundleVerdictStaleReason enum.
+func (e BundleVerdictStaleReason) Valid() bool {
+	switch e {
+	case UpstreamChanged:
 		return true
 	default:
 		return false
@@ -353,6 +428,30 @@ func (e RunStatus) Valid() bool {
 	}
 }
 
+// Defines values for TraceCellState.
+const (
+	TraceCellStateCoveredBy  TraceCellState = "covered_by"
+	TraceCellStateGap        TraceCellState = "gap"
+	TraceCellStateOutOfScope TraceCellState = "out_of_scope"
+	TraceCellStateReferenced TraceCellState = "referenced"
+)
+
+// Valid indicates whether the value is a known member of the TraceCellState enum.
+func (e TraceCellState) Valid() bool {
+	switch e {
+	case TraceCellStateCoveredBy:
+		return true
+	case TraceCellStateGap:
+		return true
+	case TraceCellStateOutOfScope:
+		return true
+	case TraceCellStateReferenced:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VerdictResult.
 const (
 	BuildReady    VerdictResult = "build_ready"
@@ -510,6 +609,27 @@ type BundleFile struct {
 	Size      int64  `json:"size"`
 }
 
+// BundleLink defines model for BundleLink.
+type BundleLink struct {
+	// Bundle The linked bundle. Absent when no bundle matches the target.
+	Bundle     *BundleRef           `json:"bundle,omitempty"`
+	Kind       BundleLinkKind       `json:"kind"`
+	Origin     BundleLinkOrigin     `json:"origin"`
+	TargetKind BundleLinkTargetKind `json:"target_kind"`
+
+	// TargetRef The target as written. For an incoming link, the source bundle's slug.
+	TargetRef string `json:"target_ref"`
+}
+
+// BundleLinkKind defines model for BundleLink.Kind.
+type BundleLinkKind string
+
+// BundleLinkOrigin defines model for BundleLink.Origin.
+type BundleLinkOrigin string
+
+// BundleLinkTargetKind defines model for BundleLink.TargetKind.
+type BundleLinkTargetKind string
+
 // BundleList defines model for BundleList.
 type BundleList struct {
 	Items      []Bundle `json:"items"`
@@ -525,6 +645,14 @@ type BundleProblem struct {
 	Path    string `json:"path"`
 }
 
+// BundleRef defines model for BundleRef.
+type BundleRef struct {
+	Id         openapi_types.UUID `json:"id"`
+	ProfileKey string             `json:"profile_key"`
+	Slug       string             `json:"slug"`
+	Title      string             `json:"title"`
+}
+
 // BundleVerdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
 type BundleVerdict struct {
 	Info int `json:"info"`
@@ -537,17 +665,23 @@ type BundleVerdict struct {
 	Radar map[string]int `json:"radar"`
 
 	// RelaxedCount Checks in adoption mode (REQ-133).
-	RelaxedCount  int                `json:"relaxed_count"`
-	Result        VerdictResult      `json:"result"`
-	RunId         openapi_types.UUID `json:"run_id"`
-	Score         int                `json:"score"`
-	Should        int                `json:"should"`
-	VersionNumber int64              `json:"version_number"`
-	WaiverCount   int                `json:"waiver_count"`
+	RelaxedCount int                `json:"relaxed_count"`
+	Result       VerdictResult      `json:"result"`
+	RunId        openapi_types.UUID `json:"run_id"`
+	Score        int                `json:"score"`
+	Should       int                `json:"should"`
+
+	// StaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+	StaleReason   *BundleVerdictStaleReason `json:"stale_reason,omitempty"`
+	VersionNumber int64                     `json:"version_number"`
+	WaiverCount   int                       `json:"waiver_count"`
 }
 
 // BundleVerdictKind lint means only the lint stage ran.
 type BundleVerdictKind string
+
+// BundleVerdictStaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+type BundleVerdictStaleReason string
 
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
@@ -633,6 +767,14 @@ type FindingLevel string
 // FindingList defines model for FindingList.
 type FindingList struct {
 	Items []Finding `json:"items"`
+}
+
+// IdSuggestion defines model for IdSuggestion.
+type IdSuggestion struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor Anchor `json:"anchor"`
+	Id     string `json:"id"`
+	Text   string `json:"text"`
 }
 
 // ImportRequest defines model for ImportRequest.
@@ -884,6 +1026,54 @@ type SectionDiff struct {
 	Status      ChangeStatus `json:"status"`
 }
 
+// Standalone defines model for Standalone.
+type Standalone struct {
+	AcknowledgedBy string `json:"acknowledged_by"`
+	Reason         string `json:"reason"`
+}
+
+// TraceCell defines model for TraceCell.
+type TraceCell struct {
+	Reason *string        `json:"reason,omitempty"`
+	Refs   []Anchor       `json:"refs"`
+	State  TraceCellState `json:"state"`
+	Target *string        `json:"target,omitempty"`
+}
+
+// TraceCellState defines model for TraceCell.State.
+type TraceCellState string
+
+// TraceMatrix defines model for TraceMatrix.
+type TraceMatrix struct {
+	// Cells cells[row][column].
+	Cells    [][]TraceCell `json:"cells"`
+	Columns  []BundleRef   `json:"columns"`
+	Rows     []TraceRow    `json:"rows"`
+	Upstream BundleRef     `json:"upstream"`
+}
+
+// TraceRow defines model for TraceRow.
+type TraceRow struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor Anchor `json:"anchor"`
+	Id     string `json:"id"`
+	Text   string `json:"text"`
+}
+
+// TraceView defines model for TraceView.
+type TraceView struct {
+	// Incoming Links from other bundles to this one.
+	Incoming []BundleLink `json:"incoming"`
+
+	// Links The links of the current version, from frontmatter and link rules.
+	Links []BundleLink `json:"links"`
+
+	// Matrices One matrix for this bundle's own IDs, when other bundles implement it, and one for each bundle it implements.
+	Matrices    []TraceMatrix  `json:"matrices"`
+	Standalone  *Standalone    `json:"standalone,omitempty"`
+	Suggestions []IdSuggestion `json:"suggestions"`
+}
+
 // VerdictResult defines model for VerdictResult.
 type VerdictResult string
 
@@ -1000,6 +1190,18 @@ type ListRunsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// AddTraceIdsJSONBody defines parameters for AddTraceIds.
+type AddTraceIdsJSONBody struct {
+	// Ids The suggested IDs to insert, from GET /trace.
+	Ids []string `json:"ids"`
+}
+
+// AddTraceIdsParams defines parameters for AddTraceIds.
+type AddTraceIdsParams struct {
+	// BaseVersion The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+	BaseVersion BaseVersion `form:"base_version" json:"base_version"`
+}
+
 // ListVersionsParams defines parameters for ListVersions.
 type ListVersionsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
@@ -1035,6 +1237,9 @@ type ImportBundleMultipartRequestBody = ImportRequest
 
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
+
+// AddTraceIdsJSONRequestBody defines body for AddTraceIds for application/json ContentType.
+type AddTraceIdsJSONRequestBody AddTraceIdsJSONBody
 
 // RenderMarkdownJSONRequestBody defines body for RenderMarkdown for application/json ContentType.
 type RenderMarkdownJSONRequestBody = RenderRequest
@@ -1134,6 +1339,12 @@ type ServerInterface interface {
 	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
 	// (GET /bundles/{bundleId}/runs/estimate)
 	EstimateRun(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+	// (GET /bundles/{bundleId}/trace)
+	GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	// (POST /bundles/{bundleId}/trace/ids)
+	AddTraceIds(w http.ResponseWriter, r *http.Request, bundleId BundleId, params AddTraceIdsParams)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
@@ -2042,6 +2253,74 @@ func (siw *ServerInterfaceWrapper) EstimateRun(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GetTrace operation middleware
+func (siw *ServerInterfaceWrapper) GetTrace(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTrace(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddTraceIds operation middleware
+func (siw *ServerInterfaceWrapper) AddTraceIds(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddTraceIdsParams
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddTraceIds(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListVersions operation middleware
 func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
 
@@ -2406,6 +2685,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs/estimate", wrapper.EstimateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/assumptions", wrapper.ListAssumptions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/trace", wrapper.GetTrace)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/trace/ids", wrapper.AddTraceIds)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/events", wrapper.RunEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/claims", wrapper.ListClaims)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/questions", wrapper.ListQuestions)
@@ -3652,6 +3933,86 @@ func (response EstimateRundefaultApplicationProblemPlusJSONResponse) VisitEstima
 	return err
 }
 
+type GetTraceRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type GetTraceResponseObject interface {
+	VisitGetTraceResponse(w http.ResponseWriter) error
+}
+
+type GetTrace200JSONResponse TraceView
+
+func (response GetTrace200JSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTracedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetTracedefaultApplicationProblemPlusJSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTraceIdsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   AddTraceIdsParams
+	Body     *AddTraceIdsJSONRequestBody
+}
+
+type AddTraceIdsResponseObject interface {
+	VisitAddTraceIdsResponse(w http.ResponseWriter) error
+}
+
+type AddTraceIds200JSONResponse WriteResult
+
+func (response AddTraceIds200JSONResponse) VisitAddTraceIdsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTraceIdsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AddTraceIdsdefaultApplicationProblemPlusJSONResponse) VisitAddTraceIdsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListVersionsRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 	Params   ListVersionsParams
@@ -4130,6 +4491,12 @@ type StrictServerInterface interface {
 	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
 	// (GET /bundles/{bundleId}/runs/estimate)
 	EstimateRun(ctx context.Context, request EstimateRunRequestObject) (EstimateRunResponseObject, error)
+	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+	// (GET /bundles/{bundleId}/trace)
+	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
+	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	// (POST /bundles/{bundleId}/trace/ids)
+	AddTraceIds(ctx context.Context, request AddTraceIdsRequestObject) (AddTraceIdsResponseObject, error)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
@@ -5056,6 +5423,66 @@ func (sh *strictHandler) EstimateRun(w http.ResponseWriter, r *http.Request, bun
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(EstimateRunResponseObject); ok {
 		if err := validResponse.VisitEstimateRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTrace operation middleware
+func (sh *strictHandler) GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request GetTraceRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTrace(ctx, request.(GetTraceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTrace")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTraceResponseObject); ok {
+		if err := validResponse.VisitGetTraceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddTraceIds operation middleware
+func (sh *strictHandler) AddTraceIds(w http.ResponseWriter, r *http.Request, bundleId BundleId, params AddTraceIdsParams) {
+	var request AddTraceIdsRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	var body AddTraceIdsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddTraceIds(ctx, request.(AddTraceIdsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddTraceIds")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddTraceIdsResponseObject); ok {
+		if err := validResponse.VisitAddTraceIdsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

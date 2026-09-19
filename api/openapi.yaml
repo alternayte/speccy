@@ -329,6 +329,53 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/trace:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: getTrace
+      summary: The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+      responses:
+        "200":
+          description: The trace view of the current version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TraceView"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/trace/ids:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/BaseVersion"
+    post:
+      operationId: addTraceIds
+      summary: Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                  description: The suggested IDs to insert, from GET /trace.
+      responses:
+        "200":
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /runs/{runId}/events:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -911,6 +958,10 @@ components:
           type: integer
         info:
           type: integer
+        stale_reason:
+          type: string
+          enum: [upstream_changed]
+          description: Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
 
     VerdictResult:
       type: string
@@ -1043,6 +1094,135 @@ components:
           type: array
           items:
             type: string
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+
+    TraceView:
+      type: object
+      required: [links, incoming, matrices, suggestions]
+      properties:
+        links:
+          type: array
+          description: The links of the current version, from frontmatter and link rules.
+          items:
+            $ref: "#/components/schemas/BundleLink"
+        incoming:
+          type: array
+          description: Links from other bundles to this one.
+          items:
+            $ref: "#/components/schemas/BundleLink"
+        standalone:
+          $ref: "#/components/schemas/Standalone"
+        matrices:
+          type: array
+          description: One matrix for this bundle's own IDs, when other bundles implement it, and one for each bundle it implements.
+          items:
+            $ref: "#/components/schemas/TraceMatrix"
+        suggestions:
+          type: array
+          items:
+            $ref: "#/components/schemas/IdSuggestion"
+
+    BundleRef:
+      type: object
+      required: [id, slug, title, profile_key]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        title:
+          type: string
+        profile_key:
+          type: string
+
+    BundleLink:
+      type: object
+      required: [kind, origin, target_kind, target_ref]
+      properties:
+        kind:
+          type: string
+          enum: [implements, refines, references, supersedes]
+        origin:
+          type: string
+          enum: [frontmatter, rule]
+        target_kind:
+          type: string
+          enum: [bundle, external]
+        target_ref:
+          type: string
+          description: The target as written. For an incoming link, the source bundle's slug.
+        bundle:
+          $ref: "#/components/schemas/BundleRef"
+          description: The linked bundle. Absent when no bundle matches the target.
+
+    Standalone:
+      type: object
+      required: [reason, acknowledged_by]
+      properties:
+        reason:
+          type: string
+        acknowledged_by:
+          type: string
+
+    TraceMatrix:
+      type: object
+      required: [upstream, rows, columns, cells]
+      properties:
+        upstream:
+          $ref: "#/components/schemas/BundleRef"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/TraceRow"
+        columns:
+          type: array
+          items:
+            $ref: "#/components/schemas/BundleRef"
+        cells:
+          type: array
+          description: cells[row][column].
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/TraceCell"
+
+    TraceRow:
+      type: object
+      required: [id, text, anchor]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+        anchor:
+          $ref: "#/components/schemas/Anchor"
+
+    TraceCell:
+      type: object
+      required: [state, refs]
+      properties:
+        state:
+          type: string
+          enum: [referenced, covered_by, out_of_scope, gap]
+        refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Anchor"
+        reason:
+          type: string
+        target:
+          type: string
+
+    IdSuggestion:
+      type: object
+      required: [id, text, anchor]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
         anchor:
           $ref: "#/components/schemas/Anchor"
 

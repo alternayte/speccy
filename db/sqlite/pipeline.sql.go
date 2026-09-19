@@ -50,6 +50,15 @@ func (q *Queries) ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 	return i, err
 }
 
+const deleteLinksFrom = `-- name: DeleteLinksFrom :exec
+DELETE FROM link WHERE from_bundle_id = ?1
+`
+
+func (q *Queries) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLinksFrom, fromBundleID)
+	return err
+}
+
 const deleteMCPConnection = `-- name: DeleteMCPConnection :exec
 DELETE FROM mcp_connection WHERE workspace_id = ?1 AND id = ?2
 `
@@ -273,6 +282,37 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
 	return err
 }
 
+const insertLink = `-- name: InsertLink :exec
+INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin)
+VALUES (?1, ?2, ?3, ?4, ?5,
+        ?6, ?7, ?8)
+`
+
+type InsertLinkParams struct {
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	FromBundleID   uuid.UUID
+	Kind           string
+	TargetKind     string
+	TargetBundleID uuid.NullUUID
+	TargetRef      string
+	Origin         string
+}
+
+func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
+	_, err := q.db.ExecContext(ctx, insertLink,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.FromBundleID,
+		arg.Kind,
+		arg.TargetKind,
+		arg.TargetBundleID,
+		arg.TargetRef,
+		arg.Origin,
+	)
+	return err
+}
+
 const insertMCPConnection = `-- name: InsertMCPConnection :exec
 INSERT INTO mcp_connection (id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4,
                             tool_allowlist, is_search, search_tool, created_at)
@@ -367,6 +407,21 @@ func (q *Queries) InsertQuestionResult(ctx context.Context, arg InsertQuestionRe
 	return err
 }
 
+const insertRunLink = `-- name: InsertRunLink :exec
+INSERT INTO run_link (run_id, bundle_id, version_id) VALUES (?1, ?2, ?3)
+`
+
+type InsertRunLinkParams struct {
+	RunID     uuid.UUID
+	BundleID  uuid.UUID
+	VersionID uuid.UUID
+}
+
+func (q *Queries) InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error {
+	_, err := q.db.ExecContext(ctx, insertRunLink, arg.RunID, arg.BundleID, arg.VersionID)
+	return err
+}
+
 const listAnswers = `-- name: ListAnswers :many
 SELECT question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found FROM answer WHERE run_id = ?1 ORDER BY question_id, reader_role
 `
@@ -423,6 +478,78 @@ func (q *Queries) ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, err
 			&i.Reason,
 			&i.Sources,
 			&i.Anchor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLinksFrom = `-- name: ListLinksFrom :many
+SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin FROM link WHERE from_bundle_id = ?1 ORDER BY kind, target_ref
+`
+
+func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error) {
+	rows, err := q.db.QueryContext(ctx, listLinksFrom, fromBundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Link
+	for rows.Next() {
+		var i Link
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.FromBundleID,
+			&i.Kind,
+			&i.TargetKind,
+			&i.TargetBundleID,
+			&i.TargetRef,
+			&i.Origin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLinksTo = `-- name: ListLinksTo :many
+SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin FROM link WHERE target_bundle_id = ?1 ORDER BY kind, from_bundle_id
+`
+
+func (q *Queries) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error) {
+	rows, err := q.db.QueryContext(ctx, listLinksTo, targetBundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Link
+	for rows.Next() {
+		var i Link
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.FromBundleID,
+			&i.Kind,
+			&i.TargetKind,
+			&i.TargetBundleID,
+			&i.TargetRef,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}
@@ -532,6 +659,33 @@ func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Que
 			&i.Cites,
 			&i.Anchor,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunLinks = `-- name: ListRunLinks :many
+SELECT run_id, bundle_id, version_id FROM run_link WHERE run_id = ?1 ORDER BY bundle_id
+`
+
+func (q *Queries) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink, error) {
+	rows, err := q.db.QueryContext(ctx, listRunLinks, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RunLink
+	for rows.Next() {
+		var i RunLink
+		if err := rows.Scan(&i.RunID, &i.BundleID, &i.VersionID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

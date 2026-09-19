@@ -85,3 +85,21 @@ func TestFindMainDoc(t *testing.T) {
 		})
 	}
 }
+
+func TestLinkRule(t *testing.T) {
+	r, err := ParseLinkRule("docs/sdd-{name}.md implements docs/prd-{name}.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if to, ok := r.Target("docs/sdd-payments.md"); !ok || to != "docs/prd-payments.md" {
+		t.Errorf("Target = %q, %v", to, ok)
+	}
+	if _, ok := r.Target("docs/sub/sdd-payments.md"); ok {
+		t.Error("{name} matched across a folder")
+	}
+	for _, bad := range []string{"a implements", "a owns b", "a implements b/{x}", "{x}/{x} refines b"} {
+		if _, err := ParseLinkRule(bad); err == nil {
+			t.Errorf("ParseLinkRule(%q) gave no error", bad)
+		}
+	}
+}

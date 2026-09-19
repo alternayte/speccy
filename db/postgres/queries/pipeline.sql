@@ -103,3 +103,23 @@ VALUES (sqlc.arg(run_id), sqlc.arg(question_id), sqlc.arg(result), sqlc.arg(grou
 
 -- name: ListQuestionResults :many
 SELECT * FROM question_result WHERE run_id = sqlc.arg(run_id);
+
+-- name: DeleteLinksFrom :exec
+DELETE FROM link WHERE from_bundle_id = sqlc.arg(from_bundle_id);
+
+-- name: InsertLink :exec
+INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(from_bundle_id), sqlc.arg(kind), sqlc.arg(target_kind),
+        sqlc.arg(target_bundle_id), sqlc.arg(target_ref), sqlc.arg(origin));
+
+-- name: ListLinksFrom :many
+SELECT * FROM link WHERE from_bundle_id = sqlc.arg(from_bundle_id) ORDER BY kind, target_ref;
+
+-- name: ListLinksTo :many
+SELECT * FROM link WHERE target_bundle_id = sqlc.arg(target_bundle_id) ORDER BY kind, from_bundle_id;
+
+-- name: InsertRunLink :exec
+INSERT INTO run_link (run_id, bundle_id, version_id) VALUES (sqlc.arg(run_id), sqlc.arg(bundle_id), sqlc.arg(version_id));
+
+-- name: ListRunLinks :many
+SELECT * FROM run_link WHERE run_id = sqlc.arg(run_id) ORDER BY bundle_id;

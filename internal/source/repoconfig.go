@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -27,7 +29,7 @@ type RepoConfig struct {
 	// Map makes single-file bundles (REQ-130): a markdown file that matches a glob is a bundle
 	// with that profile. A frontmatter type wins over the mapping.
 	Map []Mapping `yaml:"map"`
-	// LinkRules are link rules by path convention (REQ-132). M7 reads them.
+	// LinkRules are link rules by path convention (REQ-132): "<from> <kind> <to>".
 	LinkRules []string `yaml:"link_rules"`
 	Adoption  struct {
 		// Relaxed lists check slugs that report at level INFO (REQ-133).
@@ -83,6 +85,11 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 			problems = append(problems, fmt.Sprintf("map[%d] has no profile", i))
 		}
 	}
+	for i, r := range c.LinkRules {
+		if _, err := ParseLinkRule(r); err != nil {
+			problems = append(problems, fmt.Sprintf("link_rules[%d]: %v", i, err))
+		}
+	}
 	switch c.Mode {
 	case "", "standalone", "connected":
 	default:
@@ -130,4 +137,66 @@ func (c RepoConfig) Relaxed(slug string) bool {
 		}
 	}
 	return false
+}
+
+// LinkKinds are the link kinds of REQ-050.
+var LinkKinds = []string{"implements", "refines", "references", "supersedes"}
+
+// LinkRule links bundles by path convention (REQ-132): "docs/sdd-{name}.md implements
+// docs/prd-{name}.md". A path is a single-file bundle's file, or a folder bundle's folder,
+// relative to the root. {name} matches one path segment or part of one.
+type LinkRule struct {
+	From string
+	Kind string
+	To   string
+	re   *regexp.Regexp
+	vars []string
+}
+
+var ruleVar = regexp.MustCompile(`\{([a-z_]+)\}`)
+
+// ParseLinkRule parses one rule.
+func ParseLinkRule(rule string) (LinkRule, error) {
+	parts := strings.Fields(rule)
+	if len(parts) != 3 {
+		return LinkRule{}, fmt.Errorf("%q is not \"<from> <kind> <to>\"", rule)
+	}
+	r := LinkRule{From: parts[0], Kind: parts[1], To: parts[2]}
+	if !slices.Contains(LinkKinds, r.Kind) {
+		return LinkRule{}, fmt.Errorf("%q: the kind %q is not one of %s", rule, r.Kind, strings.Join(LinkKinds, ", "))
+	}
+	var pattern strings.Builder
+	pattern.WriteString("^")
+	last := 0
+	for _, m := range ruleVar.FindAllStringSubmatchIndex(r.From, -1) {
+		pattern.WriteString(regexp.QuoteMeta(r.From[last:m[0]]))
+		name := r.From[m[2]:m[3]]
+		if slices.Contains(r.vars, name) {
+			return LinkRule{}, fmt.Errorf("%q: {%s} appears twice in the first path", rule, name)
+		}
+		r.vars = append(r.vars, name)
+		pattern.WriteString("([^/]+)")
+		last = m[1]
+	}
+	pattern.WriteString(regexp.QuoteMeta(r.From[last:]) + "$")
+	r.re = regexp.MustCompile(pattern.String())
+	for _, m := range ruleVar.FindAllStringSubmatch(r.To, -1) {
+		if !slices.Contains(r.vars, m[1]) {
+			return LinkRule{}, fmt.Errorf("%q: {%s} is in the second path but not the first", rule, m[1])
+		}
+	}
+	return r, nil
+}
+
+// Target returns the path that the rule links from, when from matches the rule.
+func (r LinkRule) Target(from string) (string, bool) {
+	m := r.re.FindStringSubmatch(from)
+	if m == nil {
+		return "", false
+	}
+	to := r.To
+	for i, name := range r.vars {
+		to = strings.ReplaceAll(to, "{"+name+"}", m[i+1])
+	}
+	return to, true
 }

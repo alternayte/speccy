@@ -78,15 +78,17 @@ export function VerdictBar({
   const next =
     verdict.kind === "full" && verdict.result === "build_ready" && verdict.must === 0 && verdict.should === 0
       ? "No findings. The doc passes every check."
-      : verdict.result === "stale"
-        ? `This verdict is for version ${verdict.version_number}. The current version is ${currentVersion}.`
-        : verdict.must > 0
-          ? `${verdict.must} MUST finding${verdict.must === 1 ? "" : "s"} to fix. SHOULD findings never block.`
-          : verdict.result === "not_build_ready"
-            ? "A required link or decision is missing."
-            : verdict.should > 0
-              ? `No blocking findings. ${verdict.should} SHOULD finding${verdict.should === 1 ? "" : "s"} can improve the doc.`
-              : "No findings. The doc passes every lint check.";
+      : verdict.result === "stale" && verdict.stale_reason === "upstream_changed"
+        ? "A linked doc changed after this review. Run the review again."
+        : verdict.result === "stale"
+          ? `This verdict is for version ${verdict.version_number}. The current version is ${currentVersion}.`
+          : verdict.must > 0
+            ? `${verdict.must} MUST finding${verdict.must === 1 ? "" : "s"} to fix. SHOULD findings never block.`
+            : verdict.result === "not_build_ready"
+              ? "A required link or decision is missing."
+              : verdict.should > 0
+                ? `No blocking findings. ${verdict.should} SHOULD finding${verdict.should === 1 ? "" : "s"} can improve the doc.`
+                : "No findings. The doc passes every lint check.";
   const lintOnly = verdict.kind === "lint";
   return (
     <div

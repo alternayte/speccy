@@ -23,6 +23,8 @@ type API struct {
 	DB        *store.DB
 	Workspace uuid.UUID
 	Service   *Service
+	// Change writes accepted trace IDs (REQ-052); the bundle feature provides it.
+	Change Change
 }
 
 // Summary returns the verdict to show for a bundle, and the error of the latest run when it
@@ -77,10 +79,20 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.Re
 	if err != nil {
 		return nil, err
 	}
+	moved, err := upstreamMoved(ctx, q, b.WorkspaceID, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	current := run.VersionID == b.CurrentVersionID.UUID
 	out := &api.BundleVerdict{
 		RunId: run.ID, VersionNumber: ver.Number, Kind: api.BundleVerdictKind(run.Kind),
-		Result: api.VerdictResult(verdict.For(verdict.Result(vd.Result), run.VersionID == b.CurrentVersionID.UUID)),
+		// §8.6 rule 4, REQ-056: a verdict that read an old version of a linked bundle is stale.
+		Result: api.VerdictResult(verdict.For(verdict.Result(vd.Result), current && !moved)),
 		Score:  int(vd.Score), WaiverCount: int(vd.WaiverCount), RelaxedCount: int(vd.RelaxedCount), Radar: map[string]int{},
+	}
+	if current && moved {
+		reason := api.UpstreamChanged
+		out.StaleReason = &reason
 	}
 	_ = json.Unmarshal(vd.Radar, &out.Radar)
 	for _, f := range fs {

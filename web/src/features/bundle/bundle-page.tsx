@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { Download, FolderTree, ListChecks, Printer } from "lucide-react";
+import { Download, FolderTree, ListChecks, Network, Printer } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -111,6 +111,15 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             {b.slug} · <span className="uppercase">{b.profile_key}</span> · v{b.current_version.number}
           </p>
         </div>
+        <Link
+          to="/bundles/$bundleId/trace"
+          params={{ bundleId }}
+          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2 text-xs font-medium text-ink hover:bg-sunken"
+        >
+          <Network aria-hidden className="size-3.5" />
+          <span className="hidden sm:inline">Traceability</span>
+          <span className="sr-only sm:hidden">Traceability</span>
+        </Link>
         <div className="flex items-center gap-1.5">
           <RunReviewButton bundleId={bundleId} active={!!run.active} onStarted={() => run.refetch()} />
           <Button
