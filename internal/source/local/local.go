@@ -455,9 +455,6 @@ func (r *Root) CreateBundle(name string, files []source.File) (string, error) {
 
 func (r *Root) abs(rel string) string { return filepath.Join(r.dir, filepath.FromSlash(rel)) }
 
-	return filepath.ToSlash(rel)
-}
-
 // checkInside refuses a folder whose real path is outside the root, for example through a symlink.
 func (r *Root) checkInside(dir string) error {
 	real, err := filepath.EvalSymlinks(dir)
