@@ -327,6 +327,11 @@ func reviewLocal(ctx context.Context, rootDir string, fl reviewFlags, stages rev
 		fmt.Fprintf(stderr, "speccy review: %v.\n", problemText(err))
 		return nil, exitRun
 	}
+	return reviewWith(ctx, s, fl, stages, lintOnly, selected, stderr)
+}
+
+// reviewWith reviews the selected bundles in an open local session.
+func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.Stages, lintOnly bool, selected []local.Bundle, stderr io.Writer) ([]reviewed, int) {
 	// With no reviewer model, the default is lint only (decisions.md). An explicit model stage
 	// with no model is a configuration error.
 	if !fl.stagesSet {

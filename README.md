@@ -130,7 +130,39 @@ It prints one line per bundle, with the verdict, the score, and the top three fa
 
 ## GitHub Action
 
-The GitHub Action does not exist yet.
+The Action reviews the bundles that a pull request changes. It posts one summary comment and updates it on each push. It posts MUST findings on the lines that the pull request changed, and resolves its own comments when their findings are gone. Where the fix is certain, such as a trace ID or `MUST` in capitals, the comment has a suggestion that you commit with one click. Each bundle gets a check named `speccy: <bundle>`.
+
+```yaml
+# .github/workflows/speccy.yml
+name: Speccy
+on:
+  pull_request:
+    paths: ["docs/**", ".speccy.yaml"]
+permissions:
+  contents: read
+  pull-requests: write   # the summary and inline comments
+  checks: write          # one check per bundle
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: alternayte/speccy@v0.1.0
+        with:
+          models: all=anthropic:<model>             # leave out for lint checks only
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+The Action is advisory by default: a Not Build Ready verdict shows in the comment and the check, and the job still passes. Set `enforcement: blocking`, or `enforcement: blocking` in `.speccy.yaml`, to fail the job. The HTML report of each bundle is an artifact of the run.
+
+**Waivers in CI.** A waiver is an entry under `waivers:` in the main doc's frontmatter. Anyone can write one in a pull request, so the approval comes from branch protection: require a review from the code owners of your spec folders.
+
+```text
+# .github/CODEOWNERS
+/docs/ @acme/spec-maintainers
+```
+
+In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs.
 
 ## Models
 

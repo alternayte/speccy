@@ -1,0 +1,112 @@
+name: Speccy
+description: Review the spec bundles that a pull request changes. One verdict per bundle, one summary comment, inline comments on changed lines.
+author: alternayte
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  config:
+    description: The path of .speccy.yaml. Speccy reviews the bundles of the folder it is in.
+    default: .speccy.yaml
+  enforcement:
+    description: "advisory: a verdict never fails the job. blocking: Not Build Ready fails it. Empty: enforcement in .speccy.yaml, else advisory."
+    default: ""
+  models:
+    description: |
+      The model of each review role, one per line: role=backend:model. "all" sets every role.
+      Backends: anthropic, openai, openrouter, deepseek. Empty: lint checks only.
+      Example: all=anthropic:<model>
+    default: ""
+  anthropic-api-key:
+    description: The Anthropic API key, when models uses anthropic.
+    default: ""
+  openai-api-key:
+    description: The OpenAI API key, when models uses openai.
+    default: ""
+  openrouter-api-key:
+    description: The OpenRouter API key, when models uses openrouter.
+    default: ""
+  deepseek-api-key:
+    description: The DeepSeek API key, when models uses deepseek.
+    default: ""
+  server:
+    description: "Connected mode: the Speccy server that reviews the files with its models. Empty: mode and server in .speccy.yaml, else standalone."
+    default: ""
+  token:
+    description: "Connected mode: a personal API token for the server."
+    default: ""
+  version:
+    description: The Speccy release to run, such as v0.1.0.
+    default: latest
+  github-token:
+    description: The token that posts comments and checks. It needs pull-requests and checks write permissions.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download Speccy
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "$RUNNER_OS/$RUNNER_ARCH" in
+          Linux/X64) platform=linux_amd64 ;;
+          Linux/ARM64) platform=linux_arm64 ;;
+          macOS/ARM64) platform=darwin_arm64 ;;
+          macOS/X64) platform=darwin_amd64 ;;
+          *) echo "::error::Speccy has no release for $RUNNER_OS on $RUNNER_ARCH."; exit 2 ;;
+        esac
+        tag="$VERSION"
+        if [ "$tag" = latest ]; then
+          tag=$(gh release view -R alternayte/speccy --json tagName -q .tagName)
+        fi
+        mkdir -p "$RUNNER_TEMP/speccy"
+        gh release download "$tag" -R alternayte/speccy -p "speccy_*_${platform}.tar.gz" -D "$RUNNER_TEMP/speccy" --clobber
+        tar -xzf "$RUNNER_TEMP"/speccy/speccy_*_"${platform}".tar.gz -C "$RUNNER_TEMP/speccy"
+        echo "$RUNNER_TEMP/speccy" >> "$GITHUB_PATH"
+
+    # Standalone mode keeps the review cache between runs (SDD §12.4).
+    - name: Restore the review cache
+      if: inputs.server == ''
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/speccy-state
+        key: speccy-${{ github.event.pull_request.number || github.ref_name }}-${{ github.sha }}
+        restore-keys: |
+          speccy-${{ github.event.pull_request.number || github.ref_name }}-
+          speccy-
+
+    - name: Review
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SPECCY_MODELS: ${{ inputs.models }}
+        SPECCY_ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        SPECCY_OPENAI_API_KEY: ${{ inputs.openai-api-key }}
+        SPECCY_OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
+        SPECCY_DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
+        SPECCY_TOKEN: ${{ inputs.token }}
+        SPECCY_STATE_DIR: ${{ runner.temp }}/speccy-state
+        SPECCY_REPORTS_DIR: ${{ runner.temp }}/speccy-reports
+        CONFIG: ${{ inputs.config }}
+        ENFORCEMENT: ${{ inputs.enforcement }}
+        SERVER: ${{ inputs.server }}
+      run: |
+        set -euo pipefail
+        cd "$(dirname "$CONFIG")"
+        args=()
+        if [ -n "$ENFORCEMENT" ]; then args+=(--enforcement "$ENFORCEMENT"); fi
+        if [ -n "$SERVER" ]; then args+=(--server "$SERVER"); fi
+        speccy action "${args[@]}"
+
+    - name: Upload the HTML reports
+      if: always() && inputs.server == ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: speccy-reports
+        path: ${{ runner.temp }}/speccy-reports
+        if-no-files-found: ignore

@@ -332,3 +332,19 @@ func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject)
 func bundleRefAPI(b pgdb.Bundle) api.BundleRef {
 	return api.BundleRef{Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey}
 }
+
+// IDSuggestion is a trace ID that Speccy suggests for an unnumbered item (REQ-052): insert
+// "**ID:** " at the byte offset Insert of the main doc.
+type IDSuggestion struct {
+	ID     string
+	Insert int
+}
+
+// SuggestIDs returns the trace IDs that Speccy suggests for the main doc (REQ-052, REQ-136).
+func SuggestIDs(file string, main []byte, prefixes []string) []IDSuggestion {
+	var out []IDSuggestion
+	for _, s := range suggestIDs(file, main, section.Parse(main), prefixes) {
+		out = append(out, IDSuggestion{ID: s.ID, Insert: s.Insert})
+	}
+	return out
+}

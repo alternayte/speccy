@@ -35,6 +35,24 @@ Flags of `speccy review`:
 | `--enforcement` | `enforcement` in `.speccy.yaml`, else `advisory` | With `blocking`, a Not Build Ready verdict exits 1. |
 | `--server` | none | Send the files to a Speccy server, which reviews them with its models and its linked docs, and stores nothing. The API token is in `SPECCY_TOKEN`. |
 
+### The GitHub Action
+
+`action.yml` at the root of this repo is the Action. It downloads the release binary and runs `speccy action` in the folder of `.speccy.yaml`.
+
+| Input | Default | Meaning |
+|---|---|---|
+| `config` | `.speccy.yaml` | The repo configuration. Speccy reviews the bundles of its folder. |
+| `enforcement` | from `.speccy.yaml`, else `advisory` | `advisory` never fails the job on a verdict. `blocking` fails it on Not Build Ready. |
+| `models` | none | One `role=backend:model` per line; `all` sets every role. With none, only lint runs. |
+| `anthropic-api-key`, `openai-api-key`, `openrouter-api-key`, `deepseek-api-key` | none | The key of each backend that `models` uses. |
+| `server`, `token` | none | Connected mode: the server and a personal API token. |
+| `version` | `latest` | The Speccy release. |
+| `github-token` | `${{ github.token }}` | Posts the comments and the checks. |
+
+`speccy action` finds the bundles that the pull request changes. It posts MUST findings, and findings with a certain fix, as inline comments on changed lines: at most `pr.inline_limit` per bundle (default 15). The rest go into the summary comment. Suggestions are only for a trace ID, `must`, `should`, or `may` in capitals in a requirement, and a broken link when exactly one file in the bundle has its name. A model never writes a suggestion.
+
+Outside GitHub, the same environment works for `speccy review`: `SPECCY_MODELS` sets the models, `SPECCY_<BACKEND>_API_KEY` their keys, and `SPECCY_STATE_DIR` a store that stays between runs.
+
 ### MCP
 
 For a coding agent on your machine, add Speccy as an MCP server that runs `speccy mcp` in the repo folder. For example, in Claude Code:

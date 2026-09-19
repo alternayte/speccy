@@ -44,6 +44,9 @@ const usage = `Usage:
                 [--stages lint,rubric,grounding,divergence,coherence] [--enforcement advisory|blocking]
                                                          Review bundles. Exit codes: 0 Build Ready or advisory,
                                                          1 Not Build Ready in blocking mode, 2 usage, 3 run error.
+  speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]
+                                                         The GitHub Action: review the bundles a pull request
+                                                         changes, and comment on it.
   speccy tui                                             Open the terminal UI.
   speccy mcp                                             Run the MCP server over stdio.
   speccy profile validate <file>                         Check a profile file.
@@ -90,6 +93,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runMCP(args[1:], stderr)
 	case "tui":
 		return runTUI(args[1:], stderr)
+	case "action":
+		return runAction(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK
