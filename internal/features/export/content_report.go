@@ -22,6 +22,9 @@ import (
 // connected-mode Action links to it.
 func (a *API) GetContentReviewReport(ctx context.Context, req api.GetContentReviewReportRequestObject) (api.GetContentReviewReportResponseObject, error) {
 	row, err := a.DB.Queries().GetContentReview(ctx, pgdb.GetContentReviewParams{WorkspaceID: a.Workspace, ID: req.ReviewId})
+	if err == nil && time.Since(row.CreatedAt) > review.ContentReviewDays*24*time.Hour {
+		err = sql.ErrNoRows // expired: the next POST /reviews removes it
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, kernel.NotFound("review_not_found", "The review does not exist, or it is older than %d days.", review.ContentReviewDays)
 	}

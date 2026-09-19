@@ -654,7 +654,7 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 
 ## 2026-09-19 — Report of a connected-mode review
 
-- **Choice:** `POST /reviews` keeps the files and the result in `content_review` for 90 days, and returns `id` and `report_path`. The app shows the report at `/reviews/{id}` to workspace members, from `GET /reviews/{id}/report`, which uses the HTML report template. `speccy review --server` prints the link, and the Action links each bundle to it. No bundle or version on the server changes. Older rows are removed on the next `POST /reviews`, with no background job.
+- **Choice:** `POST /reviews` keeps the files and the result in `content_review` for 90 days, and returns `id` and `report_path`. The app shows the report at `/reviews/{id}` to workspace members, from `GET /reviews/{id}/report`, which uses the HTML report template. `speccy review --server` prints the link, and the Action links each bundle to it. No bundle or version on the server changes. After 90 days the report returns 404, and the next `POST /reviews` removes the row, with no background job.
 - **Alternative:** Store the files as a new version of the server bundle with the same slug, and link to that run's report.
 - **Reason:** The owner chose a stored review that changes no bundle. A pull request's text is not the server's text, and a version per push would fill the bundle's history. SDD §12.4 asks for the link.
 
