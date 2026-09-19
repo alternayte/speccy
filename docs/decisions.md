@@ -597,3 +597,27 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** The light `--ink-3` is #686863, and the tour mutes other sections with `--ink-3`, not with opacity.
 - **Alternative:** Keep #75756f and opacity 0.32.
 - **Reason:** axe measured 4.05 to 4.47 for #75756f on the light surfaces, and 2.0 for the dimmed tour text; AA needs 4.5.
+
+## 2026-09-19 — speccy review
+
+- **Choice:** A local review syncs the folder with `.speccy.yaml` (or the current folder) into a store: `.speccy/state/` when it exists, else a temporary store that is removed after. It then runs stored reviews through the API in the same process, so links between local bundles resolve. With no reviewer model and no `--stages`, it runs lint only and says so on stderr; an explicit model stage with no model exits 2. `--server` sends each bundle's files to `POST /reviews`, which runs the stages in memory, resolves links against the server's bundles, and stores only the cache. Build questions of unsaved content are pinned in the cache by content hash. The token is in `SPECCY_TOKEN`.
+- **Alternative:** Store the `--server` review as a version of the matching server bundle.
+- **Reason:** The owner chose "review local text on the server". A run needs a version; the report link for connected mode (M12) can add storage.
+
+## 2026-09-19 — One API for the CLI, TUI, and MCP
+
+- **Choice:** `oapi-codegen` also generates a Go client (`internal/http/api/client.gen.go`). The CLI, the TUI, and the MCP server call the API handler in the same process through `speccyhttp.InProcess`, as the local user. Over `--server` and `/mcp`, the client sends the caller's token, so the role table decides (T-041). The markdown renderer moved to `internal/render`, because the HTML report also uses it.
+- **Alternative:** Call the services directly.
+- **Reason:** One path means one set of JSON shapes (SDD §12.3) and one role table.
+
+## 2026-09-19 — HTML report
+
+- **Choice:** `GET /bundles/{id}/export?format=html` and `speccy export --format html` write one HTML file: the current verdict, the score by category, the open and waived findings with file and line, and the rendered main doc with its images as data URIs. It has no script, so Mermaid shows as code.
+- **Alternative:** Build it in M12 with the Action.
+- **Reason:** The owner chose M11: the table in SDD §12.2 lists the command.
+
+## 2026-09-19 — TUI and MCP
+
+- **Choice:** `speccy tui` and `speccy mcp` use `.speccy/state/` and follow changes on disk, as local mode does. The TUI decides nothing: decisions and waivers stay in the app, and the tour screen says so. `e` opens `$VISUAL` or `$EDITOR` at the line (`+N`, or `--goto file:line` for VS Code and Cursor). The TUI logs to `.speccy/state/tui.log`. Over HTTP, MCP is stateless streamable HTTP with JSON answers.
+- **Alternative:** Decide and waive in the TUI.
+- **Reason:** REQ-122 lists the TUI's jobs; decisions need the thread context of the app.

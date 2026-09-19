@@ -39,11 +39,21 @@ const usage = `Usage:
   speccy [--dir folder] [--addr host:port] [--no-open]   Start local mode and open the browser.
   speccy serve [--dir folder] [--addr host:port]         Start local mode without opening a browser.
   speccy serve --hosted                                  Start hosted mode (SPECCY_ environment variables).
+  speccy init                                            Write .speccy.yaml and ignore .speccy/state/.
+  speccy review <path…> [--format text|json|md] [--summary] [--server URL]
+                [--stages lint,rubric,grounding,divergence,coherence] [--enforcement advisory|blocking]
+                                                         Review bundles. Exit codes: 0 Build Ready or advisory,
+                                                         1 Not Build Ready in blocking mode, 2 usage, 3 run error.
+  speccy tui                                             Open the terminal UI.
+  speccy mcp                                             Run the MCP server over stdio.
+  speccy profile validate <file>                         Check a profile file.
+  speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy admin invite --role admin|member                Print an invite link (hosted).
   speccy admin reset-link <email>                        Print a password reset link (hosted).
   speccy version                                         Print the version.
 
-Local mode serves the bundles under --dir (default: the current folder).
+Local mode serves the bundles under --dir (default: the current folder). The other commands work
+on the folder with .speccy.yaml, from the current folder up, or else on the current folder.
 `
 
 func main() {
@@ -78,6 +88,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runExport(args[1:], stdout, stderr)
 	case "mcp":
 		return runMCP(args[1:], stderr)
+	case "tui":
+		return runTUI(args[1:], stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK
