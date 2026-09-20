@@ -218,6 +218,27 @@ func (a *API) ListWaivers(ctx context.Context, req api.ListWaiversRequestObject)
 	return out, nil
 }
 
+// Waiting returns the waivers that wait for the caller's approval, newest first (SDD §9.1). The
+// inbox uses it, so a maintainer who is not on the bundle sees the request.
+func (a *API) Waiting(ctx context.Context) ([]api.Waiver, error) {
+	rows, err := a.DB.Queries().ListWorkspaceWaivers(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	var out []api.Waiver
+	for _, row := range rows {
+		if row.Status != string(StatusRequested) {
+			continue
+		}
+		w, err := a.waiver(ctx, row.ID)
+		if err != nil || !w.CanApprove {
+			continue // the bundle is gone, or this person does not decide it
+		}
+		out = append(out, w)
+	}
+	return out, nil
+}
+
 func (a *API) load(ctx context.Context, id uuid.UUID) (State, pgdb.Bundle, error) {
 	snap, err := a.ES.Load(ctx, id)
 	if errors.Is(err, es.ErrNotFound) {

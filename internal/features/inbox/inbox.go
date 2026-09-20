@@ -17,6 +17,7 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/share"
+	"github.com/alternayte/speccy/internal/features/waiver"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -30,6 +31,8 @@ type API struct {
 	DB        *store.DB
 	Workspace uuid.UUID
 	People    kernel.Directory
+	// Waivers lists the waivers that wait for the caller's approval (SDD §9.1).
+	Waivers *waiver.API
 }
 
 // GetInbox returns the caller's inbox, newest first.
@@ -108,6 +111,23 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 			at = sv.ReviewRequestedAt.Time
 		}
 		add(api.InboxItemKindReviewRequest, b, nil, "Waiting for your review.", at)
+	}
+
+	// Waivers that wait for my approval. A profile maintainer is not always on the bundle, so
+	// this is the only place they meet the request.
+	if a.Waivers != nil {
+		waiting, err := a.Waivers.Waiting(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, w := range waiting {
+			b, ok := bundle(w.BundleId)
+			if !ok {
+				continue
+			}
+			add(api.InboxItemKindWaiverRequest, b, nil,
+				fmt.Sprintf("%s asks to waive %s: %s", w.RequestedBy, w.CheckSlug, w.Reason), w.CreatedAt)
+		}
 	}
 
 	// Messages on my bundles, and mentions of me anywhere I can read.

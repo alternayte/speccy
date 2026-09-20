@@ -13,6 +13,7 @@ import {
   getRunOptions,
   listFilesOptions,
   listFindingsOptions,
+  listWaiversOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { GitHubControl } from "./github-control";
@@ -109,6 +110,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const hosted = me.data?.mode === "hosted";
   const guest = !!me.data?.guest;
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
+  // Waivers that wait for this person: the verdict bar counts them, and the rail opens them.
+  const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
+  const waiting = (waivers.data?.items ?? []).filter((w) => w.status === "requested" && w.can_approve);
   // Local mode: the one user edits everything. Hosted: authors and admins (SDD §3).
   const canEdit = !hosted || !!access.data?.can_edit;
 
@@ -207,6 +211,13 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           onShowFindings={() => {
             setTab("findings");
             setPanel("rail");
+          }}
+          waiting={waiting.length}
+          onShowWaivers={() => {
+            setTab("findings");
+            setPanel("rail");
+            // The rail sorts a finding with a waiver request to the top, so it is already there.
+            setSelectedFinding(undefined);
           }}
         />
       </div>

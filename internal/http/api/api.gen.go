@@ -398,6 +398,7 @@ const (
 	InboxItemKindMessage       InboxItemKind = "message"
 	InboxItemKindReviewRequest InboxItemKind = "review_request"
 	InboxItemKindRun           InboxItemKind = "run"
+	InboxItemKindWaiverRequest InboxItemKind = "waiver_request"
 )
 
 // Valid indicates whether the value is a known member of the InboxItemKind enum.
@@ -410,6 +411,8 @@ func (e InboxItemKind) Valid() bool {
 	case InboxItemKindReviewRequest:
 		return true
 	case InboxItemKindRun:
+		return true
+	case InboxItemKindWaiverRequest:
 		return true
 	default:
 		return false

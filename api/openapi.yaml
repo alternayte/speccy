@@ -3246,7 +3246,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [review_request, message, mention, run]
+          enum: [review_request, waiver_request, message, mention, run]
         bundle_id:
           type: string
           format: uuid

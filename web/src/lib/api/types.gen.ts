@@ -766,7 +766,7 @@ export type Inbox = {
 };
 
 export type InboxItem = {
-    kind: 'review_request' | 'message' | 'mention' | 'run';
+    kind: 'review_request' | 'waiver_request' | 'message' | 'mention' | 'run';
     bundle_id: string;
     bundle_title: string;
     thread_id?: string;

@@ -51,6 +51,16 @@ export function FindingsPanel({
     selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selected]);
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
+  const requests = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
+  const decide = useDecide(bundleId);
+  // pending is the waiver request of a finding: same check, and the same section or the whole doc.
+  const pending = (f: Finding) =>
+    (requests.data?.items ?? []).find(
+      (w) =>
+        w.status === "requested" &&
+        w.check_slug === f.check_slug &&
+        (w.section.length === 0 || w.section.join(" › ") === f.anchor.heading_path.join(" › ")),
+    );
   const { refetch } = findings;
   useEffect(() => {
     if (runId) refetch();
@@ -70,7 +80,11 @@ export function FindingsPanel({
         <ErrorState message={problemMessage(findings.error)} />
       </div>
     );
-  const items = findings.data.items.filter((f) => !f.anchor.detached).sort((a, b) => order[a.level] - order[b.level]);
+  // A finding whose waiver waits for a decision goes to the top: the approver came for it, and
+  // the reason belongs beside the text it excuses (SDD §9.1).
+  const items = findings.data.items
+    .filter((f) => !f.anchor.detached)
+    .sort((a, b) => rank(pending(a)) - rank(pending(b)) || order[a.level] - order[b.level]);
   if (items.length === 0)
     return (
       <>
@@ -111,6 +125,37 @@ export function FindingsPanel({
                 ) : null}
                 {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
               </button>
+              {(() => {
+                const w = pending(f);
+                if (!w) return null;
+                return (
+                  <div className="mx-4 mb-3 rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-xs">
+                    <p className="font-semibold text-ink">Waiver requested by {w.requested_by}</p>
+                    <p className="mt-0.5 text-ink-2">{w.reason}</p>
+                    <p className="mt-0.5 text-ink-3">
+                      {w.approvals.length} of {w.needed} approvals ({w.policy.replace("_", " ")})
+                      {w.section.length === 0 ? " · whole doc" : ` · ${w.section.join(" › ")}`}
+                    </p>
+                    {w.can_approve ? (
+                      <div className="mt-2 flex gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => decide.approve.mutate({ path: { waiverId: w.id } })}
+                        >
+                          Approve
+                        </Button>
+                        <Button size="sm" onClick={() => decide.reject.mutate({ path: { waiverId: w.id } })}>
+                          Reject
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-ink-3">Someone with the {w.policy.replace("_", " ")} role decides it.</p>
+                    )}
+                    {decide.error ? <p className="mt-1 text-bad">{problemMessage(decide.error)}</p> : null}
+                  </div>
+                );
+              })()}
               {f.waived || member ? (
                 <div className="flex items-center gap-3 px-4 pb-3.5 text-xs">
                   {f.waived ? (
@@ -206,6 +251,23 @@ function WaiverDialog({ bundleId, finding, onClose }: { bundleId: string; findin
   );
 }
 
+// useDecide approves or rejects a waiver from the finding it excuses (SDD §9.1).
+function useDecide(bundleId: string) {
+  const qc = useQueryClient();
+  const done = () => {
+    qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { bundleId } }) });
+    qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+  };
+  const approve = useMutation({ ...approveWaiverMutation(), onSuccess: done });
+  const reject = useMutation({ ...rejectWaiverMutation(), onSuccess: done });
+  return { approve, reject, error: approve.error ?? reject.error };
+}
+
+// rank puts a finding with a waiver request first.
+function rank(waiver: unknown): number {
+  return waiver ? 0 : 1;
+}
+
 const waiverStatus = {
   requested: "text-warn",
   approved: "text-ok",
@@ -223,7 +285,8 @@ function WaiversList({ bundleId }: { bundleId: string }) {
   };
   const approve = useMutation({ ...approveWaiverMutation(), onSuccess: done });
   const reject = useMutation({ ...rejectWaiverMutation(), onSuccess: done });
-  const items = waivers.data?.items ?? [];
+  // The requests sit on their findings above; this section is the record of what was decided.
+  const items = (waivers.data?.items ?? []).filter((w) => w.status !== "requested");
   if (items.length === 0) return null;
   const error = approve.error ?? reject.error;
   return (

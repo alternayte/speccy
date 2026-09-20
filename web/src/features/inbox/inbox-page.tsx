@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { AtSign, BadgeCheck, MessageSquare, PlayCircle } from "lucide-react";
+import { AtSign, BadgeCheck, MessageSquare, PlayCircle, ShieldQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { InboxItem } from "@/lib/api";
@@ -14,10 +14,12 @@ const kindIcon = {
   message: MessageSquare,
   mention: AtSign,
   run: PlayCircle,
+  waiver_request: ShieldQuestion,
 } as const;
 
 const kindLabel = {
   review_request: "Review request",
+  waiver_request: "Waiver request",
   message: "Message",
   mention: "Mention",
   run: "Review",

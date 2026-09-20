@@ -136,7 +136,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			ThreadAPI:   threadAPI,
 			WaiverAPI:   waiverAPI,
 			ApprovalAPI: &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people},
-			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people},
+			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people, Waivers: waiverAPI},
 			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current},
 			TourAPI:     &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI},
 		},
