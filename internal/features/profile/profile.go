@@ -22,6 +22,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/schemas"
 )
 
@@ -51,6 +52,15 @@ type Limits struct {
 
 type Links struct {
 	Upstream *Upstream `yaml:"upstream,omitempty" json:"upstream,omitempty"`
+	// Children is the link check that hardens with the doc's size: a doc at MinAt or larger
+	// must link the bundles it covers (REQ-134).
+	Children *Children `yaml:"children,omitempty" json:"children,omitempty"`
+}
+
+type Children struct {
+	Kinds []string `yaml:"kinds" json:"kinds"`
+	Min   int      `yaml:"min" json:"min"`
+	MinAt string   `yaml:"min_at" json:"min_at"`
 }
 
 type Upstream struct {
@@ -118,6 +128,21 @@ type Check struct {
 	Question string  `yaml:"question" json:"question"`
 	PassWhen string  `yaml:"pass_when" json:"pass_when"`
 	Waiver   *Policy `yaml:"waiver,omitempty" json:"waiver,omitempty"`
+	// Sizes are the doc sizes this check applies to. An empty list applies at every size.
+	Sizes []string `yaml:"sizes,omitempty" json:"sizes,omitempty"`
+}
+
+// AppliesAt reports whether the check runs on a doc of size sz.
+func (c Check) AppliesAt(sz kernel.Size) bool {
+	if len(c.Sizes) == 0 {
+		return true
+	}
+	for _, s := range c.Sizes {
+		if x, ok := kernel.ParseSize(s); ok && x == sz {
+			return true
+		}
+	}
+	return false
 }
 
 // Loaded is a profile with its source text and its template.
@@ -311,32 +336,46 @@ func ParseFile(f string) (Loaded, error) {
 	})
 }
 
-var requiredMark = regexp.MustCompile(`\s*<!--\s*required\s*-->\s*$`)
+var requiredMark = regexp.MustCompile(`\s*<!--\s*required(?::\s*([a-z]+))?\s*-->\s*$`)
 
 // RequiredHeadings returns the headings that the template marks as required, as heading paths.
-// A heading line that ends with <!-- required --> is required.
+// A heading line that ends with <!-- required --> is required at every size. A marker that
+// names a size, such as <!-- required: app -->, is required at that size and larger (REQ-134).
 func RequiredHeadings(template []byte) []Heading {
 	var out []Heading
 	body := StripMarks(template)
-	marked := map[int]bool{}
+	marked := map[int]kernel.Size{}
 	for i, line := range strings.Split(string(template), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") && requiredMark.MatchString(line) {
-			marked[i+1] = true
+		if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
 		}
+		m := requiredMark.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		min := kernel.Feature
+		if m[1] != "" {
+			if sz, ok := kernel.ParseSize(m[1]); ok {
+				min = sz
+			}
+		}
+		marked[i+1] = min
 	}
 	lines := newLineIndex(body)
 	for _, s := range section.Parse(body).Sections {
-		if s.Level > 0 && marked[lines.line(s.Start)] {
-			out = append(out, Heading{Level: s.Level, Title: s.Title})
+		if min, ok := marked[lines.line(s.Start)]; s.Level > 0 && ok {
+			out = append(out, Heading{Level: s.Level, Title: s.Title, MinSize: min})
 		}
 	}
 	return out
 }
 
-// Heading is a required heading: its level and title.
+// Heading is a required heading: its level, its title, and the smallest doc size that must
+// have it.
 type Heading struct {
-	Level int
-	Title string
+	Level   int
+	Title   string
+	MinSize kernel.Size
 }
 
 // StripMarks removes the required markers, so a new doc from the template reads clean

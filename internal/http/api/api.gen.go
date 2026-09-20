@@ -1073,6 +1073,12 @@ func (e ExportBundleParamsFormat) Valid() bool {
 	}
 }
 
+// Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
+type Adopt struct {
+	Size *string `json:"size,omitempty"`
+	Type *string `json:"type,omitempty"`
+}
+
 // Anchor A range of text with context (SDD §8.8).
 type Anchor struct {
 	// Detached The text changed, and Speccy cannot find the quote in the current version (SDD §8.8).
@@ -1178,6 +1184,8 @@ type BuildQuestionResult string
 
 // Bundle defines model for Bundle.
 type Bundle struct {
+	// Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
+	Adopt          *Adopt  `json:"adopt,omitempty"`
 	CurrentVersion Version `json:"current_version"`
 
 	// Github Where a GitHub bundle comes from, and its draft (REQ-123).
@@ -1396,10 +1404,13 @@ type ContentReview struct {
 	ProfileVersion int64              `json:"profile_version"`
 
 	// ReportPath The app page of the report, relative to the server, such as /reviews/{id}.
-	ReportPath string         `json:"report_path"`
-	TokensIn   *int64         `json:"tokens_in,omitempty"`
-	TokensOut  *int64         `json:"tokens_out,omitempty"`
-	Verdict    ContentVerdict `json:"verdict"`
+	ReportPath string `json:"report_path"`
+
+	// Size The doc size the review used, from the frontmatter or inferred (REQ-134).
+	Size      *string        `json:"size,omitempty"`
+	TokensIn  *int64         `json:"tokens_in,omitempty"`
+	TokensOut *int64         `json:"tokens_out,omitempty"`
+	Verdict   ContentVerdict `json:"verdict"`
 }
 
 // ContentReviewRequest defines model for ContentReviewRequest.
@@ -1608,6 +1619,8 @@ type Insights struct {
 
 // Invite defines model for Invite.
 type Invite struct {
+	// Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
+	Adopt     *Adopt             `json:"adopt,omitempty"`
 	CreatedAt time.Time          `json:"created_at"`
 	CreatedBy string             `json:"created_by"`
 	ExpiresAt time.Time          `json:"expires_at"`
@@ -2684,6 +2697,9 @@ type ServerInterface interface {
 	// GetBundleAccess Who can see the bundle, and its share link state (REQ-084, REQ-085).
 	// (GET /bundles/{bundleId}/access)
 	GetBundleAccess(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	// (POST /bundles/{bundleId}/adopt)
+	AdoptFrontmatter(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
 	// (POST /bundles/{bundleId}/approve)
 	ApproveBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -3465,6 +3481,32 @@ func (siw *ServerInterfaceWrapper) GetBundleAccess(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetBundleAccess(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdoptFrontmatter operation middleware
+func (siw *ServerInterfaceWrapper) AdoptFrontmatter(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdoptFrontmatter(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5414,6 +5456,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/share/{token}", wrapper.GetShare)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/share/{token}", wrapper.JoinShare)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/access", wrapper.GetBundleAccess)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/adopt", wrapper.AdoptFrontmatter)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/visibility", wrapper.SetVisibility)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.RevokeShareLink)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.CreateShareLink)
@@ -6645,6 +6688,45 @@ type GetBundleAccessdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetBundleAccessdefaultApplicationProblemPlusJSONResponse) VisitGetBundleAccessResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptFrontmatterRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type AdoptFrontmatterResponseObject interface {
+	VisitAdoptFrontmatterResponse(w http.ResponseWriter) error
+}
+
+type AdoptFrontmatter200JSONResponse WriteResult
+
+func (response AdoptFrontmatter200JSONResponse) VisitAdoptFrontmatterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptFrontmatterdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AdoptFrontmatterdefaultApplicationProblemPlusJSONResponse) VisitAdoptFrontmatterResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -9383,6 +9465,9 @@ type StrictServerInterface interface {
 	// GetBundleAccess Who can see the bundle, and its share link state (REQ-084, REQ-085).
 	// (GET /bundles/{bundleId}/access)
 	GetBundleAccess(ctx context.Context, request GetBundleAccessRequestObject) (GetBundleAccessResponseObject, error)
+	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	// (POST /bundles/{bundleId}/adopt)
+	AdoptFrontmatter(ctx context.Context, request AdoptFrontmatterRequestObject) (AdoptFrontmatterResponseObject, error)
 	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
 	// (POST /bundles/{bundleId}/approve)
 	ApproveBundle(ctx context.Context, request ApproveBundleRequestObject) (ApproveBundleResponseObject, error)
@@ -10447,6 +10532,32 @@ func (sh *strictHandler) GetBundleAccess(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetBundleAccessResponseObject); ok {
 		if err := validResponse.VisitGetBundleAccessResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdoptFrontmatter operation middleware
+func (sh *strictHandler) AdoptFrontmatter(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request AdoptFrontmatterRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdoptFrontmatter(ctx, request.(AdoptFrontmatterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdoptFrontmatter")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdoptFrontmatterResponseObject); ok {
+		if err := validResponse.VisitAdoptFrontmatterResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

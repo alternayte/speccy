@@ -30,6 +30,7 @@ import { FindingsPanel, waiverCovers } from "./findings-panel";
 import type { BundleSearch } from "./search";
 import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VerdictBar } from "./verdict";
+import { AdoptBar } from "./adopt-bar";
 import { VersionsPanel } from "./versions-panel";
 
 type Panel = "files" | "rail" | null;
@@ -234,6 +235,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
 
       <div className="no-print">
         {run.active ? <RunProgress events={run.events} /> : null}
+        <AdoptBar bundleId={bundleId} adopt={b.adopt} canEdit={canEdit} />
         <VerdictBar
           verdict={b.verdict}
           runError={b.run_error}

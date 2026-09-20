@@ -84,6 +84,10 @@ var categories = map[string]verdict.Category{
 // frontmatter; M7 resolves the link target.
 const HasUpstreamSlug = "links.has-upstream"
 
+// HasChildrenSlug is the check that a doc of the size the profile names links the bundles it
+// covers (REQ-134).
+const HasChildrenSlug = "links.has-children"
+
 // pending is a finding before it is stored.
 type pending struct {
 	slug     string
@@ -124,6 +128,9 @@ type input struct {
 	profile profile.Versioned
 	relaxed map[string]bool
 	fm      source.Frontmatter
+	// size is the doc's size, and sizeInferred says the frontmatter did not name it.
+	size         kernel.Size
+	sizeInferred bool
 	// links are the version's links; linked are the bundle targets, at their current version.
 	links  []link
 	linked []linked
@@ -148,6 +155,7 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.Bundle, versionID uuid.U
 	}
 	in.doc = section.Parse(in.main)
 	in.fm, _, _ = source.ReadFrontmatter(in.main)
+	in.size, in.sizeInferred = docSize(in.fm, in.main)
 	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
 		return input{}, err
 	}
@@ -177,7 +185,7 @@ func lintStage(in input) evaluation {
 	for i, f := range in.files {
 		paths[i] = f.Path
 	}
-	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.MainDoc, paths, in.relaxed)
+	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.MainDoc, paths, in.relaxed, in.size)
 	cfg.UpstreamIDs = upstreamIDs(in)
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
@@ -187,6 +195,20 @@ func lintStage(in input) evaluation {
 	}
 	for slug, lvl := range res.Rules {
 		ev.items = append(ev.items, verdict.Item{Slug: slug, Category: categories[slug], Level: lvl, Passed: !failed[slug], Applicable: true})
+	}
+	if ch := in.profile.Profile.Links.Children; ch != nil && childrenRequired(*ch, in.size) {
+		level := in.level(HasChildrenSlug, checkLevel(in.profile.Profile, HasChildrenSlug, kernel.Must))
+		n := childLinks(in, ch.Kinds)
+		passed := n >= ch.Min
+		ev.items = append(ev.items, verdict.Item{Slug: HasChildrenSlug, Category: verdict.Coherence, Level: level, Passed: passed, Applicable: true})
+		if !passed {
+			ev.findings = append(ev.findings, pending{
+				slug: HasChildrenSlug, level: level, stage: StageCoherence, anchor: docAnchor(in),
+				message: fmt.Sprintf("A doc of size %s names the work it covers. This doc has %d %s link%s, and needs %d.",
+					in.size, n, strings.Join(ch.Kinds, " or "), plural(n), ch.Min),
+				fix: "Add a link under links: in the frontmatter for each bundle this doc covers.",
+			})
+		}
 	}
 	if up := in.profile.Profile.Links.Upstream; up != nil && up.Required {
 		level := in.level(HasUpstreamSlug, checkLevel(in.profile.Profile, HasUpstreamSlug, kernel.Must))
@@ -473,15 +495,22 @@ func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) 
 	if err != nil {
 		return run, err
 	}
+	if in.sizeInferred {
+		run.Notes, _ = json.Marshal([]string{sizeNote(in.size)})
+	}
 	run.Status = "complete"
 	return run, s.save(ctx, run, in, lintStage(in), p.Profile, false)
 }
 
 func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished time.Time) error {
+	notes := r.Notes
+	if len(notes) == 0 {
+		notes = dbtype.JSON(`[]`)
+	}
 	return q.InsertRun(ctx, pgdb.InsertRunParams{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, BundleID: r.BundleID, VersionID: r.VersionID, ProfileKey: r.ProfileKey,
 		ProfileVersion: r.ProfileVersion, Kind: r.Kind, Status: r.Status, Stage: r.Stage, Error: r.Error,
-		StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
+		Notes: notes, StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})
 }
 
@@ -515,7 +544,7 @@ func nonNil(xs []string) []string {
 
 // lintConfig builds the lint configuration from a profile. Relaxed checks report at INFO
 // (REQ-133); a profile override of "off" stays off.
-func lintConfig(p profile.Profile, template []byte, mainDoc string, files []string, relaxed map[string]bool) lint.Config {
+func lintConfig(p profile.Profile, template []byte, mainDoc string, files []string, relaxed map[string]bool, size kernel.Size) lint.Config {
 	levels := map[string]string{}
 	for slug, o := range p.Lint.Overrides {
 		levels[slug] = o.Level
@@ -527,14 +556,14 @@ func lintConfig(p profile.Profile, template []byte, mainDoc string, files []stri
 	}
 	var required []lint.Heading
 	for _, h := range profile.RequiredHeadings(template) {
-		required = append(required, lint.Heading{Level: h.Level, Title: h.Title})
+		required = append(required, lint.Heading{Level: h.Level, Title: h.Title, MinSize: h.MinSize})
 	}
 	return lint.Config{
 		Path: mainDoc, Files: files,
 		MaxWords: p.Limits.MaxWords, MaxSectionWords: p.Limits.MaxSectionWords, MaxSentenceWords: p.Limits.MaxSentenceWords,
 		MaxCodeBlockLines: p.Limits.MaxCodeBlockLines, MaxTableRows: p.Limits.MaxTableRows,
 		Prefixes: p.Trace.Prefixes, UpstreamPrefixes: p.Trace.Cover,
-		Required: required, SlopExtra: p.Lint.SlopExtra, Levels: levels,
+		Required: required, SlopExtra: p.Lint.SlopExtra, Levels: levels, Size: size,
 	}
 }
 
@@ -550,6 +579,30 @@ func checkLevel(p profile.Profile, slug string, fallback kernel.Level) kernel.Le
 // hasUpstream reports whether the doc links to a bundle of one of types with one of kinds, or
 // has a standalone acknowledgement with a reason (REQ-057). missing is the first link target
 // of a right kind that no bundle matches.
+// childrenRequired reports whether the children check runs on a doc of size sz.
+func childrenRequired(c profile.Children, sz kernel.Size) bool {
+	min, ok := kernel.ParseSize(c.MinAt)
+	return ok && sz.AtLeast(min)
+}
+
+// childLinks counts the links of one of kinds that resolve to a bundle.
+func childLinks(in input, kinds []string) int {
+	n := 0
+	for _, l := range in.links {
+		if slices.Contains(kinds, l.kind) && l.target != nil {
+			n++
+		}
+	}
+	return n
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}
+
 func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
 	if standalone(in.fm) {
 		return true, ""

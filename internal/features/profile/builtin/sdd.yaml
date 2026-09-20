@@ -9,6 +9,7 @@ limits:
   max_table_rows: 15
 links:
   upstream: { kinds: [implements], types: [prd], required: true }
+  children: { kinds: [references, refines], min: 1, min_at: initiative }
 trace:
   prefixes: [REQ, DEC, NFR]
   cover: [REQ, NFR]
@@ -52,84 +53,98 @@ checks:
   - slug: sdd.components
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does each component have a stated responsibility?
     pass_when: Each component has a stated responsibility.
   - slug: sdd.data.model
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Is each stored entity described with fields, types, and constraints?
     pass_when: Each stored entity has fields, types, and constraints, in the doc or a linked asset.
   - slug: sdd.data.ownership
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does each entity have one owning component?
     pass_when: Each entity has exactly one owning component.
   - slug: sdd.interfaces
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does each interface have inputs, outputs, and errors?
     pass_when: Each interface has inputs, outputs, and errors, in the doc or a linked asset.
   - slug: sdd.failure-modes
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does each external dependency have a stated failure behaviour?
     pass_when: Each external dependency has a stated failure behaviour.
   - slug: sdd.state
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does each stateful entity have its states and transitions?
     pass_when: Each stateful entity has its states and transitions.
   - slug: sdd.limits
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Do sizes, rates, and timeouts have numbers?
     pass_when: Sizes, rates, and timeouts have numbers.
   - slug: sdd.security
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are authentication, authorisation, secrets, and untrusted input addressed?
     pass_when: Authentication, authorisation, secrets, and untrusted input are addressed.
   - slug: sdd.observability
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are logs, metrics, and alerts stated?
     pass_when: Logs, metrics, and alerts are stated.
   - slug: sdd.testing
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does the test strategy name what proves each MUST requirement?
     pass_when: The test strategy names what proves each MUST requirement.
   - slug: sdd.migration
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are data and rollout migration described?
     pass_when: Data and rollout migration are described, or marked not applicable.
   - slug: sdd.performance
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Do performance targets have numbers?
     pass_when: Performance targets have numbers.
   - slug: sdd.delivery
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are milestones ordered with exit criteria?
     pass_when: Milestones are ordered and each has exit criteria.
   - slug: sdd.open-questions
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are open questions listed?
     pass_when: Open questions are listed, or the doc says "none".

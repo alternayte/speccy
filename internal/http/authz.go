@@ -107,10 +107,11 @@ var operations = map[string]access{
 	"createProfile":      adminOnly,
 	"setMaintainers":     adminOnly,
 
-	"putFileContent": bundleEdit,
-	"deleteFile":     bundleEdit,
-	"renameFile":     bundleEdit,
-	"addTraceIds":    bundleEdit,
+	"adoptFrontmatter": bundleEdit,
+	"putFileContent":   bundleEdit,
+	"deleteFile":       bundleEdit,
+	"renameFile":       bundleEdit,
+	"addTraceIds":      bundleEdit,
 	// REQ-025: the author asks for a fix and accepts it.
 	"suggestFix": bundleEdit,
 	"acceptFix":  bundleEdit,

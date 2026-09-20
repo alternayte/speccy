@@ -96,6 +96,22 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/adopt:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: adoptFrontmatter
+      summary: Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+      responses:
+        "200":
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/visibility:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -2087,6 +2103,8 @@ components:
           format: date-time
         used_by:
           type: string
+        adopt:
+          $ref: "#/components/schemas/Adopt"
         status:
           type: string
           enum: [pending, used, revoked, expired]
@@ -2168,6 +2186,8 @@ components:
         run_error:
           type: string
           description: Why the latest run on the current version failed, when it failed.
+        adopt:
+          $ref: "#/components/schemas/Adopt"
         visibility:
           $ref: "#/components/schemas/Visibility"
         status:
@@ -2919,6 +2939,9 @@ components:
         report_path:
           type: string
           description: The app page of the report, relative to the server, such as /reviews/{id}.
+        size:
+          type: string
+          description: The doc size the review used, from the frontmatter or inferred (REQ-134).
         profile_key:
           type: string
         profile_version:
@@ -3192,6 +3215,15 @@ components:
         created_at:
           type: string
           format: date-time
+
+    Adopt:
+      type: object
+      description: The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
+      properties:
+        type:
+          type: string
+        size:
+          type: string
 
     SectionRange:
       type: object

@@ -150,7 +150,10 @@ func Sort(files []File) {
 
 // Frontmatter is the part of a main doc's frontmatter that Speccy reads (SDD §10.2).
 type Frontmatter struct {
-	Type       string      `yaml:"type"`
+	Type string `yaml:"type"`
+	// Size is the scale the doc covers: feature, app, or initiative (REQ-134). An empty size
+	// is inferred from the doc.
+	Size       string      `yaml:"size"`
 	Title      string      `yaml:"title"`
 	Links      []Link      `yaml:"links"`
 	Standalone *Standalone `yaml:"standalone"`

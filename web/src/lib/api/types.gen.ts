@@ -64,6 +64,7 @@ export type Invite = {
     created_by: string;
     created_at: string;
     used_by?: string;
+    adopt?: Adopt;
     status: 'pending' | 'used' | 'revoked' | 'expired';
 };
 
@@ -125,6 +126,7 @@ export type Bundle = {
      * Why the latest run on the current version failed, when it failed.
      */
     run_error?: string;
+    adopt?: Adopt;
     visibility?: Visibility;
     status?: ReviewStatus;
 };
@@ -585,6 +587,10 @@ export type ContentReview = {
      * The app page of the report, relative to the server, such as /reviews/{id}.
      */
     report_path: string;
+    /**
+     * The doc size the review used, from the frontmatter or inferred (REQ-134).
+     */
+    size?: string;
     profile_key: string;
     profile_version: number;
     main_doc: string;
@@ -737,6 +743,14 @@ export type Waiver = {
     decision_reason?: string;
     section_range?: SectionRange;
     created_at: string;
+};
+
+/**
+ * The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
+ */
+export type Adopt = {
+    type?: string;
+    size?: string;
 };
 
 /**
@@ -1260,6 +1274,33 @@ export type GetBundleAccessResponses = {
 };
 
 export type GetBundleAccessResponse = GetBundleAccessResponses[keyof GetBundleAccessResponses];
+
+export type AdoptFrontmatterData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/adopt';
+};
+
+export type AdoptFrontmatterErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AdoptFrontmatterError = AdoptFrontmatterErrors[keyof AdoptFrontmatterErrors];
+
+export type AdoptFrontmatterResponses = {
+    /**
+     * The new version.
+     */
+    200: WriteResult;
+};
+
+export type AdoptFrontmatterResponse = AdoptFrontmatterResponses[keyof AdoptFrontmatterResponses];
 
 export type SetVisibilityData = {
     body: {

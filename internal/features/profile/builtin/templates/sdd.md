@@ -20,27 +20,27 @@ links:
 
 - **DEC-001:** <The decision.> Rejected: <an alternative, and why.>
 
-## Components <!-- required -->
+## Components <!-- required: app -->
 
 <Each component and its one responsibility.>
 
-## Data model <!-- required -->
+## Data model <!-- required: app -->
 
 <Each stored entity with its fields, types, and constraints, or a link to an asset.>
 
-## Interfaces <!-- required -->
+## Interfaces <!-- required: app -->
 
 <Each interface with its inputs, outputs, and errors, or a link to an asset such as an OpenAPI file.>
 
-## Failure modes <!-- required -->
+## Failure modes <!-- required: app -->
 
 <For each external dependency: what happens when it fails.>
 
-## Limits <!-- required -->
+## Limits <!-- required: app -->
 
 <Sizes, rates, and timeouts, each with a number.>
 
-## Security <!-- required -->
+## Security <!-- required: app -->
 
 <Authentication, authorisation, secrets, and untrusted input.>
 
@@ -48,7 +48,7 @@ links:
 
 <Logs, metrics, and alerts.>
 
-## Testing <!-- required -->
+## Testing <!-- required: app -->
 
 <What proves each MUST requirement.>
 
@@ -60,6 +60,6 @@ links:
 
 <Milestones in order, each with exit criteria.>
 
-## Open questions <!-- required -->
+## Open questions <!-- required: app -->
 
 <Each open question, or "None".>

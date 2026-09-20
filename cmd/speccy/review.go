@@ -47,6 +47,9 @@ type reviewed struct {
 	Relaxed  int           `json:"relaxed"`
 	Findings []api.Finding `json:"findings"`
 	Notes    []string      `json:"notes"`
+	// done marks a result that is already complete: an unnamed bundle is reviewed in place,
+	// so the run loop below must not look for a saved run.
+	done bool `json:"-"`
 	// Report links to the report on the server, in connected mode (SDD §12.4).
 	Report string `json:"report,omitempty"`
 	Error  string `json:"error,omitempty"`
@@ -61,7 +64,12 @@ type reviewFlags struct {
 	stages      string
 	stagesSet   bool
 	enforcement string
-	paths       []string
+	// root is the folder the paths are relative to, for --adopt.
+	root string
+	// adopt writes the type and the size that the review used into the doc's frontmatter
+	// (REQ-135), so the next review needs no guess.
+	adopt bool
+	paths []string
 }
 
 // parseReviewFlags reads the flags of speccy review. Flags may come before or after the paths.
@@ -89,6 +97,8 @@ func parseReviewFlags(args []string) (reviewFlags, error) {
 		switch name {
 		case "summary":
 			f.summary = true
+		case "adopt":
+			f.adopt = true
 		case "format":
 			f.format, err = value(&i, name)
 		case "server":
@@ -295,11 +305,66 @@ func selectBundles(scan *local.Scan, rootDir, cwd string, paths []string) ([]loc
 			if info.IsDir() {
 				return nil, fmt.Errorf("%s has no bundle. A bundle is a folder with one markdown file that has a type in its frontmatter, or a file that a map entry in %s selects", paths[i], source.RepoConfigFile)
 			}
-			return nil, fmt.Errorf("%s is not in a bundle. Add a type field to its frontmatter, or map it to a profile in %s", paths[i], source.RepoConfigFile)
+			// The user pointed at a markdown file that is in no bundle. Review it as it is,
+			// and let the review pick the profile (REQ-135).
+			b, err := unnamedBundle(rootDir, p)
+			if err != nil {
+				return nil, err
+			}
+			if !seen[b.Slug] {
+				seen[b.Slug] = true
+				out = append(out, b)
+			}
+			continue
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
 	return out, nil
+}
+
+// adoptFile writes the type and the size a review used into the doc's frontmatter, so the
+// next review needs no guess (REQ-135). It writes nothing that the doc already names.
+func adoptFile(path string, fm source.Frontmatter, key, size string) error {
+	var keys [][2]string
+	if fm.Type == "" && key != "" {
+		keys = append(keys, [2]string{"type", key})
+	}
+	if fm.Size == "" && size != "" {
+		keys = append(keys, [2]string{"size", size})
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	next, err := source.SetKeys(content, keys)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, next, 0o644)
+}
+
+// unnamedBundle reads a markdown file that belongs to no bundle, so Speccy can review it
+// without an edit to the file first (REQ-135).
+func unnamedBundle(rootDir, p string) (local.Bundle, error) {
+	if !source.IsMarkdown(p) {
+		return local.Bundle{}, fmt.Errorf("%s is not a markdown file, so Speccy cannot review it", p)
+	}
+	content, err := os.ReadFile(filepath.Join(rootDir, filepath.FromSlash(p)))
+	if err != nil {
+		return local.Bundle{}, err
+	}
+	file := path.Base(p)
+	main, err := source.SingleFileMainDoc(file, content, "")
+	if err != nil {
+		return local.Bundle{}, fmt.Errorf("%s has %s", p, err.Error())
+	}
+	return local.Bundle{
+		Slug: strings.TrimSuffix(p, path.Ext(p)), Dir: path.Dir(p), File: file, Main: main,
+		Files: []source.File{{Path: file, Content: content}}, Unnamed: true,
+	}, nil
 }
 
 // bundleMatches reports whether the path p (relative to the root) names bundle b: a folder
@@ -329,6 +394,7 @@ func reviewLocal(ctx context.Context, rootDir string, fl reviewFlags, stages rev
 		fmt.Fprintf(stderr, "speccy review: %v.\n", problemText(err))
 		return nil, exitRun
 	}
+	fl.root = rootDir
 	return reviewWith(ctx, s, fl, stages, lintOnly, selected, stderr)
 }
 
@@ -354,6 +420,17 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 	var out []reviewed
 	runs := map[string]string{} // slug → run to wait for
 	for _, lb := range selected {
+		if lb.Unnamed {
+			// The file is in no bundle. Review it without saving it, so the first review needs
+			// no edit to the file (REQ-135).
+			r, code := reviewOne(ctx, s.client, fl, stages, lintOnly, lb, stderr)
+			if code != exitOK {
+				return nil, code
+			}
+			r.done = true
+			out = append(out, r)
+			continue
+		}
 		b, ok := bySlug[lb.Slug]
 		if !ok {
 			out = append(out, reviewed{Path: lb.Slug, Error: "Speccy did not load this bundle. Run speccy in the folder to see why."})
@@ -387,7 +464,7 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 		out = append(out, r)
 	}
 	for i := range out {
-		if out[i].Error != "" {
+		if out[i].Error != "" || out[i].done {
 			continue
 		}
 		b := bySlug[out[i].Path]
@@ -466,49 +543,80 @@ func reviewRemote(ctx context.Context, fl reviewFlags, stages review.Stages, sel
 	}
 	var out []reviewed
 	for _, b := range selected {
-		body := api.ReviewContentJSONRequestBody{Slug: &b.Slug}
-		if b.File != "" {
-			body.MainDoc = &b.File
-			if b.Main.Frontmatter.Type != "" {
-				body.Profile = &b.Main.Frontmatter.Type
-			}
+		r, code := reviewOne(ctx, c, fl, stages, lintOnly(stages), b, stderr)
+		if code != exitOK {
+			return nil, code
 		}
-		if stages != nil {
-			st := make([]api.ContentReviewRequestStages, len(stages))
-			for i, x := range stages {
-				st[i] = api.ContentReviewRequestStages(x)
-			}
-			body.Stages = &st
-		}
-		for _, f := range b.Files {
-			cf := api.ContentFile{Path: f.Path, Content: string(f.Content)}
-			if !isText(f.Content) {
-				enc := api.ContentFileEncodingBase64
-				cf.Content, cf.Encoding = encodeBase64(f.Content), &enc
-			}
-			body.Files = append(body.Files, cf)
-		}
-		res, err := c.ReviewContentWithResponse(ctx, body)
-		if err != nil {
-			fmt.Fprintf(stderr, "speccy review: %s: %v.\n", fl.server, err)
-			return nil, exitRun
-		}
-		if res.JSON200 == nil {
-			return nil, problemExit(stderr, b.Slug, res.ApplicationproblemJSONDefault)
-		}
-		v := res.JSON200
-		kind := "full"
-		if stages != nil && len(stages) == 0 {
-			kind = "lint"
-		}
-		out = append(out, reviewed{
-			Path: b.Slug, Title: b.Main.Title, Profile: v.ProfileKey, MainDoc: path.Join(b.Dir, v.MainDoc), Kind: kind,
-			Verdict: string(v.Verdict.Result), Score: v.Verdict.Score, Must: v.Verdict.Must, Should: v.Verdict.Should, Info: v.Verdict.Info,
-			Waivers: v.Verdict.WaiverCount, Relaxed: v.Verdict.RelaxedCount, Findings: v.Findings, Notes: v.Notes,
-			Report: strings.TrimRight(fl.server, "/") + v.ReportPath,
-		})
+		out = append(out, r)
 	}
 	return out, exitOK
+}
+
+// lintOnly reports whether the caller asked for the lint stage alone.
+func lintOnly(stages review.Stages) bool { return stages != nil && len(stages) == 0 }
+
+// reviewOne reviews one bundle's files without saving them (SDD §12.2). It serves the
+// --server flag and a markdown file that belongs to no bundle (REQ-135).
+func reviewOne(ctx context.Context, c *api.ClientWithResponses, fl reviewFlags, stages review.Stages, lint bool, b local.Bundle, stderr io.Writer) (reviewed, int) {
+	body := api.ReviewContentJSONRequestBody{Slug: &b.Slug}
+	if b.File != "" {
+		body.MainDoc = &b.File
+		if b.Main.Frontmatter.Type != "" {
+			body.Profile = &b.Main.Frontmatter.Type
+		}
+	}
+	if lint && stages == nil {
+		stages = review.Stages{}
+	}
+	if stages != nil {
+		st := make([]api.ContentReviewRequestStages, len(stages))
+		for i, x := range stages {
+			st[i] = api.ContentReviewRequestStages(x)
+		}
+		body.Stages = &st
+	}
+	for _, f := range b.Files {
+		cf := api.ContentFile{Path: f.Path, Content: string(f.Content)}
+		if !isText(f.Content) {
+			enc := api.ContentFileEncodingBase64
+			cf.Content, cf.Encoding = encodeBase64(f.Content), &enc
+		}
+		body.Files = append(body.Files, cf)
+	}
+	res, err := c.ReviewContentWithResponse(ctx, body)
+	if err != nil {
+		fmt.Fprintf(stderr, "speccy review: %v.\n", err)
+		return reviewed{}, exitRun
+	}
+	if res.JSON200 == nil {
+		return reviewed{}, problemExit(stderr, b.Slug, res.ApplicationproblemJSONDefault)
+	}
+	v := res.JSON200
+	kind := "full"
+	if lint {
+		kind = "lint"
+	}
+	r := reviewed{
+		Path: b.Slug, Title: b.Main.Title, Profile: v.ProfileKey, MainDoc: path.Join(b.Dir, v.MainDoc), Kind: kind,
+		Verdict: string(v.Verdict.Result), Score: v.Verdict.Score, Must: v.Verdict.Must, Should: v.Verdict.Should, Info: v.Verdict.Info,
+		Waivers: v.Verdict.WaiverCount, Relaxed: v.Verdict.RelaxedCount, Findings: v.Findings, Notes: v.Notes,
+	}
+	if fl.server != "" {
+		r.Report = strings.TrimRight(fl.server, "/") + v.ReportPath
+	}
+	// The review names the type and the size it used. --adopt writes them into the doc, so
+	// the next review needs no guess (REQ-135).
+	if fl.adopt && fl.server == "" && b.File != "" {
+		size := ""
+		if v.Size != nil {
+			size = *v.Size
+		}
+		if err := adoptFile(filepath.Join(fl.root, filepath.FromSlash(path.Join(b.Dir, b.File))), b.Main.Frontmatter, v.ProfileKey, size); err != nil {
+			fmt.Fprintf(stderr, "speccy review: %s: %v.\n", b.Slug, err)
+			return r, exitRun
+		}
+	}
+	return r, exitOK
 }
 
 // listAll pages through the bundles.

@@ -13,6 +13,7 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/verdict"
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
@@ -39,10 +40,12 @@ type ContentResult struct {
 	Verdict        verdict.Verdict
 	RelaxedCount   int
 	Notes          []string
-	TokensIn       int64
-	TokensOut      int64
-	CostUSD        float64
-	CacheHits      int
+	// Size is the doc size the review used.
+	Size      string
+	TokensIn  int64
+	TokensOut int64
+	CostUSD   float64
+	CacheHits int
 }
 
 // ReviewContent runs the chosen stages on content that is not saved (SDD §12.2 --server). Its
@@ -53,9 +56,20 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	if err != nil {
 		return out, err
 	}
-	p, ok := s.Profiles()[main.Frontmatter.Type]
+	// A doc that names no type is still reviewable: the profile comes from its headings, and
+	// the run says which one it used (REQ-135).
+	key, guessed := main.Frontmatter.Type, false
+	if key == "" {
+		k, ok := profile.Guess(s.Profiles(), mainContent(c, main.Path))
+		if !ok {
+			return out, kernel.Invalid("no_profile", "This doc names no type, and its headings match no profile. Add \"type:\" to the frontmatter. The types are: %s.",
+				strings.Join(profileKeys(s.Profiles()), ", "))
+		}
+		key, guessed = k, true
+	}
+	p, ok := s.Profiles()[key]
 	if !ok {
-		return out, kernel.Invalid("no_profile", "%s", s.noProfile(main.Frontmatter.Type))
+		return out, kernel.Invalid("no_profile", "%s", s.noProfile(key))
 	}
 	for _, role := range stages.roles(p.Profile) {
 		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
@@ -74,6 +88,12 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	rc := &runCtx{
 		progress: s.Progress, roles: map[string]string{}, prompts: map[string]string{},
 		prices: map[string][2]float64{}, sem: make(chan struct{}, s.parallel(ctx)),
+	}
+	if guessed {
+		rc.note(profile.GuessNote(key, profileKeys(s.Profiles())))
+	}
+	if in.sizeInferred {
+		rc.note(sizeNote(in.size))
 	}
 	if rc.progress == nil {
 		rc.progress = NewBroker()
@@ -132,6 +152,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	out.Title, out.Slug = main.Title, slug
 	out.RelaxedCount = relaxedCount(p.Profile, ev.relaxed)
 	rc.mu.Lock()
+	out.Size = string(in.size)
 	out.Notes = append([]string{}, rc.notes...)
 	out.TokensIn, out.TokensOut, out.CostUSD, out.CacheHits = rc.tokensIn, rc.tokensOut, rc.cost, rc.cacheHits
 	rc.mu.Unlock()
@@ -139,6 +160,16 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		out.Notes = append(out.Notes, "Stages in this review: "+strings.Join(append([]string{StageLint}, stages...), ", ")+". The verdict counts only these stages.")
 	}
 	return out, nil
+}
+
+// mainContent is the bytes of the main doc in c.
+func mainContent(c Content, path string) []byte {
+	for _, f := range c.Files {
+		if f.Path == path {
+			return f.Content
+		}
+	}
+	return nil
 }
 
 func contentMainDoc(c Content) (source.MainDoc, error) {
@@ -151,9 +182,6 @@ func contentMainDoc(c Content) (source.MainDoc, error) {
 				m, err := source.SingleFileMainDoc(f.Path, f.Content, c.Profile)
 				if err != nil {
 					return m, kernel.Invalid("bad_main_doc", "%s", err.Error())
-				}
-				if m.Frontmatter.Type == "" {
-					return m, kernel.Invalid("no_type", "The main doc %s has no type in its frontmatter, and the request names no profile.", f.Path)
 				}
 				return m, nil
 			}
@@ -204,7 +232,7 @@ func (a *API) ReviewContent(ctx context.Context, req api.ReviewContentRequestObj
 	if err != nil {
 		return nil, err
 	}
-	out := api.ContentReview{ProfileKey: res.ProfileKey, ProfileVersion: res.ProfileVersion, MainDoc: res.MainDoc,
+	out := api.ContentReview{ProfileKey: res.ProfileKey, ProfileVersion: res.ProfileVersion, MainDoc: res.MainDoc, Size: &res.Size,
 		Findings: res.Findings, Notes: res.Notes}
 	if out.Findings == nil {
 		out.Findings = []api.Finding{}

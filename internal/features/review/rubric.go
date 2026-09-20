@@ -174,7 +174,7 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 	levels := map[string]kernel.Level{}
 	var sectionChecks []rubricCheck
 	for _, c := range in.profile.Profile.Checks {
-		if c.Stage != StageRubric {
+		if c.Stage != StageRubric || !c.AppliesAt(in.size) {
 			continue
 		}
 		levels[c.Slug] = in.level(c.Slug, kernel.Level(c.Level))
