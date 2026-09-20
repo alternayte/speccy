@@ -724,19 +724,24 @@ type ClientInterface interface {
 	// Corresponds with POST /render (the `RenderMarkdown` operationId).
 	RenderMarkdown(ctx context.Context, body RenderMarkdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReviewContentWithBody Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// ReviewContentWithBody Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContent(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+	//
+	// Corresponds with GET /reviews/{reviewId}/report (the `GetContentReviewReport` operationId).
+	GetContentReviewReport(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetRun Get one review run and its verdict.
 	//
@@ -2532,7 +2537,7 @@ func (c *Client) RenderMarkdown(ctx context.Context, body RenderMarkdownJSONRequ
 	return c.Client.Do(req)
 }
 
-// ReviewContentWithBody Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+// ReviewContentWithBody Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes any type of body and a specified content type.
 //
@@ -2549,13 +2554,28 @@ func (c *Client) ReviewContentWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /reviews (the `ReviewContent` operationId).
 func (c *Client) ReviewContent(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReviewContentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+//
+// Corresponds with GET /reviews/{reviewId}/report (the `GetContentReviewReport` operationId).
+func (c *Client) GetContentReviewReport(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetContentReviewReportRequest(c.Server, reviewId)
 	if err != nil {
 		return nil, err
 	}
@@ -6038,6 +6058,40 @@ func NewReviewContentRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewGetContentReviewReportRequest constructs an http.Request for the GetContentReviewReport method
+func NewGetContentReviewReportRequest(server string, reviewId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "reviewId", reviewId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/reviews/%s/report", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetRunRequest constructs an http.Request for the GetRun method
 func NewGetRunRequest(server string, runId RunId) (*http.Request, error) {
 	var err error
@@ -7466,19 +7520,26 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /render (the `RenderMarkdown` operationId).
 	RenderMarkdownWithResponse(ctx context.Context, body RenderMarkdownJSONRequestBody, reqEditors ...RequestEditorFn) (*RenderMarkdownResponse, error)
 
-	// ReviewContentWithBodyWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// ReviewContentWithBodyWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReviewContentResponse, error)
 
-	// ReviewContentWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// ReviewContentWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithResponse(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*ReviewContentResponse, error)
+
+	// GetContentReviewReportWithResponse The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /reviews/{reviewId}/report (the `GetContentReviewReport` operationId).
+	GetContentReviewReportWithResponse(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetContentReviewReportResponse, error)
 
 	// GetRunWithResponse Get one review run and its verdict.
 	//
@@ -11326,6 +11387,47 @@ func (r ReviewContentResponse) ContentType() string {
 	return ""
 }
 
+type GetContentReviewReportResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetContentReviewReportResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetContentReviewReportResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetContentReviewReportResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetContentReviewReportResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetContentReviewReportResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetRunResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13488,7 +13590,7 @@ func (c *ClientWithResponses) RenderMarkdownWithResponse(ctx context.Context, bo
 	return ParseRenderMarkdownResponse(rsp)
 }
 
-// ReviewContentWithBodyWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+// ReviewContentWithBodyWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -13501,7 +13603,7 @@ func (c *ClientWithResponses) ReviewContentWithBodyWithResponse(ctx context.Cont
 	return ParseReviewContentResponse(rsp)
 }
 
-// ReviewContentWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+// ReviewContentWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -13512,6 +13614,19 @@ func (c *ClientWithResponses) ReviewContentWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseReviewContentResponse(rsp)
+}
+
+// GetContentReviewReportWithResponse The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /reviews/{reviewId}/report (the `GetContentReviewReport` operationId).
+func (c *ClientWithResponses) GetContentReviewReportWithResponse(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetContentReviewReportResponse, error) {
+	rsp, err := c.GetContentReviewReport(ctx, reviewId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetContentReviewReportResponse(rsp)
 }
 
 // GetRunWithResponse Get one review run and its verdict.
@@ -16316,6 +16431,32 @@ func ParseReviewContentResponse(rsp *http.Response) (*ReviewContentResponse, err
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetContentReviewReportResponse parses an HTTP response from a GetContentReviewReportWithResponse call
+func ParseGetContentReviewReportResponse(rsp *http.Response) (*GetContentReviewReportResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetContentReviewReportResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

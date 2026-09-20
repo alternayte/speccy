@@ -9,7 +9,8 @@
 /* Tokens. Every value in the UI comes from here. */
 :root {
   /* Type: Inter for UI and doc text, JetBrains Mono for code. Ratio 1.2 (minor third) from a
-     13px UI base; doc text steps up to 16px for reading. */
+     13px UI base; doc text steps up to 16px for reading. Titles step by 1.25 (major third) from
+     16px, so a title stands clear of the labels and the text under it. */
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
   --text-2xs: 11px;
@@ -17,9 +18,9 @@
   --text-sm: 13px;
   --text-md: 14px;
   --text-doc: 16px;
-  --text-lg: 19px;
-  --text-xl: 23px;
-  --text-2xl: 28px;
+  --text-lg: 20px;
+  --text-xl: 26px;
+  --text-2xl: 32px;
   --leading-ui: 1.4;
   --leading-doc: 1.7;
   --tracking-tight: -0.011em;

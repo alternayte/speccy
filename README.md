@@ -167,7 +167,7 @@ The Action is advisory by default: a Not Build Ready verdict shows in the commen
 /docs/ @acme/spec-maintainers
 ```
 
-In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs.
+In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs. The server changes no bundle. It keeps each review for 90 days, and the summary comment links each bundle to its report on the server. Members of the workspace can open the report.
 
 ## Models
 

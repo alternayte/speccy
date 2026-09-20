@@ -47,7 +47,7 @@ export function ShareDialog({ bundleId }: { bundleId: string }) {
   const error = visibility.error ?? create.error ?? revoke.error;
   return (
     <>
-      <Button size="sm" icon={<Share2 className="size-3.5" />} onClick={() => setOpen(true)}>
+      <Button size="sm" variant="ghost" icon={<Share2 className="size-3.5" />} onClick={() => setOpen(true)}>
         <span className="hidden sm:inline">Share</span>
       </Button>
       <Dialog

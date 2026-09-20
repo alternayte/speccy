@@ -49,6 +49,8 @@ var operations = map[string]access{
 	"listProfiles": member,
 	// A content review calls the models; guests do not ask the AI (REQ-086).
 	"reviewContent": member,
+	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.
+	"getContentReviewReport": member,
 
 	"getBundle":       bundleRead,
 	"listFiles":       bundleRead,

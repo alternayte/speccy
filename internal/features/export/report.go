@@ -95,30 +95,17 @@ func (a *API) report(ctx context.Context, b pgdb.Bundle) (api.ExportBundleRespon
 	case bv == nil:
 		d.Verdict, d.VerdictClass, d.Next = "No verdict", "stale", "Speccy has not reviewed this version."
 	default:
-		d.Verdict, d.VerdictClass = verdictText(bv), string(bv.Result)
+		d.Verdict, d.VerdictClass = verdictText(bv.Result, bv.WaiverCount), string(bv.Result)
 		d.Must, d.Should, d.Info, d.Score, d.Relaxed = bv.Must, bv.Should, bv.Info, bv.Score, bv.RelaxedCount
 		d.Kind = "Full review"
 		if bv.Kind == api.BundleVerdictKindLint {
 			d.Kind = "Lint checks only"
 		}
-		switch {
-		case bv.Result == api.Stale:
+		d.Next = next(bv.Must, bv.Result)
+		if bv.Result == api.Stale {
 			d.Next = fmt.Sprintf("This verdict is for version %d. The report shows version %d.", bv.VersionNumber, v.Number)
-		case bv.Must > 0:
-			d.Next = fmt.Sprintf("%d MUST finding%s to fix. SHOULD findings never block.", bv.Must, plural(bv.Must))
-		case bv.Result == api.NotBuildReady:
-			d.Next = "A required link or decision is missing, or a blocking thread is open."
-		default:
-			d.Next = "No blocking findings."
 		}
-		for _, c := range verdict.Categories {
-			score, has := bv.Radar[string(c)]
-			d.Radar = append(d.Radar, struct {
-				Name  string
-				Score int
-				Has   bool
-			}{Name: strings.ToUpper(string(c[:1])) + string(c[1:]), Score: score, Has: has})
-		}
+		d.setRadar(bv.Radar)
 		run, err := q.GetRun(ctx, pgdb.GetRunParams{WorkspaceID: a.Workspace, ID: bv.RunId})
 		if err != nil {
 			return nil, err
@@ -128,30 +115,60 @@ func (a *API) report(ctx context.Context, b pgdb.Bundle) (api.ExportBundleRespon
 		if err != nil {
 			return nil, err
 		}
-		for _, f := range res.(api.ListFindings200JSONResponse).Items {
-			rf := reportFinding{Level: string(f.Level), Check: f.CheckSlug, Message: f.Message, Quote: f.Anchor.Quote,
-				Section: strings.Join(f.Anchor.HeadingPath, " › "), Where: f.Anchor.File}
-			if src, ok := byPath[f.Anchor.File]; ok && f.Anchor.Start <= len(src) && (f.Anchor.Detached == nil || !*f.Anchor.Detached) {
-				rf.Where = fmt.Sprintf("%s:%d", f.Anchor.File, bytes.Count(src[:f.Anchor.Start], []byte("\n"))+1)
-			}
-			if len(rf.Quote) > 400 {
-				rf.Quote = rf.Quote[:strings.LastIndexByte(rf.Quote[:400], ' ')+1] + "…"
-			}
-			if f.Fix != nil {
-				rf.Fix = *f.Fix
-			}
-			if f.Waived {
-				d.Waived = append(d.Waived, rf)
-			} else {
-				d.Findings = append(d.Findings, rf)
-			}
-		}
-		rank := map[string]int{"MUST": 0, "SHOULD": 1, "INFO": 2}
-		sort.SliceStable(d.Findings, func(i, j int) bool { return rank[d.Findings[i].Level] < rank[d.Findings[j].Level] })
+		d.addFindings(res.(api.ListFindings200JSONResponse).Items, byPath)
 	}
 
-	// Images become data URIs, so the report opens anywhere.
-	doc, err := render.HTML(byPath[b.MainDoc], render.Links{Dir: path.Dir(b.MainDoc), Image: func(p string) string {
+	data, err := d.render(byPath)
+	if err != nil {
+		return nil, err
+	}
+	name := path.Base(b.Slug)
+	if name == "." || name == "/" {
+		name = "bundle"
+	}
+	return htmlFile{name: fmt.Sprintf("%s-v%d-report.html", name, v.Number), data: data}, nil
+}
+
+// addFindings adds the open findings and the waived ones, MUST first.
+func (d *reportData) addFindings(findings []api.Finding, byPath map[string][]byte) {
+	for _, f := range findings {
+		rf := reportFinding{Level: string(f.Level), Check: f.CheckSlug, Message: f.Message, Quote: f.Anchor.Quote,
+			Section: strings.Join(f.Anchor.HeadingPath, " › "), Where: f.Anchor.File}
+		if src, ok := byPath[f.Anchor.File]; ok && f.Anchor.Start <= len(src) && (f.Anchor.Detached == nil || !*f.Anchor.Detached) {
+			rf.Where = fmt.Sprintf("%s:%d", f.Anchor.File, bytes.Count(src[:f.Anchor.Start], []byte("\n"))+1)
+		}
+		if len(rf.Quote) > 400 {
+			rf.Quote = rf.Quote[:strings.LastIndexByte(rf.Quote[:400], ' ')+1] + "…"
+		}
+		if f.Fix != nil {
+			rf.Fix = *f.Fix
+		}
+		if f.Waived {
+			d.Waived = append(d.Waived, rf)
+		} else {
+			d.Findings = append(d.Findings, rf)
+		}
+	}
+	rank := map[string]int{"MUST": 0, "SHOULD": 1, "INFO": 2}
+	sort.SliceStable(d.Findings, func(i, j int) bool { return rank[d.Findings[i].Level] < rank[d.Findings[j].Level] })
+}
+
+// setRadar fills the radar rows in the order of the categories.
+func (d *reportData) setRadar(radar map[string]int) {
+	for _, c := range verdict.Categories {
+		score, has := radar[string(c)]
+		d.Radar = append(d.Radar, struct {
+			Name  string
+			Score int
+			Has   bool
+		}{Name: strings.ToUpper(string(c[:1])) + string(c[1:]), Score: score, Has: has})
+	}
+}
+
+// render writes the report with the main doc. Images become data URIs, so the report opens
+// anywhere.
+func (d *reportData) render(byPath map[string][]byte) ([]byte, error) {
+	doc, err := render.HTML(byPath[d.MainDoc], render.Links{Dir: path.Dir(d.MainDoc), Image: func(p string) string {
 		content, ok := byPath[p]
 		if !ok {
 			return p
@@ -170,17 +187,25 @@ func (a *API) report(ctx context.Context, b pgdb.Bundle) (api.ExportBundleRespon
 	if err := reportTmpl.Execute(&buf, d); err != nil {
 		return nil, err
 	}
-	name := path.Base(b.Slug)
-	if name == "." || name == "/" {
-		name = "bundle"
-	}
-	return htmlFile{name: fmt.Sprintf("%s-v%d-report.html", name, v.Number), data: buf.Bytes()}, nil
+	return buf.Bytes(), nil
 }
 
-func verdictText(v *api.BundleVerdict) string {
-	label := map[api.VerdictResult]string{api.BuildReady: "Build Ready", api.NotBuildReady: "Not Build Ready", api.Stale: "Stale"}[v.Result]
-	if v.WaiverCount > 0 {
-		label += fmt.Sprintf(" (%d waiver%s)", v.WaiverCount, plural(v.WaiverCount))
+// next is the line under the verdict: what to do next.
+func next(must int, result api.VerdictResult) string {
+	switch {
+	case must > 0:
+		return fmt.Sprintf("%d MUST finding%s to fix. SHOULD findings never block.", must, plural(must))
+	case result == api.NotBuildReady:
+		return "A required link or decision is missing, or a blocking thread is open."
+	default:
+		return "No blocking findings."
+	}
+}
+
+func verdictText(result api.VerdictResult, waivers int) string {
+	label := map[api.VerdictResult]string{api.BuildReady: "Build Ready", api.NotBuildReady: "Not Build Ready", api.Stale: "Stale"}[result]
+	if waivers > 0 {
+		label += fmt.Sprintf(" (%d waiver%s)", waivers, plural(waivers))
 	}
 	return label
 }

@@ -651,3 +651,15 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** The Risk and Ambiguous layers are on until a reader chooses; the Writing, Unverified, and Contradicted layers are one click away. The reader's choice is kept in the browser.
 - **Alternative:** Every layer on.
 - **Reason:** Gauntlet runs 1 and 2: with every layer on, a paragraph can carry four colours of underline, and every critic named it as the largest difference.
+
+## 2026-09-19 — Report of a connected-mode review
+
+- **Choice:** `POST /reviews` keeps the files and the result in `content_review` for 90 days, and returns `id` and `report_path`. The app shows the report at `/reviews/{id}` to workspace members, from `GET /reviews/{id}/report`, which uses the HTML report template. `speccy review --server` prints the link, and the Action links each bundle to it. No bundle or version on the server changes. After 90 days the report returns 404, and the next `POST /reviews` removes the row, with no background job.
+- **Alternative:** Store the files as a new version of the server bundle with the same slug, and link to that run's report.
+- **Reason:** The owner chose a stored review that changes no bundle. A pull request's text is not the server's text, and a version per push would fill the bundle's history. SDD §12.4 asks for the link.
+
+## 2026-09-19 — Type scale, bundle header, and panel padding
+
+- **Choice:** Titles step by 1.25 from 16px (20, 26, 32px); the bundle title is 20px. In the bundle header, Tour and Traceability are plain links, Share is a quiet button, and the HTML report, the PDF, and the .zip are in one Export menu, so Run review is the one strong action. Finding cards, rail lists, and trace matrix cells have 16px sides and 12 to 14px ends.
+- **Alternative:** Keep the 1.2 ratio for every step, and the ten buttons of the same weight.
+- **Reason:** Gauntlet run 2, differences 1 to 3.

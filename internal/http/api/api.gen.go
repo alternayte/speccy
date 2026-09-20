@@ -1377,16 +1377,20 @@ type ContentFileEncoding string
 
 // ContentReview defines model for ContentReview.
 type ContentReview struct {
-	CacheHits      *int           `json:"cache_hits,omitempty"`
-	CostEstimate   *float32       `json:"cost_estimate,omitempty"`
-	Findings       []Finding      `json:"findings"`
-	MainDoc        string         `json:"main_doc"`
-	Notes          []string       `json:"notes"`
-	ProfileKey     string         `json:"profile_key"`
-	ProfileVersion int64          `json:"profile_version"`
-	TokensIn       *int64         `json:"tokens_in,omitempty"`
-	TokensOut      *int64         `json:"tokens_out,omitempty"`
-	Verdict        ContentVerdict `json:"verdict"`
+	CacheHits      *int               `json:"cache_hits,omitempty"`
+	CostEstimate   *float32           `json:"cost_estimate,omitempty"`
+	Findings       []Finding          `json:"findings"`
+	Id             openapi_types.UUID `json:"id"`
+	MainDoc        string             `json:"main_doc"`
+	Notes          []string           `json:"notes"`
+	ProfileKey     string             `json:"profile_key"`
+	ProfileVersion int64              `json:"profile_version"`
+
+	// ReportPath The app page of the report, relative to the server, such as /reviews/{id}.
+	ReportPath string         `json:"report_path"`
+	TokensIn   *int64         `json:"tokens_in,omitempty"`
+	TokensOut  *int64         `json:"tokens_out,omitempty"`
+	Verdict    ContentVerdict `json:"verdict"`
 }
 
 // ContentReviewRequest defines model for ContentReviewRequest.
@@ -2785,9 +2789,12 @@ type ServerInterface interface {
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(w http.ResponseWriter, r *http.Request)
-	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(w http.ResponseWriter, r *http.Request)
+	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+	// (GET /reviews/{reviewId}/report)
+	GetContentReviewReport(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID)
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -4763,6 +4770,32 @@ func (siw *ServerInterfaceWrapper) ReviewContent(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetContentReviewReport operation middleware
+func (siw *ServerInterfaceWrapper) GetContentReviewReport(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reviewId" -------------
+	var reviewId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reviewId", r.PathValue("reviewId"), &reviewId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reviewId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetContentReviewReport(w, r, reviewId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetRun operation middleware
 func (siw *ServerInterfaceWrapper) GetRun(w http.ResponseWriter, r *http.Request) {
 
@@ -5372,6 +5405,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}/report", wrapper.GetContentReviewReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs/estimate", wrapper.EstimateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/assumptions", wrapper.ListAssumptions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/trace", wrapper.GetTrace)
@@ -8475,6 +8509,51 @@ func (response ReviewContentdefaultApplicationProblemPlusJSONResponse) VisitRevi
 	return err
 }
 
+type GetContentReviewReportRequestObject struct {
+	ReviewId openapi_types.UUID `json:"reviewId"`
+}
+
+type GetContentReviewReportResponseObject interface {
+	VisitGetContentReviewReportResponse(w http.ResponseWriter) error
+}
+
+type GetContentReviewReport200TexthtmlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetContentReviewReport200TexthtmlResponse) VisitGetContentReviewReportResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/html")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetContentReviewReportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetContentReviewReportdefaultApplicationProblemPlusJSONResponse) VisitGetContentReviewReportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetRunRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -9408,9 +9487,12 @@ type StrictServerInterface interface {
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(ctx context.Context, request RenderMarkdownRequestObject) (RenderMarkdownResponseObject, error)
-	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). Nothing is stored except the cache.
+	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(ctx context.Context, request ReviewContentRequestObject) (ReviewContentResponseObject, error)
+	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
+	// (GET /reviews/{reviewId}/report)
+	GetContentReviewReport(ctx context.Context, request GetContentReviewReportRequestObject) (GetContentReviewReportResponseObject, error)
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(ctx context.Context, request GetRunRequestObject) (GetRunResponseObject, error)
@@ -11659,6 +11741,32 @@ func (sh *strictHandler) ReviewContent(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReviewContentResponseObject); ok {
 		if err := validResponse.VisitReviewContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetContentReviewReport operation middleware
+func (sh *strictHandler) GetContentReviewReport(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID) {
+	var request GetContentReviewReportRequestObject
+
+	request.ReviewId = reviewId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetContentReviewReport(ctx, request.(GetContentReviewReportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetContentReviewReport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetContentReviewReportResponseObject); ok {
+		if err := validResponse.VisitGetContentReviewReportResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

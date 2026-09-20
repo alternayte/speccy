@@ -177,6 +177,9 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		if _, ok := reports[r.Path]; ok && runURL != "" {
 			ab.Report = runURL // the reports are artifacts of the run
 		}
+		if r.Report != "" {
+			ab.Report = r.Report // connected mode: the report on the server
+		}
 		bundles = append(bundles, ab)
 	}
 

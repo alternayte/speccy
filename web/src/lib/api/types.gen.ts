@@ -580,6 +580,11 @@ export type ContentReviewRequest = {
 };
 
 export type ContentReview = {
+    id: string;
+    /**
+     * The app page of the report, relative to the server, such as /reviews/{id}.
+     */
+    report_path: string;
     profile_key: string;
     profile_version: number;
     main_doc: string;
@@ -1928,6 +1933,33 @@ export type ReviewContentResponses = {
 };
 
 export type ReviewContentResponse = ReviewContentResponses[keyof ReviewContentResponses];
+
+export type GetContentReviewReportData = {
+    body?: never;
+    path: {
+        reviewId: string;
+    };
+    query?: never;
+    url: '/reviews/{reviewId}/report';
+};
+
+export type GetContentReviewReportErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetContentReviewReportError = GetContentReviewReportErrors[keyof GetContentReviewReportErrors];
+
+export type GetContentReviewReportResponses = {
+    /**
+     * The HTML report.
+     */
+    200: string;
+};
+
+export type GetContentReviewReportResponse = GetContentReviewReportResponses[keyof GetContentReviewReportResponses];
 
 export type EstimateRunData = {
     body?: never;
