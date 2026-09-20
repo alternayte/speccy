@@ -55,6 +55,8 @@ export function VerdictBar({
   currentVersion,
   report,
   onShowFindings,
+  onShowWaivers,
+  waiting,
   bundleId,
 }: {
   bundleId: string;
@@ -64,6 +66,10 @@ export function VerdictBar({
   // report is the run behind a full verdict: its tokens, cost, cache hits, and notes (REQ-022).
   report?: Run;
   onShowFindings: () => void;
+  // onShowWaivers opens the first waiver that waits for this person (SDD §9.1).
+  onShowWaivers: () => void;
+  // waiting is how many waivers wait for this person's approval.
+  waiting: number;
 }) {
   if (runError && !verdict) {
     return (
@@ -127,6 +133,11 @@ export function VerdictBar({
           <span className="text-warn">
             Adoption mode: {verdict.relaxed_count} check{verdict.relaxed_count === 1 ? "" : "s"} relaxed
           </span>
+        ) : null}
+        {waiting > 0 ? (
+          <button type="button" onClick={onShowWaivers} className="font-medium text-warn underline underline-offset-2">
+            {waiting} waiver{waiting === 1 ? "" : "s"} wait{waiting === 1 ? "s" : ""} for approval
+          </button>
         ) : null}
         <button type="button" onClick={onShowFindings} className="font-medium text-ink underline underline-offset-2">
           Show findings

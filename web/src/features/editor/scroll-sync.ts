@@ -45,15 +45,62 @@ export function editorTopLine(view: EditorView): number {
   return view.state.doc.lineAt(block.from).number;
 }
 
-export function syncPreview(view: EditorView, preview: HTMLElement) {
+// syncPreview moves the preview to the editor's place and returns what it wrote.
+export function syncPreview(view: EditorView, preview: HTMLElement): number | null {
   const top = previewTopFor(anchors(preview), editorTopLine(view));
-  if (top !== null) preview.scrollTop = Math.max(0, top - 24);
+  if (top === null) return null;
+  preview.scrollTop = Math.max(0, top - 24);
+  return preview.scrollTop;
 }
 
-export function syncEditor(preview: HTMLElement, view: EditorView) {
+// syncEditor moves the editor to the preview's place and returns what it wrote.
+export function syncEditor(preview: HTMLElement, view: EditorView): number | null {
   const line = lineFor(anchors(preview), preview.scrollTop + 24);
-  if (line === null) return;
+  if (line === null) return null;
   const n = Math.min(Math.max(1, Math.floor(line)), view.state.doc.lines);
   const block = view.lineBlockAt(view.state.doc.line(n).from);
   view.scrollDOM.scrollTop = block.top;
+  return view.scrollDOM.scrollTop;
+}
+
+// ScrollLink keeps the two panes together without a loop. A sync writes the other pane's
+// scrollTop, and that write fires a scroll event of its own. The link drops that echo, because a
+// sync back to a rounded line puts the pane the person is scrolling behind where it was: during
+// a fast scroll the reader sees the text jump backwards.
+export class ScrollLink {
+  // writing is true while a sync writes the other pane, for the echo that arrives at once.
+  private writing = false;
+  // wroteEditor and wrotePreview hold the last value written to each pane, for the echo that a
+  // browser sends on the next frame.
+  private wroteEditor: number | null = null;
+  private wrotePreview: number | null = null;
+
+  // fromEditor handles a scroll of the editor.
+  fromEditor(view: EditorView, preview: HTMLElement) {
+    if (this.writing || near(view.scrollDOM.scrollTop, this.wroteEditor)) {
+      this.wroteEditor = null;
+      return;
+    }
+    this.writing = true;
+    const wrote = syncPreview(view, preview);
+    this.writing = false;
+    this.wrotePreview = wrote;
+  }
+
+  // fromPreview handles a scroll of the preview.
+  fromPreview(preview: HTMLElement, view: EditorView) {
+    if (this.writing || near(preview.scrollTop, this.wrotePreview)) {
+      this.wrotePreview = null;
+      return;
+    }
+    this.writing = true;
+    const wrote = syncEditor(preview, view);
+    this.writing = false;
+    this.wroteEditor = wrote;
+  }
+}
+
+// near is true when a pane sits where the last sync put it, give or take a rounded pixel.
+function near(top: number, wrote: number | null): boolean {
+  return wrote !== null && Math.abs(top - wrote) <= 1;
 }

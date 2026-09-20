@@ -20,6 +20,7 @@ import { Menu, MenuItem } from "@/components/ui/menu";
 import { ErrorState } from "@/components/ui/states";
 import type { BundleFile } from "@/lib/api";
 import { deleteFile, putFileContent, renameFile } from "@/lib/api";
+import { type Dropped, filesFromDrop, keepBothName } from "./drop";
 import { problemMessage } from "@/lib/problem";
 import { buildTree, markdownLink, type TreeNode } from "./file-tree";
 
@@ -50,6 +51,10 @@ export function Explorer({
   const [name, setName] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
   const upload = useRef<HTMLInputElement>(null);
+  // over is true while a drag hangs over the explorer, and clash holds a drop that would replace
+  // files the bundle already has.
+  const [over, setOver] = useState(false);
+  const [clash, setClash] = useState<{ items: Dropped[]; folder: string; taken: string[] } | null>(null);
 
   const change = useMutation({
     mutationFn: async (op: () => Promise<unknown>) => op(),
@@ -88,6 +93,40 @@ export function Explorer({
     }
   };
 
+  // write puts each dropped file in the bundle. Each write builds on the version before it.
+  const write = (items: Dropped[], folder: string, keepBoth: boolean) => {
+    if (items.length === 0) return;
+    const taken = new Set(files.map((f) => f.path));
+    change.mutate(async () => {
+      let base = baseVersion;
+      let last = "";
+      for (const item of items) {
+        let path = folder + item.path;
+        if (keepBoth && taken.has(path)) path = keepBothName(path, taken);
+        taken.add(path);
+        last = path;
+        const res = await putFileContent({ path: { bundleId }, query: { path, base_version: base }, body: item.file });
+        if (res.error) throw res.error;
+        base = res.data!.version.id;
+      }
+      setClash(null);
+      onChanged(last);
+    });
+  };
+
+  const drop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setOver(false);
+    if (readOnly) return;
+    const items = await filesFromDrop(e.dataTransfer);
+    if (items.length === 0) return;
+    const folder = folderUnder(e.target as HTMLElement) ?? defaultFolder(selected);
+    const have = new Set(files.map((f) => f.path));
+    const taken = items.map((i) => folder + i.path).filter((p) => have.has(p));
+    if (taken.length > 0) setClash({ items, folder, taken });
+    else write(items, folder, false);
+  };
+
   const uploadFiles = (list: FileList | null) => {
     // Copy now: the caller clears the input, which empties the live FileList.
     const picked = list ? Array.from(list) : [];
@@ -122,7 +161,7 @@ export function Explorer({
     if (n.kind === "folder") {
       const isOpen = open[n.path] ?? true;
       return (
-        <li key={n.path}>
+        <li key={n.path} data-folder={n.path}>
           <button
             type="button"
             aria-expanded={isOpen}
@@ -198,7 +237,19 @@ export function Explorer({
   };
 
   return (
-    <nav aria-label="Bundle files" className="flex h-full min-h-0 flex-col">
+    <nav
+      aria-label="Bundle files"
+      onDragOver={(e) => {
+        if (readOnly) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      }}
+      onDrop={drop}
+      className={clsx("flex h-full min-h-0 flex-col", over && "outline-2 -outline-offset-2 outline-accent")}
+    >
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-line px-2">
         <span className="px-1 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Files</span>
         <div className={clsx("ml-auto flex gap-0.5", readOnly && "hidden")}>
@@ -239,6 +290,29 @@ export function Explorer({
       <ul className="min-h-0 flex-1 overflow-y-auto py-1">{tree.map((n) => row(n, 0))}</ul>
 
       <Dialog
+        open={clash !== null}
+        onOpenChange={(o) => {
+          if (!o) setClash(null);
+        }}
+        title={`Replace ${clash?.taken.length ?? 0} file${clash?.taken.length === 1 ? "" : "s"}?`}
+        description="The bundle already has these files. A replaced file lands in the next version, so the diff and the verdict show it."
+      >
+        <ul className="max-h-40 overflow-y-auto font-mono text-xs text-ink-2">
+          {clash?.taken.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+        <div className="mt-3 flex justify-end gap-2">
+          <Button size="sm" onClick={() => clash && write(clash.items, clash.folder, true)}>
+            Keep both
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => clash && write(clash.items, clash.folder, false)}>
+            Replace
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
         open={pending !== null}
         onOpenChange={(o) => {
           if (!o) {
@@ -275,4 +349,18 @@ export function Explorer({
       </Dialog>
     </nav>
   );
+}
+
+// folderUnder is the folder of the row the pointer is over, with its trailing slash.
+function folderUnder(el: HTMLElement | null): string | null {
+  const row = el?.closest<HTMLElement>("[data-folder]");
+  if (!row) return null;
+  const folder = row.dataset.folder ?? "";
+  return folder === "" ? "" : `${folder}/`;
+}
+
+// defaultFolder is where a drop lands with no folder under the pointer: beside the open file, or
+// assets/ for the main doc at the top of the bundle.
+function defaultFolder(selected: string): string {
+  return selected.includes("/") ? selected.slice(0, selected.lastIndexOf("/") + 1) : "assets/";
 }

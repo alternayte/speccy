@@ -5,6 +5,7 @@ import { ChevronDown, Compass, Download, FileText, FolderTree, ListChecks, Netwo
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Divider, useDivider } from "@/components/ui/divider";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { EditorPane, type View } from "@/features/editor/editor-pane";
 import {
@@ -13,6 +14,7 @@ import {
   getRunOptions,
   listFilesOptions,
   listFindingsOptions,
+  listWaiversOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { GitHubControl } from "./github-control";
@@ -109,6 +111,13 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const hosted = me.data?.mode === "hosted";
   const guest = !!me.data?.guest;
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
+  // Waivers that wait for this person: the verdict bar counts them, and the rail opens them.
+  const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
+  const waiting = (waivers.data?.items ?? []).filter((w) => w.status === "requested" && w.can_approve);
+  // The two dividers of the bundle screen. Below lg and xl the panes are overlays, so the widths
+  // apply only where the panes sit side by side.
+  const explorer = useDivider({ key: "speccy-explorer-width", from: "left", min: 180, max: 480, initial: 248 });
+  const rail = useDivider({ key: "speccy-rail-width", from: "right", min: 260, max: 560, initial: 320 });
   // Local mode: the one user edits everything. Hosted: authors and admins (SDD §3).
   const canEdit = !hosted || !!access.data?.can_edit;
 
@@ -208,13 +217,21 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             setTab("findings");
             setPanel("rail");
           }}
+          waiting={waiting.length}
+          onShowWaivers={() => {
+            setTab("findings");
+            setPanel("rail");
+            // The rail sorts a finding with a waiver request to the top, so it is already there.
+            setSelectedFinding(undefined);
+          }}
         />
       </div>
 
       <div className="relative flex min-h-0 flex-1">
         <aside
+          style={{ width: explorer.width }}
           className={clsx(
-            "no-print w-[var(--rail)] shrink-0 border-r border-line bg-surface",
+            "no-print shrink-0 border-r border-line bg-surface",
             panel === "files"
               ? "absolute inset-y-0 left-0 z-20 shadow-pop lg:static lg:shadow-none"
               : "hidden lg:block",
@@ -242,6 +259,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           )}
         </aside>
 
+        <Divider label="Width of the file explorer" className="hidden lg:block" {...explorer.props} />
+
         <main className="min-w-0 flex-1">
           {files.data && !file ? (
             <div className="p-6">
@@ -261,6 +280,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               path={selected}
               version={{ id: files.data!.version.id, number: files.data!.version.number }}
               sha={file.sha256}
+              profileKey={b.profile_key}
               view={view}
               onViewChange={(v) => setSearch({ ...search, view: v })}
               onOpenPath={select}
@@ -295,11 +315,14 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           )}
         </main>
 
+        <Divider label="Width of the review rail" className="hidden xl:block" {...rail.props} />
+
         <aside
+          style={{ width: rail.width }}
           className={clsx(
-            "no-print w-[var(--review-rail)] shrink-0 border-l border-line bg-surface",
+            "no-print shrink-0 border-l border-line bg-surface",
             panel === "rail"
-              ? "absolute inset-y-0 right-0 z-20 w-[min(100%,360px)] shadow-pop xl:static xl:w-[var(--review-rail)] xl:shadow-none"
+              ? "absolute inset-y-0 right-0 z-20 shadow-pop max-xl:!w-[min(100%,360px)] xl:static xl:shadow-none"
               : "hidden xl:block",
           )}
         >
