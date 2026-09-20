@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { Columns2, Eye, FileCode2, MessageSquarePlus, PenLine, Save } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Divider, useDivider } from "@/components/ui/divider";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { type Finding, getFileContent, putFileContent } from "@/lib/api";
 import { problemCode, problemMessage } from "@/lib/problem";
@@ -96,6 +97,8 @@ export function EditorPane({
   // The link keeps the two panes together and drops the echo of its own writes.
   const link = useRef(new ScrollLink());
   const wide = useWide();
+  // The divider between the code and the preview in the split view.
+  const split = useDivider({ key: "speccy-split-width", from: "left", min: 280, max: 1200, initial: 560 });
   // target is the block the control bar writes into, and bar keeps the person's choice.
   const [target, setTarget] = useState<Target | null>(null);
   const [bar, setBar] = useState(() => {
@@ -379,9 +382,12 @@ export function EditorPane({
         </div>
       ) : null}
 
-      <div className={clsx("grid min-h-0 flex-1", shown === "split" ? "grid-cols-2" : "grid-cols-1")}>
+      <div className="flex min-h-0 flex-1">
         {shown !== "preview" ? (
-          <div className={clsx("no-print min-h-0", shown === "split" && "border-r border-line")}>
+          <div
+            style={shown === "split" ? { width: split.width } : undefined}
+            className={clsx("no-print min-h-0", shown === "split" ? "shrink-0" : "flex-1")}
+          >
             <CodeEditor
               docKey={`${path}@${loadVersion.id}`}
               initial={file.data.text}
@@ -393,8 +399,9 @@ export function EditorPane({
             />
           </div>
         ) : null}
+        {shown === "split" ? <Divider label="Width of the editor" {...split.props} /> : null}
         {shown !== "code" ? (
-          <div className="min-h-0">
+          <div className="min-h-0 flex-1">
             <Preview
               ref={previewRef}
               markdown={text ?? file.data.text}

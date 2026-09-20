@@ -5,6 +5,7 @@ import { ChevronDown, Compass, Download, FileText, FolderTree, ListChecks, Netwo
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Divider, useDivider } from "@/components/ui/divider";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { EditorPane, type View } from "@/features/editor/editor-pane";
 import {
@@ -113,6 +114,10 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   // Waivers that wait for this person: the verdict bar counts them, and the rail opens them.
   const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const waiting = (waivers.data?.items ?? []).filter((w) => w.status === "requested" && w.can_approve);
+  // The two dividers of the bundle screen. Below lg and xl the panes are overlays, so the widths
+  // apply only where the panes sit side by side.
+  const explorer = useDivider({ key: "speccy-explorer-width", from: "left", min: 180, max: 480, initial: 248 });
+  const rail = useDivider({ key: "speccy-rail-width", from: "right", min: 260, max: 560, initial: 320 });
   // Local mode: the one user edits everything. Hosted: authors and admins (SDD §3).
   const canEdit = !hosted || !!access.data?.can_edit;
 
@@ -224,8 +229,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
 
       <div className="relative flex min-h-0 flex-1">
         <aside
+          style={{ width: explorer.width }}
           className={clsx(
-            "no-print w-[var(--rail)] shrink-0 border-r border-line bg-surface",
+            "no-print shrink-0 border-r border-line bg-surface",
             panel === "files"
               ? "absolute inset-y-0 left-0 z-20 shadow-pop lg:static lg:shadow-none"
               : "hidden lg:block",
@@ -252,6 +258,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             <Loading label="Loading files" />
           )}
         </aside>
+
+        <Divider label="Width of the file explorer" className="hidden lg:block" {...explorer.props} />
 
         <main className="min-w-0 flex-1">
           {files.data && !file ? (
@@ -307,11 +315,14 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           )}
         </main>
 
+        <Divider label="Width of the review rail" className="hidden xl:block" {...rail.props} />
+
         <aside
+          style={{ width: rail.width }}
           className={clsx(
-            "no-print w-[var(--review-rail)] shrink-0 border-l border-line bg-surface",
+            "no-print shrink-0 border-l border-line bg-surface",
             panel === "rail"
-              ? "absolute inset-y-0 right-0 z-20 w-[min(100%,360px)] shadow-pop xl:static xl:w-[var(--review-rail)] xl:shadow-none"
+              ? "absolute inset-y-0 right-0 z-20 shadow-pop max-xl:!w-[min(100%,360px)] xl:static xl:shadow-none"
               : "hidden xl:block",
           )}
         >
