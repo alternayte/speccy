@@ -9,7 +9,7 @@ import { type Finding, getFileContent, putFileContent } from "@/lib/api";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { CodeEditor } from "./code-editor";
 import { Preview } from "./preview";
-import { syncEditor, syncPreview } from "./scroll-sync";
+import { ScrollLink } from "./scroll-sync";
 
 export type View = "code" | "preview" | "split";
 
@@ -89,7 +89,8 @@ export function EditorPane({
   const editorView = useRef<EditorView | null>(null);
   const [hint, setHint] = useState<string>();
   const previewRef = useRef<HTMLDivElement>(null);
-  const syncing = useRef<"editor" | "preview" | null>(null);
+  // The link keeps the two panes together and drops the echo of its own writes.
+  const link = useRef(new ScrollLink());
   const wide = useWide();
 
   const file = useQuery({
@@ -158,17 +159,13 @@ export function EditorPane({
   };
 
   const onEditorScroll = useCallback(() => {
-    if (view !== "split" || syncing.current === "preview" || !editorView.current || !previewRef.current) return;
-    syncing.current = "editor";
-    syncPreview(editorView.current, previewRef.current);
-    requestAnimationFrame(() => (syncing.current = null));
+    if (view !== "split" || !editorView.current || !previewRef.current) return;
+    link.current.fromEditor(editorView.current, previewRef.current);
   }, [view]);
 
   const onPreviewScroll = useCallback(() => {
-    if (view !== "split" || syncing.current === "editor" || !editorView.current || !previewRef.current) return;
-    syncing.current = "preview";
-    syncEditor(previewRef.current, editorView.current);
-    requestAnimationFrame(() => (syncing.current = null));
+    if (view !== "split" || !editorView.current || !previewRef.current) return;
+    link.current.fromPreview(previewRef.current, editorView.current);
   }, [view]);
 
   const attachView = useCallback(
