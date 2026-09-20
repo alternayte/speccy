@@ -65,6 +65,9 @@ type Bundle struct {
 	File  string
 	Main  source.MainDoc
 	Files []source.File
+	// Unnamed is a bundle that only exists because the user pointed Speccy at the file: it
+	// names no type, and no map entry selects it (REQ-135). It is reviewed, never saved.
+	Unnamed bool
 }
 
 // Allows reports whether a single-file bundle may hold path: its main doc, or a file in its

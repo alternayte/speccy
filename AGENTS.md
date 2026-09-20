@@ -44,3 +44,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Next waiver: the control under a decided waiver card that scrolls to the next request waiting for this person on this bundle. Avoid: skip, queue.
 - Decision reason: the text an approver gives when they reject a waiver. Avoid: rejection note, feedback.
 - Ended waiver: an approved waiver that stopped applying because its section changed. The status value stays invalidated. Avoid: expired, stale.
+- Build packet: the main doc, its assets, the linked bundles' main docs, the trace IDs, and the build questions with their agreed answers, handed to a coding agent. Avoid: payload, bundle export.
+- Handoff: one record that a builder took a build packet for one bundle version, with the verdict at that moment. Avoid: job, build run.
+- Size: the scale one main doc covers: feature, app, or initiative, declared in its frontmatter. A check's scope field is a different thing. Avoid: scale.
+- Re-entry prompt: HANDOFF.md, the file a coding agent reads to resume building after it loses its context. Avoid: handover doc, resume file.

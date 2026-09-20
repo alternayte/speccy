@@ -287,10 +287,10 @@ func (q *Queries) InsertProfileVersion(ctx context.Context, arg InsertProfileVer
 
 const insertRun = `-- name: InsertRun :exec
 INSERT INTO review_run (id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage,
-                        error, started_at, finished_at)
+                        error, notes, started_at, finished_at)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, ?9, ?10,
-        ?11, ?12)
+        ?11, ?12, ?13)
 `
 
 type InsertRunParams struct {
@@ -304,6 +304,7 @@ type InsertRunParams struct {
 	Status         string
 	Stage          string
 	Error          string
+	Notes          dbtype.JSON
 	StartedAt      time.Time
 	FinishedAt     sql.NullTime
 }
@@ -320,6 +321,7 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) error {
 		arg.Status,
 		arg.Stage,
 		arg.Error,
+		arg.Notes,
 		arg.StartedAt,
 		arg.FinishedAt,
 	)

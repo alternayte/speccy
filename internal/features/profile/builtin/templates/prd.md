@@ -30,7 +30,7 @@ title: <Product or feature name>
 
 - **NFR-001:** <Performance, security, accessibility, or privacy need. Write "Not applicable" when none applies.>
 
-## Dependencies <!-- required -->
+## Dependencies <!-- required: app -->
 
 <Other teams or systems this depends on, or "None".>
 
@@ -42,6 +42,6 @@ title: <Product or feature name>
 
 <What ships first.>
 
-## Open questions <!-- required -->
+## Open questions <!-- required: app -->
 
 <Each open question and its owner, or "None".>

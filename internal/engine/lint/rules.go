@@ -13,6 +13,7 @@ import (
 	extast "github.com/yuin/goldmark/extension/ast"
 
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/kernel"
 )
 
 // placeholders finds TBD, TODO, XXX, FIXME, {{…}}, <…>, and lorem ipsum in prose, and
@@ -84,11 +85,20 @@ func requiredHeadings(d *doc, cfg Config, emit emitter) {
 	}
 	end := lineEnd(d.body, at)
 	for _, h := range cfg.Required {
-		if !have[NormTitle(h.Title)] {
-			emit(RequiredHeadings, at, end,
-				fmt.Sprintf("The template requires the %q section. The doc has none.", h.Title),
-				fmt.Sprintf("Add a heading %q with its content.", strings.Repeat("#", h.Level)+" "+h.Title))
+		if have[NormTitle(h.Title)] {
+			continue
 		}
+		// A heading that only a larger doc must have is a note here, not a failure.
+		if h.MinSize != "" && !cfg.Size.AtLeast(h.MinSize) {
+			emit(RequiredHeadings, at, end,
+				fmt.Sprintf("The template requires the %q section at size %s. This doc is size %s.", h.Title, h.MinSize, cfg.Size),
+				fmt.Sprintf("Add a heading %q with its content, or leave it out at this size.", strings.Repeat("#", h.Level)+" "+h.Title),
+				kernel.Info)
+			continue
+		}
+		emit(RequiredHeadings, at, end,
+			fmt.Sprintf("The template requires the %q section. The doc has none.", h.Title),
+			fmt.Sprintf("Add a heading %q with its content.", strings.Repeat("#", h.Level)+" "+h.Title))
 	}
 }
 

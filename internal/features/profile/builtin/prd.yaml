@@ -37,6 +37,7 @@ checks:
   - slug: prd.goals.baseline
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does each metric have a baseline?
     pass_when: Each metric has a current baseline value.
@@ -73,30 +74,35 @@ checks:
   - slug: prd.nfr
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are performance, security, accessibility, and privacy needs addressed?
     pass_when: Performance, security, accessibility, and privacy needs are stated or marked not applicable.
   - slug: prd.dependencies
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are dependencies on other teams or systems listed?
     pass_when: Dependencies on other teams or systems are listed, or the doc says "none".
   - slug: prd.risks
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are risks listed with a mitigation or an owner?
     pass_when: Risks are listed, each with a mitigation or an owner.
   - slug: prd.release-scope
     level: SHOULD
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Does the doc state what ships first?
     pass_when: The doc states what ships first.
   - slug: prd.open-questions
     level: MUST
     stage: rubric
+    sizes: [app, initiative]
     scope: doc
     question: Are open questions listed with an owner?
     pass_when: Open questions are listed with an owner each, or the doc says "none".

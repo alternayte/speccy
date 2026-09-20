@@ -1,10 +1,13 @@
 package profile
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/alternayte/speccy/internal/kernel"
 )
 
 // REQ-011
@@ -76,5 +79,23 @@ func TestLoadLocal_Overrides(t *testing.T) {
 	write("bad.yaml", "key: x\n")
 	if _, err := LoadLocal(dir); err == nil {
 		t.Error("a bad profile file loaded without an error")
+	}
+}
+
+// A template marker may name the smallest size that must have the heading (REQ-134).
+func TestRequiredHeadings_SizeMarker(t *testing.T) {
+	tpl := []byte("# T\n\n## Context <!-- required -->\n\nx\n\n## Data model <!-- required: app -->\n\ny\n\n## Notes\n\nz\n")
+	got := RequiredHeadings(tpl)
+	if len(got) != 2 {
+		t.Fatalf("got %d required headings, want 2", len(got))
+	}
+	if got[0].Title != "Context" || got[0].MinSize != kernel.Feature {
+		t.Errorf("Context is %q at %q, want feature", got[0].Title, got[0].MinSize)
+	}
+	if got[1].Title != "Data model" || got[1].MinSize != kernel.App {
+		t.Errorf("Data model is %q at %q, want app", got[1].Title, got[1].MinSize)
+	}
+	if bytes.Contains(StripMarks(tpl), []byte("required")) {
+		t.Error("StripMarks left a marker in the template")
 	}
 }

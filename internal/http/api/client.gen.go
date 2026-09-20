@@ -357,6 +357,11 @@ type ClientInterface interface {
 	// Corresponds with GET /bundles/{bundleId}/access (the `GetBundleAccess` operationId).
 	GetBundleAccess(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	//
+	// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
+	AdoptFrontmatter(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
 	//
 	// Corresponds with POST /bundles/{bundleId}/approve (the `ApproveBundle` operationId).
@@ -1559,6 +1564,21 @@ func (c *Client) GetBundle(ctx context.Context, bundleId BundleId, reqEditors ..
 // Corresponds with GET /bundles/{bundleId}/access (the `GetBundleAccess` operationId).
 func (c *Client) GetBundleAccess(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetBundleAccessRequest(c.Server, bundleId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+//
+// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
+func (c *Client) AdoptFrontmatter(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptFrontmatterRequest(c.Server, bundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -4041,6 +4061,40 @@ func NewGetBundleAccessRequest(server string, bundleId BundleId) (*http.Request,
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAdoptFrontmatterRequest constructs an http.Request for the AdoptFrontmatter method
+func NewAdoptFrontmatterRequest(server string, bundleId BundleId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/adopt", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -7134,6 +7188,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /bundles/{bundleId}/access (the `GetBundleAccess` operationId).
 	GetBundleAccessWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetBundleAccessResponse, error)
 
+	// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
+	AdoptFrontmatterWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*AdoptFrontmatterResponse, error)
+
 	// ApproveBundleWithResponse Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -9165,6 +9226,54 @@ func (r GetBundleAccessResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetBundleAccessResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AdoptFrontmatterResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *WriteResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AdoptFrontmatterResponse) GetJSON200() *WriteResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AdoptFrontmatterResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AdoptFrontmatterResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AdoptFrontmatterResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AdoptFrontmatterResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AdoptFrontmatterResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -12845,6 +12954,19 @@ func (c *ClientWithResponses) GetBundleAccessWithResponse(ctx context.Context, b
 	return ParseGetBundleAccessResponse(rsp)
 }
 
+// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
+func (c *ClientWithResponses) AdoptFrontmatterWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*AdoptFrontmatterResponse, error) {
+	rsp, err := c.AdoptFrontmatter(ctx, bundleId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptFrontmatterResponse(rsp)
+}
+
 // ApproveBundleWithResponse Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -14940,6 +15062,39 @@ func ParseGetBundleAccessResponse(rsp *http.Response) (*GetBundleAccessResponse,
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest BundleAccess
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAdoptFrontmatterResponse parses an HTTP response from a AdoptFrontmatterWithResponse call
+func ParseAdoptFrontmatterResponse(rsp *http.Response) (*AdoptFrontmatterResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AdoptFrontmatterResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WriteResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

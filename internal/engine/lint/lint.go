@@ -51,10 +51,12 @@ var Rules = []struct {
 	{PassiveVoice, kernel.Info},
 }
 
-// Heading is a heading that the profile template requires.
+// Heading is a heading that the profile template requires, and the smallest doc size that
+// must have it.
 type Heading struct {
-	Level int
-	Title string
+	Level   int
+	Title   string
+	MinSize kernel.Size
 }
 
 // Config is everything the rules need from the profile and the bundle.
@@ -73,7 +75,9 @@ type Config struct {
 	UpstreamPrefixes []string
 	UpstreamIDs      map[string]bool
 	Required         []Heading
-	SlopExtra        []string
+	// Size is the doc's size. A heading whose MinSize is larger reports at INFO (REQ-134).
+	Size      kernel.Size
+	SlopExtra []string
 	// Levels overrides a rule's default level. "off" turns the rule off (REQ-062).
 	Levels map[string]string
 }
@@ -141,10 +145,15 @@ func Run(src []byte, cfg Config) Result {
 	}
 
 	var out []Finding
-	emit := func(slug string, start, end int, msg, fix string) {
+	emit := func(slug string, start, end int, msg, fix string, at ...kernel.Level) {
 		lvl, ok := levels[slug]
 		if !ok {
 			return
+		}
+		// A rule may report one finding below the rule's level. It never raises it, so a
+		// relaxed or disabled rule stays relaxed or off.
+		if len(at) > 0 && lvl == kernel.Must {
+			lvl = at[0]
 		}
 		out = append(out, Finding{Slug: slug, Level: lvl, Message: msg, Fix: fix,
 			Anchor: anchor.New(cfg.Path, src, sd, start+d.offset, end+d.offset)})
@@ -159,8 +168,9 @@ func Run(src []byte, cfg Config) Result {
 	return Result{Findings: out, Rules: levels}
 }
 
-// emitter records a finding at body offsets [start, end).
-type emitter func(slug string, start, end int, msg, fix string)
+// emitter records a finding at body offsets [start, end). A rule may pass a lower level for
+// one finding.
+type emitter func(slug string, start, end int, msg, fix string, at ...kernel.Level)
 
 // collectProse returns the text of each paragraph, heading, and table cell. Code, raw HTML,
 // and link destinations are not prose; link text is.

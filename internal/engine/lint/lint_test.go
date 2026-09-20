@@ -47,9 +47,11 @@ func TestRules(t *testing.T) {
 		{"placeholder with commas", Placeholder, "# T\n\n<Who has the problem, and why.>\n", nil,
 			[]string{"<Who has the problem, and why.>"}},
 		{"required headings", RequiredHeadings, "# T\n\n## Goals\n\nx\n",
-			func(c *Config) { c.Required = []Heading{{2, "Goals"}, {2, "Non-goals"}} }, []string{"# T"}},
+			func(c *Config) { c.Required = []Heading{{Level: 2, Title: "Goals"}, {Level: 2, Title: "Non-goals"}} }, []string{"# T"}},
 		{"numbered headings count", RequiredHeadings, "# T\n\n## 5. Goals\n\n### 5.1 Non-goals\n\n## Appendix A — Checks\n",
-			func(c *Config) { c.Required = []Heading{{2, "Goals"}, {2, "Non-goals"}, {2, "Checks"}} }, nil},
+			func(c *Config) {
+				c.Required = []Heading{{Level: 2, Title: "Goals"}, {Level: 2, Title: "Non-goals"}, {Level: 2, Title: "Checks"}}
+			}, nil},
 		{"broken links", BrokenLink,
 			"# T\n\n[ok](assets/api.yaml) ![ok](assets/flow.png) [web](https://x.dev) [anchor](#t) [gone](assets/gone.yaml) [out](../x.md) [dir](assets)\n",
 			nil, []string{"gone", "out"}},
@@ -173,5 +175,36 @@ func TestDefinitions(t *testing.T) {
 	}
 	if string(src[defs[0].Start:defs[0].End]) != "REQ-001" || defs[0].Text != "REQ-001: The API MUST reject a bad token." {
 		t.Errorf("REQ-001 at %q, text %q", src[defs[0].Start:defs[0].End], defs[0].Text)
+	}
+}
+
+// A heading that only a larger doc must have is a note at a smaller size, and a failure at
+// the size the template names (REQ-134).
+func TestRequiredHeadings_Size(t *testing.T) {
+	cfg := Config{Path: "SPEC.md", Required: []Heading{
+		{Level: 2, Title: "Context"},
+		{Level: 2, Title: "Data model", MinSize: kernel.App},
+	}}
+	for _, tc := range []struct {
+		size kernel.Size
+		want map[string]kernel.Level
+	}{
+		{kernel.Feature, map[string]kernel.Level{"Context": kernel.Must, "Data model": kernel.Info}},
+		{kernel.App, map[string]kernel.Level{"Context": kernel.Must, "Data model": kernel.Must}},
+	} {
+		cfg.Size = tc.size
+		got := map[string]kernel.Level{}
+		for _, f := range Run([]byte("# T\n\ntext\n"), cfg).Findings {
+			for title := range tc.want {
+				if strings.Contains(f.Message, title) {
+					got[title] = f.Level
+				}
+			}
+		}
+		for title, want := range tc.want {
+			if got[title] != want {
+				t.Errorf("size %s: %s reported at %q, want %q", tc.size, title, got[title], want)
+			}
+		}
 	}
 }

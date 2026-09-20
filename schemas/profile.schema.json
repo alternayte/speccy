@@ -47,6 +47,21 @@
             "types": { "type": "array", "minItems": 1, "items": { "type": "string" } },
             "required": { "type": "boolean" }
           }
+        },
+        "children": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kinds", "min_at"],
+          "description": "A doc at min_at or larger must link the bundles it covers (REQ-134).",
+          "properties": {
+            "kinds": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "enum": ["implements", "refines", "references", "supersedes"] }
+            },
+            "min": { "type": "integer", "minimum": 1 },
+            "min_at": { "enum": ["feature", "app", "initiative"] }
+          }
         }
       }
     },
@@ -117,7 +132,12 @@
           "scope": { "enum": ["doc", "section"] },
           "question": { "type": "string" },
           "pass_when": { "type": "string" },
-          "waiver": { "$ref": "#/$defs/waiverPolicy" }
+          "waiver": { "$ref": "#/$defs/waiverPolicy" },
+          "sizes": {
+            "type": "array",
+            "items": { "enum": ["feature", "app", "initiative"] },
+            "description": "The doc sizes this check applies to. An empty list applies at every size."
+          }
         }
       }
     }

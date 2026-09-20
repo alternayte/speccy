@@ -271,6 +271,9 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	if err != nil {
 		return fail(err)
 	}
+	if in.sizeInferred {
+		rc.note(sizeNote(in.size))
+	}
 
 	ev, err := s.runStages(ctx, rc, in, stages, fingerprint, native, func(st string) {
 		stage = st
@@ -366,7 +369,7 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, err
 	// Rubric: a call per batch of uncached doc checks.
 	docUncached := 0
 	for _, c := range p.Profile.Checks {
-		if c.Stage != StageRubric || c.Scope == "section" {
+		if c.Stage != StageRubric || c.Scope == "section" || !c.AppliesAt(in.size) {
 			continue
 		}
 		k := cacheKey{Step: "rubric:" + c.Slug, InputHash: bundleHash(in), ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
