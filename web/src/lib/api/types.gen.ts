@@ -745,6 +745,90 @@ export type Waiver = {
     created_at: string;
 };
 
+export type HandoffList = {
+    items: Array<Handoff>;
+};
+
+export type Handoff = {
+    id: string;
+    version_number: number;
+    /**
+     * The verdict when the builder took the packet.
+     */
+    verdict: string;
+    /**
+     * True when the builder took the packet although the verdict did not allow it.
+     */
+    acknowledged: boolean;
+    label?: string;
+    taken_by: string;
+    /**
+     * True when the bundle has a newer version than the one this handoff took.
+     */
+    stale: boolean;
+    created_at: string;
+};
+
+/**
+ * What a coding agent needs to build one bundle (REQ-136).
+ */
+export type BuildPacket = {
+    handoff_id: string;
+    /**
+     * The bundle slug.
+     */
+    bundle: string;
+    title: string;
+    version_number: number;
+    /**
+     * The path of the main doc inside files.
+     */
+    main_doc: string;
+    /**
+     * The main doc and its assets.
+     */
+    files: Array<ContentFile>;
+    /**
+     * The main doc of each bundle this one links to.
+     */
+    links: Array<PacketLink>;
+    trace_ids: Array<PacketTraceId>;
+    questions: Array<PacketQuestion>;
+    /**
+     * The re-entry prompt, as markdown. The agent owns it after the handoff.
+     */
+    handoff_md: string;
+};
+
+export type PacketLink = {
+    kind: string;
+    bundle: string;
+    title: string;
+    /**
+     * The path the packet writes it at, such as links/payments-prd.md.
+     */
+    path: string;
+    content: string;
+};
+
+export type PacketTraceId = {
+    id: string;
+    /**
+     * The line that defines the ID.
+     */
+    text: string;
+};
+
+export type PacketQuestion = {
+    number: number;
+    text: string;
+    result: 'agree' | 'diverge' | 'gap';
+    /**
+     * The answer the readers agreed on. Absent when they diverged, or when nobody could answer.
+     */
+    answer?: string;
+};
+
 /**
  * The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
  */
@@ -1274,6 +1358,69 @@ export type GetBundleAccessResponses = {
 };
 
 export type GetBundleAccessResponse = GetBundleAccessResponses[keyof GetBundleAccessResponses];
+
+export type ListHandoffsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/handoff';
+};
+
+export type ListHandoffsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListHandoffsError = ListHandoffsErrors[keyof ListHandoffsErrors];
+
+export type ListHandoffsResponses = {
+    /**
+     * The handoffs.
+     */
+    200: HandoffList;
+};
+
+export type ListHandoffsResponse = ListHandoffsResponses[keyof ListHandoffsResponses];
+
+export type TakeHandoffData = {
+    body?: {
+        /**
+         * Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+         */
+        acknowledged?: boolean;
+        /**
+         * What the builder calls this work, such as a repo, a branch, or a ticket.
+         */
+        label?: string;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/handoff';
+};
+
+export type TakeHandoffErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type TakeHandoffError = TakeHandoffErrors[keyof TakeHandoffErrors];
+
+export type TakeHandoffResponses = {
+    /**
+     * The build packet.
+     */
+    200: BuildPacket;
+};
+
+export type TakeHandoffResponse = TakeHandoffResponses[keyof TakeHandoffResponses];
 
 export type AdoptFrontmatterData = {
     body?: never;

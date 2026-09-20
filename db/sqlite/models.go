@@ -156,6 +156,18 @@ type GithubSource struct {
 	CreatedAt   time.Time
 }
 
+type Handoff struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	BundleID     uuid.UUID
+	VersionID    uuid.UUID
+	Verdict      string
+	Acknowledged bool
+	Label        string
+	TakenBy      string
+	CreatedAt    time.Time
+}
+
 type Invite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID

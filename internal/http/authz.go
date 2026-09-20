@@ -108,10 +108,13 @@ var operations = map[string]access{
 	"setMaintainers":     adminOnly,
 
 	"adoptFrontmatter": bundleEdit,
-	"putFileContent":   bundleEdit,
-	"deleteFile":       bundleEdit,
-	"renameFile":       bundleEdit,
-	"addTraceIds":      bundleEdit,
+	// A handoff reads the bundle and records who took it (REQ-136).
+	"listHandoffs":   bundleRead,
+	"takeHandoff":    bundleAI,
+	"putFileContent": bundleEdit,
+	"deleteFile":     bundleEdit,
+	"renameFile":     bundleEdit,
+	"addTraceIds":    bundleEdit,
 	// REQ-025: the author asks for a fix and accepts it.
 	"suggestFix": bundleEdit,
 	"acceptFix":  bundleEdit,

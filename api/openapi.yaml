@@ -96,6 +96,47 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/handoff:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listHandoffs
+      summary: The handoffs of a bundle, newest first (REQ-136).
+      responses:
+        "200":
+          description: The handoffs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HandoffList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: takeHandoff
+      summary: Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                acknowledged:
+                  type: boolean
+                  description: Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+                label:
+                  type: string
+                  description: What the builder calls this work, such as a repo, a branch, or a ticket.
+      responses:
+        "200":
+          description: The build packet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildPacket"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/adopt:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -3215,6 +3256,124 @@ components:
         created_at:
           type: string
           format: date-time
+
+    HandoffList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Handoff"
+
+    Handoff:
+      type: object
+      required: [id, version_number, verdict, acknowledged, taken_by, stale, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        version_number:
+          type: integer
+          format: int64
+        verdict:
+          type: string
+          description: The verdict when the builder took the packet.
+        acknowledged:
+          type: boolean
+          description: True when the builder took the packet although the verdict did not allow it.
+        label:
+          type: string
+        taken_by:
+          type: string
+        stale:
+          type: boolean
+          description: True when the bundle has a newer version than the one this handoff took.
+        created_at:
+          type: string
+          format: date-time
+
+    BuildPacket:
+      type: object
+      description: What a coding agent needs to build one bundle (REQ-136).
+      required: [handoff_id, bundle, title, version_number, main_doc, files, links, trace_ids, questions, handoff_md]
+      properties:
+        handoff_id:
+          type: string
+          format: uuid
+        bundle:
+          type: string
+          description: The bundle slug.
+        title:
+          type: string
+        version_number:
+          type: integer
+          format: int64
+        main_doc:
+          type: string
+          description: The path of the main doc inside files.
+        files:
+          type: array
+          description: The main doc and its assets.
+          items:
+            $ref: "#/components/schemas/ContentFile"
+        links:
+          type: array
+          description: The main doc of each bundle this one links to.
+          items:
+            $ref: "#/components/schemas/PacketLink"
+        trace_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/PacketTraceId"
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PacketQuestion"
+        handoff_md:
+          type: string
+          description: The re-entry prompt, as markdown. The agent owns it after the handoff.
+
+    PacketLink:
+      type: object
+      required: [kind, bundle, title, path, content]
+      properties:
+        kind:
+          type: string
+        bundle:
+          type: string
+        title:
+          type: string
+        path:
+          type: string
+          description: The path the packet writes it at, such as links/payments-prd.md.
+        content:
+          type: string
+
+    PacketTraceId:
+      type: object
+      required: [id, text]
+      properties:
+        id:
+          type: string
+        text:
+          type: string
+          description: The line that defines the ID.
+
+    PacketQuestion:
+      type: object
+      required: [number, text, result]
+      properties:
+        number:
+          type: integer
+        text:
+          type: string
+        result:
+          type: string
+          enum: [agree, diverge, gap]
+        answer:
+          type: string
+          description: The answer the readers agreed on. Absent when they diverged, or when nobody could answer.
 
     Adopt:
       type: object

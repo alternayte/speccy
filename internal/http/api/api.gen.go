@@ -620,6 +620,27 @@ func (e OpenThreadAnchorKind) Valid() bool {
 	}
 }
 
+// Defines values for PacketQuestionResult.
+const (
+	PacketQuestionResultAgree   PacketQuestionResult = "agree"
+	PacketQuestionResultDiverge PacketQuestionResult = "diverge"
+	PacketQuestionResultGap     PacketQuestionResult = "gap"
+)
+
+// Valid indicates whether the value is a known member of the PacketQuestionResult enum.
+func (e PacketQuestionResult) Valid() bool {
+	switch e {
+	case PacketQuestionResultAgree:
+		return true
+	case PacketQuestionResultDiverge:
+		return true
+	case PacketQuestionResultGap:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewStatus.
 const (
 	ReviewStatusApproved   ReviewStatus = "approved"
@@ -1158,6 +1179,29 @@ type Budget struct {
 	TokensUsed int64  `json:"tokens_used"`
 }
 
+// BuildPacket What a coding agent needs to build one bundle (REQ-136).
+type BuildPacket struct {
+	// Bundle The bundle slug.
+	Bundle string `json:"bundle"`
+
+	// Files The main doc and its assets.
+	Files     []ContentFile      `json:"files"`
+	HandoffId openapi_types.UUID `json:"handoff_id"`
+
+	// HandoffMd The re-entry prompt, as markdown. The agent owns it after the handoff.
+	HandoffMd string `json:"handoff_md"`
+
+	// Links The main doc of each bundle this one links to.
+	Links []PacketLink `json:"links"`
+
+	// MainDoc The path of the main doc inside files.
+	MainDoc       string           `json:"main_doc"`
+	Questions     []PacketQuestion `json:"questions"`
+	Title         string           `json:"title"`
+	TraceIds      []PacketTraceId  `json:"trace_ids"`
+	VersionNumber int64            `json:"version_number"`
+}
+
 // BuildQuestion defines model for BuildQuestion.
 type BuildQuestion struct {
 	// Anchor A range of text with context (SDD §8.8).
@@ -1569,6 +1613,28 @@ type GithubSource struct {
 	SyncedAt   *time.Time         `json:"synced_at,omitempty"`
 }
 
+// Handoff defines model for Handoff.
+type Handoff struct {
+	// Acknowledged True when the builder took the packet although the verdict did not allow it.
+	Acknowledged bool               `json:"acknowledged"`
+	CreatedAt    time.Time          `json:"created_at"`
+	Id           openapi_types.UUID `json:"id"`
+	Label        *string            `json:"label,omitempty"`
+
+	// Stale True when the bundle has a newer version than the one this handoff took.
+	Stale   bool   `json:"stale"`
+	TakenBy string `json:"taken_by"`
+
+	// Verdict The verdict when the builder took the packet.
+	Verdict       string `json:"verdict"`
+	VersionNumber int64  `json:"version_number"`
+}
+
+// HandoffList defines model for HandoffList.
+type HandoffList struct {
+	Items []Handoff `json:"items"`
+}
+
 // IdSuggestion defines model for IdSuggestion.
 type IdSuggestion struct {
 	// Anchor A range of text with context (SDD §8.8).
@@ -1748,6 +1814,37 @@ type OpenThreadAddressedTo string
 
 // OpenThreadAnchorKind defines model for OpenThread.AnchorKind.
 type OpenThreadAnchorKind string
+
+// PacketLink defines model for PacketLink.
+type PacketLink struct {
+	Bundle  string `json:"bundle"`
+	Content string `json:"content"`
+	Kind    string `json:"kind"`
+
+	// Path The path the packet writes it at, such as links/payments-prd.md.
+	Path  string `json:"path"`
+	Title string `json:"title"`
+}
+
+// PacketQuestion defines model for PacketQuestion.
+type PacketQuestion struct {
+	// Answer The answer the readers agreed on. Absent when they diverged, or when nobody could answer.
+	Answer *string              `json:"answer,omitempty"`
+	Number int                  `json:"number"`
+	Result PacketQuestionResult `json:"result"`
+	Text   string               `json:"text"`
+}
+
+// PacketQuestionResult defines model for PacketQuestion.Result.
+type PacketQuestionResult string
+
+// PacketTraceId defines model for PacketTraceId.
+type PacketTraceId struct {
+	Id string `json:"id"`
+
+	// Text The line that defines the ID.
+	Text string `json:"text"`
+}
 
 // Person defines model for Person.
 type Person struct {
@@ -2399,6 +2496,15 @@ type PutFileContentParams struct {
 	Path PathQuery `form:"path" json:"path"`
 }
 
+// TakeHandoffJSONBody defines parameters for TakeHandoff.
+type TakeHandoffJSONBody struct {
+	// Acknowledged Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+	Acknowledged *bool `json:"acknowledged,omitempty"`
+
+	// Label What the builder calls this work, such as a repo, a branch, or a ticket.
+	Label *string `json:"label,omitempty"`
+}
+
 // PublishBundleJSONBody defines parameters for PublishBundle.
 type PublishBundleJSONBody struct {
 	// Message The commit message and pull request title.
@@ -2541,6 +2647,9 @@ type ImportBundleMultipartRequestBody = ImportRequest
 
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
+
+// TakeHandoffJSONRequestBody defines body for TakeHandoff for application/json ContentType.
+type TakeHandoffJSONRequestBody TakeHandoffJSONBody
 
 // PublishBundleJSONRequestBody defines body for PublishBundle for application/json ContentType.
 type PublishBundleJSONRequestBody PublishBundleJSONBody
@@ -2733,6 +2842,12 @@ type ServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /bundles/{bundleId}/files/rename)
 	RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+	// (GET /bundles/{bundleId}/handoff)
+	ListHandoffs(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	// (POST /bundles/{bundleId}/handoff)
+	TakeHandoff(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /bundles/{bundleId}/publish)
 	PublishBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -3983,6 +4098,58 @@ func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RenameFile(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHandoffs operation middleware
+func (siw *ServerInterfaceWrapper) ListHandoffs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHandoffs(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TakeHandoff operation middleware
+func (siw *ServerInterfaceWrapper) TakeHandoff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TakeHandoff(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5456,6 +5623,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/share/{token}", wrapper.GetShare)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/share/{token}", wrapper.JoinShare)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/access", wrapper.GetBundleAccess)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.ListHandoffs)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.TakeHandoff)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/adopt", wrapper.AdoptFrontmatter)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/visibility", wrapper.SetVisibility)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.RevokeShareLink)
@@ -7199,6 +7368,85 @@ type RenameFiledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandoffsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type ListHandoffsResponseObject interface {
+	VisitListHandoffsResponse(w http.ResponseWriter) error
+}
+
+type ListHandoffs200JSONResponse HandoffList
+
+func (response ListHandoffs200JSONResponse) VisitListHandoffsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandoffsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListHandoffsdefaultApplicationProblemPlusJSONResponse) VisitListHandoffsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TakeHandoffRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *TakeHandoffJSONRequestBody
+}
+
+type TakeHandoffResponseObject interface {
+	VisitTakeHandoffResponse(w http.ResponseWriter) error
+}
+
+type TakeHandoff200JSONResponse BuildPacket
+
+func (response TakeHandoff200JSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TakeHandoffdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response TakeHandoffdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -9501,6 +9749,12 @@ type StrictServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /bundles/{bundleId}/files/rename)
 	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
+	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+	// (GET /bundles/{bundleId}/handoff)
+	ListHandoffs(ctx context.Context, request ListHandoffsRequestObject) (ListHandoffsResponseObject, error)
+	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	// (POST /bundles/{bundleId}/handoff)
+	TakeHandoff(ctx context.Context, request TakeHandoffRequestObject) (TakeHandoffResponseObject, error)
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /bundles/{bundleId}/publish)
 	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
@@ -10860,6 +11114,68 @@ func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, bund
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RenameFileResponseObject); ok {
 		if err := validResponse.VisitRenameFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHandoffs operation middleware
+func (sh *strictHandler) ListHandoffs(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request ListHandoffsRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHandoffs(ctx, request.(ListHandoffsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHandoffs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHandoffsResponseObject); ok {
+		if err := validResponse.VisitListHandoffsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TakeHandoff operation middleware
+func (sh *strictHandler) TakeHandoff(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request TakeHandoffRequestObject
+
+	request.BundleId = bundleId
+
+	var body TakeHandoffJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TakeHandoff(ctx, request.(TakeHandoffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TakeHandoff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TakeHandoffResponseObject); ok {
+		if err := validResponse.VisitTakeHandoffResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

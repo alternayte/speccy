@@ -277,6 +277,10 @@ func (a Adapter) InsertGithubSource(ctx context.Context, arg pgdb.InsertGithubSo
 	return a.q.InsertGithubSource(ctx, InsertGithubSourceParams(arg))
 }
 
+func (a Adapter) InsertHandoff(ctx context.Context, arg pgdb.InsertHandoffParams) error {
+	return a.q.InsertHandoff(ctx, InsertHandoffParams(arg))
+}
+
 func (a Adapter) InsertInvite(ctx context.Context, arg pgdb.InsertInviteParams) error {
 	return a.q.InsertInvite(ctx, InsertInviteParams(arg))
 }
@@ -565,6 +569,18 @@ func (a Adapter) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) (
 	out := make([]pgdb.GithubSource, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.GithubSource(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]pgdb.Handoff, error) {
+	rows, err := a.q.ListHandoffs(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Handoff, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Handoff(r)
 	}
 	return out, nil
 }

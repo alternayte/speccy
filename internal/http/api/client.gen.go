@@ -428,6 +428,25 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
 	RenameFile(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+	//
+	// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
+	ListHandoffs(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TakeHandoffWithBody Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoffWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoff(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	//
 	// Takes any type of body and a specified content type.
@@ -1765,6 +1784,55 @@ func (c *Client) RenameFileWithBody(ctx context.Context, bundleId BundleId, cont
 // Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
 func (c *Client) RenameFile(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRenameFileRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+//
+// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
+func (c *Client) ListHandoffs(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHandoffsRequest(c.Server, bundleId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TakeHandoffWithBody Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+func (c *Client) TakeHandoffWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeHandoffRequestWithBody(c.Server, bundleId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+func (c *Client) TakeHandoff(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeHandoffRequest(c.Server, bundleId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4716,6 +4784,87 @@ func NewRenameFileRequestWithBody(server string, bundleId BundleId, contentType 
 	return req, nil
 }
 
+// NewListHandoffsRequest constructs an http.Request for the ListHandoffs method
+func NewListHandoffsRequest(server string, bundleId BundleId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/handoff", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTakeHandoffRequest calls the generic TakeHandoff builder with application/json body
+func NewTakeHandoffRequest(server string, bundleId BundleId, body TakeHandoffJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTakeHandoffRequestWithBody(server, bundleId, "application/json", bodyReader)
+}
+
+// NewTakeHandoffRequestWithBody constructs an http.Request for the TakeHandoff method, with any body, and a specified content type
+func NewTakeHandoffRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/handoff", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewPublishBundleRequest calls the generic PublishBundle builder with application/json body
 func NewPublishBundleRequest(server string, bundleId BundleId, body PublishBundleJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -7279,6 +7428,27 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
 	RenameFileWithResponse(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
 
+	// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
+	ListHandoffsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListHandoffsResponse, error)
+
+	// TakeHandoffWithBodyWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoffWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
+
+	// TakeHandoffWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoffWithResponse(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
+
 	// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9792,6 +9962,102 @@ func (r RenameFileResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RenameFileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListHandoffsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *HandoffList
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListHandoffsResponse) GetJSON200() *HandoffList {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListHandoffsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListHandoffsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListHandoffsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListHandoffsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListHandoffsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type TakeHandoffResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BuildPacket
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r TakeHandoffResponse) GetJSON200() *BuildPacket {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r TakeHandoffResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r TakeHandoffResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r TakeHandoffResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TakeHandoffResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r TakeHandoffResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13123,6 +13389,45 @@ func (c *ClientWithResponses) RenameFileWithResponse(ctx context.Context, bundle
 	return ParseRenameFileResponse(rsp)
 }
 
+// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
+func (c *ClientWithResponses) ListHandoffsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListHandoffsResponse, error) {
+	rsp, err := c.ListHandoffs(ctx, bundleId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHandoffsResponse(rsp)
+}
+
+// TakeHandoffWithBodyWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+func (c *ClientWithResponses) TakeHandoffWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error) {
+	rsp, err := c.TakeHandoffWithBody(ctx, bundleId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeHandoffResponse(rsp)
+}
+
+// TakeHandoffWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
+func (c *ClientWithResponses) TakeHandoffWithResponse(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error) {
+	rsp, err := c.TakeHandoff(ctx, bundleId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeHandoffResponse(rsp)
+}
+
 // PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -15446,6 +15751,72 @@ func ParseRenameFileResponse(rsp *http.Response) (*RenameFileResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest WriteResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListHandoffsResponse parses an HTTP response from a ListHandoffsWithResponse call
+func ParseListHandoffsResponse(rsp *http.Response) (*ListHandoffsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListHandoffsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HandoffList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTakeHandoffResponse parses an HTTP response from a TakeHandoffWithResponse call
+func ParseTakeHandoffResponse(rsp *http.Response) (*TakeHandoffResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TakeHandoffResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BuildPacket
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

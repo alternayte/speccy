@@ -32,6 +32,7 @@ import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VerdictBar } from "./verdict";
 import { AdoptBar } from "./adopt-bar";
 import { VersionsPanel } from "./versions-panel";
+import { HandoffsPanel } from "./handoffs-panel";
 
 type Panel = "files" | "rail" | null;
 type RailTab = "findings" | "threads" | "evidence" | "versions";
@@ -429,7 +430,10 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                   />
                 </>
               ) : (
-                <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
+                <>
+                  <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
+                  <HandoffsPanel bundleId={bundleId} current={b.current_version.number} />
+                </>
               )}
             </div>
           </div>

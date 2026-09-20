@@ -223,3 +223,25 @@ func storeLinks(ctx context.Context, q store.Querier, workspace uuid.UUID, b pgd
 	}
 	return nil
 }
+
+// Linked is a bundle that b links to, with the kind of the link.
+type Linked struct {
+	Kind   string
+	Bundle pgdb.Bundle
+}
+
+// LinkedBundles returns the bundles that b links to, in the order the links appear. It serves
+// the build packet, which carries the main doc of each linked bundle (REQ-136).
+func (s *Service) LinkedBundles(ctx context.Context, b pgdb.Bundle, main []byte) ([]Linked, error) {
+	links, err := s.resolveLinks(ctx, b, main)
+	if err != nil {
+		return nil, err
+	}
+	var out []Linked
+	for _, l := range links {
+		if l.target != nil {
+			out = append(out, Linked{Kind: l.kind, Bundle: *l.target})
+		}
+	}
+	return out, nil
+}
