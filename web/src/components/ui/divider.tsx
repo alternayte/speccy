@@ -12,16 +12,20 @@ type Options = {
   from: "left" | "right";
   min: number;
   max: number;
-  initial: number;
+  // initial is the width with nothing stored, and the width a double click returns to. A
+  // function runs once, for a width that depends on the window.
+  initial: number | (() => number);
 };
 
 export function useDivider({ key, from, min, max, initial }: Options) {
+  const start = useRef(0);
+  if (start.current === 0) start.current = typeof initial === "function" ? initial() : initial;
   const [width, setWidth] = useState(() => {
     try {
       const v = Number(localStorage.getItem(key));
-      return Number.isFinite(v) && v >= min && v <= max ? v : initial;
+      return Number.isFinite(v) && v >= min && v <= max ? v : start.current;
     } catch {
-      return initial;
+      return start.current;
     }
   });
   const dragging = useRef(false);
@@ -70,13 +74,13 @@ export function useDivider({ key, from, min, max, initial }: Options) {
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    onDoubleClick: () => put(initial),
+    onDoubleClick: () => put(start.current),
     onKeyDown: (e: React.KeyboardEvent) => {
       const step = e.shiftKey ? 48 : 12;
       const towards = from === "left" ? 1 : -1;
       if (e.key === "ArrowLeft") put(width - step * towards);
       else if (e.key === "ArrowRight") put(width + step * towards);
-      else if (e.key === "Home") put(initial);
+      else if (e.key === "Home") put(start.current);
       else return;
       e.preventDefault();
     },
