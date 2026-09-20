@@ -14,6 +14,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/approval"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
+	"github.com/alternayte/speccy/internal/features/handoff"
 	"github.com/alternayte/speccy/internal/features/inbox"
 	"github.com/alternayte/speccy/internal/features/insights"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -139,6 +140,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people, Waivers: waiverAPI},
 			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current},
 			TourAPI:     &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI},
+			HandoffAPI:  &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people},
 		},
 	}, nil
 }

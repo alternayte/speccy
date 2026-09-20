@@ -204,6 +204,39 @@ func (q *Queries) InsertBundle(ctx context.Context, arg InsertBundleParams) erro
 	return err
 }
 
+const insertHandoff = `-- name: InsertHandoff :exec
+INSERT INTO handoff (id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5,
+        ?6, ?7, ?8, ?9)
+`
+
+type InsertHandoffParams struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	BundleID     uuid.UUID
+	VersionID    uuid.UUID
+	Verdict      string
+	Acknowledged bool
+	Label        string
+	TakenBy      string
+	CreatedAt    time.Time
+}
+
+func (q *Queries) InsertHandoff(ctx context.Context, arg InsertHandoffParams) error {
+	_, err := q.db.ExecContext(ctx, insertHandoff,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.BundleID,
+		arg.VersionID,
+		arg.Verdict,
+		arg.Acknowledged,
+		arg.Label,
+		arg.TakenBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const insertVersion = `-- name: InsertVersion :exec
 INSERT INTO version (id, workspace_id, bundle_id, number, created_by, message, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5,
@@ -357,6 +390,43 @@ func (q *Queries) ListBundlesBySource(ctx context.Context, arg ListBundlesBySour
 			&i.Visibility,
 			&i.ShareTokenHash,
 			&i.ShareExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHandoffs = `-- name: ListHandoffs :many
+SELECT id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE bundle_id = ?1 ORDER BY created_at DESC
+`
+
+func (q *Queries) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Handoff, error) {
+	rows, err := q.db.QueryContext(ctx, listHandoffs, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Handoff
+	for rows.Next() {
+		var i Handoff
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.BundleID,
+			&i.VersionID,
+			&i.Verdict,
+			&i.Acknowledged,
+			&i.Label,
+			&i.TakenBy,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

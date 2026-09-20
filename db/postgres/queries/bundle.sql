@@ -71,3 +71,11 @@ SELECT vf.path, vf.sha256, b.size
 FROM version_file vf JOIN blob b ON b.sha256 = vf.sha256
 WHERE vf.version_id = sqlc.arg(version_id)
 ORDER BY vf.path;
+
+-- name: InsertHandoff :exec
+INSERT INTO handoff (id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.arg(verdict),
+        sqlc.arg(acknowledged), sqlc.arg(label), sqlc.arg(taken_by), sqlc.arg(created_at));
+
+-- name: ListHandoffs :many
+SELECT * FROM handoff WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY created_at DESC;

@@ -42,6 +42,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_tour", "Get the points of a bundle that need a human decision, in order.", t.getTour)
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
+	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its main doc, its assets, the main doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
 	return s
 }
@@ -241,6 +242,36 @@ func (tools) reviewContent(ctx context.Context, c *api.ClientWithResponses, in c
 		body.Files = append(body.Files, cf)
 	}
 	res, err := c.ReviewContentWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type handoffArg struct {
+	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Label  string `json:"label,omitempty" jsonschema:"what you call this work: a repo, a branch, or a ticket"`
+	// Acknowledged takes a packet the verdict does not allow. The handoff records it.
+	Acknowledged bool `json:"acknowledged,omitempty" jsonschema:"take the packet although the bundle is not Build Ready, or its verdict is stale"`
+}
+
+// handoffBundle takes the build packet and records the handoff (REQ-136).
+func (tools) handoffBundle(ctx context.Context, c *api.ClientWithResponses, in handoffArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	body := api.TakeHandoffJSONRequestBody{}
+	if in.Label != "" {
+		body.Label = &in.Label
+	}
+	if in.Acknowledged {
+		body.Acknowledged = &in.Acknowledged
+	}
+	res, err := c.TakeHandoffWithResponse(ctx, b.Id, body)
 	if err != nil {
 		return nil, err
 	}

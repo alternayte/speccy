@@ -71,6 +71,7 @@ type Querier interface {
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
 	InsertGithubSource(ctx context.Context, arg InsertGithubSourceParams) error
+	InsertHandoff(ctx context.Context, arg InsertHandoffParams) error
 	InsertInvite(ctx context.Context, arg InsertInviteParams) error
 	InsertJob(ctx context.Context, arg InsertJobParams) error
 	InsertLink(ctx context.Context, arg InsertLinkParams) error
@@ -118,6 +119,7 @@ type Querier interface {
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
 	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
+	ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Handoff, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
 	ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error)
