@@ -37,3 +37,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Trace ID: a stable ID in a doc, such as REQ-012 or DEC-004.
 - Tour: the ordered list of points that need a human decision.
 - Section: the text under one heading, down to the next heading of the same or higher level.
+- Control bar: the one row of markdown and profile controls above the preview. Avoid: toolbar, ribbon.
+- Editable preview: the rendered preview that a click makes editable in place, writing back the markdown range. Avoid: WYSIWYG, rich text editor.
+- Profile control: a control in the control bar that applies a fix the profile knows about. Avoid: smart action, AI action.
+- Divider: the draggable separator between two panes. Avoid: splitter, gutter, handle.
