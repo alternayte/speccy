@@ -17,7 +17,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 
 	"github.com/alternayte/speccy/internal/http/api"
@@ -68,6 +67,7 @@ type model struct {
 	tour    []api.TourPoint
 	tcursor int
 
+	help    bool   // the key overlay
 	running string // the run in progress, or ""
 	stage   string
 	status  string // one line of feedback
@@ -90,16 +90,6 @@ type (
 	editorMsg struct{ err error }
 	errMsg    struct{ err error }
 	tickMsg   struct{}
-)
-
-var (
-	bold   = lipgloss.NewStyle().Bold(true)
-	faint  = lipgloss.NewStyle().Faint(true)
-	ok     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#047a4a", Dark: "#34d399"}).Bold(true)
-	bad    = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#b42318", Dark: "#f87171"}).Bold(true)
-	warn   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#8a5a00", Dark: "#fbbf24"}).Bold(true)
-	sel    = lipgloss.NewStyle().Reverse(true)
-	header = lipgloss.NewStyle().Bold(true).Padding(0, 1)
 )
 
 func (m *model) Init() tea.Cmd { return tea.Batch(m.loadBundles(), tick()) }
@@ -294,6 +284,16 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch k.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
+	case "?":
+		m.help = !m.help
+		return m, nil
+	}
+	if m.help {
+		// The overlay takes every other key, so nothing moves behind it.
+		if k.String() == "esc" {
+			m.help = false
+		}
+		return m, nil
 	}
 	switch m.screen {
 	case screenList:
@@ -357,6 +357,9 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // line is the 1-based line of an anchor in its file on disk.
 func (m *model) line(a api.Anchor) int {
+	if m.o.BundleDir == nil || m.bundle == nil {
+		return 0
+	}
 	if a.Detached != nil && *a.Detached {
 		return 0
 	}
@@ -401,102 +404,4 @@ func truncate(s string, n int) string {
 	}
 	r := []rune(s)
 	return string(r[:n-1]) + "…"
-}
-
-func (m *model) View() string {
-	var b strings.Builder
-	w := m.width
-	if w == 0 {
-		w = 100
-	}
-	switch m.screen {
-	case screenList:
-		b.WriteString(header.Render("Speccy · bundles") + "\n\n")
-		if len(m.bundles) == 0 && m.err == nil {
-			b.WriteString(faint.Render("  No bundles here. A bundle is a folder with one markdown file that has a type in its frontmatter.") + "\n")
-		}
-		for i, bu := range m.bundles {
-			score, must := "  –", ""
-			if bu.Verdict != nil {
-				score = fmt.Sprintf("%3d", bu.Verdict.Score)
-				if bu.Verdict.Must > 0 {
-					must = bad.Render(fmt.Sprintf(" %d MUST", bu.Verdict.Must))
-				}
-			}
-			line := fmt.Sprintf("  %-*s %-4s %s  %s%s", min(40, w/3), truncate(bu.Slug, min(40, w/3)), strings.ToUpper(bu.ProfileKey), score, verdictStyled(bu.Verdict), must)
-			if i == m.cursor {
-				line = sel.Render(">") + line[1:]
-			}
-			b.WriteString(line + "\n")
-		}
-		b.WriteString("\n" + faint.Render("  j/k move · enter open · r review · q quit") + "\n")
-	case screenBundle:
-		bu := m.bundle
-		b.WriteString(header.Render(bu.Title) + faint.Render(fmt.Sprintf("%s · %s · v%d", bu.Slug, strings.ToUpper(bu.ProfileKey), bu.CurrentVersion.Number)) + "\n\n")
-		b.WriteString("  " + verdictStyled(bu.Verdict))
-		if v := bu.Verdict; v != nil {
-			kind := ""
-			if v.Kind == api.BundleVerdictKindLint {
-				kind = " · lint checks only"
-			}
-			b.WriteString(faint.Render(fmt.Sprintf("  %d MUST · %d SHOULD · %d INFO · score %d%s", v.Must, v.Should, v.Info, v.Score, kind)))
-		}
-		b.WriteString("\n")
-		if bu.RunError != nil {
-			b.WriteString("  " + bad.Render("The last review failed: ") + *bu.RunError + "\n")
-		}
-		b.WriteString("\n")
-		rows := max(3, m.height-12)
-		start := max(0, min(m.fcursor-rows/2, len(m.findings)-rows))
-		if len(m.findings) == 0 {
-			b.WriteString(faint.Render("  No open findings.") + "\n")
-		}
-		for i := start; i < len(m.findings) && i < start+rows; i++ {
-			f := m.findings[i]
-			where := f.Anchor.File
-			if l := m.line(f.Anchor); l > 0 {
-				where = fmt.Sprintf("%s:%d", f.Anchor.File, l)
-			}
-			line := fmt.Sprintf("  %s %-24s %s", levelStyled(f.Level), truncate(where, 24), truncate(f.Message, w-40))
-			if i == m.fcursor {
-				line = sel.Render(">") + line[1:]
-			}
-			b.WriteString(line + "\n")
-		}
-		if len(m.findings) > 0 {
-			f := m.findings[m.fcursor]
-			b.WriteString("\n  " + faint.Render(f.CheckSlug))
-			if f.Fix != nil {
-				b.WriteString("  Fix: " + truncate(*f.Fix, w-len(f.CheckSlug)-12))
-			}
-			b.WriteString("\n")
-		}
-		b.WriteString("\n" + faint.Render("  j/k move · e open in $EDITOR · r review · t tour · esc back · q quit") + "\n")
-	case screenTour:
-		b.WriteString(header.Render("Tour") + faint.Render(m.bundle.Slug) + "\n\n")
-		if len(m.tour) == 0 {
-			b.WriteString("  Nothing needs a decision.\n")
-		} else {
-			p := m.tour[m.tcursor]
-			b.WriteString(faint.Render(fmt.Sprintf("  %d of %d · %s", m.tcursor+1, len(m.tour), strings.ReplaceAll(string(p.Kind), "_", " "))) + "\n\n")
-			b.WriteString("  " + bold.Render(lipgloss.NewStyle().Width(max(20, w-4)).Render(p.Ask)) + "\n")
-			if p.Context != "" {
-				b.WriteString("  " + lipgloss.NewStyle().Width(max(20, w-4)).Render(p.Context) + "\n")
-			}
-			if p.Anchor != nil && p.Anchor.Quote != "" {
-				b.WriteString("\n  " + faint.Render("│ "+truncate(p.Anchor.Quote, w-8)) + "\n")
-			}
-		}
-		b.WriteString("\n" + faint.Render("  j/k next and previous · e open in $EDITOR · esc back · q quit. Decide in the app or with post_message.") + "\n")
-	}
-	if m.running != "" {
-		b.WriteString("\n  " + warn.Render("Reviewing") + faint.Render(": "+m.stage) + "\n")
-	}
-	if m.status != "" {
-		b.WriteString("\n  " + m.status + "\n")
-	}
-	if m.err != nil {
-		b.WriteString("\n  " + bad.Render("Error: ") + m.err.Error() + "\n")
-	}
-	return b.String()
 }

@@ -663,3 +663,10 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** Titles step by 1.25 from 16px (20, 26, 32px); the bundle title is 20px. In the bundle header, Tour and Traceability are plain links, Share is a quiet button, and the HTML report, the PDF, and the .zip are in one Export menu, so Run review is the one strong action. Finding cards, rail lists, and trace matrix cells have 16px sides and 12 to 14px ends.
 - **Alternative:** Keep the 1.2 ratio for every step, and the ten buttons of the same weight.
 - **Reason:** Gauntlet run 2, differences 1 to 3.
+
+## 2026-09-20 — The TUI frame
+
+- **Choice:** The TUI draws one frame on every screen: a title bar with the screen and its context, a body that fills the terminal, a status line that is always there, a rule, and a key bar for that screen. `?` opens the key list. The list screen keeps a preview of the bundle under the cursor at the foot, and the bundle screen keeps the selected finding there, so no screen has an empty band and nothing moves when data arrives. Selection is an accent marker and a tinted row. The colours are the web tokens (DEC-029) as adaptive pairs, so a light terminal works. The floor is 80 by 24 cells: below 96 columns the list drops the profile and score columns.
+- **Alternative:** Keep the plain list of lines, or draw bordered panes around every region.
+- **Reason:** The old TUI wrote a few lines at the top and left the rest of the terminal empty, with no column headers, no focus, and no way to see every key. Borders around everything would cost four columns per pane at the 80-column floor.
+- **Test:** `TestView_FrameFitsTheTerminal` checks that every line is exactly as wide as the terminal and the frame is exactly as tall, at four sizes and on every screen. It found the overflowing title bar.
