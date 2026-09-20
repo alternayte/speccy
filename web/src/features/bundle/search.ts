@@ -1,6 +1,8 @@
 import type { View } from "@/features/editor/editor-pane";
 
-export type BundleSearch = { file?: string; view?: View };
+// waiver is the waiver an inbox link opens: the rail selects the finding it excuses, and the
+// preview focuses the section it covers.
+export type BundleSearch = { file?: string; view?: View; waiver?: string };
 
 // validateBundleSearch reads the bundle page's URL search params.
 export function validateBundleSearch(s: Record<string, unknown>): BundleSearch {
@@ -8,5 +10,6 @@ export function validateBundleSearch(s: Record<string, unknown>): BundleSearch {
   return {
     ...(typeof s.file === "string" && s.file ? { file: s.file } : {}),
     ...(view ? { view } : {}),
+    ...(typeof s.waiver === "string" && s.waiver ? { waiver: s.waiver } : {}),
   };
 }

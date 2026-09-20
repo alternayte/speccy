@@ -868,10 +868,19 @@ type ClientInterface interface {
 	// Corresponds with POST /waivers/{waiverId}/approve (the `ApproveWaiver` operationId).
 	ApproveWaiver(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// RejectWaiver Reject a waiver.
+	// RejectWaiverWithBody Reject a waiver, with a decision reason the requester reads.
+	//
+	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
-	RejectWaiver(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	RejectWaiverWithBody(ctx context.Context, waiverId WaiverId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RejectWaiver Reject a waiver, with a decision reason the requester reads.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
+	RejectWaiver(ctx context.Context, waiverId WaiverId, body RejectWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
@@ -2921,11 +2930,30 @@ func (c *Client) ApproveWaiver(ctx context.Context, waiverId WaiverId, reqEditor
 	return c.Client.Do(req)
 }
 
-// RejectWaiver Reject a waiver.
+// RejectWaiverWithBody Reject a waiver, with a decision reason the requester reads.
+//
+// Takes any type of body and a specified content type.
 //
 // Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
-func (c *Client) RejectWaiver(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRejectWaiverRequest(c.Server, waiverId)
+func (c *Client) RejectWaiverWithBody(ctx context.Context, waiverId WaiverId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRejectWaiverRequestWithBody(c.Server, waiverId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RejectWaiver Reject a waiver, with a decision reason the requester reads.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
+func (c *Client) RejectWaiver(ctx context.Context, waiverId WaiverId, body RejectWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRejectWaiverRequest(c.Server, waiverId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6715,8 +6743,19 @@ func NewApproveWaiverRequest(server string, waiverId WaiverId) (*http.Request, e
 	return req, nil
 }
 
-// NewRejectWaiverRequest constructs an http.Request for the RejectWaiver method
-func NewRejectWaiverRequest(server string, waiverId WaiverId) (*http.Request, error) {
+// NewRejectWaiverRequest calls the generic RejectWaiver builder with application/json body
+func NewRejectWaiverRequest(server string, waiverId WaiverId, body RejectWaiverJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRejectWaiverRequestWithBody(server, waiverId, "application/json", bodyReader)
+}
+
+// NewRejectWaiverRequestWithBody constructs an http.Request for the RejectWaiver method, with any body, and a specified content type
+func NewRejectWaiverRequestWithBody(server string, waiverId WaiverId, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -6741,10 +6780,12 @@ func NewRejectWaiverRequest(server string, waiverId WaiverId) (*http.Request, er
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -7688,12 +7729,19 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /waivers/{waiverId}/approve (the `ApproveWaiver` operationId).
 	ApproveWaiverWithResponse(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*ApproveWaiverResponse, error)
 
-	// RejectWaiverWithResponse Reject a waiver.
+	// RejectWaiverWithBodyWithResponse Reject a waiver, with a decision reason the requester reads.
 	//
-	// Returns a wrapper object for the known response body format(s).
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
-	RejectWaiverWithResponse(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error)
+	RejectWaiverWithBodyWithResponse(ctx context.Context, waiverId WaiverId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error)
+
+	// RejectWaiverWithResponse Reject a waiver, with a decision reason the requester reads.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
+	RejectWaiverWithResponse(ctx context.Context, waiverId WaiverId, body RejectWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error)
 }
 
 type ListBackendsResponse struct {
@@ -13902,13 +13950,26 @@ func (c *ClientWithResponses) ApproveWaiverWithResponse(ctx context.Context, wai
 	return ParseApproveWaiverResponse(rsp)
 }
 
-// RejectWaiverWithResponse Reject a waiver.
+// RejectWaiverWithBodyWithResponse Reject a waiver, with a decision reason the requester reads.
 //
-// Returns a wrapper object for the known response body format(s).
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
-func (c *ClientWithResponses) RejectWaiverWithResponse(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error) {
-	rsp, err := c.RejectWaiver(ctx, waiverId, reqEditors...)
+func (c *ClientWithResponses) RejectWaiverWithBodyWithResponse(ctx context.Context, waiverId WaiverId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error) {
+	rsp, err := c.RejectWaiverWithBody(ctx, waiverId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRejectWaiverResponse(rsp)
+}
+
+// RejectWaiverWithResponse Reject a waiver, with a decision reason the requester reads.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
+func (c *ClientWithResponses) RejectWaiverWithResponse(ctx context.Context, waiverId WaiverId, body RejectWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error) {
+	rsp, err := c.RejectWaiver(ctx, waiverId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}

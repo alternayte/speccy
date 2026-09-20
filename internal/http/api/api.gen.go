@@ -394,11 +394,13 @@ func (e FindingBriefLevel) Valid() bool {
 
 // Defines values for InboxItemKind.
 const (
-	InboxItemKindMention       InboxItemKind = "mention"
-	InboxItemKindMessage       InboxItemKind = "message"
-	InboxItemKindReviewRequest InboxItemKind = "review_request"
-	InboxItemKindRun           InboxItemKind = "run"
-	InboxItemKindWaiverRequest InboxItemKind = "waiver_request"
+	InboxItemKindMention        InboxItemKind = "mention"
+	InboxItemKindMessage        InboxItemKind = "message"
+	InboxItemKindReviewRequest  InboxItemKind = "review_request"
+	InboxItemKindRun            InboxItemKind = "run"
+	InboxItemKindWaiverEnded    InboxItemKind = "waiver_ended"
+	InboxItemKindWaiverRejected InboxItemKind = "waiver_rejected"
+	InboxItemKindWaiverRequest  InboxItemKind = "waiver_request"
 )
 
 // Valid indicates whether the value is a known member of the InboxItemKind enum.
@@ -411,6 +413,10 @@ func (e InboxItemKind) Valid() bool {
 	case InboxItemKindReviewRequest:
 		return true
 	case InboxItemKindRun:
+		return true
+	case InboxItemKindWaiverEnded:
+		return true
+	case InboxItemKindWaiverRejected:
 		return true
 	case InboxItemKindWaiverRequest:
 		return true
@@ -1587,6 +1593,9 @@ type InboxItem struct {
 	Text        string              `json:"text"`
 	ThreadId    *openapi_types.UUID `json:"thread_id,omitempty"`
 	Unread      bool                `json:"unread"`
+
+	// WaiverId The waiver an item is about. The bundle page opens on the finding it excuses.
+	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
 // InboxItemKind defines model for InboxItem.Kind.
@@ -1982,6 +1991,12 @@ type SectionDiff struct {
 	Status      ChangeStatus `json:"status"`
 }
 
+// SectionRange The byte range of the waiver's section in the current main doc. Absent when the section is gone.
+type SectionRange struct {
+	End   int `json:"end"`
+	Start int `json:"start"`
+}
+
 // Settings defines model for Settings.
 type Settings struct {
 	// InviteTtlDays REQ-081. Default 7.
@@ -2207,21 +2222,27 @@ type Waiver struct {
 	BundleId  openapi_types.UUID `json:"bundle_id"`
 
 	// CanApprove Whether the caller can approve or reject it now.
-	CanApprove bool               `json:"can_approve"`
-	CheckSlug  string             `json:"check_slug"`
-	CreatedAt  time.Time          `json:"created_at"`
-	Id         openapi_types.UUID `json:"id"`
-	Level      string             `json:"level"`
+	CanApprove bool      `json:"can_approve"`
+	CheckSlug  string    `json:"check_slug"`
+	CreatedAt  time.Time `json:"created_at"`
+
+	// DecisionReason Why the waiver is rejected. Only a rejected waiver has one.
+	DecisionReason *string            `json:"decision_reason,omitempty"`
+	Id             openapi_types.UUID `json:"id"`
+	Level          string             `json:"level"`
 
 	// Needed The approvals the policy needs.
 	Needed int `json:"needed"`
 
 	// Policy The waiver policy (§9.1).
-	Policy      string       `json:"policy"`
-	Reason      string       `json:"reason"`
-	RequestedBy string       `json:"requested_by"`
-	Section     []string     `json:"section"`
-	Status      WaiverStatus `json:"status"`
+	Policy      string   `json:"policy"`
+	Reason      string   `json:"reason"`
+	RequestedBy string   `json:"requested_by"`
+	Section     []string `json:"section"`
+
+	// SectionRange The byte range of the waiver's section in the current main doc. Absent when the section is gone.
+	SectionRange *SectionRange `json:"section_range,omitempty"`
+	Status       WaiverStatus  `json:"status"`
 }
 
 // WaiverStatus defines model for Waiver.Status.
@@ -2460,6 +2481,12 @@ type SetThreadStatusJSONBody struct {
 	Open bool `json:"open"`
 }
 
+// RejectWaiverJSONBody defines parameters for RejectWaiver.
+type RejectWaiverJSONBody struct {
+	// Reason Why the waiver is rejected. At least 20 characters.
+	Reason string `json:"reason"`
+}
+
 // CreateBackendJSONRequestBody defines body for CreateBackend for application/json ContentType.
 type CreateBackendJSONRequestBody = BackendInput
 
@@ -2561,6 +2588,9 @@ type PostMessageJSONRequestBody = PostMessage
 
 // SetThreadStatusJSONRequestBody defines body for SetThreadStatus for application/json ContentType.
 type SetThreadStatusJSONRequestBody SetThreadStatusJSONBody
+
+// RejectWaiverJSONRequestBody defines body for RejectWaiver for application/json ContentType.
+type RejectWaiverJSONRequestBody RejectWaiverJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -2846,7 +2876,7 @@ type ServerInterface interface {
 	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
 	// (POST /waivers/{waiverId}/approve)
 	ApproveWaiver(w http.ResponseWriter, r *http.Request, waiverId WaiverId)
-	// RejectWaiver Reject a waiver.
+	// RejectWaiver Reject a waiver, with a decision reason the requester reads.
 	// (POST /waivers/{waiverId}/reject)
 	RejectWaiver(w http.ResponseWriter, r *http.Request, waiverId WaiverId)
 }
@@ -9223,6 +9253,7 @@ func (response ApproveWaiverdefaultApplicationProblemPlusJSONResponse) VisitAppr
 
 type RejectWaiverRequestObject struct {
 	WaiverId WaiverId `json:"waiverId"`
+	Body     *RejectWaiverJSONRequestBody
 }
 
 type RejectWaiverResponseObject interface {
@@ -9544,7 +9575,7 @@ type StrictServerInterface interface {
 	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
 	// (POST /waivers/{waiverId}/approve)
 	ApproveWaiver(ctx context.Context, request ApproveWaiverRequestObject) (ApproveWaiverResponseObject, error)
-	// RejectWaiver Reject a waiver.
+	// RejectWaiver Reject a waiver, with a decision reason the requester reads.
 	// (POST /waivers/{waiverId}/reject)
 	RejectWaiver(ctx context.Context, request RejectWaiverRequestObject) (RejectWaiverResponseObject, error)
 }
@@ -12235,6 +12266,13 @@ func (sh *strictHandler) RejectWaiver(w http.ResponseWriter, r *http.Request, wa
 	var request RejectWaiverRequestObject
 
 	request.WaiverId = waiverId
+
+	var body RejectWaiverJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.RejectWaiver(ctx, request.(RejectWaiverRequestObject))

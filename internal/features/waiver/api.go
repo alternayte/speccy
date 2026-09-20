@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -191,7 +192,8 @@ func (a *API) RejectWaiver(ctx context.Context, req api.RejectWaiverRequestObjec
 	if err != nil {
 		return nil, err
 	}
-	if _, err := es.Run(ctx, a.ES, StreamType, s.ID, func(s State) ([]es.Event, error) { return DecideReject(s, who) }, Evolve); err != nil {
+	reason := req.Body.Reason
+	if _, err := es.Run(ctx, a.ES, StreamType, s.ID, func(s State) ([]es.Event, error) { return DecideReject(s, who, reason) }, Evolve); err != nil {
 		return nil, err
 	}
 	w, err := a.waiver(ctx, s.ID)
@@ -235,6 +237,37 @@ func (a *API) Waiting(ctx context.Context) ([]api.Waiver, error) {
 			continue // the bundle is gone, or this person does not decide it
 		}
 		out = append(out, w)
+	}
+	return out, nil
+}
+
+// Decided is one waiver the inbox reports: a rejection to its requester, or a waiver an edit
+// ended, to the bundle's authors (REQ-074).
+type Decided struct {
+	Waiver      api.Waiver
+	RequestedBy string // the user ID, not the label
+	At          time.Time
+}
+
+// DecidedSince returns the waivers rejected or ended since t, across the workspace.
+func (a *API) DecidedSince(ctx context.Context, t time.Time) ([]Decided, error) {
+	rows, err := a.DB.Queries().ListWorkspaceWaivers(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	var out []Decided
+	for _, row := range rows {
+		if row.Status != StatusRejected && row.Status != StatusInvalidated {
+			continue
+		}
+		if row.UpdatedAt.Before(t) {
+			continue
+		}
+		w, err := a.waiver(ctx, row.ID)
+		if err != nil {
+			continue // the bundle is gone
+		}
+		out = append(out, Decided{Waiver: w, RequestedBy: row.RequestedBy, At: row.UpdatedAt.UTC()})
 	}
 	return out, nil
 }
@@ -284,15 +317,24 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 	for i, u := range s.Approvals {
 		approvals[i] = kernel.PersonByID(ctx, a.People, u).Label()
 	}
-	section := s.Section
-	if section == nil {
-		section = []string{}
+	path := s.Section
+	if path == nil {
+		path = []string{}
 	}
-	return api.Waiver{
-		Id: s.ID, BundleId: s.BundleID, CheckSlug: s.Check, Level: string(s.Level), Section: section, Reason: s.Reason,
+	w := api.Waiver{
+		Id: s.ID, BundleId: s.BundleID, CheckSlug: s.Check, Level: string(s.Level), Section: path, Reason: s.Reason,
 		Status: api.WaiverStatus(s.Status), RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(),
 		Approvals: approvals, Policy: s.Policy.Name, Needed: need, CanApprove: can, CreatedAt: v.CreatedAt.UTC(),
-	}, nil
+	}
+	if s.DecisionReason != "" {
+		w.DecisionReason = &s.DecisionReason
+	}
+	if main, doc, err := a.mainDoc(ctx, b); err == nil {
+		if start, end, ok := section.RangeAt(doc, main, s.Section); ok {
+			w.SectionRange = &api.SectionRange{Start: start, End: end}
+		}
+	}
+	return w, nil
 }
 
 // Invalidate ends each approved waiver of b whose section changed (REQ-074, T-010). It runs

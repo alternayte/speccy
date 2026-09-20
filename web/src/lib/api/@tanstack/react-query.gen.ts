@@ -1149,7 +1149,7 @@ export const approveWaiverMutation = (options?: Partial<Options<ApproveWaiverDat
 };
 
 /**
- * Reject a waiver.
+ * Reject a waiver, with a decision reason the requester reads.
  */
 export const rejectWaiverMutation = (options?: Partial<Options<RejectWaiverData>>): UseMutationOptions<RejectWaiverResponse, RejectWaiverError, Options<RejectWaiverData>> => {
     const mutationOptions: UseMutationOptions<RejectWaiverResponse, RejectWaiverError, Options<RejectWaiverData>> = {

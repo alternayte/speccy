@@ -731,7 +731,20 @@ export type Waiver = {
      * Whether the caller can approve or reject it now.
      */
     can_approve: boolean;
+    /**
+     * Why the waiver is rejected. Only a rejected waiver has one.
+     */
+    decision_reason?: string;
+    section_range?: SectionRange;
     created_at: string;
+};
+
+/**
+ * The byte range of the waiver's section in the current main doc. Absent when the section is gone.
+ */
+export type SectionRange = {
+    start: number;
+    end: number;
 };
 
 export type ReviewStatus = 'draft' | 'in_review' | 'approved' | 'superseded';
@@ -766,10 +779,14 @@ export type Inbox = {
 };
 
 export type InboxItem = {
-    kind: 'review_request' | 'waiver_request' | 'message' | 'mention' | 'run';
+    kind: 'review_request' | 'waiver_request' | 'waiver_rejected' | 'waiver_ended' | 'message' | 'mention' | 'run';
     bundle_id: string;
     bundle_title: string;
     thread_id?: string;
+    /**
+     * The waiver an item is about. The bundle page opens on the finding it excuses.
+     */
+    waiver_id?: string;
     text: string;
     at: string;
     unread: boolean;
@@ -2780,7 +2797,12 @@ export type ApproveWaiverResponses = {
 export type ApproveWaiverResponse = ApproveWaiverResponses[keyof ApproveWaiverResponses];
 
 export type RejectWaiverData = {
-    body?: never;
+    body: {
+        /**
+         * Why the waiver is rejected. At least 20 characters.
+         */
+        reason: string;
+    };
     path: {
         waiverId: string;
     };

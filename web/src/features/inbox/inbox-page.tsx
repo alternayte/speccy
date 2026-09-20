@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { AtSign, BadgeCheck, MessageSquare, PlayCircle, ShieldQuestion } from "lucide-react";
+import { AtSign, BadgeCheck, MessageSquare, PlayCircle, ShieldAlert, ShieldQuestion, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { InboxItem } from "@/lib/api";
@@ -15,11 +15,15 @@ const kindIcon = {
   mention: AtSign,
   run: PlayCircle,
   waiver_request: ShieldQuestion,
+  waiver_rejected: ShieldX,
+  waiver_ended: ShieldAlert,
 } as const;
 
 const kindLabel = {
   review_request: "Review request",
   waiver_request: "Waiver request",
+  waiver_rejected: "Waiver rejected",
+  waiver_ended: "Waiver ended",
   message: "Message",
   mention: "Mention",
   run: "Review",
@@ -82,6 +86,7 @@ function Row({ item: i }: { item: InboxItem }) {
       <Link
         to="/bundles/$bundleId"
         params={{ bundleId: i.bundle_id }}
+        search={i.waiver_id ? { waiver: i.waiver_id } : {}}
         className={clsx("flex gap-3 px-4 py-3 transition-colors hover:bg-sunken", i.unread && "bg-accent-soft/40")}
       >
         <Icon aria-hidden className={clsx("mt-0.5 size-4 shrink-0", i.unread ? "text-accent" : "text-ink-3")} />

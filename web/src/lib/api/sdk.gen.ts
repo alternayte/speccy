@@ -468,9 +468,16 @@ export const requestWaiver = <ThrowOnError extends boolean = false>(options: Opt
 export const approveWaiver = <ThrowOnError extends boolean = false>(options: Options<ApproveWaiverData, ThrowOnError>): RequestResult<ApproveWaiverResponses, ApproveWaiverErrors, ThrowOnError> => (options.client ?? client).post<ApproveWaiverResponses, ApproveWaiverErrors, ThrowOnError>({ url: '/waivers/{waiverId}/approve', ...options });
 
 /**
- * Reject a waiver.
+ * Reject a waiver, with a decision reason the requester reads.
  */
-export const rejectWaiver = <ThrowOnError extends boolean = false>(options: Options<RejectWaiverData, ThrowOnError>): RequestResult<RejectWaiverResponses, RejectWaiverErrors, ThrowOnError> => (options.client ?? client).post<RejectWaiverResponses, RejectWaiverErrors, ThrowOnError>({ url: '/waivers/{waiverId}/reject', ...options });
+export const rejectWaiver = <ThrowOnError extends boolean = false>(options: Options<RejectWaiverData, ThrowOnError>): RequestResult<RejectWaiverResponses, RejectWaiverErrors, ThrowOnError> => (options.client ?? client).post<RejectWaiverResponses, RejectWaiverErrors, ThrowOnError>({
+    url: '/waivers/{waiverId}/reject',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * The review status of a bundle (§9.5).
