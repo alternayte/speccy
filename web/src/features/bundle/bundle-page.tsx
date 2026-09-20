@@ -261,6 +261,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               path={selected}
               version={{ id: files.data!.version.id, number: files.data!.version.number }}
               sha={file.sha256}
+              profileKey={b.profile_key}
               view={view}
               onViewChange={(v) => setSearch({ ...search, view: v })}
               onOpenPath={select}

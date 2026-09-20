@@ -1,13 +1,14 @@
 import { EditorView } from "@codemirror/view";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { Columns2, Eye, FileCode2, MessageSquarePlus, Save } from "lucide-react";
+import { Columns2, Eye, FileCode2, MessageSquarePlus, PenLine, Save } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { type Finding, getFileContent, putFileContent } from "@/lib/api";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { CodeEditor } from "./code-editor";
+import { ControlBar, type Target } from "./control-bar";
 import { Preview } from "./preview";
 import { ScrollLink } from "./scroll-sync";
 
@@ -54,6 +55,7 @@ export function EditorPane({
   onDirtyChange,
   focus,
   readOnly = false,
+  profileKey,
   onComment,
   findings,
   onOpenFinding,
@@ -72,6 +74,8 @@ export function EditorPane({
   focus?: { start: number; end: number; seq: number };
   // readOnly is for a guest or a member who is not an author: no edits, no save.
   readOnly?: boolean;
+  // profileKey drives the profile controls of the control bar.
+  profileKey: string;
   // onComment opens a thread on the selected text (REQ-087), as a byte range of the saved file.
   onComment?: (sel: { file: string; start: number; end: number; quote: string }) => void;
   // findings feed the overlay in the preview (SDD §13.2).
@@ -92,6 +96,25 @@ export function EditorPane({
   // The link keeps the two panes together and drops the echo of its own writes.
   const link = useRef(new ScrollLink());
   const wide = useWide();
+  // target is the block the control bar writes into, and bar keeps the person's choice.
+  const [target, setTarget] = useState<Target | null>(null);
+  const [bar, setBar] = useState(() => {
+    try {
+      return localStorage.getItem("speccy-control-bar") === "on";
+    } catch {
+      return false;
+    }
+  });
+  const toggleBar = () => {
+    setBar((on) => {
+      try {
+        localStorage.setItem("speccy-control-bar", on ? "off" : "on");
+      } catch {
+        // Storage is not available: the choice lasts for this page load.
+      }
+      return !on;
+    });
+  };
 
   const file = useQuery({
     queryKey: ["file", bundleId, path, loadVersion.id],
@@ -287,6 +310,18 @@ export function EditorPane({
               <span className="hidden lg:inline">Comment</span>
             </Button>
           ) : null}
+          {md && !readOnly && shown !== "code" ? (
+            <Button
+              size="sm"
+              variant={bar ? "primary" : "ghost"}
+              onClick={toggleBar}
+              icon={<PenLine className="size-3.5" />}
+              title="Writing controls"
+              aria-pressed={bar}
+            >
+              <span className="hidden lg:inline">Controls</span>
+            </Button>
+          ) : null}
           {md ? <ViewToggle view={shown} onChange={onViewChange} /> : null}
           {readOnly ? (
             <span className="text-xs text-ink-3">Read only</span>
@@ -305,6 +340,14 @@ export function EditorPane({
         </div>
       </div>
 
+      {bar && md && !readOnly && shown !== "code" ? (
+        <ControlBar
+          target={target}
+          profileKey={profileKey}
+          markdown={text ?? ""}
+          onInsertSection={(next) => setText(next)}
+        />
+      ) : null}
       {hint ? (
         <div className="no-print border-b border-line bg-sunken px-3 py-1.5 text-xs text-ink-2" role="status">
           {hint}
@@ -359,6 +402,8 @@ export function EditorPane({
               path={path}
               onOpenPath={onOpenPath}
               onScroll={onPreviewScroll}
+              onChange={readOnly || !isMarkdown(path) ? undefined : setText}
+              onTarget={bar ? setTarget : undefined}
               findings={findings}
               onOpenFinding={onOpenFinding}
             />
