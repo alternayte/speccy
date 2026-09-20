@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import { listBundlesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
+import { importBundle, putFileContent } from "@/lib/api";
+import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
+import { bundlesFromDrop, filesFromDrop, isZip, mainDocOf } from "./drop";
 import { ImportDialog } from "./import-dialog";
 import { NewBundleDialog } from "./new-bundle-dialog";
 import { relativeTime } from "./time";
@@ -17,9 +20,51 @@ export function BundlesPage() {
   const [importing, setImporting] = useState(false);
   const [creating, setCreating] = useState(false);
   const hosted = useMe().data?.mode === "hosted";
+  const qc = useQueryClient();
+  const [over, setOver] = useState(false);
+
+  // A drop makes one bundle per folder, and one per loose markdown or .zip file. The folder's
+  // main doc starts the bundle, and its other files follow as assets.
+  const make = useMutation({
+    mutationFn: async (dt: DataTransfer) => {
+      const groups = bundlesFromDrop(await filesFromDrop(dt));
+      if (groups.length === 0) throw new Error("Drop a folder, a markdown file, or a .zip file.");
+      for (const group of groups) {
+        const main = isZip(group.files[0]!.path) ? group.files[0]! : mainDocOf(group.files);
+        if (!main) throw new Error(`${group.name} has no markdown file, so it is not a bundle.`);
+        const created = await importBundle({ body: { name: group.name, file: main.file }, throwOnError: true });
+        let base = created.data.current_version.id;
+        for (const item of group.files) {
+          if (item === main) continue;
+          const res = await putFileContent({
+            path: { bundleId: created.data.id },
+            query: { path: item.path, base_version: base },
+            body: item.file,
+          });
+          if (res.error) throw res.error;
+          base = res.data!.version.id;
+        }
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: listBundlesQueryKey() }),
+  });
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div
+      className="h-full overflow-y-auto"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        make.mutate(e.dataTransfer);
+      }}
+    >
       <div className="mx-auto max-w-[960px] px-4 py-8 sm:px-6">
         <div className="flex items-end justify-between gap-4">
           <div>
@@ -39,6 +84,18 @@ export function BundlesPage() {
             </Button>
           </div>
         </div>
+
+        {over ? (
+          <p className="mt-4 rounded-lg border-2 border-dashed border-accent bg-accent-soft/40 px-4 py-6 text-center text-sm text-ink">
+            Drop a folder to make a bundle of it, or a markdown or .zip file for a single-file bundle.
+          </p>
+        ) : null}
+        {make.isPending ? <p className="mt-4 text-sm text-ink-2">Making the bundles</p> : null}
+        {make.isError ? (
+          <div className="mt-4">
+            <ErrorState message={problemMessage(make.error)} />
+          </div>
+        ) : null}
 
         <div className="mt-6 overflow-hidden rounded-lg border border-line bg-surface">
           {bundles.isPending ? (
