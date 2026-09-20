@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { PackageCheck } from "lucide-react";
 import { ErrorState, Loading } from "@/components/ui/states";
 import { listHandoffsOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
@@ -29,30 +28,39 @@ export function HandoffsPanel({ bundleId, current }: { bundleId: string; current
   if (items.length === 0) return null;
   return (
     <section aria-label="Handoffs" className="border-t border-line">
-      <h3 className="px-4 pt-4 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
+      <h3 className="px-4 pt-4 pb-2 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
         Handoffs
       </h3>
-      <ul className="divide-y divide-line">
-        {items.map((h) => (
-          <li key={h.id} className="px-4 py-3.5 text-sm">
-            <p className="flex items-center gap-1.5 text-2xs">
-              <PackageCheck aria-hidden className={clsx("size-3.5", h.stale ? "text-ink-3" : "text-ok")} />
-              <span className="font-semibold text-ink">v{h.version_number}</span>
-              <span className="text-ink-3">{relativeTime(h.created_at)}</span>
-              {h.stale ? <span className="ml-auto text-warn">stale</span> : null}
-            </p>
-            <p className="mt-1 text-ink-2">
-              {h.taken_by} took the build packet at {verdictLabel[h.verdict] ?? h.verdict}.
-              {h.acknowledged ? " The verdict did not allow it." : ""}
-            </p>
-            {h.label ? <p className="mt-0.5 font-mono text-xs text-ink-3">{h.label}</p> : null}
-            {h.stale ? (
-              <p className="mt-0.5 text-xs text-warn">
-                The bundle is at v{current} now. Tell the builder what changed.
-              </p>
-            ) : null}
-          </li>
-        ))}
+      <ul className="divide-y divide-line border-t border-line">
+        {items.map((h) => {
+          const state = h.stale
+            ? { label: "Stale", chip: "bg-warn-soft text-warn" }
+            : { label: "Current", chip: "bg-ok-soft text-ok" };
+          // Every row is two lines that never wrap, so the list keeps one rhythm. The label
+          // leads, one tinted chip carries the state, and a stale row names the version the
+          // bundle is at now.
+          const version = h.stale ? `v${h.version_number} → v${current}` : `v${h.version_number}`;
+          const meta = [version, h.taken_by, verdictLabel[h.verdict] ?? h.verdict].filter(Boolean).join(" · ");
+          return (
+            <li key={h.id} className="px-4 py-3">
+              <div className="flex items-baseline gap-2">
+                <p className="min-w-0 flex-1 truncate font-mono text-sm text-ink">
+                  {h.label || `Version ${h.version_number}`}
+                </p>
+                <span className="shrink-0 text-xs text-ink-3">{relativeTime(h.created_at)}</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className={clsx("shrink-0 rounded-full px-1.5 py-0.5 text-2xs font-semibold", state.chip)}>
+                  {state.label}
+                </span>
+                <span className="min-w-0 truncate text-xs text-ink-2">
+                  {meta}
+                  {h.acknowledged ? " (override)" : ""}
+                </span>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );
