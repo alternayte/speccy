@@ -1205,7 +1205,18 @@ paths:
       - $ref: "#/components/parameters/WaiverId"
     post:
       operationId: rejectWaiver
-      summary: Reject a waiver.
+      summary: Reject a waiver, with a decision reason the requester reads.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  description: Why the waiver is rejected. At least 20 characters.
       responses:
         "200":
           description: The waiver.
@@ -3173,9 +3184,24 @@ components:
         can_approve:
           type: boolean
           description: Whether the caller can approve or reject it now.
+        decision_reason:
+          type: string
+          description: Why the waiver is rejected. Only a rejected waiver has one.
+        section_range:
+          $ref: "#/components/schemas/SectionRange"
         created_at:
           type: string
           format: date-time
+
+    SectionRange:
+      type: object
+      description: The byte range of the waiver's section in the current main doc. Absent when the section is gone.
+      required: [start, end]
+      properties:
+        start:
+          type: integer
+        end:
+          type: integer
 
     ReviewStatus:
       type: string
@@ -3246,7 +3272,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [review_request, waiver_request, message, mention, run]
+          enum: [review_request, waiver_request, waiver_rejected, waiver_ended, message, mention, run]
         bundle_id:
           type: string
           format: uuid
@@ -3255,6 +3281,10 @@ components:
         thread_id:
           type: string
           format: uuid
+        waiver_id:
+          type: string
+          format: uuid
+          description: The waiver an item is about. The bundle page opens on the finding it excuses.
         text:
           type: string
         at:

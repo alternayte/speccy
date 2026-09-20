@@ -15,6 +15,21 @@ func HashAt(doc Doc, src []byte, path []string) (string, bool) {
 	return "", false
 }
 
+// RangeAt returns the byte range of the section with path in doc: the heading line down to the
+// end of its own content, which is the text the hash covers. An empty path is the whole doc
+// after the frontmatter. ok is false when no section has the path.
+func RangeAt(doc Doc, src []byte, path []string) (start, end int, ok bool) {
+	if len(path) == 0 {
+		return doc.BodyStart, len(src), true
+	}
+	for _, s := range doc.Sections {
+		if s.Level > 0 && equal(s.Path, path) {
+			return s.Start, s.OwnEnd, true
+		}
+	}
+	return 0, 0, false
+}
+
 func equal(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

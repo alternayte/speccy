@@ -52,6 +52,8 @@ type State struct {
 	RequestedBy string         `json:"requested_by"`
 	Approvals   []string       `json:"approvals"`
 	DecidedBy   string         `json:"decided_by"`
+	// DecisionReason is why the waiver is rejected. Only a rejection has one.
+	DecisionReason string `json:"decision_reason"`
 }
 
 // Approver is who acts on a waiver, and their relation to the bundle and its profile.
@@ -87,9 +89,10 @@ type approvedV1 struct {
 }
 
 type byV1 struct {
-	V    int    `json:"v"`
-	By   string `json:"by"`
-	Hash string `json:"hash,omitempty"`
+	V      int    `json:"v"`
+	By     string `json:"by"`
+	Hash   string `json:"hash,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // DecideRequest checks a new request.
@@ -148,15 +151,19 @@ func DecideApprove(s State, a Approver) ([]es.Event, error) {
 	return []es.Event{es.NewEvent(Approved, approvedV1{V: 1, By: a.UserID, Final: final})}, nil
 }
 
-// DecideReject rejects a requested waiver. The people who can approve it can reject it.
-func DecideReject(s State, a Approver) ([]es.Event, error) {
+// DecideReject rejects a requested waiver, with a reason the requester reads. The people who
+// can approve it can reject it.
+func DecideReject(s State, a Approver, reason string) ([]es.Event, error) {
 	if s.Status != StatusRequested {
 		return nil, kernel.Conflict("waiver_not_requested", "This waiver is %s, so it cannot be rejected.", orNone(s.Status))
 	}
 	if ok, why := CanApprove(s.Policy, a); !ok {
 		return nil, kernel.Forbidden("waiver_policy", "%s", why)
 	}
-	return []es.Event{es.NewEvent(Rejected, byV1{V: 1, By: a.UserID})}, nil
+	if len([]rune(strings.TrimSpace(reason))) < MinReason {
+		return nil, kernel.Invalid("reason_too_short", "Give a reason of at least %d characters, so the author knows what to change.", MinReason)
+	}
+	return []es.Event{es.NewEvent(Rejected, byV1{V: 1, By: a.UserID, Reason: strings.TrimSpace(reason)})}, nil
 }
 
 // DecideInvalidate ends an approved waiver when its section hash changed (REQ-074).
@@ -186,7 +193,7 @@ func Evolve(s State, e es.Event) State {
 	case Rejected:
 		var p byV1
 		_ = json.Unmarshal(e.Payload, &p)
-		s.Status, s.DecidedBy = StatusRejected, p.By
+		s.Status, s.DecidedBy, s.DecisionReason = StatusRejected, p.By, p.Reason
 	case Invalidated:
 		s.Status = StatusInvalidated
 	}

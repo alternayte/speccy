@@ -313,6 +313,8 @@ function PointCard({
   const level = point.level ? levelStyle[point.level] : undefined;
   const approve = useMutation({ ...approveWaiverMutation(), onSuccess: onDone });
   const reject = useMutation({ ...rejectWaiverMutation(), onSuccess: onDone });
+  // A rejection carries a reason the requester reads, so the tour asks for it first.
+  const [rejectReason, setRejectReason] = useState<string>();
   return (
     <div className="p-4">
       <p className="flex items-center gap-1.5 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
@@ -344,17 +346,46 @@ function PointCard({
             >
               Approve
             </Button>
-            <Button
-              size="sm"
-              onClick={() => reject.mutate({ path: { waiverId: point.waiver_id! } })}
-              disabled={reject.isPending}
-            >
+            <Button size="sm" onClick={() => setRejectReason("")} disabled={reject.isPending}>
               Reject
             </Button>
           </div>
         ) : (
           <p className="mt-4 text-xs text-ink-3">The waiver policy does not let you approve this waiver.</p>
         )
+      ) : null}
+      {rejectReason !== undefined ? (
+        <form
+          className="mt-3 space-y-1.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            reject.mutate({ path: { waiverId: point.waiver_id! }, body: { reason: rejectReason } });
+          }}
+        >
+          <Textarea
+            aria-label="Reason for the rejection"
+            rows={3}
+            className="font-sans text-sm"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="What the author must change instead. At least 20 characters."
+            required
+            autoFocus
+          />
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              type="submit"
+              variant="primary"
+              disabled={reject.isPending || rejectReason.trim().length < 20}
+            >
+              Reject the waiver
+            </Button>
+            <Button size="sm" type="button" onClick={() => setRejectReason(undefined)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
       ) : null}
       {approve.isError || reject.isError ? (
         <div className="mt-2">

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { Finding, FixSuggestion } from "@/lib/api";
+import type { Finding, FixSuggestion, Waiver } from "@/lib/api";
 import {
   acceptFixMutation,
   approveWaiverMutation,
@@ -36,6 +36,7 @@ export function FindingsPanel({
   selected,
   onOpen,
   onDiscuss,
+  onOpenWaiver,
 }: {
   runId?: string;
   bundleId: string;
@@ -44,8 +45,10 @@ export function FindingsPanel({
   selected?: string;
   onOpen: (f: Finding) => void;
   onDiscuss: (f: Finding) => void;
+  onOpenWaiver: (w: Waiver) => void;
 }) {
-  const [waiving, setWaiving] = useState<Finding>();
+  const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
+  const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
   const selectedRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -53,14 +56,14 @@ export function FindingsPanel({
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
   const requests = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const decide = useDecide(bundleId);
-  // pending is the waiver request of a finding: same check, and the same section or the whole doc.
-  const pending = (f: Finding) =>
-    (requests.data?.items ?? []).find(
-      (w) =>
-        w.status === "requested" &&
-        w.check_slug === f.check_slug &&
-        (w.section.length === 0 || w.section.join(" › ") === f.anchor.heading_path.join(" › ")),
-    );
+  // decided holds the waivers this person decided here, so the card stays on its finding
+  // and shows what happened, instead of vanishing on the refetch.
+  const [decided, setDecided] = useState<string[]>([]);
+  const all = requests.data?.items ?? [];
+  // onFinding is the waiver of a finding: same check, and the same section or the whole doc.
+  const onFinding = (f: Finding) =>
+    all.find((w) => waiverCovers(w, f) && (w.status === "requested" || decided.includes(w.id)));
+  const pending = (f: Finding) => all.find((w) => w.status === "requested" && waiverCovers(w, f));
   const { refetch } = findings;
   useEffect(() => {
     if (runId) refetch();
@@ -69,7 +72,7 @@ export function FindingsPanel({
   if (!runId) return <Empty title="No review yet" />;
   const waivers = (
     <>
-      <WaiversList bundleId={bundleId} />
+      <WaiversList bundleId={bundleId} findings={findings.data?.items ?? []} onAskAgain={setWaiving} />
       <DetachedList bundleId={bundleId} findings={findings.data?.items ?? []} />
     </>
   );
@@ -81,10 +84,19 @@ export function FindingsPanel({
       </div>
     );
   // A finding whose waiver waits for a decision goes to the top: the approver came for it, and
-  // the reason belongs beside the text it excuses (SDD §9.1).
-  const items = findings.data.items
-    .filter((f) => !f.anchor.detached)
-    .sort((a, b) => rank(pending(a)) - rank(pending(b)) || order[a.level] - order[b.level]);
+  // the reason belongs beside the text it excuses (SDD §9.1). The order freezes on the first
+  // sort of a run, so a decision does not move the list under the reader.
+  const open = findings.data.items.filter((f) => !f.anchor.detached);
+  if (frozen.current.runId !== runId && !requests.isPending) {
+    const ranks = new Map(open.map((f) => [f.id, rank(pending(f)) * 10 + order[f.level]]));
+    frozen.current = { runId, ranks };
+  }
+  const ranks = frozen.current.ranks;
+  const items = open.sort(
+    (a, b) =>
+      (ranks.get(a.id) ?? rank(pending(a)) * 10 + order[a.level]) -
+      (ranks.get(b.id) ?? rank(pending(b)) * 10 + order[b.level]),
+  );
   if (items.length === 0)
     return (
       <>
@@ -126,34 +138,17 @@ export function FindingsPanel({
                 {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
               </button>
               {(() => {
-                const w = pending(f);
+                const w = onFinding(f);
                 if (!w) return null;
                 return (
-                  <div className="mx-4 mb-3 rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-xs">
-                    <p className="font-semibold text-ink">Waiver requested by {w.requested_by}</p>
-                    <p className="mt-0.5 text-ink-2">{w.reason}</p>
-                    <p className="mt-0.5 text-ink-3">
-                      {w.approvals.length} of {w.needed} approvals ({w.policy.replace("_", " ")})
-                      {w.section.length === 0 ? " · whole doc" : ` · ${w.section.join(" › ")}`}
-                    </p>
-                    {w.can_approve ? (
-                      <div className="mt-2 flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => decide.approve.mutate({ path: { waiverId: w.id } })}
-                        >
-                          Approve
-                        </Button>
-                        <Button size="sm" onClick={() => decide.reject.mutate({ path: { waiverId: w.id } })}>
-                          Reject
-                        </Button>
-                      </div>
-                    ) : (
-                      <p className="mt-1 text-ink-3">Someone with the {w.policy.replace("_", " ")} role decides it.</p>
-                    )}
-                    {decide.error ? <p className="mt-1 text-bad">{problemMessage(decide.error)}</p> : null}
-                  </div>
+                  <WaiverCard
+                    waiver={w}
+                    waivers={all}
+                    decide={decide}
+                    onDecided={() => setDecided((d) => [...d, w.id])}
+                    next={nextWaiting(all, items, decided, w)}
+                    onNext={onOpenWaiver}
+                  />
                 );
               })()}
               {f.waived || member ? (
@@ -169,7 +164,11 @@ export function FindingsPanel({
                         Discuss
                       </button>
                       {!f.waived && f.level !== "INFO" ? (
-                        <button type="button" onClick={() => setWaiving(f)} className="text-ink-2 hover:text-ink">
+                        <button
+                          type="button"
+                          onClick={() => setWaiving({ finding: f })}
+                          className="text-ink-2 hover:text-ink"
+                        >
                           Ask for a waiver
                         </button>
                       ) : null}
@@ -183,15 +182,26 @@ export function FindingsPanel({
         })}
       </ul>
       {waivers}
-      <WaiverDialog bundleId={bundleId} finding={waiving} onClose={() => setWaiving(undefined)} />
+      <WaiverDialog bundleId={bundleId} ask={waiving} onClose={() => setWaiving(undefined)} />
     </>
   );
 }
 
-// WaiverDialog asks for a waiver of one finding, with a reason (REQ-072).
-function WaiverDialog({ bundleId, finding, onClose }: { bundleId: string; finding?: Finding; onClose: () => void }) {
+// WaiverDialog asks for a waiver of one finding, with a reason (REQ-072). An ended waiver
+// opens it with the old reason, because the edit often does not change what it was for.
+function WaiverDialog({
+  bundleId,
+  ask,
+  onClose,
+}: {
+  bundleId: string;
+  ask?: { finding: Finding; reason?: string };
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
+  const finding = ask?.finding;
   const [reason, setReason] = useState("");
+  useEffect(() => setReason(ask?.reason ?? ""), [ask]);
   const request = useMutation({
     ...requestWaiverMutation(),
     onSuccess: () => {
@@ -263,9 +273,161 @@ function useDecide(bundleId: string) {
   return { approve, reject, error: approve.error ?? reject.error };
 }
 
+type Decide = ReturnType<typeof useDecide>;
+
 // rank puts a finding with a waiver request first.
 function rank(waiver: unknown): number {
   return waiver ? 0 : 1;
+}
+
+// waiverCovers reports whether w excuses f: the same check, and the same section or the whole doc.
+export function waiverCovers(w: Waiver, f: Finding): boolean {
+  return (
+    w.check_slug === f.check_slug &&
+    (w.section.length === 0 || w.section.join(" › ") === f.anchor.heading_path.join(" › "))
+  );
+}
+
+// sectionName names the section a waiver covers, for a sentence.
+function sectionName(w: Waiver): string {
+  return w.section.length ? w.section.join(" › ") : "the doc";
+}
+
+// nextWaiting is the next waiver that waits for this person, after the one just decided. It
+// counts only the waivers whose finding is in the rail, so the link always has somewhere to go.
+function nextWaiting(all: Waiver[], items: Finding[], decided: string[], not: Waiver): Waiver[] {
+  return all.filter(
+    (w) =>
+      w.id !== not.id &&
+      w.status === "requested" &&
+      w.can_approve &&
+      !decided.includes(w.id) &&
+      items.some((f) => waiverCovers(w, f)),
+  );
+}
+
+// WaiverCard is the request on the finding it excuses: the reason, the policy count, the
+// waivers already decided on the same section, and the decision (SDD §9.1).
+function WaiverCard({
+  waiver: w,
+  waivers,
+  decide,
+  onDecided,
+  next,
+  onNext,
+}: {
+  waiver: Waiver;
+  waivers: Waiver[];
+  decide: Decide;
+  onDecided: () => void;
+  next: Waiver[];
+  onNext: (w: Waiver) => void;
+}) {
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState("");
+  const history = waivers.filter(
+    (h) => h.id !== w.id && h.status !== "requested" && h.check_slug !== "" && sectionName(h) === sectionName(w),
+  );
+  const tone =
+    w.status === "approved"
+      ? "border-ok/40 bg-ok-soft"
+      : w.status === "requested"
+        ? "border-warn/40 bg-warn-soft"
+        : "border-line bg-sunken";
+  return (
+    <div className={clsx("mx-4 mb-3 rounded-md border px-3 py-2 text-xs", tone)}>
+      <p className="font-semibold text-ink">Waiver requested by {w.requested_by}</p>
+      <p className="mt-0.5 text-ink-2">{w.reason}</p>
+      <p className="mt-0.5 text-ink-3">
+        {/* The count belongs to an open request. A decided waiver keeps only its section. */}
+        {w.status === "requested"
+          ? `${w.approvals.length} of ${w.needed} approvals (${w.policy.replace("_", " ")}) · `
+          : ""}
+        {w.section.length === 0 ? "whole doc" : w.section.join(" › ")}
+      </p>
+      {history.length ? (
+        <div className="mt-2 border-t border-line pt-1.5">
+          <p className="text-2xs font-semibold tracking-wide text-ink-3 uppercase">Decided on this section</p>
+          <ul className="mt-1 space-y-1">
+            {history.map((h) => (
+              <li key={h.id} className="text-ink-2">
+                <span className={clsx("font-semibold uppercase", waiverStatus[h.status])}>
+                  {h.status === "invalidated" ? "ended" : h.status}
+                </span>{" "}
+                <span className="font-mono text-2xs">{h.check_slug}</span> · {h.requested_by} · {h.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {w.status === "approved" ? (
+        <p className="mt-2 font-semibold text-ok">Approved. This check no longer fails here.</p>
+      ) : null}
+      {w.status === "rejected" ? (
+        <p className="mt-2 text-ink">
+          <span className="font-semibold">Rejected.</span> {w.decision_reason}
+        </p>
+      ) : null}
+      {w.status === "requested" && !w.can_approve ? (
+        <p className="mt-1 text-ink-3">Someone with the {w.policy.replace("_", " ")} role decides it.</p>
+      ) : null}
+      {w.status === "requested" && w.can_approve ? (
+        rejecting ? (
+          <form
+            className="mt-2 space-y-1.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              decide.reject.mutate({ path: { waiverId: w.id }, body: { reason } }, { onSuccess: onDecided });
+            }}
+          >
+            <Textarea
+              aria-label="Reason for the rejection"
+              rows={3}
+              className="font-sans text-xs"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="What the author must change instead. At least 20 characters."
+              required
+              autoFocus
+            />
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                type="submit"
+                variant="primary"
+                disabled={decide.reject.isPending || reason.trim().length < 20}
+              >
+                Reject
+              </Button>
+              <Button size="sm" type="button" onClick={() => setRejecting(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-2 flex gap-1.5">
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={decide.approve.isPending}
+              onClick={() => decide.approve.mutate({ path: { waiverId: w.id } }, { onSuccess: onDecided })}
+            >
+              Approve
+            </Button>
+            <Button size="sm" onClick={() => setRejecting(true)}>
+              Reject
+            </Button>
+          </div>
+        )
+      ) : null}
+      {w.status !== "requested" && next[0] ? (
+        <button type="button" onClick={() => onNext(next[0]!)} className="mt-2 font-medium text-accent hover:underline">
+          Next waiver ({next.length} left)
+        </button>
+      ) : null}
+      {decide.error ? <p className="mt-1 text-bad">{problemMessage(decide.error)}</p> : null}
+    </div>
+  );
 }
 
 const waiverStatus = {
@@ -275,66 +437,63 @@ const waiverStatus = {
   invalidated: "text-ink-3",
 } as const;
 
-// WaiversList shows the bundle's waivers, with approve and reject for those who can (§9.1).
-function WaiversList({ bundleId }: { bundleId: string }) {
-  const qc = useQueryClient();
+// WaiversList is the record of the bundle's decided waivers. A request sits on its finding
+// above, so this list never needs approve or reject (§9.1).
+function WaiversList({
+  bundleId,
+  findings,
+  onAskAgain,
+}: {
+  bundleId: string;
+  findings: Finding[];
+  onAskAgain: (ask: { finding: Finding; reason?: string }) => void;
+}) {
   const waivers = useQuery(listWaiversOptions({ path: { bundleId } }));
-  const done = () => {
-    qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { bundleId } }) });
-    qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
-  };
-  const approve = useMutation({ ...approveWaiverMutation(), onSuccess: done });
-  const reject = useMutation({ ...rejectWaiverMutation(), onSuccess: done });
-  // The requests sit on their findings above; this section is the record of what was decided.
   const items = (waivers.data?.items ?? []).filter((w) => w.status !== "requested");
   if (items.length === 0) return null;
-  const error = approve.error ?? reject.error;
   return (
     <section className="border-t border-line">
       <h3 className="px-4 pt-4 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Waivers</h3>
       <ul className="divide-y divide-line">
-        {items.map((w) => (
-          <li key={w.id} className="px-4 py-3.5 text-sm">
-            <p className="flex items-center gap-1.5 text-2xs">
-              <span className={clsx("font-semibold tracking-wide uppercase", waiverStatus[w.status])}>{w.status}</span>
-              <span className="font-mono text-ink-3">{w.check_slug}</span>
-            </p>
-            <p className="mt-1 text-ink">{w.reason}</p>
-            <p className="mt-0.5 text-xs text-ink-3">
-              {w.requested_by}
-              {w.section.length ? ` · ${w.section.join(" › ")}` : " · whole doc"}
-              {w.status === "requested"
-                ? ` · ${w.approvals.length} of ${w.needed} approvals (${w.policy.replace("_", " ")})`
-                : ""}
-              {w.status === "invalidated" ? " · the section changed" : ""}
-            </p>
-            {w.can_approve ? (
-              <div className="mt-1.5 flex gap-1.5">
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() => approve.mutate({ path: { waiverId: w.id } })}
-                  disabled={approve.isPending}
+        {items.map((w) => {
+          // An ended waiver can be asked for again when the current run still has its finding.
+          const again = w.status === "invalidated" ? findings.find((f) => waiverCovers(w, f)) : undefined;
+          return (
+            <li key={w.id} className="px-4 py-3.5 text-sm">
+              <p className="flex items-center gap-1.5 text-2xs">
+                <span className={clsx("font-semibold tracking-wide uppercase", waiverStatus[w.status])}>
+                  {w.status === "invalidated" ? "ended" : w.status}
+                </span>
+                <span className="font-mono text-ink-3">{w.check_slug}</span>
+              </p>
+              <p className="mt-1 text-ink">{w.reason}</p>
+              <p className="mt-0.5 text-xs text-ink-3">
+                {w.requested_by}
+                {w.section.length ? ` · ${w.section.join(" › ")}` : " · whole doc"}
+              </p>
+              {w.status === "rejected" && w.decision_reason ? (
+                <p className="mt-1 text-xs text-ink-2">
+                  <span className="font-semibold">Rejected:</span> {w.decision_reason}
+                </p>
+              ) : null}
+              {w.status === "invalidated" ? (
+                <p className="mt-1 text-xs text-warn">
+                  Ended: someone edited {sectionName(w)} after this was approved. Run the review again.
+                </p>
+              ) : null}
+              {again ? (
+                <button
+                  type="button"
+                  onClick={() => onAskAgain({ finding: again, reason: w.reason })}
+                  className="mt-1.5 text-xs font-medium text-accent hover:underline"
                 >
-                  Approve
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => reject.mutate({ path: { waiverId: w.id } })}
-                  disabled={reject.isPending}
-                >
-                  Reject
-                </Button>
-              </div>
-            ) : null}
-          </li>
-        ))}
+                  Ask for it again
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
-      {error ? (
-        <div className="p-2">
-          <ErrorState message={problemMessage(error)} />
-        </div>
-      ) : null}
     </section>
   );
 }

@@ -79,6 +79,18 @@ func TestWaiver_ReasonAndInvalidation(t *testing.T) {
 	}
 }
 
+func TestWaiver_RejectionCarriesAReason(t *testing.T) {
+	s := requested(profile.Policy{Name: "any_member"})
+	if _, err := DecideReject(s, Approver{UserID: "m"}, "too short"); err == nil {
+		t.Error("a rejection reason under 20 characters was accepted")
+	}
+	const why = "The check applies here. Split the section instead."
+	s = apply(s, must(DecideReject(s, Approver{UserID: "m"}, why)))
+	if s.Status != StatusRejected || s.DecisionReason != why {
+		t.Errorf("status %s, reason %q; want rejected and the reason", s.Status, s.DecisionReason)
+	}
+}
+
 func must(ev []es.Event, err error) []es.Event {
 	if err != nil {
 		panic(err)

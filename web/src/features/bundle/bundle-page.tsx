@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
 import { ChevronDown, Compass, Download, FileText, FolderTree, ListChecks, Network, Printer } from "lucide-react";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Divider, useDivider } from "@/components/ui/divider";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -21,12 +21,12 @@ import { GitHubControl } from "./github-control";
 import { ShareDialog } from "./share-dialog";
 import { ReviewStatus } from "./review-status";
 import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
-import type { Anchor, Finding } from "@/lib/api";
+import type { Anchor, Finding, Waiver } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 import { EvidencePanel } from "./evidence-panel";
 import { QuestionsPanel } from "./questions-panel";
 import { Explorer } from "./explorer";
-import { FindingsPanel } from "./findings-panel";
+import { FindingsPanel, waiverCovers } from "./findings-panel";
 import type { BundleSearch } from "./search";
 import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VerdictBar } from "./verdict";
@@ -114,6 +114,33 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   // Waivers that wait for this person: the verdict bar counts them, and the rail opens them.
   const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const waiting = (waivers.data?.items ?? []).filter((w) => w.status === "requested" && w.can_approve);
+  // openWaiver shows a waiver where it can be judged: the rail selects the finding it excuses,
+  // and the preview focuses the whole section the waiver covers (SDD §9.1).
+  const mainDoc = bundle.data?.main_doc;
+  const openWaiver = useCallback(
+    (w: Waiver) => {
+      setTab("findings");
+      setPanel("rail");
+      const f = (findings.data?.items ?? []).find((f) => waiverCovers(w, f));
+      if (f) setSelectedFinding(f.id);
+      const range = w.section_range;
+      if (!range || !mainDoc) return;
+      setSearch({ ...search, file: mainDoc, waiver: undefined });
+      setFocus((prev) => ({ start: range.start, end: range.end, seq: (prev?.seq ?? 0) + 1 }));
+    },
+    [findings.data, mainDoc, search, setSearch],
+  );
+  // A waiver link from the inbox names the waiver in the URL. Open it once, then drop the param.
+  const opened = useRef<string>(undefined);
+  useEffect(() => {
+    const id = search.waiver;
+    if (!id || opened.current === id) return;
+    const w = waivers.data?.items.find((x) => x.id === id);
+    if (!w || !findings.data) return;
+    opened.current = id;
+    openWaiver(w);
+  }, [search.waiver, waivers.data, findings.data, openWaiver]);
+
   // The two dividers of the bundle screen. Below lg and xl the panes are overlays, so the widths
   // apply only where the panes sit side by side.
   const explorer = useDivider({ key: "speccy-explorer-width", from: "left", min: 180, max: 480, initial: 248 });
@@ -365,6 +392,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                   bundleId={bundleId}
                   member={!guest}
                   onOpen={openFinding}
+                  onOpenWaiver={openWaiver}
                   onDiscuss={(f) =>
                     startThread({
                       kind: "finding",

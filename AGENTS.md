@@ -41,3 +41,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Editable preview: the rendered preview that a click makes editable in place, writing back the markdown range. Avoid: WYSIWYG, rich text editor.
 - Profile control: a control in the control bar that applies a fix the profile knows about. Avoid: smart action, AI action.
 - Divider: the draggable separator between two panes. Avoid: splitter, gutter, handle.
+- Next waiver: the control under a decided waiver card that scrolls to the next request waiting for this person on this bundle. Avoid: skip, queue.
+- Decision reason: the text an approver gives when they reject a waiver. Avoid: rejection note, feedback.
+- Ended waiver: an approved waiver that stopped applying because its section changed. The status value stays invalidated. Avoid: expired, stale.

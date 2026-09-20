@@ -78,6 +78,11 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 	add := func(kind api.InboxItemKind, b pgdb.Bundle, thread *uuid.UUID, text string, at time.Time) {
 		items = append(items, api.InboxItem{Kind: kind, BundleId: b.ID, BundleTitle: b.Title, ThreadId: thread, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}
+	// addWaiver is add for an item about one waiver: the bundle page opens on the finding it
+	// excuses (SDD §9.1).
+	addWaiver := func(kind api.InboxItemKind, b pgdb.Bundle, id uuid.UUID, text string, at time.Time) {
+		items = append(items, api.InboxItem{Kind: kind, BundleId: b.ID, BundleTitle: b.Title, WaiverId: &id, Text: text, At: at.UTC(), Unread: at.After(seen)})
+	}
 
 	// Bundles waiting for my review.
 	reviewing, err := q.ListReviewerBundles(ctx, act.UserID)
@@ -125,8 +130,32 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 			if !ok {
 				continue
 			}
-			add(api.InboxItemKindWaiverRequest, b, nil,
+			addWaiver(api.InboxItemKindWaiverRequest, b, w.Id,
 				fmt.Sprintf("%s asks to waive %s: %s", w.RequestedBy, w.CheckSlug, w.Reason), w.CreatedAt)
+		}
+
+		// A rejection goes to the person who asked. An ended waiver goes to the authors, who
+		// usually caused it with an edit and do not know (REQ-074).
+		decided, err := a.Waivers.DecidedSince(ctx, since)
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range decided {
+			b, ok := bundle(d.Waiver.BundleId)
+			if !ok {
+				continue
+			}
+			switch {
+			case d.Waiver.Status == api.WaiverStatusRejected && d.RequestedBy == act.UserID:
+				text := fmt.Sprintf("Your waiver of %s is rejected.", d.Waiver.CheckSlug)
+				if d.Waiver.DecisionReason != nil {
+					text += " " + *d.Waiver.DecisionReason
+				}
+				addWaiver(api.InboxItemKindWaiverRejected, b, d.Waiver.Id, text, d.At)
+			case d.Waiver.Status == api.WaiverStatusInvalidated && mine(b.ID):
+				addWaiver(api.InboxItemKindWaiverEnded, b, d.Waiver.Id,
+					fmt.Sprintf("The waiver of %s ended: %s changed. Run the review again.", d.Waiver.CheckSlug, sectionName(d.Waiver.Section)), d.At)
+			}
 		}
 	}
 
@@ -191,6 +220,14 @@ func (a *API) MarkInboxSeen(ctx context.Context, _ api.MarkInboxSeenRequestObjec
 		return nil, err
 	}
 	return api.MarkInboxSeen204Response{}, nil
+}
+
+// sectionName names the section a waiver covers, for a sentence.
+func sectionName(path []string) string {
+	if len(path) == 0 {
+		return "the doc"
+	}
+	return strings.Join(path, " › ")
 }
 
 // mentions reports whether body mentions the person: @ and their email, or @ and the part of
