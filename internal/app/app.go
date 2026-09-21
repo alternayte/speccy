@@ -120,6 +120,16 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	reviewAPI := &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change}
 	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}
 	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change}
+	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people}
+	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
+	tourAPI := &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
+	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
+		Waiting:    waiverAPI.Waiting,
+		FirstPoint: tourAPI.FirstPoint,
+		FirstMust:  reviewAPI.FirstMust,
+		Approvals:  approvalAPI.ApprovalCount,
+		Handoffs:   handoffAPI.CountForVersion,
+	}}
 	return &App{
 		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI,
 		API: speccyhttp.API{
@@ -127,7 +137,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 				ok, _ := db.Queries().IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: ws, UserID: userID})
 				return ok
 			}},
-			BundleAPI:   &bundle.API{Service: svc, Profiles: profiles.Current},
+			BundleAPI:   bundleAPI,
 			VersionAPI:  &version.API{DB: db, Workspace: ws},
 			ExportAPI:   &export.API{DB: db, Workspace: ws, Reviews: reviewAPI},
 			ProfileAPI:  &profile.API{Registry: profiles, People: people},
@@ -136,11 +146,11 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			ShareAPI:    shareAPI,
 			ThreadAPI:   threadAPI,
 			WaiverAPI:   waiverAPI,
-			ApprovalAPI: &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people},
+			ApprovalAPI: approvalAPI,
 			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people, Waivers: waiverAPI},
 			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current},
-			TourAPI:     &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI},
-			HandoffAPI:  &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI},
+			TourAPI:     tourAPI,
+			HandoffAPI:  handoffAPI,
 		},
 	}, nil
 }

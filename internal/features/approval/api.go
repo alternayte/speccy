@@ -241,3 +241,22 @@ func Supersede(ctx context.Context, st *es.Store, target, from uuid.UUID) error 
 	_, err := es.Run(ctx, st, StreamType, target, func(s State) ([]es.Event, error) { return DecideSupersede(s, from) }, Evolve)
 	return err
 }
+
+// ApprovalCount returns how many approvals the profile needs, and how many the bundle has on
+// its current version. The next action reads it (SDD §13.4).
+func (a *API) ApprovalCount(ctx context.Context, id uuid.UUID) (needed, given int, err error) {
+	b, err := a.bundle(ctx, id)
+	if err != nil {
+		return 0, 0, err
+	}
+	s, err := Load(ctx, a.ES, b.ID)
+	if err != nil {
+		return 0, 0, err
+	}
+	for _, ap := range s.Approvals {
+		if ap.Version == b.CurrentVersionID.UUID {
+			given++
+		}
+	}
+	return a.required(b), given, nil
+}

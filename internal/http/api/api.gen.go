@@ -596,6 +596,39 @@ func (e MetaSignInProviders) Valid() bool {
 	}
 }
 
+// Defines values for NextActionKind.
+const (
+	NextActionKindAdopt         NextActionKind = "adopt"
+	NextActionKindDecide        NextActionKind = "decide"
+	NextActionKindFix           NextActionKind = "fix"
+	NextActionKindHandoff       NextActionKind = "handoff"
+	NextActionKindRequestReview NextActionKind = "request_review"
+	NextActionKindReview        NextActionKind = "review"
+	NextActionKindWaiver        NextActionKind = "waiver"
+)
+
+// Valid indicates whether the value is a known member of the NextActionKind enum.
+func (e NextActionKind) Valid() bool {
+	switch e {
+	case NextActionKindAdopt:
+		return true
+	case NextActionKindDecide:
+		return true
+	case NextActionKindFix:
+		return true
+	case NextActionKindHandoff:
+		return true
+	case NextActionKindRequestReview:
+		return true
+	case NextActionKindReview:
+		return true
+	case NextActionKindWaiver:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for OpenThreadAddressedTo.
 const (
 	OpenThreadAddressedToAi     OpenThreadAddressedTo = "ai"
@@ -1275,6 +1308,9 @@ type Bundle struct {
 	// MainDoc The path of the main doc in the bundle.
 	MainDoc string `json:"main_doc"`
 
+	// NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
+	NextAction *NextAction `json:"next_action,omitempty"`
+
 	// ProfileKey The frontmatter type of the main doc.
 	ProfileKey string `json:"profile_key"`
 
@@ -1834,6 +1870,22 @@ type MetaMode string
 
 // MetaSignInProviders defines model for Meta.SignInProviders.
 type MetaSignInProviders string
+
+// NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
+type NextAction struct {
+	FindingId *openapi_types.UUID `json:"finding_id,omitempty"`
+	Kind      NextActionKind      `json:"kind"`
+
+	// Sentence What to do, in words, for a button label or a status line.
+	Sentence string `json:"sentence"`
+
+	// TourKey The key of the tour point to open.
+	TourKey  *string             `json:"tour_key,omitempty"`
+	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
+}
+
+// NextActionKind defines model for NextAction.Kind.
+type NextActionKind string
 
 // OpenThread defines model for OpenThread.
 type OpenThread struct {

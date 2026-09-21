@@ -45,6 +45,15 @@ func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject)
 		}
 		after = page[len(page)-1].Slug
 	}
+	// One read of the waivers that wait for this person serves every row.
+	var waiting []api.Waiver
+	if a.Deps.Waiting != nil {
+		w, err := a.Deps.Waiting(ctx)
+		if err != nil {
+			return nil, err
+		}
+		waiting = w
+	}
 	out := api.BundleList{Items: []api.Bundle{}, Problems: []api.BundleProblem{}}
 	for i, b := range rows {
 		if int64(i) == limit {
@@ -54,6 +63,9 @@ func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject)
 		}
 		ab, err := toAPI(ctx, q, b)
 		if err != nil {
+			return nil, err
+		}
+		if err := a.brief(ctx, q, b, &ab, waiting); err != nil {
 			return nil, err
 		}
 		out.Items = append(out.Items, ab)

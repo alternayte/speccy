@@ -280,3 +280,20 @@ func plural(n int) string {
 	}
 	return "s"
 }
+
+// CountForVersion returns how many builders took the packet of one bundle version. The next
+// action reads it (SDD §13.4).
+func (a *API) CountForVersion(ctx context.Context, bundleID uuid.UUID, number int64) (int, error) {
+	rows, err := a.DB.Queries().ListHandoffs(ctx, bundleID)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, r := range rows {
+		v, err := a.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{BundleID: bundleID, ID: r.VersionID})
+		if err == nil && v.Number == number {
+			n++
+		}
+	}
+	return n, nil
+}

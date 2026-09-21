@@ -129,6 +129,24 @@ export type Bundle = {
     adopt?: Adopt;
     visibility?: Visibility;
     status?: ReviewStatus;
+    next_action?: NextAction;
+};
+
+/**
+ * The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
+ */
+export type NextAction = {
+    kind: 'waiver' | 'decide' | 'fix' | 'review' | 'adopt' | 'request_review' | 'handoff';
+    /**
+     * What to do, in words, for a button label or a status line.
+     */
+    sentence: string;
+    waiver_id?: string;
+    finding_id?: string;
+    /**
+     * The key of the tour point to open.
+     */
+    tour_key?: string;
 };
 
 /**

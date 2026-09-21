@@ -44,9 +44,11 @@ Pick the size the doc covers: a feature, an app, or an initiative. The profile a
 
 ## 3. Write the doc
 
-Open the bundle. The split view puts the markdown beside the rendered doc, scrolled together. Drag the divider to set the widths. Code and Preview show one pane alone.
+Open the bundle. One row sits above the doc: the title, the verdict in words, and one button that names the next thing to do. Everything else is in **More**. The screen shows only what this doc has earned, so a new doc has no findings tab and no file tree.
 
-![The bundle screen: the markdown, the preview, and the findings rail](images/guide-editor.png)
+![The bundle screen: one control row, the doc, and the rail](images/guide-editor.png)
+
+The preview opens first. **Split** puts the markdown beside it, scrolled together, and **Code** shows the markdown alone. Speccy remembers your choice.
 
 The preview is editable. Click a paragraph, a heading, a list item, a quote, or a table cell, and the markdown of that block opens where you clicked. `Esc` leaves the block as it was. ⌘S writes the file as one version.
 
@@ -71,7 +73,7 @@ Give each role a backend and a model: the reviewer, the three readers, the judge
 
 ## 5. Run the review
 
-**Run review** shows the estimated cost first, then runs every stage.
+The next action on a doc with no current check says **Check this doc**. It shows the estimated cost first, then runs every stage. **More → Run a review** does the same at any time.
 
 | Stage | What it asks | Needs a model |
 |---|---|---|
@@ -83,13 +85,17 @@ Give each role a backend and a model: the reviewer, the three readers, the judge
 
 ![The review runs stage by stage and ends on a verdict](images/guide-run-review.gif)
 
-The verdict bar is the answer. Build Ready means: no open MUST finding, every required link or acknowledgement is there, no blocking thread is open, and the run is on the current version. The score beside it is passed checks divided by applicable checks. It is for metrics. It never decides the verdict.
+The verdict is the answer. It sits under the title, in words. Build Ready means: no open MUST finding, every required link or acknowledgement is there, no blocking thread is open, and the run is on the current version. The score beside it is passed checks divided by applicable checks. It is for metrics. It never decides the verdict.
 
-![The verdict bar: Not Build Ready, and why](images/guide-verdict.png)
+![The control row after a review: the verdict, and the next thing to fix](images/guide-verdict.png)
 
 An older version's verdict is stale. Speccy says so and asks for a new run.
 
-## 6. Read the findings
+## 6. Follow the next action
+
+The button in the control row always names one thing, and it is the only primary button on the screen. The order is fixed: a waiver that waits for you, then a question from the tour, then the first MUST finding, then a check of the current version, then the frontmatter, then the reviews the profile needs, then the handoff. The bundles list names the same thing for every doc, so you can pick the work before you open it.
+
+## 7. Read the findings
 
 Each finding anchors to the text that failed a check. The overlay marks that text in the preview, one layer per kind. Risk and Ambiguous are on by default. The rest are one click away.
 
@@ -105,7 +111,7 @@ The run report shows the stages, their timings, and the findings by category.
 
 ![The run report](images/guide-run-report.png)
 
-## 7. Take the tour
+## 8. Take the tour
 
 **Tour** lists the points that need a person, in order: a blocking thread, a divergence, a gap, a contradiction, an open decision. The doc dims around the section in question.
 
@@ -117,7 +123,7 @@ A waiver is an approved exception for one check in one section, with a reason of
 
 An acknowledgement uses the same mechanism for a link or a trace item that is intentionally absent.
 
-## 8. Send it to a reviewer
+## 9. Send it to a reviewer
 
 **Share** makes a link. A person who opens it reads the spec, and answers the questions you have for them. They see no findings, no waivers, and no author tools.
 
@@ -129,7 +135,7 @@ They select any words and press **Comment** to start a thread on that text. **An
 
 To see the same screen yourself, add `?as=reviewer` to the bundle's URL.
 
-## 9. Reach Build Ready
+## 10. Reach Build Ready
 
 Fix what the findings and the tour raised. Save. Run the review again. Build Ready means the doc is ready to hand over.
 
@@ -141,16 +147,16 @@ Fix what the findings and the tour raised. Save. Run the review again. Build Rea
 
 A bundle reaches `approved` when it has a current Build Ready verdict and the approvals its profile requires. An author cannot approve their own bundle. Any change to the main doc or its assets revokes the approvals, and the bundle returns to `in_review`.
 
-## 10. Hand it to a builder
+## 11. Hand it to a builder
 
 A build packet is the main doc, its assets, the linked bundles' main docs, the trace IDs, and the build questions with their agreed answers. A coding agent takes the packet, and Speccy records the handoff with the verdict at that moment. `HANDOFF.md`, the re-entry prompt, lets the agent resume after it loses its context.
 
-![The versions of the bundle, and the handoffs a builder took](images/guide-handoff.png)
+![History: the versions of the bundle, and the handoffs a builder took](images/guide-handoff.png)
 
 The agent sends back a build report. A blocked report says it cannot build a section without an answer, and it opens a blocking thread. A note says it built the section, but the doc was unclear. A note changes no verdict.
 
 For one profile, the false-ready rate is the share of Build Ready handoffs that came back blocked. **Insights** shows it.
 
-## 11. Keep the verdict in CI
+## 12. Keep the verdict in CI
 
 `speccy review docs/specs/*` gives the same verdict in a terminal. The GitHub Action posts the findings on the pull request. See [cli-and-tui.md](cli-and-tui.md) and [configuration.md](configuration.md).

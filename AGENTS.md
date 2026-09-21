@@ -55,3 +55,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Reviewer mode: the reduced two-screen surface for a person who cannot edit the bundle. Avoid: guest view, read-only mode, simple mode.
 - Status line: the one line on the reviewer screen saying in words whether the author is still working or the spec is ready. Avoid: verdict chip, status badge.
 - Guide: docs/guide.md, the one worked example from a new bundle to a build packet. Avoid: getting started, tutorial, walkthrough.
+- Next action: the one thing the server says this person must do next on this bundle, with a kind, a sentence and a target. Avoid: suggestion, nudge, call to action, todo.
+- Control row: the one row above the panes with the title, the verdict in words, and the next action. Not the control bar. Avoid: header, toolbar, verdict bar.
+- History: the rail tab with the versions and the handoffs of one bundle. Avoid: timeline, activity.

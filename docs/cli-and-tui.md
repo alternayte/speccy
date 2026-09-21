@@ -26,7 +26,7 @@ speccy review docs/specs/payments --format md > review.md
 
 ## The terminal UI
 
-`speccy tui` lists the bundles, runs a review, shows the verdict and the findings, steps through the tour, and opens a file in `$EDITOR` at the finding.
+`speccy tui` lists the bundles, runs a review, shows the verdict and the findings, steps through the tour, and opens a file in `$EDITOR` at the finding. The status line names the next action of the bundle in hand, and `n` does it.
 
 ![The TUI bundle list, with the preview of the bundle under the cursor](images/tui-list.png)
 
@@ -36,6 +36,7 @@ Press `enter` to open a bundle. The findings table shows the level, the file and
 
 | Key | What it does |
 |---|---|
+| `n` | Do the next thing the status line names |
 | `j` `k`, `↓` `↑` | Move |
 | `enter` | Open the bundle, or the finding in `$EDITOR` |
 | `e` | Open the file in `$EDITOR` at the finding |

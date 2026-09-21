@@ -199,3 +199,17 @@ func findingAsk(f api.Finding, e map[string]any) (ask, why string) {
 	}
 	return "Decide: " + f.Message, ""
 }
+
+// FirstPoint returns the first point of a bundle's tour, or nil when nothing needs a person.
+// The next action reads it (SDD §13.4).
+func (a *API) FirstPoint(ctx context.Context, bundleID uuid.UUID) (*api.TourPoint, error) {
+	res, err := a.GetTour(ctx, api.GetTourRequestObject{BundleId: bundleID})
+	if err != nil {
+		return nil, err
+	}
+	t, ok := res.(api.GetTour200JSONResponse)
+	if !ok || len(t.Points) == 0 {
+		return nil, nil
+	}
+	return &t.Points[0], nil
+}
