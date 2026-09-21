@@ -48,3 +48,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Handoff: one record that a builder took a build packet for one bundle version, with the verdict at that moment. Avoid: job, build run.
 - Size: the scale one main doc covers: feature, app, or initiative, declared in its frontmatter. A check's scope field is a different thing. Avoid: scale.
 - Re-entry prompt: HANDOFF.md, the file a coding agent reads to resume building after it loses its context. Avoid: handover doc, resume file.
+- Build report: what a coding agent tells Speccy about the doc after it took a build packet. Avoid: feedback, build result.
+- Blocked report: a build report saying the agent cannot build a section without an answer. It opens a blocking thread. Avoid: blocker.
+- Note: a build report saying the agent built something, but the doc was unclear. It changes no verdict. Avoid: remark.
+- False-ready rate: for one profile, the share of Build Ready handoffs that came back blocked. Avoid: accuracy, precision.

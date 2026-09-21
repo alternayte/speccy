@@ -52,6 +52,7 @@ const usage = `Usage:
   speccy profile validate <file>                         Check a profile file.
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
+  speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
   speccy admin invite --role admin|member                Print an invite link (hosted).
   speccy admin reset-link <email>                        Print a password reset link (hosted).
   speccy version                                         Print the version.
@@ -92,6 +93,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runExport(args[1:], stdout, stderr)
 	case "handoff":
 		return runHandoff(args[1:], stdout, stderr)
+	case "report":
+		return runReport(args[1:], stdout, stderr)
 	case "mcp":
 		return runMCP(args[1:], stderr)
 	case "tui":

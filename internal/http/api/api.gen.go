@@ -104,6 +104,24 @@ func (e BuildQuestionResult) Valid() bool {
 	}
 }
 
+// Defines values for BuildReportKind.
+const (
+	Blocked BuildReportKind = "blocked"
+	Note    BuildReportKind = "note"
+)
+
+// Valid indicates whether the value is a known member of the BuildReportKind enum.
+func (e BuildReportKind) Valid() bool {
+	switch e {
+	case Blocked:
+		return true
+	case Note:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BundleSourceKind.
 const (
 	BundleSourceKindDb     BundleSourceKind = "db"
@@ -1226,6 +1244,24 @@ type BuildQuestionLevel string
 // BuildQuestionResult defines model for BuildQuestion.Result.
 type BuildQuestionResult string
 
+// BuildReport What a coding agent learned about the doc while it built from it (REQ-137).
+type BuildReport struct {
+	// Kind blocked means the agent cannot build the section without an answer. note means it built something, and the doc was unclear.
+	Kind BuildReportKind `json:"kind"`
+
+	// Section The heading path of the section the report is about.
+	Section *[]string `json:"section,omitempty"`
+
+	// Text What the agent needs, in its own words.
+	Text string `json:"text"`
+
+	// TraceId A trace ID the report is about, such as REQ-012. Speccy anchors the thread to where the doc defines it.
+	TraceId *string `json:"trace_id,omitempty"`
+}
+
+// BuildReportKind blocked means the agent cannot build the section without an answer. note means it built something, and the doc was unclear.
+type BuildReportKind string
+
 // Bundle defines model for Bundle.
 type Bundle struct {
 	// Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
@@ -1921,9 +1957,18 @@ type ProfileInput struct {
 
 // ProfileInsights defines model for ProfileInsights.
 type ProfileInsights struct {
+	// BlockedSections The sections that blocked reports point at, most frequent first.
+	BlockedSections []struct {
+		Count   int    `json:"count"`
+		Section string `json:"section"`
+	} `json:"blocked_sections"`
+
 	// BuildReady Bundles whose current verdict is Build Ready.
 	BuildReady int `json:"build_ready"`
 	Bundles    int `json:"bundles"`
+
+	// FalseReadyRate The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.
+	FalseReadyRate float32 `json:"false_ready_rate"`
 
 	// HoursToApproval The median hours from in review to approved.
 	HoursToApproval float32 `json:"hours_to_approval"`
@@ -2155,18 +2200,24 @@ type Thread struct {
 	AddressedTo ThreadAddressedTo `json:"addressed_to"`
 
 	// Anchor For text, an Anchor. For a section, {heading_path}. For a finding, {finding_id, check_slug}. For a check, {check_slug}.
-	Anchor        map[string]interface{} `json:"anchor"`
-	AnchorKind    ThreadAnchorKind       `json:"anchor_kind"`
-	Blocking      bool                   `json:"blocking"`
-	BundleId      *openapi_types.UUID    `json:"bundle_id,omitempty"`
-	CreatedAt     time.Time              `json:"created_at"`
-	CreatedBy     string                 `json:"created_by"`
-	Id            openapi_types.UUID     `json:"id"`
-	LastMessageAt time.Time              `json:"last_message_at"`
-	MessageCount  int                    `json:"message_count"`
-	ProfileKey    *string                `json:"profile_key,omitempty"`
-	Status        ThreadStatus           `json:"status"`
-	Title         string                 `json:"title"`
+	Anchor     map[string]interface{} `json:"anchor"`
+	AnchorKind ThreadAnchorKind       `json:"anchor_kind"`
+	Blocking   bool                   `json:"blocking"`
+	BundleId   *openapi_types.UUID    `json:"bundle_id,omitempty"`
+	CreatedAt  time.Time              `json:"created_at"`
+	CreatedBy  string                 `json:"created_by"`
+
+	// HandoffId The handoff a builder opened this thread from (REQ-137).
+	HandoffId *openapi_types.UUID `json:"handoff_id,omitempty"`
+
+	// HandoffVersion The bundle version the builder took. 0 when no handoff opened it.
+	HandoffVersion *int64             `json:"handoff_version,omitempty"`
+	Id             openapi_types.UUID `json:"id"`
+	LastMessageAt  time.Time          `json:"last_message_at"`
+	MessageCount   int                `json:"message_count"`
+	ProfileKey     *string            `json:"profile_key,omitempty"`
+	Status         ThreadStatus       `json:"status"`
+	Title          string             `json:"title"`
 }
 
 // ThreadAddressedTo defines model for Thread.AddressedTo.
@@ -2187,18 +2238,24 @@ type ThreadDetail struct {
 	AnchorKind ThreadDetailAnchorKind `json:"anchor_kind"`
 
 	// Answering The AI is writing an answer.
-	Answering     bool                `json:"answering"`
-	Blocking      bool                `json:"blocking"`
-	BundleId      *openapi_types.UUID `json:"bundle_id,omitempty"`
-	CreatedAt     time.Time           `json:"created_at"`
-	CreatedBy     string              `json:"created_by"`
-	Id            openapi_types.UUID  `json:"id"`
-	LastMessageAt time.Time           `json:"last_message_at"`
-	MessageCount  int                 `json:"message_count"`
-	Messages      []ThreadMessage     `json:"messages"`
-	ProfileKey    *string             `json:"profile_key,omitempty"`
-	Status        ThreadDetailStatus  `json:"status"`
-	Title         string              `json:"title"`
+	Answering bool                `json:"answering"`
+	Blocking  bool                `json:"blocking"`
+	BundleId  *openapi_types.UUID `json:"bundle_id,omitempty"`
+	CreatedAt time.Time           `json:"created_at"`
+	CreatedBy string              `json:"created_by"`
+
+	// HandoffId The handoff a builder opened this thread from (REQ-137).
+	HandoffId *openapi_types.UUID `json:"handoff_id,omitempty"`
+
+	// HandoffVersion The bundle version the builder took. 0 when no handoff opened it.
+	HandoffVersion *int64             `json:"handoff_version,omitempty"`
+	Id             openapi_types.UUID `json:"id"`
+	LastMessageAt  time.Time          `json:"last_message_at"`
+	MessageCount   int                `json:"message_count"`
+	Messages       []ThreadMessage    `json:"messages"`
+	ProfileKey     *string            `json:"profile_key,omitempty"`
+	Status         ThreadDetailStatus `json:"status"`
+	Title          string             `json:"title"`
 }
 
 // ThreadDetailAddressedTo defines model for ThreadDetail.AddressedTo.
@@ -2382,6 +2439,9 @@ type Cursor = string
 
 // FindingId defines model for FindingId.
 type FindingId = openapi_types.UUID
+
+// HandoffId defines model for HandoffId.
+type HandoffId = openapi_types.UUID
 
 // Limit defines model for Limit.
 type Limit = int
@@ -2678,6 +2738,9 @@ type RequestWaiverJSONRequestBody RequestWaiverJSONBody
 // AddGithubSourceJSONRequestBody defines body for AddGithubSource for application/json ContentType.
 type AddGithubSourceJSONRequestBody AddGithubSourceJSONBody
 
+// ReportBuildJSONRequestBody defines body for ReportBuild for application/json ContentType.
+type ReportBuildJSONRequestBody = BuildReport
+
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
 
@@ -2911,6 +2974,9 @@ type ServerInterface interface {
 	// SyncGithubSource Read the source's branch now.
 	// (POST /github/sources/{sourceId}/sync)
 	SyncGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId)
+	// ReportBuild Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+	// (POST /handoffs/{handoffId}/report)
+	ReportBuild(w http.ResponseWriter, r *http.Request, handoffId HandoffId)
 	// GetInbox The caller's inbox (REQ-091).
 	// (GET /inbox)
 	GetInbox(w http.ResponseWriter, r *http.Request)
@@ -4742,6 +4808,32 @@ func (siw *ServerInterfaceWrapper) SyncGithubSource(w http.ResponseWriter, r *ht
 	handler.ServeHTTP(w, r)
 }
 
+// ReportBuild operation middleware
+func (siw *ServerInterfaceWrapper) ReportBuild(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "handoffId" -------------
+	var handoffId HandoffId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "handoffId", r.PathValue("handoffId"), &handoffId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "handoffId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReportBuild(w, r, handoffId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetInbox operation middleware
 func (siw *ServerInterfaceWrapper) GetInbox(w http.ResponseWriter, r *http.Request) {
 
@@ -5623,6 +5715,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/share/{token}", wrapper.GetShare)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/share/{token}", wrapper.JoinShare)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/access", wrapper.GetBundleAccess)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/handoffs/{handoffId}/report", wrapper.ReportBuild)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.ListHandoffs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.TakeHandoff)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/adopt", wrapper.AdoptFrontmatter)
@@ -8293,6 +8386,46 @@ func (response SyncGithubSourcedefaultApplicationProblemPlusJSONResponse) VisitS
 	return err
 }
 
+type ReportBuildRequestObject struct {
+	HandoffId HandoffId `json:"handoffId"`
+	Body      *ReportBuildJSONRequestBody
+}
+
+type ReportBuildResponseObject interface {
+	VisitReportBuildResponse(w http.ResponseWriter) error
+}
+
+type ReportBuild200JSONResponse ThreadDetail
+
+func (response ReportBuild200JSONResponse) VisitReportBuildResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReportBuilddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ReportBuilddefaultApplicationProblemPlusJSONResponse) VisitReportBuildResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetInboxRequestObject struct {
 }
 
@@ -9818,6 +9951,9 @@ type StrictServerInterface interface {
 	// SyncGithubSource Read the source's branch now.
 	// (POST /github/sources/{sourceId}/sync)
 	SyncGithubSource(ctx context.Context, request SyncGithubSourceRequestObject) (SyncGithubSourceResponseObject, error)
+	// ReportBuild Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+	// (POST /handoffs/{handoffId}/report)
+	ReportBuild(ctx context.Context, request ReportBuildRequestObject) (ReportBuildResponseObject, error)
 	// GetInbox The caller's inbox (REQ-091).
 	// (GET /inbox)
 	GetInbox(ctx context.Context, request GetInboxRequestObject) (GetInboxResponseObject, error)
@@ -11790,6 +11926,39 @@ func (sh *strictHandler) SyncGithubSource(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SyncGithubSourceResponseObject); ok {
 		if err := validResponse.VisitSyncGithubSourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReportBuild operation middleware
+func (sh *strictHandler) ReportBuild(w http.ResponseWriter, r *http.Request, handoffId HandoffId) {
+	var request ReportBuildRequestObject
+
+	request.HandoffId = handoffId
+
+	var body ReportBuildJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReportBuild(ctx, request.(ReportBuildRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReportBuild")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReportBuildResponseObject); ok {
+		if err := validResponse.VisitReportBuildResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

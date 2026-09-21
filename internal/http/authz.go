@@ -109,8 +109,11 @@ var operations = map[string]access{
 
 	"adoptFrontmatter": bundleEdit,
 	// A handoff reads the bundle and records who took it (REQ-136).
-	"listHandoffs":   bundleRead,
-	"takeHandoff":    bundleAI,
+	"listHandoffs": bundleRead,
+	"takeHandoff":  bundleAI,
+	// A build report names a handoff, not a bundle, so the path gives no bundle to scope on.
+	// A workspace member may report; a guest may not (REQ-137).
+	"reportBuild":    member,
 	"putFileContent": bundleEdit,
 	"deleteFile":     bundleEdit,
 	"renameFile":     bundleEdit,

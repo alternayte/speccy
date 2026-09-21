@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { ArrowLeft, Bot, CircleCheck, CircleDot, Gavel, Lock, MessageSquarePlus, Send } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  CircleCheck,
+  CircleDot,
+  Gavel,
+  Lock,
+  MessageSquarePlus,
+  PackageCheck,
+  Send,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -114,6 +124,14 @@ function ThreadRow({ t, onOpen }: { t: Thread; onOpen: () => void }) {
           {t.addressed_to === "ai" ? (
             <span className="inline-flex items-center gap-0.5 text-ink-3">
               <Bot aria-hidden className="size-3" /> AI
+            </span>
+          ) : null}
+          {t.handoff_id ? (
+            <span
+              className="inline-flex items-center gap-0.5 font-normal text-ink-3"
+              title={`A builder opened this from its handoff of version ${t.handoff_version}.`}
+            >
+              <PackageCheck aria-hidden className="size-3" /> v{t.handoff_version}
             </span>
           ) : null}
           {t.anchor_kind === "text" && t.anchor.detached ? (

@@ -105,6 +105,32 @@ func (q *Queries) GetFirstWorkspace(ctx context.Context) (Workspace, error) {
 	return i, err
 }
 
+const getHandoff = `-- name: GetHandoff :one
+SELECT id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE workspace_id = ?1 AND id = ?2
+`
+
+type GetHandoffParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff, error) {
+	row := q.db.QueryRowContext(ctx, getHandoff, arg.WorkspaceID, arg.ID)
+	var i Handoff
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.BundleID,
+		&i.VersionID,
+		&i.Verdict,
+		&i.Acknowledged,
+		&i.Label,
+		&i.TakenBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getVersion = `-- name: GetVersion :one
 SELECT id, workspace_id, bundle_id, number, created_by, message, created_at FROM version WHERE bundle_id = ?1 AND id = ?2
 `
@@ -506,6 +532,43 @@ func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]V
 			&i.Number,
 			&i.CreatedBy,
 			&i.Message,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceHandoffs = `-- name: ListWorkspaceHandoffs :many
+SELECT id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE workspace_id = ?1
+`
+
+func (q *Queries) ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UUID) ([]Handoff, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceHandoffs, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Handoff
+	for rows.Next() {
+		var i Handoff
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.BundleID,
+			&i.VersionID,
+			&i.Verdict,
+			&i.Acknowledged,
+			&i.Label,
+			&i.TakenBy,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

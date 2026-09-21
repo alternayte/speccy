@@ -341,6 +341,12 @@ func threadAPI(t pgdb.ThreadView) api.Thread {
 	if t.ProfileKey != "" {
 		out.ProfileKey = &t.ProfileKey
 	}
+	// The handoff a builder opened this thread from, and the version it took (REQ-137).
+	if t.HandoffID.Valid {
+		out.HandoffId = &t.HandoffID.UUID
+		v := t.HandoffVersion
+		out.HandoffVersion = &v
+	}
 	return out
 }
 
@@ -375,4 +381,28 @@ func (a *API) textAnchor(ctx context.Context, bundleID uuid.UUID, raw map[string
 		return anchor.New(file, f.Content, doc, s, e), nil
 	}
 	return anchor.Anchor{}, kernel.NotFound("file_not_found", "The bundle has no file %s.", file)
+}
+
+// OpenFromBuild opens a thread that a builder reported from its handoff (REQ-137). The
+// handoff feature calls it, so the report reuses the thread aggregate, its anchor, its
+// blocking flag, and its place in the rail.
+func (a *API) OpenFromBuild(ctx context.Context, bundleID uuid.UUID, handoffID uuid.UUID, version int64, in api.OpenThread) (api.ThreadDetail, error) {
+	by := AuthorOf(ctx, a.People)
+	anchor, _ := json.Marshal(in.Anchor)
+	c := Open{
+		ID: kernel.NewID(), BundleID: &bundleID, AnchorKind: string(in.AnchorKind), Anchor: anchor,
+		AddressedTo: string(in.AddressedTo), Blocking: in.Blocking != nil && *in.Blocking, By: by, Body: in.Body,
+		MessageID: kernel.NewID(), At: time.Now().UTC(), HandoffID: &handoffID, HandoffVersion: version,
+	}
+	if in.Title != nil {
+		c.Title = *in.Title
+	}
+	if c.Title == "" {
+		c.Title = titleFrom(in.Body)
+	}
+	s, err := a.run(ctx, c.ID, func(s State) ([]es.Event, error) { return DecideOpen(s, c) })
+	if err != nil {
+		return api.ThreadDetail{}, err
+	}
+	return a.detail(ctx, s.ID)
 }

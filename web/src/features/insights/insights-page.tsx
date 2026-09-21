@@ -45,6 +45,8 @@ function ProfileCard({ p }: { p: ProfileInsights }) {
     ["Reviews to Build Ready", p.runs_to_build_ready ? p.runs_to_build_ready.toFixed(1) : "—"],
     ["First review to Build Ready", hours(p.hours_to_build_ready)],
     ["In review to approved", hours(p.hours_to_approval)],
+    // REQ-137: the only measure of the review against reality.
+    ["False ready", p.blocked_sections.length || p.false_ready_rate ? `${Math.round(p.false_ready_rate * 100)}%` : "—"],
   ];
   return (
     <section className="rounded-lg border border-line bg-surface">
@@ -70,6 +72,21 @@ function ProfileCard({ p }: { p: ProfileInsights }) {
                 <li key={c.check_slug} className="flex justify-between gap-3">
                   <span className="truncate font-mono text-xs">{c.check_slug}</span>
                   <span className="font-mono text-xs text-ink-2">{c.count}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        <div>
+          <h3 className="text-xs font-semibold text-ink-2">Sections that blocked a builder</h3>
+          {p.blocked_sections.length === 0 ? (
+            <p className="mt-1 text-sm text-ink-3">No builder was blocked.</p>
+          ) : (
+            <ol className="mt-2 space-y-1 text-sm">
+              {p.blocked_sections.map((b) => (
+                <li key={b.section} className="flex justify-between gap-3">
+                  <span className="truncate text-xs">{b.section}</span>
+                  <span className="font-mono text-xs text-ink-2">{b.count}</span>
                 </li>
               ))}
             </ol>

@@ -17,6 +17,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
+	"github.com/alternayte/speccy/internal/features/thread"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -33,6 +34,8 @@ type API struct {
 	// Questions lists a run's build questions with their answers.
 	Questions *review.API
 	People    kernel.Directory
+	// Threads opens the thread a build report becomes (REQ-137).
+	Threads *thread.API
 }
 
 // LinksDir is the folder the packet writes the linked docs in.
@@ -74,7 +77,9 @@ func (a *API) TakeHandoff(ctx context.Context, req api.TakeHandoffRequestObject)
 	if err := q.InsertHandoff(ctx, pgdb.InsertHandoffParams(row)); err != nil {
 		return nil, err
 	}
+	// The re-entry prompt quotes the handoff ID, so it is written after the ID exists.
 	packet.HandoffId = row.ID
+	packet.HandoffMd = HandoffMarkdown(packet)
 	return api.TakeHandoff200JSONResponse(packet), nil
 }
 
@@ -142,7 +147,6 @@ func (a *API) packet(ctx context.Context, b pgdb.Bundle) (api.BuildPacket, error
 	if out.Questions, err = a.questions(ctx, b); err != nil {
 		return api.BuildPacket{}, err
 	}
-	out.HandoffMd = HandoffMarkdown(out)
 	return out, nil
 }
 

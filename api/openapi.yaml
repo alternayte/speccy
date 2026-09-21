@@ -96,6 +96,28 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /handoffs/{handoffId}/report:
+    parameters:
+      - $ref: "#/components/parameters/HandoffId"
+    post:
+      operationId: reportBuild
+      summary: Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuildReport"
+      responses:
+        "200":
+          description: The thread the report opened.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThreadDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/handoff:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -1989,6 +2011,13 @@ components:
       schema:
         type: string
         format: uuid
+    HandoffId:
+      name: handoffId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     PathQuery:
       name: path
       in: query
@@ -3124,6 +3153,14 @@ components:
           enum: [humans, ai]
         title:
           type: string
+        handoff_id:
+          type: string
+          format: uuid
+          description: The handoff a builder opened this thread from (REQ-137).
+        handoff_version:
+          type: integer
+          format: int64
+          description: The bundle version the builder took. 0 when no handoff opened it.
         blocking:
           type: boolean
         status:
@@ -3292,6 +3329,27 @@ components:
         created_at:
           type: string
           format: date-time
+
+    BuildReport:
+      type: object
+      description: What a coding agent learned about the doc while it built from it (REQ-137).
+      required: [kind, text]
+      properties:
+        kind:
+          type: string
+          enum: [blocked, note]
+          description: blocked means the agent cannot build the section without an answer. note means it built something, and the doc was unclear.
+        section:
+          type: array
+          description: The heading path of the section the report is about.
+          items:
+            type: string
+        trace_id:
+          type: string
+          description: A trace ID the report is about, such as REQ-012. Speccy anchors the thread to where the doc defines it.
+        text:
+          type: string
+          description: What the agent needs, in its own words.
 
     BuildPacket:
       type: object
@@ -3495,7 +3553,7 @@ components:
 
     ProfileInsights:
       type: object
-      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate]
+      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate, false_ready_rate, blocked_sections]
       properties:
         key:
           type: string
@@ -3524,6 +3582,20 @@ components:
             required: [check_slug, count]
             properties:
               check_slug:
+                type: string
+              count:
+                type: integer
+        false_ready_rate:
+          type: number
+          description: The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.
+        blocked_sections:
+          type: array
+          description: The sections that blocked reports point at, most frequent first.
+          items:
+            type: object
+            required: [section, count]
+            properties:
+              section:
                 type: string
               count:
                 type: integer

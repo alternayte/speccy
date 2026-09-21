@@ -672,6 +672,14 @@ export type Thread = {
     };
     addressed_to: 'humans' | 'ai';
     title: string;
+    /**
+     * The handoff a builder opened this thread from (REQ-137).
+     */
+    handoff_id?: string;
+    /**
+     * The bundle version the builder took. 0 when no handoff opened it.
+     */
+    handoff_version?: number;
     blocking: boolean;
     status: 'open' | 'resolved';
     created_by: string;
@@ -767,6 +775,28 @@ export type Handoff = {
      */
     stale: boolean;
     created_at: string;
+};
+
+/**
+ * What a coding agent learned about the doc while it built from it (REQ-137).
+ */
+export type BuildReport = {
+    /**
+     * blocked means the agent cannot build the section without an answer. note means it built something, and the doc was unclear.
+     */
+    kind: 'blocked' | 'note';
+    /**
+     * The heading path of the section the report is about.
+     */
+    section?: Array<string>;
+    /**
+     * A trace ID the report is about, such as REQ-012. Speccy anchors the thread to where the doc defines it.
+     */
+    trace_id?: string;
+    /**
+     * What the agent needs, in its own words.
+     */
+    text: string;
 };
 
 /**
@@ -917,6 +947,17 @@ export type ProfileInsights = {
     hours_to_approval: number;
     top_failing: Array<{
         check_slug: string;
+        count: number;
+    }>;
+    /**
+     * The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.
+     */
+    false_ready_rate: number;
+    /**
+     * The sections that blocked reports point at, most frequent first.
+     */
+    blocked_sections: Array<{
+        section: string;
         count: number;
     }>;
     waiver_rate: Array<{
@@ -1209,6 +1250,8 @@ export type ProfileKey = string;
 
 export type BundleId = string;
 
+export type HandoffId = string;
+
 /**
  * A file path relative to the bundle folder, with / separators.
  */
@@ -1358,6 +1401,33 @@ export type GetBundleAccessResponses = {
 };
 
 export type GetBundleAccessResponse = GetBundleAccessResponses[keyof GetBundleAccessResponses];
+
+export type ReportBuildData = {
+    body: BuildReport;
+    path: {
+        handoffId: string;
+    };
+    query?: never;
+    url: '/handoffs/{handoffId}/report';
+};
+
+export type ReportBuildErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ReportBuildError = ReportBuildErrors[keyof ReportBuildErrors];
+
+export type ReportBuildResponses = {
+    /**
+     * The thread the report opened.
+     */
+    200: ThreadDetail;
+};
+
+export type ReportBuildResponse = ReportBuildResponses[keyof ReportBuildResponses];
 
 export type ListHandoffsData = {
     body?: never;

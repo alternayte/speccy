@@ -139,7 +139,7 @@ func (q *Queries) GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
 }
 
 const getThreadView = `-- name: GetThreadView :one
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count FROM thread_view WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetThreadViewParams struct {
@@ -165,6 +165,8 @@ func (q *Queries) GetThreadView(ctx context.Context, arg GetThreadViewParams) (T
 		&i.CreatedAt,
 		&i.LastMessageAt,
 		&i.MessageCount,
+		&i.HandoffID,
+		&i.HandoffVersion,
 	)
 	return i, err
 }
@@ -413,6 +415,50 @@ func (q *Queries) ListAuthorBundles(ctx context.Context, userID string) ([]uuid.
 	return items, nil
 }
 
+const listBuildThreads = `-- name: ListBuildThreads :many
+SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = ?1 AND handoff_id IS NOT NULL
+`
+
+func (q *Queries) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) ([]ThreadView, error) {
+	rows, err := q.db.QueryContext(ctx, listBuildThreads, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ThreadView
+	for rows.Next() {
+		var i ThreadView
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.BundleID,
+			&i.ProfileKey,
+			&i.AnchorKind,
+			&i.Anchor,
+			&i.AddressedTo,
+			&i.Title,
+			&i.Blocking,
+			&i.Status,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.LastMessageAt,
+			&i.MessageCount,
+			&i.HandoffID,
+			&i.HandoffVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBundleStatusViews = `-- name: ListBundleStatusViews :many
 SELECT s.bundle_id, s.status, s.approvals, s.approved_version, s.review_requested_at, s.approved_at, s.updated_at FROM bundle_status_view s JOIN bundle b ON b.id = s.bundle_id WHERE b.workspace_id = ?1
 `
@@ -449,7 +495,7 @@ func (q *Queries) ListBundleStatusViews(ctx context.Context, workspaceID uuid.UU
 }
 
 const listBundleThreads = `-- name: ListBundleThreads :many
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count FROM thread_view WHERE bundle_id = ?1 ORDER BY status DESC, last_message_at DESC
+SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE bundle_id = ?1 ORDER BY status DESC, last_message_at DESC
 `
 
 func (q *Queries) ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID) ([]ThreadView, error) {
@@ -476,6 +522,8 @@ func (q *Queries) ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID)
 			&i.CreatedAt,
 			&i.LastMessageAt,
 			&i.MessageCount,
+			&i.HandoffID,
+			&i.HandoffVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -681,7 +729,7 @@ func (q *Queries) ListProfileMaintainers(ctx context.Context, profileID uuid.UUI
 }
 
 const listProfileThreads = `-- name: ListProfileThreads :many
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count FROM thread_view WHERE workspace_id = ?1 AND profile_key = ?2
+SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = ?1 AND profile_key = ?2
 ORDER BY status DESC, last_message_at DESC
 `
 
@@ -714,6 +762,8 @@ func (q *Queries) ListProfileThreads(ctx context.Context, arg ListProfileThreads
 			&i.CreatedAt,
 			&i.LastMessageAt,
 			&i.MessageCount,
+			&i.HandoffID,
+			&i.HandoffVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -973,29 +1023,32 @@ func (q *Queries) UpsertBundleStatusView(ctx context.Context, arg UpsertBundleSt
 
 const upsertThreadView = `-- name: UpsertThreadView :exec
 INSERT INTO thread_view (id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking,
-                         status, created_by, created_at, last_message_at, message_count)
+                         status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, ?9, ?10,
-        ?11, ?12, ?13, ?14)
+        ?11, ?12, ?13, ?14,
+        ?15, ?16)
 ON CONFLICT (id) DO UPDATE SET blocking = excluded.blocking, status = excluded.status,
     last_message_at = excluded.last_message_at, message_count = excluded.message_count
 `
 
 type UpsertThreadViewParams struct {
-	ID            uuid.UUID
-	WorkspaceID   uuid.UUID
-	BundleID      uuid.NullUUID
-	ProfileKey    string
-	AnchorKind    string
-	Anchor        dbtype.JSON
-	AddressedTo   string
-	Title         string
-	Blocking      bool
-	Status        string
-	CreatedBy     string
-	CreatedAt     time.Time
-	LastMessageAt time.Time
-	MessageCount  int64
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	BundleID       uuid.NullUUID
+	ProfileKey     string
+	AnchorKind     string
+	Anchor         dbtype.JSON
+	AddressedTo    string
+	Title          string
+	Blocking       bool
+	Status         string
+	CreatedBy      string
+	CreatedAt      time.Time
+	LastMessageAt  time.Time
+	MessageCount   int64
+	HandoffID      uuid.NullUUID
+	HandoffVersion int64
 }
 
 func (q *Queries) UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error {
@@ -1014,6 +1067,8 @@ func (q *Queries) UpsertThreadView(ctx context.Context, arg UpsertThreadViewPara
 		arg.CreatedAt,
 		arg.LastMessageAt,
 		arg.MessageCount,
+		arg.HandoffID,
+		arg.HandoffVersion,
 	)
 	return err
 }
