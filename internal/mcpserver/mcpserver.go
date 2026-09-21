@@ -43,6 +43,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its main doc, its assets, the main doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
+	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
 	return s
 }
@@ -242,6 +243,41 @@ func (tools) reviewContent(ctx context.Context, c *api.ClientWithResponses, in c
 		body.Files = append(body.Files, cf)
 	}
 	res, err := c.ReviewContentWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type reportArg struct {
+	Handoff string   `json:"handoff" jsonschema:"the handoff ID from the build packet"`
+	Kind    string   `json:"kind" jsonschema:"blocked or note"`
+	Section []string `json:"section,omitempty" jsonschema:"the heading path of the section the report is about"`
+	TraceID string   `json:"trace_id,omitempty" jsonschema:"a trace ID the report is about, such as REQ-012"`
+	Text    string   `json:"text" jsonschema:"what you need, in your own words"`
+}
+
+// reportBuild sends a build report against a handoff (REQ-137).
+func (tools) reportBuild(ctx context.Context, c *api.ClientWithResponses, in reportArg) (any, error) {
+	id, err := uuid.Parse(strings.TrimSpace(in.Handoff))
+	if err != nil {
+		return nil, fmt.Errorf("handoff must be the ID from the build packet: %w", err)
+	}
+	kind := api.BuildReportKind(strings.ToLower(strings.TrimSpace(in.Kind)))
+	if kind != api.Blocked && kind != api.Note {
+		return nil, fmt.Errorf("kind must be blocked or note, not %q", in.Kind)
+	}
+	body := api.ReportBuildJSONRequestBody{Kind: kind, Text: in.Text}
+	if len(in.Section) > 0 {
+		body.Section = &in.Section
+	}
+	if in.TraceID != "" {
+		body.TraceId = &in.TraceID
+	}
+	res, err := c.ReportBuildWithResponse(ctx, id, body)
 	if err != nil {
 		return nil, err
 	}

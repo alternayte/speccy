@@ -58,6 +58,12 @@ func HandoffMarkdown(p api.BuildPacket) string {
 			fmt.Fprintf(&b, "- [ ] **%s** %s\n", t.Id, oneLine(t.Text, 160))
 		}
 	}
+	b.WriteString("\n## If you get stuck\n\n")
+	b.WriteString("Tell Speccy, so a person answers you and the doc improves. Do not guess.\n\n")
+	fmt.Fprintf(&b, "- You cannot build a section without an answer: report `blocked` against handoff `%s`.\n", p.HandoffId)
+	b.WriteString("- You built something, and the doc was unclear: report a `note` against the same handoff.\n")
+	b.WriteString("- Name the section heading or the trace ID the report is about, so the question lands on that text.\n")
+	b.WriteString("- Use the `report_build` tool, or `speccy report`.\n")
 	b.WriteString("\n## Done when\n\n")
 	b.WriteString("- Every line above is ticked.\n")
 	b.WriteString("- The project's own checks pass.\n")

@@ -33,6 +33,10 @@ func Projection(workspace uuid.UUID) es.Projection {
 			ID: s.ID, WorkspaceID: workspace, ProfileKey: s.ProfileKey, AnchorKind: s.AnchorKind, Anchor: dbtype.JSON(s.Anchor),
 			AddressedTo: s.AddressedTo, Title: s.Title, Blocking: s.Blocking, Status: status, CreatedBy: s.CreatedBy.ID,
 			CreatedAt: s.CreatedAt, LastMessageAt: last, MessageCount: int64(len(s.Messages)),
+			HandoffVersion: s.HandoffVersion,
+		}
+		if s.HandoffID != nil {
+			p.HandoffID = uuid.NullUUID{UUID: *s.HandoffID, Valid: true}
 		}
 		if s.BundleID != nil {
 			p.BundleID = uuid.NullUUID{UUID: *s.BundleID, Valid: true}

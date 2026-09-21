@@ -76,7 +76,11 @@ type State struct {
 	Open        bool            `json:"open"`
 	CreatedBy   Author          `json:"created_by"`
 	CreatedAt   time.Time       `json:"created_at"`
-	Messages    []Message       `json:"messages"`
+	// Handoff is the handoff a builder opened this thread from, and the bundle version it
+	// took (REQ-137). Both are zero for a thread a person or a review opened.
+	HandoffID      *uuid.UUID `json:"handoff_id,omitempty"`
+	HandoffVersion int64      `json:"handoff_version,omitempty"`
+	Messages       []Message  `json:"messages"`
 	// Decision is the ID of the message that holds the thread's current decision.
 	Decision *uuid.UUID `json:"decision,omitempty"`
 }
@@ -95,6 +99,9 @@ type Open struct {
 	Body        string
 	MessageID   uuid.UUID
 	At          time.Time
+	// HandoffID and HandoffVersion mark a thread a builder opened from its handoff.
+	HandoffID      *uuid.UUID
+	HandoffVersion int64
 }
 
 type openedV1 struct {
@@ -233,6 +240,7 @@ func Evolve(s State, e es.Event) State {
 		_ = json.Unmarshal(e.Payload, &p)
 		c := p.Open
 		return State{ID: c.ID, BundleID: c.BundleID, ProfileKey: c.ProfileKey, AnchorKind: c.AnchorKind, Anchor: c.Anchor,
+			HandoffID: c.HandoffID, HandoffVersion: c.HandoffVersion,
 			AddressedTo: c.AddressedTo, Title: c.Title, Blocking: c.Blocking, Open: true, CreatedBy: c.By, CreatedAt: c.At,
 			Messages: []Message{{ID: c.MessageID, Seq: 1, Author: c.By, Body: c.Body, At: c.At}}}
 	case MessagePosted:

@@ -342,20 +342,22 @@ type ThreadMessageView struct {
 }
 
 type ThreadView struct {
-	ID            uuid.UUID
-	WorkspaceID   uuid.UUID
-	BundleID      uuid.NullUUID
-	ProfileKey    string
-	AnchorKind    string
-	Anchor        dbtype.JSON
-	AddressedTo   string
-	Title         string
-	Blocking      bool
-	Status        string
-	CreatedBy     string
-	CreatedAt     time.Time
-	LastMessageAt time.Time
-	MessageCount  int64
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	BundleID       uuid.NullUUID
+	ProfileKey     string
+	AnchorKind     string
+	Anchor         dbtype.JSON
+	AddressedTo    string
+	Title          string
+	Blocking       bool
+	Status         string
+	CreatedBy      string
+	CreatedAt      time.Time
+	LastMessageAt  time.Time
+	MessageCount   int64
+	HandoffID      uuid.NullUUID
+	HandoffVersion int64
 }
 
 type UserState struct {

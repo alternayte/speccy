@@ -4,6 +4,7 @@ package insights
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -85,6 +86,22 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 	if err != nil {
 		return nil, err
 	}
+	// REQ-137: a Build Ready handoff that came back blocked says the verdict was wrong. It is
+	// the only measure of the review against reality, so it is counted per profile.
+	handoffs, err := q.ListWorkspaceHandoffs(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	blocked, err := q.ListBuildThreads(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	blockedByHandoff := map[uuid.UUID][]pgdb.ThreadView{}
+	for _, t := range blocked {
+		if t.Blocking && t.HandoffID.Valid {
+			blockedByHandoff[t.HandoffID.UUID] = append(blockedByHandoff[t.HandoffID.UUID], t)
+		}
+	}
 
 	byProfile := map[string][]pgdb.Bundle{}
 	for _, b := range bundles {
@@ -102,6 +119,10 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 			TopFailing: []struct {
 				CheckSlug string `json:"check_slug"`
 				Count     int    `json:"count"`
+			}{},
+			BlockedSections: []struct {
+				Count   int    `json:"count"`
+				Section string `json:"section"`
 			}{},
 			WaiverRate: []struct {
 				CheckSlug string `json:"check_slug"`
@@ -127,6 +148,38 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 				pi.Standalone++
 			}
 		}
+		// The rate counts the handoffs taken at Build Ready only: a handoff taken with
+		// acknowledged is no evidence against the profile.
+		ready, cameBack := 0, 0
+		sections := map[string]int{}
+		for _, h := range handoffs {
+			if !ids[h.BundleID] || h.Acknowledged || h.Verdict != "build_ready" {
+				continue
+			}
+			ready++
+			ts := blockedByHandoff[h.ID]
+			if len(ts) > 0 {
+				cameBack++
+			}
+			for _, t := range ts {
+				sections[sectionOf(t.Anchor)]++
+			}
+		}
+		if ready > 0 {
+			pi.FalseReadyRate = float32(cameBack) / float32(ready)
+		}
+		for name, n := range sections {
+			pi.BlockedSections = append(pi.BlockedSections, struct {
+				Count   int    `json:"count"`
+				Section string `json:"section"`
+			}{Count: n, Section: name})
+		}
+		sort.Slice(pi.BlockedSections, func(i, j int) bool {
+			if pi.BlockedSections[i].Count != pi.BlockedSections[j].Count {
+				return pi.BlockedSections[i].Count > pi.BlockedSections[j].Count
+			}
+			return pi.BlockedSections[i].Section < pi.BlockedSections[j].Section
+		})
 		pi.RunsToBuildReady = float32(median(runsTo))
 		pi.HoursToBuildReady = float32(median(hoursTo))
 		pi.HoursToApproval = float32(median(hoursApproval))
@@ -166,6 +219,18 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 }
 
 // standalone reports whether the current main doc acknowledges that it stands alone.
+// sectionOf names the section a build report points at, from the thread's anchor.
+func sectionOf(raw []byte) string {
+	var an struct {
+		HeadingPath []string `json:"heading_path"`
+	}
+	_ = json.Unmarshal(raw, &an)
+	if len(an.HeadingPath) == 0 {
+		return "the doc"
+	}
+	return strings.Join(an.HeadingPath, " › ")
+}
+
 func standalone(ctx context.Context, q store.Querier, b pgdb.Bundle) bool {
 	if !b.CurrentVersionID.Valid {
 		return false

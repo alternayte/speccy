@@ -1,9 +1,10 @@
 -- name: UpsertThreadView :exec
 INSERT INTO thread_view (id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking,
-                         status, created_by, created_at, last_message_at, message_count)
+                         status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.narg(bundle_id), sqlc.arg(profile_key), sqlc.arg(anchor_kind),
         sqlc.arg(anchor), sqlc.arg(addressed_to), sqlc.arg(title), sqlc.arg(blocking), sqlc.arg(status),
-        sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(last_message_at), sqlc.arg(message_count))
+        sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(last_message_at), sqlc.arg(message_count),
+        sqlc.narg(handoff_id), sqlc.arg(handoff_version))
 ON CONFLICT (id) DO UPDATE SET blocking = excluded.blocking, status = excluded.status,
     last_message_at = excluded.last_message_at, message_count = excluded.message_count;
 
@@ -138,3 +139,6 @@ SELECT version, created_by, created_at, origin FROM profile_version WHERE profil
 -- name: IsAnyMaintainer :one
 SELECT EXISTS (SELECT 1 FROM profile_maintainer pm JOIN profile p ON p.id = pm.profile_id
                WHERE p.workspace_id = sqlc.arg(workspace_id) AND pm.user_id = sqlc.arg(user_id)) AS maintainer;
+
+-- name: ListBuildThreads :many
+SELECT * FROM thread_view WHERE workspace_id = sqlc.arg(workspace_id) AND handoff_id IS NOT NULL;

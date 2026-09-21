@@ -633,6 +633,20 @@ type ClientInterface interface {
 	// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
 	SyncGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ReportBuildWithBody Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+	ReportBuildWithBody(ctx context.Context, handoffId HandoffId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReportBuild Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+	ReportBuild(ctx context.Context, handoffId HandoffId, body ReportBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetInbox The caller's inbox (REQ-091).
 	//
 	// Corresponds with GET /inbox (the `GetInbox` operationId).
@@ -2319,6 +2333,40 @@ func (c *Client) DeleteGithubSource(ctx context.Context, sourceId SourceId, reqE
 // Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
 func (c *Client) SyncGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSyncGithubSourceRequest(c.Server, sourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReportBuildWithBody Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+func (c *Client) ReportBuildWithBody(ctx context.Context, handoffId HandoffId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportBuildRequestWithBody(c.Server, handoffId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReportBuild Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+func (c *Client) ReportBuild(ctx context.Context, handoffId HandoffId, body ReportBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReportBuildRequest(c.Server, handoffId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5771,6 +5819,53 @@ func NewSyncGithubSourceRequest(server string, sourceId SourceId) (*http.Request
 	return req, nil
 }
 
+// NewReportBuildRequest calls the generic ReportBuild builder with application/json body
+func NewReportBuildRequest(server string, handoffId HandoffId, body ReportBuildJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReportBuildRequestWithBody(server, handoffId, "application/json", bodyReader)
+}
+
+// NewReportBuildRequestWithBody constructs an http.Request for the ReportBuild method, with any body, and a specified content type
+func NewReportBuildRequestWithBody(server string, handoffId HandoffId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "handoffId", handoffId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/handoffs/%s/report", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetInboxRequest constructs an http.Request for the GetInbox method
 func NewGetInboxRequest(server string) (*http.Request, error) {
 	var err error
@@ -7658,6 +7753,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
 	SyncGithubSourceWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*SyncGithubSourceResponse, error)
+
+	// ReportBuildWithBodyWithResponse Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+	ReportBuildWithBodyWithResponse(ctx context.Context, handoffId HandoffId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportBuildResponse, error)
+
+	// ReportBuildWithResponse Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+	ReportBuildWithResponse(ctx context.Context, handoffId HandoffId, body ReportBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportBuildResponse, error)
 
 	// GetInboxWithResponse The caller's inbox (REQ-091).
 	//
@@ -11089,6 +11198,54 @@ func (r SyncGithubSourceResponse) ContentType() string {
 	return ""
 }
 
+type ReportBuildResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ThreadDetail
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReportBuildResponse) GetJSON200() *ThreadDetail {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ReportBuildResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ReportBuildResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReportBuildResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReportBuildResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReportBuildResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetInboxResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13818,6 +13975,32 @@ func (c *ClientWithResponses) SyncGithubSourceWithResponse(ctx context.Context, 
 	return ParseSyncGithubSourceResponse(rsp)
 }
 
+// ReportBuildWithBodyWithResponse Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+func (c *ClientWithResponses) ReportBuildWithBodyWithResponse(ctx context.Context, handoffId HandoffId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportBuildResponse, error) {
+	rsp, err := c.ReportBuildWithBody(ctx, handoffId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportBuildResponse(rsp)
+}
+
+// ReportBuildWithResponse Report what the build learned about the doc (REQ-137). A blocked report opens a blocking thread.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /handoffs/{handoffId}/report (the `ReportBuild` operationId).
+func (c *ClientWithResponses) ReportBuildWithResponse(ctx context.Context, handoffId HandoffId, body ReportBuildJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportBuildResponse, error) {
+	rsp, err := c.ReportBuild(ctx, handoffId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReportBuildResponse(rsp)
+}
+
 // GetInboxWithResponse The caller's inbox (REQ-091).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16518,6 +16701,39 @@ func ParseSyncGithubSourceResponse(rsp *http.Response) (*SyncGithubSourceRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest GithubSource
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReportBuildResponse parses an HTTP response from a ReportBuildWithResponse call
+func ParseReportBuildResponse(rsp *http.Response) (*ReportBuildResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReportBuildResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ThreadDetail
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

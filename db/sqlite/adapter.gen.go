@@ -159,6 +159,11 @@ func (a Adapter) GetGithubSource(ctx context.Context, arg pgdb.GetGithubSourcePa
 	return pgdb.GithubSource(r), err
 }
 
+func (a Adapter) GetHandoff(ctx context.Context, arg pgdb.GetHandoffParams) (pgdb.Handoff, error) {
+	r, err := a.q.GetHandoff(ctx, GetHandoffParams(arg))
+	return pgdb.Handoff(r), err
+}
+
 func (a Adapter) GetMCPConnection(ctx context.Context, arg pgdb.GetMCPConnectionParams) (pgdb.McpConnection, error) {
 	r, err := a.q.GetMCPConnection(ctx, GetMCPConnectionParams(arg))
 	return pgdb.McpConnection(r), err
@@ -441,6 +446,18 @@ func (a Adapter) ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]pgd
 	out := make([]pgdb.ModelBackend, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.ModelBackend(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.ThreadView, error) {
+	rows, err := a.q.ListBuildThreads(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ThreadView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ThreadView(r)
 	}
 	return out, nil
 }
@@ -793,6 +810,18 @@ func (a Adapter) ListVersions(ctx context.Context, arg pgdb.ListVersionsParams) 
 	out := make([]pgdb.Version, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Version(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Handoff, error) {
+	rows, err := a.q.ListWorkspaceHandoffs(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Handoff, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Handoff(r)
 	}
 	return out, nil
 }

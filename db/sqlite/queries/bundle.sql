@@ -79,3 +79,9 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(vers
 
 -- name: ListHandoffs :many
 SELECT * FROM handoff WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY created_at DESC;
+
+-- name: GetHandoff :one
+SELECT * FROM handoff WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: ListWorkspaceHandoffs :many
+SELECT * FROM handoff WHERE workspace_id = sqlc.arg(workspace_id);

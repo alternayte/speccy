@@ -99,11 +99,13 @@ export function VerdictBar({
           ? `This verdict is for version ${verdict.version_number}. The current version is ${currentVersion}.`
           : verdict.must > 0
             ? `${verdict.must} MUST finding${verdict.must === 1 ? "" : "s"} to fix. SHOULD findings never block.`
-            : verdict.result === "not_build_ready"
-              ? "A required link or decision is missing."
-              : verdict.should > 0
-                ? `No blocking findings. ${verdict.should} SHOULD finding${verdict.should === 1 ? "" : "s"} can improve the doc.`
-                : "No findings. The doc passes every lint check.";
+            : verdict.result === "not_build_ready" && (verdict.blocking_threads ?? 0) > 0
+              ? `${verdict.blocking_threads} blocking thread${verdict.blocking_threads === 1 ? "" : "s"} to answer.`
+              : verdict.result === "not_build_ready"
+                ? "A required link or decision is missing."
+                : verdict.should > 0
+                  ? `No blocking findings. ${verdict.should} SHOULD finding${verdict.should === 1 ? "" : "s"} can improve the doc.`
+                  : "No findings. The doc passes every lint check.";
   const lintOnly = verdict.kind === "lint";
   return (
     <div
