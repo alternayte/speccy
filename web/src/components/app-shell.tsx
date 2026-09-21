@@ -13,7 +13,7 @@ const openPaths = ["/sign-in", "/invite", "/reset"];
 
 export function AppShell() {
   const me = useMe();
-  const { pathname } = useLocation();
+  const { pathname, searchStr } = useLocation();
   const open = openPaths.includes(pathname) || pathname.startsWith("/share/");
   const m = me.data;
   const hosted = m?.mode === "hosted";
@@ -29,7 +29,9 @@ export function AppShell() {
       return <Navigate to="/sign-in" search={{ redirect: pathname === "/" ? undefined : pathname }} />;
     }
   }
-  const member = !hosted || m?.signed_in;
+  // Reviewer mode hides the nav: a reviewer has one screen and one call to action.
+  const reviewer = pathname.startsWith("/bundles/") && new URLSearchParams(searchStr).get("as") === "reviewer";
+  const member = (!hosted || m?.signed_in) && !reviewer;
   const admin = !hosted || m?.role === "admin";
 
   return (

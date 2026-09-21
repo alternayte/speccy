@@ -33,6 +33,8 @@ import { VerdictBar } from "./verdict";
 import { AdoptBar } from "./adopt-bar";
 import { VersionsPanel } from "./versions-panel";
 import { HandoffsPanel } from "./handoffs-panel";
+import { ReviewerPage } from "@/features/review/reviewer-page";
+import { useReviewerMode } from "@/features/review/mode";
 
 type Panel = "files" | "rail" | null;
 type RailTab = "findings" | "threads" | "evidence" | "versions";
@@ -147,8 +149,12 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   // apply only where the panes sit side by side.
   const explorer = useDivider({ key: "speccy-explorer-width", from: "left", min: 180, max: 480, initial: 248 });
   const rail = useDivider({ key: "speccy-rail-width", from: "right", min: 260, max: 560, initial: 320 });
+  const mode = useReviewerMode(bundleId);
   // Local mode: the one user edits everything. Hosted: authors and admins (SDD §3).
   const canEdit = !hosted || !!access.data?.can_edit;
+
+  if (mode.pending) return <Loading label="Loading the bundle" />;
+  if (mode.reviewer) return <ReviewerPage bundleId={bundleId} />;
 
   if (bundle.isPending) return <Loading label="Loading the bundle" />;
   if (bundle.isError)

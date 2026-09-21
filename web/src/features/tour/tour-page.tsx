@@ -21,7 +21,7 @@ import {
   rejectWaiverMutation,
   requestWaiverMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
-import { useMe } from "@/features/account/me";
+import { useReviewerMode } from "@/features/review/mode";
 import { problemMessage } from "@/lib/problem";
 
 const kindLabel: Record<TourPoint["kind"], string> = {
@@ -43,7 +43,8 @@ export function TourPage({ bundleId }: { bundleId: string }) {
   const tour = useQuery(getTourOptions({ path: { bundleId } }));
   const runId = tour.data?.run_id;
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
-  const guest = !!useMe().data?.guest;
+  // Reviewer mode keeps the points a reviewer can act on. Findings and waivers are an author's job.
+  const reviewer = useReviewerMode(bundleId).reviewer;
   const main = bundle.data?.main_doc;
   const version = bundle.data?.current_version.id;
   const doc = useQuery({
@@ -61,7 +62,8 @@ export function TourPage({ bundleId }: { bundleId: string }) {
   });
   const [wanted, setIndex] = useState(0);
   const [mode, setMode] = useState<Mode>();
-  const points = tour.data?.points ?? [];
+  const all = tour.data?.points ?? [];
+  const points = reviewer ? all.filter((p) => p.kind === "blocking_thread" || p.kind === "open_decision") : all;
   // A decision removes its point: keep the index inside the list.
   const index = Math.max(0, Math.min(wanted, points.length - 1));
   const point = points[index];
@@ -93,10 +95,10 @@ export function TourPage({ bundleId }: { bundleId: string }) {
           move(-1);
           break;
         case "d":
-          if (!guest && point.kind !== "waiver") setMode("decide");
+          if (!reviewer && point.kind !== "waiver") setMode("decide");
           break;
         case "w":
-          if (!guest && point.kind === "finding") setMode("waive");
+          if (!reviewer && point.kind === "finding") setMode("waive");
           break;
         case "c":
           setMode("comment");
@@ -108,7 +110,7 @@ export function TourPage({ bundleId }: { bundleId: string }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, point, move, leave, guest]);
+  }, [mode, point, move, leave, reviewer]);
 
   const done = () => {
     setMode(undefined);
@@ -134,24 +136,31 @@ export function TourPage({ bundleId }: { bundleId: string }) {
         >
           <ArrowLeft aria-hidden className="size-3.5" /> {bundle.data.title}
         </Link>
-        <h1 className="text-lg font-semibold tracking-tight">Tour</h1>
+        <h1 className="text-lg font-semibold tracking-tight">{reviewer ? "Questions for you" : "Tour"}</h1>
         {points.length ? (
           <span className="font-mono text-xs text-ink-3">
             {index + 1} of {points.length}
           </span>
         ) : null}
         <span className="ml-auto hidden text-xs text-ink-3 md:inline">
-          <Kbd>j</Kbd> <Kbd>k</Kbd> move · <Kbd>d</Kbd> decide · <Kbd>w</Kbd> waive · <Kbd>c</Kbd> comment ·{" "}
-          <Kbd>Esc</Kbd> leave
+          <Kbd>j</Kbd> <Kbd>k</Kbd> move ·{" "}
+          {reviewer ? null : (
+            <>
+              <Kbd>d</Kbd> decide · <Kbd>w</Kbd> waive ·{" "}
+            </>
+          )}
+          <Kbd>c</Kbd> comment · <Kbd>Esc</Kbd> leave
         </span>
       </div>
 
       {!point ? (
         <div className="p-6">
-          <Empty title="Nothing needs a decision">
-            {runId
-              ? "No blocking threads, no findings that need a decision, no pending waivers, and no open decisions."
-              : "Run a review first. The tour lists the points of the latest review that need a human decision."}
+          <Empty title={reviewer ? "Nothing needs you right now" : "Nothing needs a decision"}>
+            {reviewer
+              ? "The author has no open question for you. You can still comment on the spec."
+              : runId
+                ? "No blocking threads, no findings that need a decision, no pending waivers, and no open decisions."
+                : "Run a review first. The tour lists the points of the latest review that need a human decision."}
           </Empty>
         </div>
       ) : (
@@ -163,7 +172,7 @@ export function TourPage({ bundleId }: { bundleId: string }) {
                 path={main!}
                 markdown={doc.data}
                 point={point}
-                findings={findings.data?.items}
+                findings={reviewer ? undefined : findings.data?.items}
               />
             ) : doc.isError ? (
               <div className="p-4">
@@ -180,7 +189,7 @@ export function TourPage({ bundleId }: { bundleId: string }) {
               point={point}
               mode={mode}
               setMode={setMode}
-              guest={guest}
+              reviewer={reviewer}
               onDone={done}
             />
             <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
@@ -300,14 +309,14 @@ function PointCard({
   point,
   mode,
   setMode,
-  guest,
+  reviewer,
   onDone,
 }: {
   bundleId: string;
   point: TourPoint;
   mode?: Mode;
   setMode: (m?: Mode) => void;
-  guest: boolean;
+  reviewer: boolean;
   onDone: () => void;
 }) {
   const level = point.level ? levelStyle[point.level] : undefined;
@@ -395,12 +404,12 @@ function PointCard({
 
       {!mode ? (
         <div className="mt-4 flex flex-wrap gap-1.5">
-          {!guest && point.kind !== "waiver" ? (
+          {!reviewer && point.kind !== "waiver" ? (
             <Button size="sm" variant="primary" onClick={() => setMode("decide")}>
               Decide <Kbd>d</Kbd>
             </Button>
           ) : null}
-          {!guest && point.kind === "finding" ? (
+          {!reviewer && point.kind === "finding" ? (
             <Button size="sm" onClick={() => setMode("waive")}>
               Ask for a waiver <Kbd>w</Kbd>
             </Button>

@@ -52,3 +52,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Blocked report: a build report saying the agent cannot build a section without an answer. It opens a blocking thread. Avoid: blocker.
 - Note: a build report saying the agent built something, but the doc was unclear. It changes no verdict. Avoid: remark.
 - False-ready rate: for one profile, the share of Build Ready handoffs that came back blocked. Avoid: accuracy, precision.
+- Reviewer mode: the reduced two-screen surface for a person who cannot edit the bundle. Avoid: guest view, read-only mode, simple mode.
+- Status line: the one line on the reviewer screen saying in words whether the author is still working or the spec is ready. Avoid: verdict chip, status badge.
+- Guide: docs/guide.md, the one worked example from a new bundle to a build packet. Avoid: getting started, tutorial, walkthrough.

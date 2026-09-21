@@ -111,6 +111,14 @@ func cmdBudget() error {
 		return fmt.Errorf("budget: initial JavaScript is %.1f kB gzip; the limit is %d kB", float64(total)/1000, maxInitialJSGzip/1000)
 	}
 	fmt.Printf("budget: initial JavaScript %.1f kB gzip, limit %d kB\n", float64(total)/1000, maxInitialJSGzip/1000)
+	images, err := docsImagesSize()
+	if err != nil {
+		return fmt.Errorf("budget: %w", err)
+	}
+	if images > maxDocsImages {
+		return fmt.Errorf("budget: %s is %.1f MB; the limit is %d MB. Capture fewer pictures, or shorten a GIF", docsImages, float64(images)/1e6, maxDocsImages/1000/1000)
+	}
+	fmt.Printf("budget: %s %.1f MB, limit %d MB\n", docsImages, float64(images)/1e6, maxDocsImages/1000/1000)
 	return nil
 }
 
