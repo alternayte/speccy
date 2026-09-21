@@ -160,6 +160,16 @@ type localRef struct {
 	File string `json:"file,omitempty"`
 }
 
+// SkippedDocs returns the markdown files the last local scan passed over, newest scan first.
+func (s *Service) SkippedDocs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.scan == nil {
+		return nil
+	}
+	return append([]string(nil), s.scan.Skipped...)
+}
+
 // Problems returns the problems of the last local scan.
 func (s *Service) Problems() []local.Problem {
 	s.mu.Lock()

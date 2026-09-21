@@ -4,6 +4,7 @@
 package source
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"path"
@@ -302,4 +303,29 @@ func docTitle(fm Frontmatter, content []byte) string {
 		}
 	}
 	return ""
+}
+
+// NeverASpec are the markdown files a repository keeps for other reasons. Neither the scan nor
+// speccy init offers them as bundles.
+var NeverASpec = map[string]bool{"readme.md": true, "changelog.md": true, "license.md": true, "contributing.md": true,
+	"code_of_conduct.md": true, "security.md": true, "agents.md": true, "claude.md": true}
+
+// AddTypeLine returns content with type: key in its frontmatter. It writes the frontmatter when
+// the doc has none, and it changes nothing else. Every way into Speccy writes the same line.
+func AddTypeLine(content []byte, key string) []byte {
+	if fm, _ := section.SplitFrontmatter(content); fm == nil {
+		return append([]byte("---\ntype: "+key+"\n---\n\n"), content...)
+	}
+	open := bytes.IndexByte(content, '\n') + 1
+	return append(append(append([]byte{}, content[:open]...), []byte("type: "+key+"\n")...), content[open:]...)
+}
+
+// Skipped reports whether a markdown file is one the scan passes over: it is a markdown file,
+// it names no type, and it is not a file a repository keeps for another reason.
+func Skipped(p string, content []byte) bool {
+	if !IsMarkdown(p) || NeverASpec[strings.ToLower(path.Base(p))] {
+		return false
+	}
+	fm, _, err := ReadFrontmatter(content)
+	return err == nil && fm.Type == ""
 }

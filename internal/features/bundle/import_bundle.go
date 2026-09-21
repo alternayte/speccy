@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
@@ -27,6 +28,12 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 		return nil, err
 	}
 	files, defaultName, err := importFiles(in)
+	if err != nil {
+		return nil, err
+	}
+	// A doc the person hands to Speccy needs no type: Speccy writes the one the dialog showed
+	// into the file it creates (REQ-008).
+	files, err = a.typed(files, in.profile)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +81,7 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 
 type importForm struct {
 	name     string
+	profile  string
 	fileName string
 	file     []byte
 	text     string
@@ -100,6 +108,8 @@ func readImportForm(r *multipart.Reader) (importForm, error) {
 		switch part.FormName() {
 		case "name":
 			in.name = strings.TrimSpace(string(data))
+		case "profile":
+			in.profile = strings.TrimSpace(string(data))
 		case "file":
 			in.fileName, in.file = part.FileName(), data
 		case "text":
@@ -215,4 +225,35 @@ func slugify(s string) string {
 		s = strings.Trim(s[:60], "-")
 	}
 	return s
+}
+
+// typed gives the import a main doc when no file names a type: it writes the type line into
+// the one markdown file the import has. The caller's profile wins; otherwise Speccy guesses.
+func (a *API) typed(files []source.File, want string) ([]source.File, error) {
+	if _, err := source.FindMainDoc(files); err == nil {
+		return files, nil
+	}
+	var only int
+	count := 0
+	for i, f := range files {
+		if !strings.Contains(f.Path, "/") && source.IsMarkdown(f.Path) {
+			only, count = i, count+1
+		}
+	}
+	if count != 1 {
+		return files, nil // more than one candidate, or none: the caller reports it
+	}
+	key := want
+	if key == "" {
+		k, ok := profile.Guess(a.Profiles(), files[only].Content)
+		if !ok {
+			return nil, kernel.Invalid("no_profile", "%s names no type, and no doc type fits its headings. Pick a type and import it again.", files[only].Path)
+		}
+		key = k
+	}
+	if _, ok := a.Profiles()[key]; !ok {
+		return nil, kernel.Invalid("no_profile", "There is no doc type %q.", key)
+	}
+	files[only].Content = source.AddTypeLine(files[only].Content, key)
+	return files, nil
 }

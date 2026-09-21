@@ -696,6 +696,20 @@ type ClientInterface interface {
 	// Corresponds with POST /profiles (the `CreateProfile` operationId).
 	CreateProfile(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GuessProfileWithBody The profile that fits a markdown doc, from its headings (REQ-008).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+	GuessProfileWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+	GuessProfile(ctx context.Context, body GuessProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 	//
 	// Corresponds with GET /profiles/{key} (the `GetProfile` operationId).
@@ -839,6 +853,25 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /share/{token} (the `JoinShare` operationId).
 	JoinShare(ctx context.Context, token string, body JoinShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListSkipped The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+	//
+	// Corresponds with GET /skipped (the `ListSkipped` operationId).
+	ListSkipped(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptSkippedWithBody Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+	AdoptSkippedWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+	AdoptSkipped(ctx context.Context, body AdoptSkippedJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetThread A thread with its messages.
 	//
@@ -2516,6 +2549,40 @@ func (c *Client) CreateProfile(ctx context.Context, body CreateProfileJSONReques
 	return c.Client.Do(req)
 }
 
+// GuessProfileWithBody The profile that fits a markdown doc, from its headings (REQ-008).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+func (c *Client) GuessProfileWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGuessProfileRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+func (c *Client) GuessProfile(ctx context.Context, body GuessProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGuessProfileRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 //
 // Corresponds with GET /profiles/{key} (the `GetProfile` operationId).
@@ -2890,6 +2957,55 @@ func (c *Client) JoinShareWithBody(ctx context.Context, token string, contentTyp
 // Corresponds with POST /share/{token} (the `JoinShare` operationId).
 func (c *Client) JoinShare(ctx context.Context, token string, body JoinShareJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewJoinShareRequest(c.Server, token, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListSkipped The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+//
+// Corresponds with GET /skipped (the `ListSkipped` operationId).
+func (c *Client) ListSkipped(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSkippedRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptSkippedWithBody Write a type into a skipped file, so it becomes a bundle (REQ-001).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+func (c *Client) AdoptSkippedWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptSkippedRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+func (c *Client) AdoptSkipped(ctx context.Context, body AdoptSkippedJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptSkippedRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6095,6 +6211,46 @@ func NewCreateProfileRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewGuessProfileRequest calls the generic GuessProfile builder with application/json body
+func NewGuessProfileRequest(server string, body GuessProfileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewGuessProfileRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewGuessProfileRequestWithBody constructs an http.Request for the GuessProfile method, with any body, and a specified content type
+func NewGuessProfileRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/profiles/guess")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetProfileRequest constructs an http.Request for the GetProfile method
 func NewGetProfileRequest(server string, key ProfileKey) (*http.Request, error) {
 	var err error
@@ -6766,6 +6922,73 @@ func NewJoinShareRequestWithBody(server string, token string, contentType string
 	}
 
 	operationPath := fmt.Sprintf("/share/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListSkippedRequest constructs an http.Request for the ListSkipped method
+func NewListSkippedRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/skipped")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAdoptSkippedRequest calls the generic AdoptSkipped builder with application/json body
+func NewAdoptSkippedRequest(server string, body AdoptSkippedJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAdoptSkippedRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewAdoptSkippedRequestWithBody constructs an http.Request for the AdoptSkipped method, with any body, and a specified content type
+func NewAdoptSkippedRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/skipped")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7831,6 +8054,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /profiles (the `CreateProfile` operationId).
 	CreateProfileWithResponse(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProfileResponse, error)
 
+	// GuessProfileWithBodyWithResponse The profile that fits a markdown doc, from its headings (REQ-008).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+	GuessProfileWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GuessProfileResponse, error)
+
+	// GuessProfileWithResponse The profile that fits a markdown doc, from its headings (REQ-008).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+	GuessProfileWithResponse(ctx context.Context, body GuessProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*GuessProfileResponse, error)
+
 	// GetProfileWithResponse A profile with its YAML, template, versions, and maintainers (REQ-013).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -7998,6 +8235,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /share/{token} (the `JoinShare` operationId).
 	JoinShareWithResponse(ctx context.Context, token string, body JoinShareJSONRequestBody, reqEditors ...RequestEditorFn) (*JoinShareResponse, error)
+
+	// ListSkippedWithResponse The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /skipped (the `ListSkipped` operationId).
+	ListSkippedWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSkippedResponse, error)
+
+	// AdoptSkippedWithBodyWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+	AdoptSkippedWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptSkippedResponse, error)
+
+	// AdoptSkippedWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+	AdoptSkippedWithResponse(ctx context.Context, body AdoptSkippedJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptSkippedResponse, error)
 
 	// GetThreadWithResponse A thread with its messages.
 	//
@@ -11627,6 +11885,58 @@ func (r CreateProfileResponse) ContentType() string {
 	return ""
 }
 
+type GuessProfileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Profile *string `json:"profile,omitempty"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GuessProfileResponse) GetJSON200() *struct {
+	Profile *string `json:"profile,omitempty"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GuessProfileResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GuessProfileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GuessProfileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GuessProfileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GuessProfileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -12483,6 +12793,106 @@ func (r JoinShareResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r JoinShareResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListSkippedResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []SkippedDoc `json:"items"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListSkippedResponse) GetJSON200() *struct {
+	Items []SkippedDoc `json:"items"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListSkippedResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListSkippedResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListSkippedResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListSkippedResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListSkippedResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AdoptSkippedResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Bundle
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AdoptSkippedResponse) GetJSON201() *Bundle {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AdoptSkippedResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AdoptSkippedResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AdoptSkippedResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AdoptSkippedResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AdoptSkippedResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -14118,6 +14528,32 @@ func (c *ClientWithResponses) CreateProfileWithResponse(ctx context.Context, bod
 	return ParseCreateProfileResponse(rsp)
 }
 
+// GuessProfileWithBodyWithResponse The profile that fits a markdown doc, from its headings (REQ-008).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+func (c *ClientWithResponses) GuessProfileWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GuessProfileResponse, error) {
+	rsp, err := c.GuessProfileWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGuessProfileResponse(rsp)
+}
+
+// GuessProfileWithResponse The profile that fits a markdown doc, from its headings (REQ-008).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
+func (c *ClientWithResponses) GuessProfileWithResponse(ctx context.Context, body GuessProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*GuessProfileResponse, error) {
+	rsp, err := c.GuessProfile(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGuessProfileResponse(rsp)
+}
+
 // GetProfileWithResponse A profile with its YAML, template, versions, and maintainers (REQ-013).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -14428,6 +14864,45 @@ func (c *ClientWithResponses) JoinShareWithResponse(ctx context.Context, token s
 		return nil, err
 	}
 	return ParseJoinShareResponse(rsp)
+}
+
+// ListSkippedWithResponse The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /skipped (the `ListSkipped` operationId).
+func (c *ClientWithResponses) ListSkippedWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSkippedResponse, error) {
+	rsp, err := c.ListSkipped(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListSkippedResponse(rsp)
+}
+
+// AdoptSkippedWithBodyWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+func (c *ClientWithResponses) AdoptSkippedWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptSkippedResponse, error) {
+	rsp, err := c.AdoptSkippedWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptSkippedResponse(rsp)
+}
+
+// AdoptSkippedWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
+func (c *ClientWithResponses) AdoptSkippedWithResponse(ctx context.Context, body AdoptSkippedJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptSkippedResponse, error) {
+	rsp, err := c.AdoptSkipped(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptSkippedResponse(rsp)
 }
 
 // GetThreadWithResponse A thread with its messages.
@@ -17013,6 +17488,41 @@ func ParseCreateProfileResponse(rsp *http.Response) (*CreateProfileResponse, err
 	return response, nil
 }
 
+// ParseGuessProfileResponse parses an HTTP response from a GuessProfileWithResponse call
+func ParseGuessProfileResponse(rsp *http.Response) (*GuessProfileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GuessProfileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Profile *string `json:"profile,omitempty"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetProfileResponse parses an HTTP response from a GetProfileWithResponse call
 func ParseGetProfileResponse(rsp *http.Response) (*GetProfileResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -17586,6 +18096,74 @@ func ParseJoinShareResponse(rsp *http.Response) (*JoinShareResponse, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListSkippedResponse parses an HTTP response from a ListSkippedWithResponse call
+func ParseListSkippedResponse(rsp *http.Response) (*ListSkippedResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListSkippedResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []SkippedDoc `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAdoptSkippedResponse parses an HTTP response from a AdoptSkippedWithResponse call
+func ParseAdoptSkippedResponse(rsp *http.Response) (*AdoptSkippedResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AdoptSkippedResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Bundle
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

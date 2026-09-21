@@ -35,8 +35,14 @@ size: feature
 Three ways to start one:
 
 - **New bundle** writes the profile's template.
-- Drag a folder from Finder or Explorer onto the bundles screen. Speccy makes one bundle per folder, and a single-file bundle per loose markdown file.
+- Drag a folder or a file from Finder or Explorer onto the bundles screen. Speccy makes one bundle per folder, and a single-file bundle per loose markdown file.
 - `speccy init` in a repo that holds specs already. Then set the paths in `.speccy.yaml`. See [configuration.md](configuration.md).
+
+A doc written before Speccy names no type. **Import** takes it anyway: it guesses the type from the headings, shows the guess, and lets you pick another. It then writes one line, `type: <key>`, at the top of the file it creates, and changes nothing else. A drop whose type Speccy cannot guess opens the same dialog with the file in it.
+
+The bundles screen also lists the markdown files in the served folder that name no type. **Adopt** writes the type into one, and the doc becomes a bundle. `speccy init` does the same in a terminal, and Enter takes the guess.
+
+A doc in a GitHub source still needs the type in the repo. Speccy makes no commit there, and the source says which files need one.
 
 ![The new bundle dialog: the title, the profile, and the size](images/guide-new-bundle.png)
 

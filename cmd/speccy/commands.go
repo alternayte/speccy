@@ -15,7 +15,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
@@ -231,20 +230,41 @@ func runInit(args []string, stdin io.Reader, stdout, stderr io.Writer, interacti
 	}
 	sort.Strings(keys)
 	if !interactive {
-		fmt.Fprintf(stdout, "These markdown files are not bundles: %s. To review one, add \"type: <%s>\" to its frontmatter, or map it in %s.\n",
+		fmt.Fprintf(stdout, "These markdown files are not bundles: %s. To review one, add \"type: <%s>\" to its frontmatter, map it in %s, or adopt it in the app.\n",
 			strings.Join(loose, ", "), strings.Join(keys, "|"), source.RepoConfigFile)
 		return exitOK
 	}
+	versioned := map[string]profile.Versioned{}
+	for k, p := range profiles {
+		versioned[k] = profile.Versioned{Loaded: p}
+	}
 	in := bufio.NewScanner(stdin)
 	for _, f := range loose {
-		fmt.Fprintf(stdout, "Turn %s into a bundle? Type a profile (%s), or press Enter to skip: ", f, strings.Join(keys, ", "))
+		// The guess is the default answer, as it is in the app: Enter accepts it.
+		guess := ""
+		if content, err := os.ReadFile(filepath.Join(dir, f)); err == nil {
+			if k, ok := profile.Guess(versioned, content); ok {
+				guess = k
+			}
+		}
+		if guess != "" {
+			fmt.Fprintf(stdout, "Turn %s into a bundle? Press Enter for %s, type another profile (%s), or type - to skip: ", f, guess, strings.Join(keys, ", "))
+		} else {
+			fmt.Fprintf(stdout, "Turn %s into a bundle? Type a profile (%s), or press Enter to skip: ", f, strings.Join(keys, ", "))
+		}
 		if !in.Scan() {
 			fmt.Fprintln(stdout)
 			return exitOK
 		}
 		answer := strings.TrimSpace(in.Text())
-		if answer == "" {
+		if answer == "-" {
 			continue
+		}
+		if answer == "" {
+			if guess == "" {
+				continue
+			}
+			answer = guess
 		}
 		if _, ok := profiles[answer]; !ok {
 			fmt.Fprintf(stdout, "There is no profile %q. Speccy skipped %s.\n", answer, f)
@@ -291,7 +311,7 @@ func looseDocs(dir string) ([]string, error) {
 		if !e.Type().IsRegular() || !source.IsMarkdown(name) || strings.HasPrefix(name, ".") {
 			continue
 		}
-		if skipLoose[strings.ToLower(name)] {
+		if source.NeverASpec[strings.ToLower(name)] {
 			continue
 		}
 		content, err := os.ReadFile(filepath.Join(dir, name))
@@ -306,10 +326,6 @@ func looseDocs(dir string) ([]string, error) {
 	return out, nil
 }
 
-// skipLoose are files that are never specs.
-var skipLoose = map[string]bool{"readme.md": true, "changelog.md": true, "license.md": true, "contributing.md": true,
-	"code_of_conduct.md": true, "security.md": true, "agents.md": true, "claude.md": true}
-
 // addType sets the frontmatter type of the markdown file at p: a new frontmatter block, or a
 // type line at the top of the one it has.
 func addType(p, key string) error {
@@ -317,12 +333,5 @@ func addType(p, key string) error {
 	if err != nil {
 		return err
 	}
-	var out []byte
-	if fm, _ := section.SplitFrontmatter(src); fm == nil {
-		out = append([]byte("---\ntype: "+key+"\n---\n\n"), src...)
-	} else {
-		open := bytes.IndexByte(src, '\n') + 1
-		out = append(append(append([]byte{}, src[:open]...), []byte("type: "+key+"\n")...), src[open:]...)
-	}
-	return os.WriteFile(p, out, 0o644)
+	return os.WriteFile(p, source.AddTypeLine(src, key), 0o644)
 }

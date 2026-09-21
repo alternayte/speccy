@@ -133,3 +133,40 @@ func TestCLI_SummaryNoSetup(t *testing.T) {
 		t.Errorf("json summary = %+v", js)
 	}
 }
+
+// speccy init offers the guessed profile as its default answer, so Enter adopts the doc with
+// the type the app would pick. A person cannot check this by hand without a terminal.
+func TestInit_EnterTakesTheGuess(t *testing.T) {
+	dir := t.TempDir()
+	doc := filepath.Join(dir, "spec.md")
+	body := "# Payment retries\n\n## Problem\n\nCards fail.\n\n## Goals\n\n- G-1: fewer\n\n## Requirements\n\n- REQ-001: retry\n"
+	if err := os.WriteFile(doc, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(wd) }()
+
+	var out, errOut bytes.Buffer
+	if code := runInit(nil, strings.NewReader("\n"), &out, &errOut, true); code != 0 {
+		t.Fatalf("speccy init: exit %d: %s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Press Enter for prd") {
+		t.Errorf("the prompt does not offer the guess: %s", out.String())
+	}
+	got, err := os.ReadFile(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(string(got), "---\ntype: prd\n---\n") {
+		t.Errorf("the doc did not get the guessed type: %q", string(got[:40]))
+	}
+	if !strings.HasSuffix(string(got), body) {
+		t.Error("speccy init changed the text of the doc")
+	}
+}

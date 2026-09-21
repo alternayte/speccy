@@ -1059,6 +1059,77 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /skipped:
+    get:
+      operationId: listSkipped
+      summary: The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+      responses:
+        "200":
+          description: The skipped files, with the profile Speccy guesses for each.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SkippedDoc"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: adoptSkipped
+      summary: Write a type into a skipped file, so it becomes a bundle (REQ-001).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, profile]
+              properties:
+                path:
+                  type: string
+                profile:
+                  type: string
+      responses:
+        "201":
+          description: The new bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles/guess:
+    post:
+      operationId: guessProfile
+      summary: The profile that fits a markdown doc, from its headings (REQ-008).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+      responses:
+        "200":
+          description: The guess. profile is absent when no profile fits.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile:
+                    type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/threads:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -2264,6 +2335,17 @@ components:
           $ref: "#/components/schemas/ReviewStatus"
         next_action:
           $ref: "#/components/schemas/NextAction"
+
+    SkippedDoc:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          description: The file, relative to the served folder.
+        profile:
+          type: string
+          description: The profile Speccy guesses from the headings. Absent when none fits.
 
     NextAction:
       type: object
@@ -4002,6 +4084,9 @@ components:
         text:
           type: string
           description: Pasted markdown.
+        profile:
+          type: string
+          description: The doc type for a file that names none. Speccy writes the type line into the frontmatter of the imported file.
 
     Diff:
       type: object
