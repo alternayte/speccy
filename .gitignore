@@ -1,6 +1,8 @@
 # Internal design docs. Do not publish. Anchored so fixture bundles keep their own copies.
 /SDD.md
 /BUILD.md
+# The decisions about SDD.md belong to SDD.md, which a clone does not hold.
+/.speccy/decisions/SDD.md.yaml
 
 /bin/
 /build/

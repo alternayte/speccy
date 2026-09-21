@@ -58,3 +58,4 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Next action: the one thing the server says this person must do next on this bundle, with a kind, a sentence and a target. Avoid: suggestion, nudge, call to action, todo.
 - Control row: the one row above the panes with the title, the verdict in words, and the next action. Not the control bar. Avoid: header, toolbar, verdict bar.
 - History: the rail tab with the versions and the handoffs of one bundle. Avoid: timeline, activity.
+- Source URL: the GitHub URL a person pastes to make a source: a repo, a branch and folder, or one doc. Avoid: repo link, import URL, clone URL.
