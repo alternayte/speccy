@@ -145,11 +145,35 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
+	states, err := a.DB.Queries().ListLinkStates(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	byRef := map[string]pgdb.LinkState{}
+	for _, st := range states {
+		byRef[st.TargetRef] = st
+	}
 	for _, l := range in.links {
 		bl := api.BundleLink{Kind: api.BundleLinkKind(l.kind), Origin: api.BundleLinkOrigin(l.origin), TargetKind: api.BundleLinkTargetKind(l.targetKind), TargetRef: l.ref}
 		if l.target != nil {
 			r := bundleRefAPI(*l.target)
 			bl.Bundle = &r
+		}
+		if l.external != nil {
+			bl.TargetUrl = &l.external.URL
+		}
+		// DEC-021: the four states of an external link, as the last run read it.
+		switch st, ok := byRef[l.ref]; {
+		case ok:
+			state, reason, at := api.BundleLinkState(st.State), st.Reason, st.CheckedAt
+			bl.State, bl.StateReason, bl.CheckedAt = &state, &reason, &at
+		case l.targetKind == "external":
+			state := api.Unchecked
+			reason := "No review run has read this link yet."
+			if l.problem != "" {
+				reason = sentence(l.problem)
+			}
+			bl.State, bl.StateReason = &state, &reason
 		}
 		out.Links = append(out.Links, bl)
 	}

@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path"
 	"slices"
 	"strings"
@@ -28,9 +29,13 @@ const (
 type link struct {
 	kind       string
 	targetKind string // bundle | external
-	ref        string // as written: a slug, a path, or a URL
+	ref        string // as written: a slug, a path, a short key, or a URL
 	origin     string
 	target     *pgdb.Bundle
+	// external is the parsed external target. It is nil for a bundle target.
+	external *source.ExternalTarget
+	// problem says why an external target does not parse. The lint stage reports it.
+	problem string
 }
 
 // linked is a link to a bundle, with the target's current version loaded.
@@ -92,7 +97,7 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.Bundle, main []byte) 
 	if err != nil {
 		return nil, err
 	}
-	return resolveLinksIn(all, b, main, s.linkRules()), nil
+	return resolveLinksIn(all, b, main, s.linkRules(), s.linkPatterns()), nil
 }
 
 // linkRules returns the valid link rules of .speccy.yaml. The scan reports a bad rule.
@@ -109,10 +114,18 @@ func (s *Service) linkRules() []source.LinkRule {
 	return out
 }
 
+// linkPatterns returns the external link patterns of .speccy.yaml, by scheme.
+func (s *Service) linkPatterns() map[string]string {
+	if s.Repo == nil {
+		return nil
+	}
+	return s.Repo().LinkPatterns
+}
+
 // resolveLinksIn resolves b's links against all bundles: frontmatter links first, then link
 // rules. A rule creates a link only when its target bundle exists (REQ-132). A link to the
 // same bundle with the same kind appears once.
-func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []source.LinkRule) []link {
+func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []source.LinkRule, patterns map[string]string) []link {
 	var out []link
 	seen := map[string]bool{}
 	add := func(l link) {
@@ -135,9 +148,19 @@ func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []sourc
 			continue
 		}
 		l := link{kind: fl.Kind, targetKind: "bundle", ref: target, origin: originFrontmatter}
-		if strings.Contains(target, "://") {
-			l.targetKind = "external" // DEC-021: stored, not read in 0.1.0
-		} else {
+		switch {
+		case source.IsExternalTarget(target):
+			l.targetKind = "external"
+			t, err := source.ParseExternalTarget(target, patterns)
+			if err != nil {
+				l.problem = err.Error()
+			} else {
+				l.external = &t
+			}
+		case fl.Kind == source.ExternalKind:
+			l.targetKind = "external"
+			l.problem = fmt.Sprintf("the %s target %q is not external: it needs a scheme, such as github:", source.ExternalKind, target)
+		default:
 			l.target = findTarget(all, b, target)
 		}
 		add(l)
@@ -214,6 +237,9 @@ func storeLinks(ctx context.Context, q store.Querier, workspace uuid.UUID, b pgd
 	for _, l := range links {
 		p := pgdb.InsertLinkParams{ID: kernel.NewID(), WorkspaceID: workspace, FromBundleID: b.ID, Kind: l.kind,
 			TargetKind: l.targetKind, TargetRef: l.ref, Origin: l.origin}
+		if l.external != nil {
+			p.TargetUrl = l.external.URL
+		}
 		if l.target != nil {
 			p.TargetBundleID = uuid.NullUUID{UUID: l.target.ID, Valid: true}
 		}

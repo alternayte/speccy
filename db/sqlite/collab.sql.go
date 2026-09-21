@@ -848,7 +848,7 @@ func (q *Queries) ListReviewerBundles(ctx context.Context, userID string) ([]uui
 }
 
 const listSupersedesLinks = `-- name: ListSupersedesLinks :many
-SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin FROM link WHERE workspace_id = ?1 AND kind = 'supersedes' AND target_bundle_id IS NOT NULL
+SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url FROM link WHERE workspace_id = ?1 AND kind = 'supersedes' AND target_bundle_id IS NOT NULL
 `
 
 func (q *Queries) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error) {
@@ -869,6 +869,7 @@ func (q *Queries) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID
 			&i.TargetBundleID,
 			&i.TargetRef,
 			&i.Origin,
+			&i.TargetUrl,
 		); err != nil {
 			return nil, err
 		}

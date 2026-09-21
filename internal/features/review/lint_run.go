@@ -29,6 +29,7 @@ import (
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
+	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store"
 )
 
@@ -58,9 +59,14 @@ type Service struct {
 	Repo     func() source.RepoConfig
 	// Decisions returns a bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 	Decisions func(context.Context, pgdb.Bundle) (source.Decisions, error)
+	// GitHub returns the client for a GitHub host: the gh token in local mode, the source's
+	// token in hosted mode. Nil when the mode has no GitHub credential.
+	GitHub func(ctx context.Context, apiURL string) (*github.Client, error)
 	// Gateway calls models. Search returns the MCP search source, or nil when none is set.
 	Gateway *model.Gateway
 	Search  func(ctx context.Context) (Searcher, error)
+	// Fetch returns the MCP connection that reads a host, or nil when none does (DEC-021).
+	Fetch func(ctx context.Context, host string) (Fetcher, error)
 	// Progress receives stage events for live views (REQ-026).
 	Progress *Broker
 	// Parallel returns the bound on the model calls of one run (REQ-105). Nil means 4.
@@ -90,6 +96,9 @@ const HasUpstreamSlug = "links.has-upstream"
 // covers (REQ-134).
 const HasChildrenSlug = "links.has-children"
 
+// ExternalTargetSlug is the check that every external link target parses (DEC-021).
+const ExternalTargetSlug = "links.external-target"
+
 // pending is a finding before it is stored.
 type pending struct {
 	slug     string
@@ -118,6 +127,8 @@ type evaluation struct {
 	claims    []pendingClaim
 	questions []questionOutcome
 	relaxed   map[string]bool
+	// external is the state of each external link this run read (DEC-021).
+	external []externalState
 }
 
 // input is what every stage reads: the bundle version, its main doc, and the profile.
@@ -239,8 +250,36 @@ func lintStage(in input) evaluation {
 			}
 		}
 	}
+	externalTargetCheck(in, &ev)
 	coherenceChecks(in, &ev)
 	return ev
+}
+
+// externalTargetCheck reports an external target that does not parse: an unknown scheme, a
+// scheme with no pattern, or a malformed repo target. The author fixes it in one edit.
+func externalTargetCheck(in input, ev *evaluation) {
+	var external, bad []link
+	for _, l := range in.links {
+		if l.targetKind != "external" {
+			continue
+		}
+		external = append(external, l)
+		if l.problem != "" {
+			bad = append(bad, l)
+		}
+	}
+	if len(external) == 0 {
+		return
+	}
+	level := in.level(ExternalTargetSlug, checkLevel(in.profile.Profile, ExternalTargetSlug, kernel.Must))
+	ev.items = append(ev.items, verdict.Item{Slug: ExternalTargetSlug, Category: verdict.Structure, Level: level, Passed: len(bad) == 0, Applicable: true})
+	for _, l := range bad {
+		ev.findings = append(ev.findings, pending{
+			slug: ExternalTargetSlug, level: level, stage: StageCoherence, anchor: docAnchor(in),
+			message: "This link target does not parse: " + l.problem + ".",
+			fix:     "Write the target as github:owner/repo#path, as a scheme with a pattern in " + source.RepoConfigFile + ", or as a full URL.",
+		})
+	}
 }
 
 // docAnchor points at the frontmatter, or at the first line when there is none.
@@ -258,7 +297,7 @@ func docAnchor(in input) anchor.Anchor {
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
 func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
 	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, DivergenceAmbiguous: true, DivergenceGap: true,
-		RestatementSlug: true, ContradictionSlug: true}
+		RestatementSlug: true, ContradictionSlug: true, ExternalTargetSlug: true}
 	for _, r := range lint.Rules {
 		known[r.Slug] = true
 	}
@@ -337,6 +376,9 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		}
 		if in.bundle.CurrentVersionID.Valid && in.bundle.CurrentVersionID.UUID == run.VersionID {
 			if err := storeLinks(ctx, q, s.Workspace, in.bundle, in.links); err != nil {
+				return err
+			}
+			if err := storeLinkStates(ctx, q, in.bundle.ID, ev.external, finished); err != nil {
 				return err
 			}
 		}
@@ -424,7 +466,7 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bu
 			return err
 		}
 	}
-	links := resolveLinksIn(all, b, main, s.linkRules())
+	links := resolveLinksIn(all, b, main, s.linkRules(), s.linkPatterns())
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
 		return err
@@ -529,7 +571,12 @@ func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) 
 		run.Notes, _ = json.Marshal([]string{sizeNote(in.size)})
 	}
 	run.Status = "complete"
-	return run, s.save(ctx, run, in, lintStage(in), p.Profile, false)
+	ev := lintStage(in)
+	// Drift reads GitHub, not a model, so the lint pass carries it too (DEC-021).
+	if err := s.driftStage(ctx, nil, in, &ev); err != nil {
+		return run, err
+	}
+	return run, s.save(ctx, run, in, ev, p.Profile, false)
 }
 
 func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished time.Time) error {

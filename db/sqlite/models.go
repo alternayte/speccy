@@ -205,6 +205,16 @@ type Link struct {
 	TargetBundleID uuid.NullUUID
 	TargetRef      string
 	Origin         string
+	TargetUrl      string
+}
+
+type LinkState struct {
+	BundleID   uuid.UUID
+	TargetRef  string
+	State      string
+	Reason     string
+	CheckedRef string
+	CheckedAt  time.Time
 }
 
 type McpConnection struct {
@@ -219,6 +229,8 @@ type McpConnection struct {
 	IsSearch        bool
 	SearchTool      string
 	CreatedAt       time.Time
+	Hosts           dbtype.JSON
+	FetchTool       string
 }
 
 type ModelBackend struct {

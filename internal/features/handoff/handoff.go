@@ -127,7 +127,8 @@ func (a *API) packet(ctx context.Context, b pgdb.Bundle) (api.BuildPacket, error
 	}
 	out := api.BuildPacket{
 		Bundle: b.Slug, Title: b.Title, VersionNumber: ver.Number, MainDoc: b.MainDoc,
-		Files: []api.ContentFile{}, Links: []api.PacketLink{}, TraceIds: []api.PacketTraceId{},
+		Files: []api.ContentFile{}, Links: []api.PacketLink{}, ExternalLinks: []api.PacketExternalLink{},
+		TraceIds:  []api.PacketTraceId{},
 		Questions: []api.PacketQuestion{},
 	}
 	var main []byte
@@ -141,6 +142,9 @@ func (a *API) packet(ctx context.Context, b pgdb.Bundle) (api.BuildPacket, error
 		return api.BuildPacket{}, kernel.NotFound("no_main_doc", "The bundle's current version has no main doc.")
 	}
 	if out.Links, err = a.links(ctx, b, main); err != nil {
+		return api.BuildPacket{}, err
+	}
+	if out.ExternalLinks, err = a.externalLinks(ctx, b); err != nil {
 		return api.BuildPacket{}, err
 	}
 	out.TraceIds = traceIDs(main, a.prefixes(b))
@@ -185,6 +189,36 @@ func (a *API) links(ctx context.Context, b pgdb.Bundle, main []byte) ([]api.Pack
 				Path: path.Join(LinksDir, path.Base(l.Bundle.Slug)+path.Ext(l.Bundle.MainDoc)), Content: string(f.Content),
 			})
 		}
+	}
+	return out, nil
+}
+
+// externalLinks carries the issues, pages, and code the doc links to: the kind, the URL, and
+// for a code target the commit the last run read. Speccy fetches no content (DEC-021).
+func (a *API) externalLinks(ctx context.Context, b pgdb.Bundle) ([]api.PacketExternalLink, error) {
+	q := a.DB.Queries()
+	rows, err := q.ListLinksFrom(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	states, err := q.ListLinkStates(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	commit := map[string]string{}
+	for _, st := range states {
+		commit[st.TargetRef] = st.CheckedRef
+	}
+	out := []api.PacketExternalLink{}
+	for _, l := range rows {
+		if l.TargetKind != "external" || l.TargetUrl == "" {
+			continue
+		}
+		e := api.PacketExternalLink{Kind: l.Kind, Ref: l.TargetRef, Url: l.TargetUrl}
+		if c := commit[l.TargetRef]; c != "" {
+			e.Commit = &c
+		}
+		out = append(out, e)
 	}
 	return out, nil
 }

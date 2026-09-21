@@ -141,9 +141,20 @@ func (s *Session) Call(ctx context.Context, name string, args map[string]any) (s
 	return text, nil
 }
 
-// QueryArgument returns the argument name of a search tool: "query" or "q" when the schema has
-// one, else its first required string property.
+// URLArgument returns the argument name that takes one page address or key, else the tool's
+// first required string property.
+func URLArgument(schema json.RawMessage) (string, error) {
+	return argument(schema, []string{"url", "uri", "link", "page_url", "id", "key"},
+		"the tool has no string argument for a URL")
+}
+
+// QueryArgument returns the name of the tool's query argument.
 func QueryArgument(schema json.RawMessage) (string, error) {
+	return argument(schema, []string{"query", "q", "search", "search_query"},
+		"the tool has no string argument for a query")
+}
+
+func argument(schema json.RawMessage, prefer []string, missing string) (string, error) {
 	var s struct {
 		Properties map[string]struct {
 			Type string `json:"type"`
@@ -153,7 +164,7 @@ func QueryArgument(schema json.RawMessage) (string, error) {
 	if err := json.Unmarshal(schema, &s); err != nil {
 		return "", fmt.Errorf("the tool's input schema does not parse: %w", err)
 	}
-	for _, name := range []string{"query", "q", "search", "search_query"} {
+	for _, name := range prefer {
 		if _, ok := s.Properties[name]; ok {
 			return name, nil
 		}
@@ -163,5 +174,5 @@ func QueryArgument(schema json.RawMessage) (string, error) {
 			return name, nil
 		}
 	}
-	return "", errors.New("the tool has no string argument for a query")
+	return "", errors.New(missing)
 }

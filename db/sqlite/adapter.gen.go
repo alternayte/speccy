@@ -76,6 +76,10 @@ func (a Adapter) DeleteGithubSource(ctx context.Context, arg pgdb.DeleteGithubSo
 	return a.q.DeleteGithubSource(ctx, DeleteGithubSourceParams(arg))
 }
 
+func (a Adapter) DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteLinkStates(ctx, bundleID)
+}
+
 func (a Adapter) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
 	return a.q.DeleteLinksFrom(ctx, fromBundleID)
 }
@@ -296,6 +300,10 @@ func (a Adapter) InsertJob(ctx context.Context, arg pgdb.InsertJobParams) error 
 
 func (a Adapter) InsertLink(ctx context.Context, arg pgdb.InsertLinkParams) error {
 	return a.q.InsertLink(ctx, InsertLinkParams(arg))
+}
+
+func (a Adapter) InsertLinkState(ctx context.Context, arg pgdb.InsertLinkStateParams) error {
+	return a.q.InsertLinkState(ctx, InsertLinkStateParams(arg))
 }
 
 func (a Adapter) InsertMCPConnection(ctx context.Context, arg pgdb.InsertMCPConnectionParams) error {
@@ -610,6 +618,18 @@ func (a Adapter) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]pgdb
 	out := make([]pgdb.Invite, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Invite(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]pgdb.LinkState, error) {
+	rows, err := a.q.ListLinkStates(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.LinkState, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.LinkState(r)
 	}
 	return out, nil
 }

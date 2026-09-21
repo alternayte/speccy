@@ -27,7 +27,16 @@ const kindText: Record<BundleLink["kind"], string> = {
   refines: "Refines",
   references: "References",
   supersedes: "Supersedes",
+  "implemented-by": "Implemented by",
 };
+
+// stateStyle is the four states of an external link (DEC-021).
+const stateStyle = {
+  aligned: { tone: "text-ok border-ok/40", text: "Aligned" },
+  drifted: { tone: "text-warn border-warn/40", text: "Drifted" },
+  conflicting: { tone: "text-bad border-bad/40", text: "Conflicting" },
+  unchecked: { tone: "text-ink-3 border-line", text: "Unchecked" },
+} as const;
 
 // TracePage shows a bundle's links, the traceability matrices it takes part in (REQ-058), and
 // suggested trace IDs for unnumbered items (REQ-052).
@@ -71,21 +80,27 @@ export function TracePage({ bundleId }: { bundleId: string }) {
                   </span>
                 </p>
               ) : null}
-              {trace.data.links.length === 0 && trace.data.incoming.length === 0 && !trace.data.standalone ? (
+              {trace.data.links.filter((l) => l.target_kind !== "external").length === 0 &&
+              trace.data.incoming.length === 0 &&
+              !trace.data.standalone ? (
                 <p className="mt-2 text-sm text-ink-3">
                   This bundle has no links. Add one under links: in the frontmatter, or a link rule in .speccy.yaml.
                 </p>
               ) : (
                 <ul className="mt-2 space-y-1 text-sm">
-                  {trace.data.links.map((l) => (
-                    <LinkRow key={`out-${l.kind}-${l.target_ref}`} link={l} />
-                  ))}
+                  {trace.data.links
+                    .filter((l) => l.target_kind !== "external")
+                    .map((l) => (
+                      <LinkRow key={`out-${l.kind}-${l.target_ref}`} link={l} />
+                    ))}
                   {trace.data.incoming.map((l) => (
                     <LinkRow key={`in-${l.kind}-${l.target_ref}`} link={l} incoming />
                   ))}
                 </ul>
               )}
             </section>
+
+            <ExternalLinks links={trace.data.links.filter((l) => l.target_kind === "external")} />
 
             <section className="mt-8">
               <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Coverage</h2>
@@ -112,6 +127,46 @@ export function TracePage({ bundleId }: { bundleId: string }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ExternalLinks is the one table of the issues, pages, and code this doc links to, with the
+// state the last review run read (DEC-021).
+function ExternalLinks({ links }: { links: BundleLink[] }) {
+  if (links.length === 0) return null;
+  return (
+    <section className="mt-8">
+      <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">External links</h2>
+      <ul className="mt-2 divide-y divide-line rounded-md border border-line">
+        {links.map((l) => {
+          const state = stateStyle[l.state ?? "unchecked"];
+          return (
+            <li key={`${l.kind}-${l.target_ref}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2">
+              {l.target_url ? (
+                <a
+                  href={l.target_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs text-ink hover:text-accent"
+                >
+                  {l.target_ref}
+                </a>
+              ) : (
+                <span className="font-mono text-xs text-ink">{l.target_ref}</span>
+              )}
+              <span className={clsx("rounded-sm border px-1.5 py-px text-2xs font-medium", state.tone)}>
+                {state.text}
+              </span>
+              <span className="text-xs text-ink-3">{kindText[l.kind]}</span>
+              {l.state_reason ? <span className="min-w-0 flex-1 text-xs text-ink-2">{l.state_reason}</span> : null}
+              {l.checked_at ? (
+                <span className="ml-auto text-2xs text-ink-3">read {new Date(l.checked_at).toLocaleDateString()}</span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

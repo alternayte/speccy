@@ -24,8 +24,8 @@ func TestBuiltins(t *testing.T) {
 	if !ok || keys["prd"].Profile.Key != "prd" {
 		t.Fatalf("built-in keys = %v", keys)
 	}
-	if len(sdd.Profile.Checks) != 20 || len(keys["prd"].Profile.Checks) != 15 {
-		t.Errorf("checks: sdd %d, prd %d; Appendix A has 20 and 15", len(sdd.Profile.Checks), len(keys["prd"].Profile.Checks))
+	if len(sdd.Profile.Checks) != 23 || len(keys["prd"].Profile.Checks) != 18 {
+		t.Errorf("checks: sdd %d, prd %d; Appendix A has 23 and 18", len(sdd.Profile.Checks), len(keys["prd"].Profile.Checks))
 	}
 	if sdd.Profile.Waivers.Must.Name != "maintainer" || sdd.Profile.Links.Upstream == nil || !sdd.Profile.Links.Upstream.Required {
 		t.Errorf("sdd policies = %+v", sdd.Profile)

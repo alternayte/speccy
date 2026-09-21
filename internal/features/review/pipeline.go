@@ -492,6 +492,8 @@ func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages St
 		{StageGrounding, func() error { return s.groundingStage(ctx, rc, in, &ev, fingerprint, native) }},
 		{StageDivergence, func() error { return s.divergenceStage(ctx, rc, in, &ev, fingerprint) }},
 		{StageCoherence, func() error { return s.contradictionStage(ctx, rc, in, &ev, fingerprint) }},
+		{StageCoherence, func() error { return s.driftStage(ctx, rc, in, &ev) }},
+		{StageCoherence, func() error { return s.conflictStage(ctx, rc, in, &ev, fingerprint) }},
 	}
 	for _, st := range steps {
 		if !stages.has(st.stage) {

@@ -9,6 +9,14 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 )
 
+// short is the first 7 characters of a commit.
+func short(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
+}
+
 // HandoffMarkdown writes the re-entry prompt: what to build, what to read, what is done, and
 // what is next (REQ-136). The agent owns this file after the handoff and rewrites it as it
 // works, so a session that lost its context resumes from it. Speccy never reads it back.
@@ -28,6 +36,13 @@ func HandoffMarkdown(p api.BuildPacket) string {
 	}
 	for _, l := range p.Links {
 		fmt.Fprintf(&b, "- `%s` — the %s doc this design %s.\n", l.Path, l.Title, l.Kind)
+	}
+	for _, e := range p.ExternalLinks {
+		if e.Commit != nil {
+			fmt.Fprintf(&b, "- %s — the code this design is %s, at commit %s.\n", e.Url, e.Kind, short(*e.Commit))
+			continue
+		}
+		fmt.Fprintf(&b, "- %s — the artifact this design %s.\n", e.Url, e.Kind)
 	}
 	b.WriteString("\n")
 

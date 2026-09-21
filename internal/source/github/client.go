@@ -189,6 +189,33 @@ func (c *Client) Repo(ctx context.Context, repo string) (defaultBranch string, e
 	return r.DefaultBranch, nil
 }
 
+// LastCommit returns the newest commit that touched p on ref. p is a file or a folder, and
+// an empty p is the whole repo. ok is false when ref has no commit for p.
+func (c *Client) LastCommit(ctx context.Context, repo, ref, p string) (sha string, at time.Time, ok bool, err error) {
+	q := url.Values{"per_page": {"1"}}
+	if ref != "" {
+		q.Set("sha", ref)
+	}
+	if p != "" {
+		q.Set("path", p)
+	}
+	var out []struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Committer struct {
+				Date time.Time `json:"date"`
+			} `json:"committer"`
+		} `json:"commit"`
+	}
+	if err := c.do(ctx, "GET", repoPath(repo)+"/commits?"+q.Encode(), nil, &out); err != nil {
+		return "", time.Time{}, false, err
+	}
+	if len(out) == 0 {
+		return "", time.Time{}, false, nil
+	}
+	return out[0].SHA, out[0].Commit.Committer.Date, true, nil
+}
+
 // Change is one file of a commit: new content, or a delete when Content is nil.
 type Change struct {
 	Path    string

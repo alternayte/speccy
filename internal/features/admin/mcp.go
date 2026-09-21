@@ -34,8 +34,11 @@ func mcpAPI(c pgdb.McpConnection) api.MCPConnection {
 	_ = json.Unmarshal(c.ToolAllowlist, &allow)
 	out := api.MCPConnection{
 		Id: c.ID, Name: c.Name, Transport: c.Transport, HasSecret: len(c.SecretEncrypted) > 0, SecretLast4: c.SecretLast4,
-		ToolAllowlist: allow, IsSearch: c.IsSearch, SearchTool: c.SearchTool,
+		ToolAllowlist: allow, IsSearch: c.IsSearch, SearchTool: c.SearchTool, FetchTool: c.FetchTool,
 	}
+	hosts := []string{}
+	_ = json.Unmarshal(c.Hosts, &hosts)
+	out.Hosts = hosts
 	if len(t.Command) > 0 {
 		out.Command = &t.Command
 	}
@@ -59,6 +62,23 @@ func (a *API) ListMCPConnections(ctx context.Context, _ api.ListMCPConnectionsRe
 		out.Items = append(out.Items, mcpAPI(r))
 	}
 	return out, nil
+}
+
+// mcpHosts returns the hosts of an input, lower-cased, with no duplicate and no empty entry.
+func mcpHosts(in api.MCPConnectionInput) []string {
+	out := []string{}
+	if in.Hosts == nil {
+		return out
+	}
+	for _, h := range *in.Hosts {
+		h = strings.ToLower(strings.TrimSpace(h))
+		h = strings.TrimPrefix(strings.TrimPrefix(h, "https://"), "http://")
+		h = strings.TrimSuffix(h, "/")
+		if h != "" && !slices.Contains(out, h) {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 func validateMCP(in api.MCPConnectionInput) (mcpTarget, []string, error) {
@@ -93,6 +113,9 @@ func validateMCP(in api.MCPConnectionInput) (mcpTarget, []string, error) {
 		if in.SearchTool == nil || !slices.Contains(allow, *in.SearchTool) {
 			return t, nil, kernel.Invalid("bad_mcp", "A search connection needs its search tool on the allowlist.")
 		}
+	}
+	if len(mcpHosts(in)) > 0 && (in.FetchTool == nil || !slices.Contains(allow, *in.FetchTool)) {
+		return t, nil, kernel.Invalid("bad_mcp", "A connection with hosts needs its fetch tool on the allowlist.")
 	}
 	return t, allow, nil
 }
@@ -162,18 +185,25 @@ func (a *API) saveMCP(ctx context.Context, id uuid.UUID, in api.MCPConnectionInp
 	if in.IsSearch && in.SearchTool != nil {
 		search = *in.SearchTool
 	}
+	hosts := mcpHosts(in)
+	hostsJSON, _ := json.Marshal(hosts)
+	fetch := ""
+	if len(hosts) > 0 && in.FetchTool != nil {
+		fetch = *in.FetchTool
+	}
 	q := a.DB.Queries()
 	if existing == nil {
 		err = q.InsertMCPConnection(ctx, pgdb.InsertMCPConnectionParams{
 			ID: id, WorkspaceID: a.Workspace, Name: strings.TrimSpace(in.Name), Transport: string(in.Transport),
 			CommandOrUrl: dbtype.JSON(target), SecretEncrypted: sealed, SecretLast4: last4, ToolAllowlist: dbtype.JSON(allowJSON),
 			IsSearch: in.IsSearch, SearchTool: search, CreatedAt: time.Now().UTC(),
+			Hosts: dbtype.JSON(hostsJSON), FetchTool: fetch,
 		})
 	} else {
 		err = q.UpdateMCPConnection(ctx, pgdb.UpdateMCPConnectionParams{
 			ID: id, WorkspaceID: a.Workspace, Name: strings.TrimSpace(in.Name), Transport: string(in.Transport),
 			CommandOrUrl: dbtype.JSON(target), SecretEncrypted: sealed, SecretLast4: last4, ToolAllowlist: dbtype.JSON(allowJSON),
-			IsSearch: in.IsSearch, SearchTool: search,
+			IsSearch: in.IsSearch, SearchTool: search, Hosts: dbtype.JSON(hostsJSON), FetchTool: fetch,
 		})
 	}
 	if err != nil {
@@ -319,6 +349,64 @@ func (m *mcpSearcher) Search(ctx context.Context, query string) (string, error) 
 			return "", fmt.Errorf("%s: %w", m.tool, err)
 		}
 		return s.Call(ctx, m.tool, map[string]any{arg: query})
+	}
+	return "", fmt.Errorf("%s has no tool named %s", m.name, m.tool)
+}
+
+// FetchSource returns the connection that reads host, or nil when no connection lists it
+// (DEC-021). Speccy matches by host, so no model picks the tool.
+func (a *API) FetchSource(ctx context.Context, host string) (review.Fetcher, error) {
+	rows, err := a.DB.Queries().ListMCPConnections(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	host = strings.ToLower(host)
+	for _, c := range rows {
+		hosts := []string{}
+		_ = json.Unmarshal(c.Hosts, &hosts)
+		if c.FetchTool == "" || !slices.Contains(hosts, host) {
+			continue
+		}
+		conn, err := a.connection(c)
+		if err != nil {
+			return nil, err
+		}
+		return &mcpFetcher{name: c.Name, tool: c.FetchTool, conn: conn}, nil
+	}
+	return nil, nil
+}
+
+type mcpFetcher struct {
+	name string
+	tool string
+	conn mcpclient.Connection
+}
+
+func (m *mcpFetcher) Name() string { return m.name }
+
+// Fetch reads one page or issue. The result is untrusted data (REQ-113); the review puts it in
+// a data block.
+func (m *mcpFetcher) Fetch(ctx context.Context, target string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	s, err := mcpclient.Open(ctx, m.conn)
+	if err != nil {
+		return "", err
+	}
+	defer s.Close()
+	tools, err := s.Tools(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range tools {
+		if t.Name != m.tool {
+			continue
+		}
+		arg, err := mcpclient.URLArgument(t.InputSchema)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", m.tool, err)
+		}
+		return s.Call(ctx, m.tool, map[string]any{arg: target})
 	}
 	return "", fmt.Errorf("%s has no tool named %s", m.name, m.tool)
 }

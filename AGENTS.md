@@ -63,3 +63,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Source URL: the GitHub URL a person pastes to make a source: a repo, a branch and folder, or one doc. Avoid: repo link, import URL, clone URL.
 - Adopted repo: a repo with docs that Speccy did not write, mapped to profiles by path, with no Speccy frontmatter. Avoid: legacy repo, existing repo, brownfield.
 - Reply command: a /speccy reply in a Speccy review thread that the next Action run turns into a commit. Avoid: slash command, bot command, chatops.
+- External link: a link from a bundle to an artifact outside Speccy: an issue, a page, a repo path, or a commit. Avoid: reference, integration, external reference.
+- Drift: a code target changed after the doc version that a review run read. Avoid: stale, out of date, divergence.
+- Unchecked: an external link state meaning no credential and no MCP connection can read the target. Avoid: unknown, unreachable, skipped.
