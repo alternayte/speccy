@@ -164,7 +164,8 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 		return fail(fmt.Errorf("the repo tree is too large for the GitHub API. Point the source at a smaller folder"))
 	}
 	tfs := github.NewTreeFS(entries, func(p string) bool {
-		return p == source.RepoConfigFile || underSource(src, p)
+		// The sidecars sit at the root of the repo, outside the source's path (DEC-009).
+		return p == source.RepoConfigFile || source.IsSidecar(p) || underSource(src, p)
 	}, func(e github.Entry) ([]byte, error) {
 		if b, ok := s.blobs.get(e.SHA); ok {
 			return b, nil
@@ -190,7 +191,7 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err != nil {
 		return fail(err)
 	}
-	if err := s.applyGitHubScan(ctx, src, commit, cfg, scan); err != nil {
+	if err := s.applyGitHubScan(ctx, src, commit, cfg, scan, tfs); err != nil {
 		return fail(err)
 	}
 	// A repo is other people's tree: Speccy writes no type into it. It says which files need
@@ -205,7 +206,7 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	return s.afterChange(ctx)
 }
 
-func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, commit string, cfg source.RepoConfig, scan *local.Scan) error {
+func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, commit string, cfg source.RepoConfig, scan *local.Scan, tfs fs.FS) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now().UTC()
@@ -216,6 +217,12 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 			continue
 		}
 		found[fb.Slug] = true
+		// The sidecar of the main doc travels with the bundle, so a waiver merged in the repo
+		// reaches the app, and a publish writes it back to the root (DEC-009).
+		if raw, err := fs.ReadFile(tfs, source.SidecarPath(path.Join(fb.Dir, fb.Main.Path))); err == nil {
+			fb.Files = append(fb.Files, source.File{Path: source.SidecarPath(fb.Main.Path), Content: raw})
+			source.Sort(fb.Files)
+		}
 		mapped := ""
 		if fb.File != "" {
 			mapped, _ = cfg.MappedProfile(path.Join(fb.Dir, fb.File))
@@ -389,7 +396,7 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	if err != nil {
 		return github.PullRequest{}, err
 	}
-	changes := diffChanges(ref.Dir, published, current)
+	changes := diffChanges(ref.Dir, b.MainDoc, published, current)
 	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: b.CurrentVersionID.UUID})
 	if err != nil {
 		return github.PullRequest{}, err
@@ -411,8 +418,16 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	return pr, nil
 }
 
-// diffChanges lists the files that differ between two versions, as repo paths.
-func diffChanges(dir string, from, to []source.File) []github.Change {
+// diffChanges lists the files that differ between two versions, as repo paths. The sidecar is
+// the one file that does not sit under the bundle's folder: it goes to the root of the repo,
+// under the main doc's repo path (DEC-009).
+func diffChanges(dir, mainDoc string, from, to []source.File) []github.Change {
+	repoPath := func(p string) string {
+		if p == source.SidecarPath(mainDoc) {
+			return source.SidecarPath(path.Join(dir, mainDoc))
+		}
+		return path.Join(dir, p)
+	}
 	old := map[string]string{}
 	for _, f := range from {
 		old[f.Path] = version.Hash(f.Content)
@@ -426,12 +441,12 @@ func diffChanges(dir string, from, to []source.File) []github.Change {
 			if content == nil {
 				content = []byte{}
 			}
-			out = append(out, github.Change{Path: path.Join(dir, f.Path), Content: content})
+			out = append(out, github.Change{Path: repoPath(f.Path), Content: content})
 		}
 	}
 	for _, f := range from {
 		if !seen[f.Path] {
-			out = append(out, github.Change{Path: path.Join(dir, f.Path)})
+			out = append(out, github.Change{Path: repoPath(f.Path)})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })

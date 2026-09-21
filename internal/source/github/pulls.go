@@ -34,6 +34,17 @@ func (c *Client) PRFiles(ctx context.Context, repo string, number int) ([]PRFile
 type IssueComment struct {
 	ID   int64  `json:"id"`
 	Body string `json:"body"`
+	User *struct {
+		Login string `json:"login"`
+	} `json:"user,omitempty"`
+}
+
+// Author is the login that wrote the comment, or "".
+func (c IssueComment) Author() string {
+	if c.User == nil {
+		return ""
+	}
+	return c.User.Login
 }
 
 // IssueComments lists the conversation comments of an issue or pull request.
@@ -100,7 +111,51 @@ func (c *Client) CreateCheckRun(ctx context.Context, repo string, r CheckRun) er
 type Thread struct {
 	ID       string
 	Resolved bool
-	Body     string
+	Body     string // the first comment, which Speccy wrote
+	// Replies are the comments after the first one, oldest first.
+	Replies []Reply
+}
+
+// Reply is one comment in a review thread, with the login of the person who wrote it.
+type Reply struct {
+	Author string
+	Body   string
+}
+
+// PullRequest metadata that the Action needs: where to commit, and whether it may.
+type PRInfo struct {
+	HeadRef  string // the branch the pull request changes
+	HeadRepo string // owner/name of the head branch's repo
+	BaseRef  string // the branch it merges into
+	HeadSHA  string
+}
+
+// Fork says whether the pull request comes from another repo. The Action has no write token
+// for a fork, so it commits nothing there.
+func (p PRInfo) Fork(repo string) bool { return p.HeadRepo != "" && p.HeadRepo != repo }
+
+// PullRequest reads the head and base of a pull request.
+func (c *Client) PullRequest(ctx context.Context, repo string, number int) (PRInfo, error) {
+	var pr struct {
+		Head struct {
+			Ref  string `json:"ref"`
+			SHA  string `json:"sha"`
+			Repo *struct {
+				FullName string `json:"full_name"`
+			} `json:"repo"`
+		} `json:"head"`
+		Base struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
+	}
+	if err := c.do(ctx, "GET", fmt.Sprintf("%s/pulls/%d", repoPath(repo), number), nil, &pr); err != nil {
+		return PRInfo{}, err
+	}
+	out := PRInfo{HeadRef: pr.Head.Ref, BaseRef: pr.Base.Ref, HeadSHA: pr.Head.SHA}
+	if pr.Head.Repo != nil {
+		out.HeadRepo = pr.Head.Repo.FullName
+	}
+	return out, nil
 }
 
 // graphql runs a GraphQL query. GitHub serves it at /graphql, or /api/graphql on GHES.
@@ -136,7 +191,10 @@ func (c *Client) ReviewThreads(ctx context.Context, repo string, number int) ([]
 						IsResolved bool   `json:"isResolved"`
 						Comments   struct {
 							Nodes []struct {
-								Body string `json:"body"`
+								Body   string `json:"body"`
+								Author *struct {
+									Login string `json:"login"`
+								} `json:"author"`
 							} `json:"nodes"`
 						} `json:"comments"`
 					} `json:"nodes"`
@@ -144,15 +202,23 @@ func (c *Client) ReviewThreads(ctx context.Context, repo string, number int) ([]
 			} `json:"pullRequest"`
 		} `json:"repository"`
 	}
-	q := `query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:1){nodes{body}}}}}}}`
+	q := `query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:50){nodes{body author{login}}}}}}}}`
 	if err := c.graphql(ctx, q, map[string]any{"owner": owner, "name": name, "n": number}, &data); err != nil {
 		return nil, err
 	}
 	var out []Thread
 	for _, t := range data.Repository.PullRequest.ReviewThreads.Nodes {
 		th := Thread{ID: t.ID, Resolved: t.IsResolved}
-		if len(t.Comments.Nodes) > 0 {
-			th.Body = t.Comments.Nodes[0].Body
+		for i, cm := range t.Comments.Nodes {
+			if i == 0 {
+				th.Body = cm.Body
+				continue
+			}
+			login := ""
+			if cm.Author != nil {
+				login = cm.Author.Login
+			}
+			th.Replies = append(th.Replies, Reply{Author: login, Body: cm.Body})
 		}
 		out = append(out, th)
 	}

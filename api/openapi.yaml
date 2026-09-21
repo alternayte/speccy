@@ -1339,7 +1339,7 @@ paths:
       - $ref: "#/components/parameters/WaiverId"
     post:
       operationId: approveWaiver
-      summary: Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+      summary: Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
       responses:
         "200":
           description: The waiver.

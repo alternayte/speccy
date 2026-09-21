@@ -19,6 +19,7 @@ Speccy keeps its state in `<dir>/.speccy/state/`. Do not commit that folder.
 | `speccy review <path…>` | Reviews the bundles in the paths. A folder names every bundle in it; a file names its bundle. |
 | `speccy init` | Writes `.speccy.yaml`, adds `.speccy/state/` to `.gitignore`, and offers to give loose markdown files a type. |
 | `speccy add <url>` | Makes a GitHub source from a source URL: `owner/name`, a repo URL, or the URL of a folder or a doc. Local mode takes the token from `gh auth token`; with no `gh` login, paste a fine-grained token in Admin → GitHub. Speccy never runs `git`. |
+| `speccy init --github` | Adopts a repo whose docs Speccy did not write: it guesses a profile for each markdown file, writes the path mappings, lints them all, puts every failing check in adoption mode, and writes the Action's workflow. It changes no doc. |
 | `speccy tui` | The terminal UI. It uses `$VISUAL` or `$EDITOR` to open files. |
 | `speccy mcp` | The MCP server over stdio. |
 | `speccy profile validate <file>` | Checks a profile file against the schema and prints each error with its path. |
@@ -140,7 +141,7 @@ A new share link replaces the old one. Revoking the link ends every guest's acce
 - An author asks for a review and names the reviewers on the bundle page. The bundle moves from Draft to In review.
 - A reviewer approves the current version. Approval needs a current Build Ready verdict. An author cannot approve their own bundle. A profile sets how many approvals it needs (`approvals.required`).
 - Any change to the doc after approval revokes the approvals and moves the bundle back to In review.
-- A member asks for a waiver of one finding, with a reason of at least 20 characters. The profile's waiver policy says who approves it: `any_member`, `non_author`, `n_approvals: N`, `maintainer`, or `forbidden`. An approved waiver goes into the doc's frontmatter, as a new version. It ends when its section changes.
+- A member asks for a waiver of one finding, with a reason of at least 20 characters. The profile's waiver policy says who approves it: `any_member`, `non_author`, `n_approvals: N`, `maintainer`, or `forbidden`. An approved waiver goes into the doc's sidecar, `.speccy/decisions/<doc path>.yaml`. The doc text does not change. The waiver ends when its section changes.
 - A thread marked blocking keeps the doc Not Build Ready until someone resolves it.
 
 ### Profiles

@@ -150,13 +150,19 @@ adoption:                 # these checks report as INFO for now
   relaxed: [links.has-upstream, lint.required-headings]
 ```
 
+A relaxed check stays relaxed until a maintainer takes it out of the list. When one of them passes on every mapped doc, the summary comment of the next pull request says so and offers the reply that removes it:
+
+```text
+/speccy enforce links.has-upstream
+```
+
 Or review them all in one command. It needs no server and no setup:
 
 ```sh
 speccy review docs/ --summary
 ```
 
-It prints one line per bundle, with the verdict, the score, and the top three failing checks, then the checks that fail most often. Add `--format md` for a pull request comment, or `--format json` for a script. `speccy init` writes a commented `.speccy.yaml` and adds `.speccy/state/` to `.gitignore`.
+It prints one line per bundle, with the verdict, the score, and the top three failing checks, then the checks that fail most often. Add `--format md` for a pull request comment, or `--format json` for a script. `speccy init` writes a commented `.speccy.yaml` and adds `.speccy/state/` to `.gitignore`. `speccy init --github` adopts a whole repo in one command: it guesses a profile for each spec, writes the mappings, puts the checks that fail today in adoption mode, and writes the workflow below.
 
 ## GitHub Action
 
@@ -169,7 +175,7 @@ on:
   pull_request:
     paths: ["docs/**", ".speccy.yaml"]
 permissions:
-  contents: read
+  contents: write        # commit a decision that a reply asked for
   pull-requests: write   # the summary and inline comments
   checks: write          # one check per bundle
 jobs:
@@ -185,12 +191,21 @@ jobs:
 
 The Action is advisory by default: a Not Build Ready verdict shows in the comment and the check, and the job still passes. Set `enforcement: blocking`, or `enforcement: blocking` in `.speccy.yaml`, to fail the job. The HTML report of each bundle is an artifact of the run.
 
-**Waivers in CI.** A waiver is an entry under `waivers:` in the main doc's frontmatter. Anyone can write one in a pull request, so the approval comes from branch protection: require a review from the code owners of your spec folders.
+**Waivers in CI.** A waiver is an entry under `waivers:` in the doc's sidecar, `.speccy/decisions/<doc path>.yaml`. Reply to a Speccy comment in the pull request to ask for one:
+
+```text
+/speccy waive The provider sets this limit, and the design cannot change it.
+/speccy ack REQ-002 The mail service sends it.
+```
+
+The next run commits the entry to the pull request's branch and resolves that comment. Speccy approves nothing of its own: the commit is reviewed like any other change, so the approval comes from branch protection. Require a review from the code owners of your spec folders.
 
 ```text
 # .github/CODEOWNERS
 /docs/ @acme/spec-maintainers
 ```
+
+While a waiver is in the pull request and not merged, the comment gives both verdicts, so a self-granted waiver does not read as an agreement. A pull request from a fork gives the Action no write token, so the comment prints the sidecar to paste instead.
 
 In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs. The server changes no bundle. It keeps each review for 90 days, and the summary comment links each bundle to its report on the server. Members of the workspace can open the report.
 

@@ -19,7 +19,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 
 ## Domain words
 - Bundle: a folder with one main doc and zero or more assets.
-- Main doc: the one markdown file in a bundle with a type field in its frontmatter.
+- Main doc: the one markdown file in a bundle that a type field or a path mapping names.
 - Asset: any other file in the bundle.
 - Profile: the versioned configuration for one doc type.
 - Check: one binary rule in a profile, with a slug, a level, and a stage.
@@ -32,6 +32,8 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Divergence: readers gave different meanings for one build question.
 - Gap: all readers answered that the question is not specified.
 - Waiver: an approved exception for one check in one section, with a reason.
+- Sidecar: the file .speccy/decisions/<doc path>.yaml that holds the waivers and acknowledgements for one doc. Avoid: waiver file, decisions file, metadata file.
+- Heading path: the list of headings down to one section. It anchors a decision in a doc with no trace IDs. Avoid: breadcrumb, section path, anchor.
 - Acknowledgement: an author statement that a link or trace item is intentionally absent. It uses the waiver mechanism.
 - Link: a typed relation between two bundles.
 - Trace ID: a stable ID in a doc, such as REQ-012 or DEC-004.
@@ -59,3 +61,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Control row: the one row above the panes with the title, the verdict in words, and the next action. Not the control bar. Avoid: header, toolbar, verdict bar.
 - History: the rail tab with the versions and the handoffs of one bundle. Avoid: timeline, activity.
 - Source URL: the GitHub URL a person pastes to make a source: a repo, a branch and folder, or one doc. Avoid: repo link, import URL, clone URL.
+- Adopted repo: a repo with docs that Speccy did not write, mapped to profiles by path, with no Speccy frontmatter. Avoid: legacy repo, existing repo, brownfield.
+- Reply command: a /speccy reply in a Speccy review thread that the next Action run turns into a commit. Avoid: slash command, bot command, chatops.

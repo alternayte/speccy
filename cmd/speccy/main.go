@@ -41,6 +41,8 @@ const usage = `Usage:
   speccy serve --hosted                                  Start hosted mode (SPECCY_ environment variables).
   speccy init                                            Write .speccy.yaml and ignore .speccy/state/.
   speccy add <url> [--profile <key>]                     Make a GitHub source from a URL, and sync it once.
+  speccy init --github                                   Adopt this repo: map its docs, relax the checks that
+                                                         fail today, and write the Action's workflow.
   speccy review <path…> [--format text|json|md] [--summary] [--server URL]
                 [--stages lint,rubric,grounding,divergence,coherence] [--enforcement advisory|blocking]
                                                          Review bundles. Exit codes: 0 Build Ready or advisory,

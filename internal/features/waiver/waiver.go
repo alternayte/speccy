@@ -1,6 +1,6 @@
 // Package waiver is the waiver aggregate (SDD §9, DEC-008): an approved exception for one check
 // in one section. decide and evolve are pure; the service stores the stream, writes approved
-// waivers to the main doc's frontmatter (DEC-009), and invalidates a waiver when its section
+// waivers to the doc's sidecar (DEC-009), and invalidates a waiver when its section
 // changes (REQ-074).
 package waiver
 

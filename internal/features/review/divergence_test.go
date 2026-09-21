@@ -268,9 +268,9 @@ func TestDivergence_QuestionsPinned(t *testing.T) {
 	if len(r1) != 1 || len(r2) != 1 || r1[0].QuestionID != r2[0].QuestionID {
 		t.Errorf("question results: %+v and %+v, want the same question", r1, r2)
 	}
-	// A version that only adds a frontmatter waiver has the same input: it reuses the questions.
-	withWaiver := strings.Replace(divergenceSDD, "title: Payments\n", "title: Payments\nwaivers:\n  - check: lint.placeholder\n    section: [Payments]\n    reason: A reason that is long enough.\n    section_hash: sha256:x\n", 1)
-	pe.write(t, "pay/SPEC.md", withWaiver)
+	// A new waiver in the sidecar changes no doc text: the run reuses the questions.
+	pe.write(t, ".speccy/decisions/pay/SPEC.md.yaml",
+		"waivers:\n  - check: lint.placeholder\n    section: [Payments]\n    reason: A reason that is long enough.\n    section_hash: sha256:x\n")
 	pe.run(t, "pay")
 	if n := pe.fake.count(review.PromptQuestions); n != 1 {
 		t.Errorf("a version with only a new waiver wrote questions again (%d times in all)", n)

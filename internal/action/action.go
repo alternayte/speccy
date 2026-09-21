@@ -18,6 +18,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 )
 
@@ -41,8 +42,12 @@ type Bundle struct {
 	// Findings of the review; Files are the bundle's files, by their path in the bundle.
 	Findings []api.Finding
 	Files    map[string][]byte
-	// Prefixes are the profile's trace ID prefixes, for suggested IDs (REQ-136).
-	Prefixes []string
+	// Prefixes are the profile's trace ID prefixes, for suggested IDs (REQ-136). CoverPrefixes
+	// are the upstream prefixes an acknowledgement may name, and DocScope says which checks a
+	// waiver covers for the whole doc.
+	Prefixes      []string
+	CoverPrefixes []string
+	DocScope      map[string]bool
 	// Report is a link to the full report, or "".
 	Report string
 }
@@ -59,6 +64,20 @@ type Options struct {
 	Blocking bool
 	// RunURL links to the workflow run, where the HTML reports are artifacts.
 	RunURL string
+	// HeadRef is the branch the pull request changes, where a decision is committed. BaseRef is
+	// the branch it merges into, which says which waivers are merged already. Fork is a pull
+	// request from another repo, where the Action has no write token (DEC-009).
+	HeadRef string
+	BaseRef string
+	Fork    bool
+	// Sidecar reads a doc's sidecar from the checkout.
+	Sidecar func(docPath string) (source.Decisions, error)
+	// Relaxed are the check slugs in adoption mode, and Ready are the ones that now pass on
+	// every mapped doc, which the summary comment offers to enforce (REQ-133).
+	Relaxed []string
+	Ready   []string
+	// Config is .speccy.yaml as it stands in the checkout, for an enforce command.
+	Config []byte
 }
 
 // Result is what the command prints and returns.
@@ -66,6 +85,8 @@ type Result struct {
 	Summary  string // the summary comment, also for the job summary
 	Posted   int    // new inline comments
 	Resolved int    // inline comments whose findings are gone
+	Decided  int    // decisions written from reply commands
+	Enforced int    // checks taken out of adoption mode
 	Failed   bool   // the job fails: a Not Build Ready verdict in blocking mode
 	Warnings []string
 }
@@ -342,9 +363,33 @@ func Run(ctx context.Context, o Options, bundles []Bundle, files []github.PRFile
 			res.Posted = len(post)
 		}
 	}
+	// The reply commands of this pull request: one commit, then the threads they answered.
+	var act applied
+	if o.Sidecar != nil && threadsErr == nil {
+		var warn []string
+		act, warn = apply(ctx, o, bundles, threads)
+		res.Warnings = append(res.Warnings, warn...)
+		res.Decided = len(act.threads)
+		for _, id := range act.threads {
+			if err := o.GitHub.ResolveThread(ctx, id); err != nil {
+				res.Warnings = append(res.Warnings, "Speccy could not resolve a comment: "+err.Error())
+			}
+		}
+	}
+	decided := map[string]bool{}
+	for _, id := range act.threads {
+		decided[id] = true
+	}
+	if len(o.Relaxed) > 0 && o.Config != nil {
+		var warn []string
+		act.enforced, warn = enforce(ctx, o)
+		res.Warnings = append(res.Warnings, warn...)
+		res.Enforced = len(act.enforced)
+	}
+
 	// REQ-135: resolve Speccy's own threads whose findings are gone.
 	for _, t := range threads {
-		if k := keyIn(t.Body); k != "" && !t.Resolved && !current[k] {
+		if k := keyIn(t.Body); k != "" && !t.Resolved && !current[k] && !decided[t.ID] {
 			if err := o.GitHub.ResolveThread(ctx, t.ID); err != nil {
 				res.Warnings = append(res.Warnings, "Speccy could not resolve a comment: "+err.Error())
 				continue
@@ -353,7 +398,19 @@ func Run(ctx context.Context, o Options, bundles []Bundle, files []github.PRFile
 		}
 	}
 
-	res.Summary = summary(o, bundles, summaries)
+	// DEC-009: a waiver that this pull request adds counts, and the comment says so in words.
+	pending := map[string]int{}
+	if o.Sidecar != nil {
+		for _, b := range bundles {
+			ws, err := unmerged(ctx, o, docPath(b))
+			if err != nil {
+				res.Warnings = append(res.Warnings, "Speccy could not read the waivers of "+b.Slug+" on "+o.BaseRef+": "+err.Error())
+				continue
+			}
+			pending[b.Slug] = dependsOn(b, ws)
+		}
+	}
+	res.Summary = summary(o, bundles, summaries, pending, act)
 	// A pull request that changes no bundle gets no new comment; an old one says so.
 	if err := upsertSummary(ctx, o, res.Summary, len(bundles) > 0); err != nil {
 		res.Warnings = append(res.Warnings, "Speccy could not post the summary comment: "+err.Error())
@@ -371,6 +428,8 @@ func Run(ctx context.Context, o Options, bundles []Bundle, files []github.PRFile
 		title := verdictText[b.Verdict]
 		if b.Error != "" {
 			title = "The review failed"
+		} else if n := pending[b.Slug]; n > 0 {
+			title += fmt.Sprintf(" with %d waiver%s that this pull request has not merged", n, plural(n))
 		}
 		if err := o.GitHub.CreateCheckRun(ctx, o.Repo, github.CheckRun{Name: "speccy: " + b.Slug, HeadSHA: o.HeadSHA, Conclusion: conclusion,
 			Title: title, Summary: bundleSummary(b), DetailsURL: b.Report}); err != nil {
@@ -394,6 +453,22 @@ func bundleSummary(b Bundle) string {
 	return s
 }
 
+// isAre agrees the verb with the count, because the line is read by a person.
+func isAre(n int) string {
+	if n == 1 {
+		return "is"
+	}
+	return "are"
+}
+
+// short is the first 7 characters of a commit SHA.
+func short(sha string) string {
+	if len(sha) > 7 {
+		return sha[:7]
+	}
+	return sha
+}
+
 func plural(n int) string {
 	if n == 1 {
 		return ""
@@ -402,7 +477,7 @@ func plural(n int) string {
 }
 
 // summary is the one summary comment (SDD §12.4).
-func summary(o Options, bundles []Bundle, rest map[string][]string) string {
+func summary(o Options, bundles []Bundle, rest map[string][]string, pending map[string]int, act applied) string {
 	var b strings.Builder
 	b.WriteString(summaryMarker + "\n## Speccy\n\n")
 	if len(bundles) == 0 {
@@ -428,6 +503,35 @@ func summary(o Options, bundles []Bundle, rest map[string][]string) string {
 	}
 	if relaxed > 0 {
 		fmt.Fprintf(&b, "\nAdoption mode: %d check%s relaxed.\n", relaxed, plural(relaxed))
+	}
+	for _, x := range bundles {
+		if n := pending[x.Slug]; n > 0 {
+			fmt.Fprintf(&b, "\n`%s`: %s. %d waiver%s in this pull request %s not merged yet. Without them: Not Build Ready.\n",
+				x.Slug, verdictText[x.Verdict], n, plural(n), isAre(n))
+		}
+	}
+	if len(act.enforced) > 0 {
+		b.WriteString("\n**Adoption mode**\n\n")
+		for _, e := range act.enforced {
+			fmt.Fprintf(&b, "- @%s turned `%s` back on. It counts from the next review.\n", e.By, e.Rest)
+		}
+	}
+	if len(o.Ready) > 0 {
+		b.WriteString("\nThese relaxed checks now pass on every mapped doc. Reply to turn one back on:\n\n```text\n")
+		for _, slug := range o.Ready {
+			fmt.Fprintf(&b, "/speccy enforce %s\n", slug)
+		}
+		b.WriteString("```\n")
+	}
+	if len(act.decisions) > 0 {
+		b.WriteString("\n**Decisions**\n\n")
+		for _, d := range act.decisions {
+			b.WriteString(d.Line + "\n")
+		}
+		if act.committed != "" {
+			fmt.Fprintf(&b, "\nCommitted as `%s`. A decision counts when this pull request merges.\n", short(act.committed))
+		}
+		b.WriteString(pasteBlock(act.paste))
 	}
 	for _, x := range bundles {
 		if x.Error != "" {

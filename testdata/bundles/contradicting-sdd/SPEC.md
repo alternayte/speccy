@@ -4,11 +4,6 @@ title: Bank transfer retries — design
 links:
   - kind: implements
     target: payments-prd
-trace:
-  - id: REQ-003
-    status: out_of_scope
-    reason: The checkout page shows this message. This design covers the payment service only.
-    acknowledged_by: nathan
 ---
 
 # Bank transfer retries — design

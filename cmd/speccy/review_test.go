@@ -14,6 +14,7 @@ import (
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 )
 
@@ -25,6 +26,13 @@ func fixtures(t *testing.T, names ...string) string {
 		src := filepath.Join("..", "..", "testdata", "bundles", n)
 		if err := os.CopyFS(filepath.Join(dir, n), os.DirFS(src)); err != nil {
 			t.Fatal(err)
+		}
+		// The sidecar of the bundle's main doc travels with it (DEC-009).
+		sid := filepath.Join("..", "..", "testdata", "bundles", ".speccy", "decisions", n)
+		if _, err := os.Stat(sid); err == nil {
+			if err := os.CopyFS(filepath.Join(dir, ".speccy", "decisions", n), os.DirFS(sid)); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return dir
@@ -110,8 +118,8 @@ func TestCLI_SummaryNoSetup(t *testing.T) {
 			t.Errorf("the summary has no %q:\n%s", want, out)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".speccy")); !os.IsNotExist(err) {
-		t.Errorf("the review made %s/.speccy: %v", dir, err)
+	if _, err := os.Stat(filepath.Join(dir, ".speccy", "state")); !os.IsNotExist(err) {
+		t.Errorf("the review left state in %s/.speccy/state: %v", dir, err)
 	}
 
 	code, out, _ = runIn(t, dir, "review", ".", "--summary", "--format", "json")
@@ -168,5 +176,52 @@ func TestInit_EnterTakesTheGuess(t *testing.T) {
 	}
 	if !strings.HasSuffix(string(got), body) {
 		t.Error("speccy init changed the text of the doc")
+	}
+}
+
+// speccy init --github adopts a repo that Speccy did not write: a mapping for each doc, the
+// checks that fail today in adoption mode, and a workflow that needs no secret (REQ-130,
+// REQ-133).
+func TestCLI_InitGitHub(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("docs/prd-payments.md", "# Payments\n\n## Problem\n\nCustomers wait.\n\n## Requirements\n\n- The system must refund a card payment within 5 working days.\n\n## Out of scope\n\nBank transfers.\n")
+	write("README.md", "# The repo\n\nNot a spec.\n")
+	code, out, errOut := runIn(t, dir, "init", "--github")
+	if code != exitOK {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errOut)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ".speccy.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := source.ParseRepoConfig(raw)
+	if err != nil {
+		t.Fatalf("%v:\n%s", err, raw)
+	}
+	// Every markdown file in docs/ guessed the same profile, so the folder gets one glob.
+	if len(cfg.Map) != 1 || cfg.Map[0].Profile != "prd" || cfg.Map[0].Glob != "docs/*.md" {
+		t.Errorf("mappings %+v, want one glob for docs/", cfg.Map)
+	}
+	if len(cfg.Adoption.Relaxed) == 0 {
+		t.Errorf("no check is relaxed, so the first verdict is a wall of findings:\n%s", out)
+	}
+	wf, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "speccy.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(wf), "contents: write") || strings.Contains(string(wf), "\n          anthropic-api-key") {
+		t.Errorf("the workflow is wrong:\n%s", wf)
+	}
+	if !strings.Contains(out, "Adoption mode:") || !strings.Contains(out, "/speccy enforce") {
+		t.Errorf("the output does not say what happened:\n%s", out)
 	}
 }

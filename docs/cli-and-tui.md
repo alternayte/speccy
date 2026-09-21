@@ -10,6 +10,7 @@ Every command works on the folder that holds `.speccy.yaml`, from the current fo
 | `speccy serve --dir <folder>` | Local mode without the browser. `--hosted` runs hosted mode. |
 | `speccy init` | Writes `.speccy.yaml` and ignores `.speccy/state/`. |
 | `speccy add <url> [--profile <key>]` | Makes a GitHub source from a source URL, syncs it once, and prints the bundles. |
+| `speccy init --github` | Adopts this repo: one mapping for each doc it recognises, the checks that fail today in adoption mode, and `.github/workflows/speccy.yml`. |
 | `speccy review <path…>` | Reviews bundles. `--format text\|json\|md`, `--summary`, `--stages`, `--enforcement`, `--server`. |
 | `speccy action` | The GitHub Action: reviews what a pull request changes and comments on it. |
 | `speccy tui` | The terminal UI. |

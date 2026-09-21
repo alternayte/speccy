@@ -66,9 +66,12 @@ func CleanPath(p string) (string, error) {
 	if c == "." || c == "" {
 		return "", fmt.Errorf("the path %q names no file", p)
 	}
-	for _, seg := range strings.Split(c, "/") {
-		if strings.HasPrefix(seg, ".") {
-			return "", fmt.Errorf("the path %q has a hidden segment %q; Speccy does not manage hidden files", p, seg)
+	// The sidecar is Speccy's own file, and it is the one hidden path a bundle may hold (DEC-009).
+	if !IsSidecar(c) {
+		for _, seg := range strings.Split(c, "/") {
+			if strings.HasPrefix(seg, ".") {
+				return "", fmt.Errorf("the path %q has a hidden segment %q; Speccy does not manage hidden files", p, seg)
+			}
 		}
 	}
 	return c, nil
@@ -154,15 +157,12 @@ type Frontmatter struct {
 	Type string `yaml:"type"`
 	// Size is the scale the doc covers: feature, app, or initiative (REQ-134). An empty size
 	// is inferred from the doc.
-	Size       string      `yaml:"size"`
-	Title      string      `yaml:"title"`
-	Links      []Link      `yaml:"links"`
-	Standalone *Standalone `yaml:"standalone"`
-	Trace      []TraceAck  `yaml:"trace"`
-	Waivers    []Waiver    `yaml:"waivers"`
+	Size  string `yaml:"size"`
+	Title string `yaml:"title"`
+	Links []Link `yaml:"links"`
 }
 
-// Waiver is an approved waiver in the frontmatter (DEC-009, §10.2). It covers one check in one
+// Waiver is an approved waiver in the sidecar (DEC-009, §9.3). It covers one check in one
 // section while the section's hash is the same (REQ-074). An empty section is the whole doc.
 type Waiver struct {
 	Check       string   `yaml:"check"`
@@ -170,17 +170,16 @@ type Waiver struct {
 	Reason      string   `yaml:"reason"`
 	SectionHash string   `yaml:"section_hash"`
 	RequestedBy string   `yaml:"requested_by,omitempty"`
-	ApprovedBy  string   `yaml:"approved_by,omitempty"`
 }
 
-// TraceAck acknowledges that an upstream trace ID is intentionally not covered (SDD §9.4).
+// TraceAck acknowledges in the sidecar that an upstream trace ID is intentionally not covered
+// (SDD §9.4).
 type TraceAck struct {
 	ID             string `yaml:"id"`
 	Status         string `yaml:"status"` // covered_by | out_of_scope
 	Target         string `yaml:"target"`
 	Reason         string `yaml:"reason"`
 	AcknowledgedBy string `yaml:"acknowledged_by"`
-	ApprovedBy     string `yaml:"approved_by"`
 }
 
 // Link is a frontmatter link to another bundle (REQ-050).
@@ -189,7 +188,7 @@ type Link struct {
 	Target string `yaml:"target"`
 }
 
-// Standalone acknowledges that a doc has no upstream doc (REQ-057).
+// Standalone acknowledges in the sidecar that a doc has no upstream doc (REQ-057).
 type Standalone struct {
 	Reason         string `yaml:"reason"`
 	AcknowledgedBy string `yaml:"acknowledged_by"`

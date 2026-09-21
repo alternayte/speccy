@@ -948,7 +948,7 @@ type ClientInterface interface {
 	// Corresponds with PUT /threads/{threadId}/status (the `SetThreadStatus` operationId).
 	SetThreadStatus(ctx context.Context, threadId ThreadId, body SetThreadStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	//
 	// Corresponds with POST /waivers/{waiverId}/approve (the `ApproveWaiver` operationId).
 	ApproveWaiver(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -3215,7 +3215,7 @@ func (c *Client) SetThreadStatus(ctx context.Context, threadId ThreadId, body Se
 	return c.Client.Do(req)
 }
 
-// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 //
 // Corresponds with POST /waivers/{waiverId}/approve (the `ApproveWaiver` operationId).
 func (c *Client) ApproveWaiver(ctx context.Context, waiverId WaiverId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -8422,7 +8422,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /threads/{threadId}/status (the `SetThreadStatus` operationId).
 	SetThreadStatusWithResponse(ctx context.Context, threadId ThreadId, body SetThreadStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetThreadStatusResponse, error)
 
-	// ApproveWaiverWithResponse Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+	// ApproveWaiverWithResponse Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -15198,7 +15198,7 @@ func (c *ClientWithResponses) SetThreadStatusWithResponse(ctx context.Context, t
 	return ParseSetThreadStatusResponse(rsp)
 }
 
-// ApproveWaiverWithResponse Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+// ApproveWaiverWithResponse Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 //
 // Returns a wrapper object for the known response body format(s).
 //

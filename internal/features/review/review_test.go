@@ -48,7 +48,7 @@ func newEnv(t *testing.T, e storetest.Engine, files map[string]string) *env {
 	en := &env{dir: dir}
 	en.bundles = &bundle.Service{DB: db, Workspace: ws, Local: root}
 	en.reviews = &review.Service{DB: db, Workspace: ws,
-		Profiles: func() map[string]profile.Versioned { return versions }, Repo: en.bundles.RepoConfig}
+		Profiles: func() map[string]profile.Versioned { return versions }, Repo: en.bundles.RepoConfig, Decisions: en.bundles.Decisions}
 	en.bundles.AfterChange = en.reviews.EnsureLinted
 	if err := en.bundles.Sync(ctx); err != nil {
 		t.Fatal(err)

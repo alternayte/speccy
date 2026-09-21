@@ -222,6 +222,84 @@ func (c *Client) FileAt(ctx context.Context, repo, ref, p string) (content []byt
 	return raw, err == nil, err
 }
 
+// Commit writes changes on top of a branch and moves the branch to the new commit. It is how
+// the Action records a decision that a reply asked for (DEC-009). It needs contents: write,
+// and it fails on a fork, where the Action's token is read-only.
+func (c *Client) Commit(ctx context.Context, repo, branch, message string, changes []Change) (string, error) {
+	var ref struct {
+		Object struct {
+			SHA string `json:"sha"`
+		} `json:"object"`
+	}
+	if err := c.do(ctx, "GET", repoPath(repo)+"/git/ref/heads/"+url.PathEscape(branch), nil, &ref); err != nil {
+		return "", err
+	}
+	sha, err := c.commitOn(ctx, repo, ref.Object.SHA, message, changes)
+	if err != nil {
+		return "", err
+	}
+	if err := c.do(ctx, "PATCH", repoPath(repo)+"/git/refs/heads/"+url.PathEscape(branch), map[string]any{"sha": sha}, nil); err != nil {
+		return "", err
+	}
+	return sha, nil
+}
+
+// commitOn writes changes as one commit whose parent is base, and returns its SHA.
+func (c *Client) commitOn(ctx context.Context, repo, base, message string, changes []Change) (string, error) {
+	var baseCommit struct {
+		Tree struct {
+			SHA string `json:"sha"`
+		} `json:"tree"`
+	}
+	if err := c.do(ctx, "GET", repoPath(repo)+"/git/commits/"+base, nil, &baseCommit); err != nil {
+		return "", err
+	}
+	entries, err := c.treeEntries(ctx, repo, changes)
+	if err != nil {
+		return "", err
+	}
+	var tree struct {
+		SHA string `json:"sha"`
+	}
+	if err := c.do(ctx, "POST", repoPath(repo)+"/git/trees", map[string]any{"base_tree": baseCommit.Tree.SHA, "tree": entries}, &tree); err != nil {
+		return "", err
+	}
+	var commit struct {
+		SHA string `json:"sha"`
+	}
+	err = c.do(ctx, "POST", repoPath(repo)+"/git/commits", map[string]any{"message": message, "tree": tree.SHA, "parents": []string{base}}, &commit)
+	return commit.SHA, err
+}
+
+// treeEntry is one path in a git tree. A nil SHA removes the path.
+type treeEntry struct {
+	Path string  `json:"path"`
+	Mode string  `json:"mode"`
+	Type string  `json:"type"`
+	SHA  *string `json:"sha"`
+}
+
+// treeEntries uploads each change's content as a blob.
+func (c *Client) treeEntries(ctx context.Context, repo string, changes []Change) ([]treeEntry, error) {
+	entries := make([]treeEntry, 0, len(changes))
+	for _, ch := range changes {
+		e := treeEntry{Path: ch.Path, Mode: "100644", Type: "blob"}
+		if ch.Content != nil {
+			var blob struct {
+				SHA string `json:"sha"`
+			}
+			if err := c.do(ctx, "POST", repoPath(repo)+"/git/blobs", map[string]string{
+				"content": base64.StdEncoding.EncodeToString(ch.Content), "encoding": "base64",
+			}, &blob); err != nil {
+				return nil, err
+			}
+			e.SHA = &blob.SHA
+		}
+		entries = append(entries, e)
+	}
+	return entries, nil
+}
+
 // Publish commits changes on a new branch from base, and opens a pull request into target
 // (REQ-123). It never changes target itself.
 func (c *Client) Publish(ctx context.Context, repo, target, base, branch, message, title, body string, changes []Change) (PullRequest, error) {
@@ -233,27 +311,9 @@ func (c *Client) Publish(ctx context.Context, repo, target, base, branch, messag
 	if err := c.do(ctx, "GET", repoPath(repo)+"/git/commits/"+base, nil, &baseCommit); err != nil {
 		return PullRequest{}, err
 	}
-	type treeEntry struct {
-		Path string  `json:"path"`
-		Mode string  `json:"mode"`
-		Type string  `json:"type"`
-		SHA  *string `json:"sha"`
-	}
-	entries := make([]treeEntry, 0, len(changes))
-	for _, ch := range changes {
-		e := treeEntry{Path: ch.Path, Mode: "100644", Type: "blob"}
-		if ch.Content != nil {
-			var blob struct {
-				SHA string `json:"sha"`
-			}
-			if err := c.do(ctx, "POST", repoPath(repo)+"/git/blobs", map[string]string{
-				"content": base64.StdEncoding.EncodeToString(ch.Content), "encoding": "base64",
-			}, &blob); err != nil {
-				return PullRequest{}, err
-			}
-			e.SHA = &blob.SHA
-		}
-		entries = append(entries, e)
+	entries, err := c.treeEntries(ctx, repo, changes)
+	if err != nil {
+		return PullRequest{}, err
 	}
 	var tree struct {
 		SHA string `json:"sha"`
@@ -271,7 +331,7 @@ func (c *Client) Publish(ctx context.Context, repo, target, base, branch, messag
 		return PullRequest{}, err
 	}
 	var pr PullRequest
-	err := c.do(ctx, "POST", repoPath(repo)+"/pulls", map[string]any{"title": title, "head": branch, "base": target, "body": body}, &pr)
+	err = c.do(ctx, "POST", repoPath(repo)+"/pulls", map[string]any{"title": title, "head": branch, "base": target, "body": body}, &pr)
 	return pr, err
 }
 

@@ -1,9 +1,6 @@
 ---
 type: sdd
 title: Audit log retention
-standalone:
-  reason: Internal change to storage. No product change, so no PRD.
-  acknowledged_by: nathan
 ---
 
 # Audit log retention

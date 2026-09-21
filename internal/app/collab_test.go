@@ -152,10 +152,9 @@ func TestWaiver_ApprovedWaiverPasses(t *testing.T) {
 			if r, must := e.verdict(t); r != "build_ready" || must != 0 {
 				t.Errorf("after the waiver: %s with %d open MUST, want build_ready with 0", r, must)
 			}
-			files, _ := bundleFiles(t, e)
-			fm, _, _ := source.ReadFrontmatter(files)
-			if len(fm.Waivers) != 1 || fm.Waivers[0].Check != "lint.placeholder" || fm.Waivers[0].ApprovedBy != "Kim Keeper" {
-				t.Errorf("frontmatter waivers %+v", fm.Waivers)
+			dec := sidecar(t, e)
+			if len(dec.Waivers) != 1 || dec.Waivers[0].Check != "lint.placeholder" || dec.Waivers[0].RequestedBy != "Ann Author" {
+				t.Errorf("sidecar waivers %+v", dec.Waivers)
 			}
 		})
 	}
@@ -186,6 +185,17 @@ func TestWaiver_InvalidatedOnSectionEdit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// sidecar returns the bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
+func sidecar(t *testing.T, e *env) source.Decisions {
+	t.Helper()
+	e.verdict(t)
+	dec, err := e.app.Bundles.Decisions(context.Background(), e.b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dec
 }
 
 func bundleFiles(t *testing.T, e *env) ([]byte, error) {
