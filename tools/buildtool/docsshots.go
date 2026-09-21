@@ -69,7 +69,7 @@ func cmdDocsShots() error {
 	if _, err := d.ab("set", "viewport", fmt.Sprint(shotWidth), "900"); err != nil {
 		return err
 	}
-	return d.guide(s, model)
+	return d.guide(s, dir, model)
 }
 
 type shots struct {
@@ -165,7 +165,7 @@ func scaleDown(file string) error {
 }
 
 // guide captures the pictures of the guide in the order the guide tells the story.
-func (d *shots) guide(s *server, model string) error {
+func (d *shots) guide(s *server, dir, model string) error {
 	u := func(p string) string { return s.base + p }
 	bs, err := s.bundles()
 	if err != nil {
@@ -189,6 +189,36 @@ func (d *shots) guide(s *server, model string) error {
 		_, err := d.ab("wait", "600")
 		return err
 	}); err != nil {
+		return err
+	}
+
+	// The way in for a doc Speccy did not write: the import dialog with its guess, and the
+	// files the scan passed over. The loose doc lands after the first list picture.
+	loose := filepath.Join(dir, "payment-retries.md")
+	body := "# Payment retries\n\n## Problem\n\nA failed card payment ends the order.\n\n## Goals\n\n" +
+		"- G-1: Fewer orders lost to one failed charge.\n\n## Requirements\n\n- REQ-001: Speccy retries a failed charge twice.\n"
+	if err := os.WriteFile(loose, []byte(body), 0o644); err != nil {
+		return err
+	}
+	if _, err := d.ab("wait", "3000"); err != nil {
+		return err
+	}
+	if err := d.png("guide-import", u("/"), func() error {
+		if _, err := d.ab("find", "role", "button", "click", "Import"); err != nil {
+			return err
+		}
+		if _, err := d.ab("wait", "600"); err != nil {
+			return err
+		}
+		if _, err := d.ab("upload", "#import-file", loose); err != nil {
+			return err
+		}
+		_, err := d.ab("wait", "1500")
+		return err
+	}); err != nil {
+		return err
+	}
+	if err := d.png("guide-adopt", u("/"), nil); err != nil {
 		return err
 	}
 
