@@ -97,6 +97,15 @@ verify: gen-check lint test test-pg budget
 gauntlet run: build
     go run ./tools/buildtool gauntlet {{run}}
 
+# Capture every picture of docs/guide.md from the real app into docs/images. Needs agent-browser,
+# ffmpeg, and the claude CLI for the review (model: DOCS_MODEL, default haiku).
+docs-shots: build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p build
+    test -d build/dev-bundles || cp -R testdata/bundles build/dev-bundles
+    go run ./tools/buildtool docs-shots
+
 # Build the release archives and images locally, without publishing (a snapshot).
 release-check:
     goreleaser release --snapshot --clean

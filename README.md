@@ -2,7 +2,7 @@
 
 Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
 
-![The bundle screen: the verdict bar, the doc with its findings marked, and the findings rail.](docs/images/bundle.png)
+![The bundle screen: the verdict bar, the doc with its findings marked, and the findings rail.](docs/images/guide-editor.png)
 
 Speccy is at release 0.1.0. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. The overlay marks the text of each finding, and the **Tour** lists the points that need a human decision. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs. `speccy review` reviews bundles in a terminal or in CI, `speccy tui` is the terminal UI, and `speccy mcp` lets coding agents review and fix docs.
 
@@ -33,19 +33,17 @@ To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
 
 | Bundles | Bundle |
 |---|---|
-| ![The bundles screen](docs/images/bundles.png) | ![The bundle screen](docs/images/bundle.png) |
+| ![The bundles screen](docs/images/guide-bundles.png) | ![The bundle screen](docs/images/guide-editor.png) |
 | **Tour** | **Traceability** |
-| ![The tour](docs/images/tour.png) | ![The traceability matrix](docs/images/trace.png) |
+| ![The tour](docs/images/guide-tour.gif) | ![The traceability matrix](docs/images/guide-trace.png) |
 | **Run report** | **Terminal UI** |
-| ![The run report](docs/images/run-report.png) | ![The terminal UI](docs/images/tui-bundle.png) |
+| ![The run report](docs/images/guide-run-report.png) | ![The terminal UI](docs/images/tui-bundle.png) |
 
 ## Documentation
 
 | Document | What it holds |
 |---|---|
-| [docs/getting-started.md](docs/getting-started.md) | From a clone to a first verdict: build, make a bundle, write, add a model, review. |
-| [docs/authoring.md](docs/authoring.md) | The three views, the editable preview, the control bar, drag and drop, and docs that started outside Speccy. |
-| [docs/reviews.md](docs/reviews.md) | The stages, the verdict rule, findings and the overlay, the tour, waivers, traceability, and approval. |
+| [docs/guide.md](docs/guide.md) | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder. |
 | [docs/cli-and-tui.md](docs/cli-and-tui.md) | Every command, the terminal UI and its keys, connected mode, and the MCP server. |
 | [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing. |
 | [docs/decisions.md](docs/decisions.md) | Each design decision, its alternative, and its reason. |

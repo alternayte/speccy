@@ -43,12 +43,15 @@ export type NewAnchor =
 export function ThreadsPanel({
   bundleId,
   member,
+  reviewer = false,
   pending,
   onPendingDone,
   onOpenAnchor,
 }: {
   bundleId: string;
   member: boolean;
+  // reviewer changes the lead line: reviewer mode has no code view and no findings.
+  reviewer?: boolean;
   pending?: NewAnchor;
   onPendingDone: () => void;
   onOpenAnchor: (a: Anchor) => void;
@@ -89,7 +92,9 @@ export function ThreadsPanel({
   return (
     <div>
       <p className="px-3 pt-3 pb-1 text-xs text-ink-2">
-        Select text in the code view and choose Comment, or discuss a finding. A blocking thread stops Build Ready.
+        {reviewer
+          ? "Select the words you want to talk about, then choose Comment. The author reads every comment."
+          : "Select text in the code view and choose Comment, or discuss a finding. A blocking thread stops Build Ready."}
       </p>
       {threads.data.items.length === 0 ? (
         <Empty title="No threads yet" />
