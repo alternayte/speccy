@@ -1673,11 +1673,39 @@ type GithubConnection struct {
 	TokenLast4 *string `json:"token_last4,omitempty"`
 }
 
+// GithubResolved defines model for GithubResolved.
+type GithubResolved struct {
+	// Branch The branch of the URL, or the repo's default branch.
+	Branch string `json:"branch"`
+
+	// File The path names one doc.
+	File bool `json:"file"`
+
+	// Guessed The profile is a guess, so the person confirms it before the source is made.
+	Guessed *bool `json:"guessed,omitempty"`
+
+	// Path The folder, the doc, or "." for the whole repo.
+	Path string `json:"path"`
+
+	// Profile The profile the doc names or a mapping gives, or the guess when it has neither.
+	Profile *string `json:"profile,omitempty"`
+
+	// Profiles The profile keys to choose from.
+	Profiles []string `json:"profiles"`
+	Repo     string   `json:"repo"`
+
+	// Title The title of the doc a one-doc URL names.
+	Title *string `json:"title,omitempty"`
+}
+
 // GithubSource defines model for GithubSource.
 type GithubSource struct {
-	Branch     string             `json:"branch"`
-	Bundles    int                `json:"bundles"`
-	Error      string             `json:"error"`
+	Branch  string `json:"branch"`
+	Bundles int    `json:"bundles"`
+	Error   string `json:"error"`
+
+	// File The path names one doc (REQ-128).
+	File       bool               `json:"file"`
 	HeadCommit string             `json:"head_commit"`
 	Id         openapi_types.UUID `json:"id"`
 	Path       string             `json:"path"`
@@ -2680,16 +2708,18 @@ type RequestWaiverJSONBody struct {
 	Reason    string             `json:"reason"`
 }
 
+// ResolveGithubUrlJSONBody defines parameters for ResolveGithubUrl.
+type ResolveGithubUrlJSONBody struct {
+	Url string `json:"url"`
+}
+
 // AddGithubSourceJSONBody defines parameters for AddGithubSource.
 type AddGithubSourceJSONBody struct {
-	// Branch The default is the repo's default branch.
-	Branch *string `json:"branch,omitempty"`
+	// Profile The profile of a one-doc source whose doc has no type and no mapping.
+	Profile *string `json:"profile,omitempty"`
 
-	// Path The folder in the repo. The default is the whole repo.
-	Path *string `json:"path,omitempty"`
-
-	// Repo owner/name
-	Repo string `json:"repo"`
+	// Url A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
+	Url string `json:"url"`
 }
 
 // CreateProfileJSONBody defines parameters for CreateProfile.
@@ -2809,6 +2839,9 @@ type SetVisibilityJSONRequestBody SetVisibilityJSONBody
 
 // RequestWaiverJSONRequestBody defines body for RequestWaiver for application/json ContentType.
 type RequestWaiverJSONRequestBody RequestWaiverJSONBody
+
+// ResolveGithubUrlJSONRequestBody defines body for ResolveGithubUrl for application/json ContentType.
+type ResolveGithubUrlJSONRequestBody ResolveGithubUrlJSONBody
 
 // AddGithubSourceJSONRequestBody defines body for AddGithubSource for application/json ContentType.
 type AddGithubSourceJSONRequestBody AddGithubSourceJSONBody
@@ -3043,10 +3076,13 @@ type ServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /bundles/{bundleId}/waivers)
 	RequestWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
+	// (POST /github/resolve)
+	ResolveGithubUrl(w http.ResponseWriter, r *http.Request)
 	// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
 	// (GET /github/sources)
 	ListGithubSources(w http.ResponseWriter, r *http.Request)
-	// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// AddGithubSource Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 	// (POST /github/sources)
 	AddGithubSource(w http.ResponseWriter, r *http.Request)
 	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
@@ -4818,6 +4854,20 @@ func (siw *ServerInterfaceWrapper) RequestWaiver(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ResolveGithubUrl operation middleware
+func (siw *ServerInterfaceWrapper) ResolveGithubUrl(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResolveGithubUrl(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListGithubSources operation middleware
 func (siw *ServerInterfaceWrapper) ListGithubSources(w http.ResponseWriter, r *http.Request) {
 
@@ -5937,6 +5987,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/github", wrapper.SetGithubConnection)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/github/sources", wrapper.ListGithubSources)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources", wrapper.AddGithubSource)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/resolve", wrapper.ResolveGithubUrl)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/github/sources/{sourceId}", wrapper.DeleteGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/sync", wrapper.SyncGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/publish", wrapper.PublishBundle)
@@ -8370,6 +8421,45 @@ func (response RequestWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequ
 	return err
 }
 
+type ResolveGithubUrlRequestObject struct {
+	Body *ResolveGithubUrlJSONRequestBody
+}
+
+type ResolveGithubUrlResponseObject interface {
+	VisitResolveGithubUrlResponse(w http.ResponseWriter) error
+}
+
+type ResolveGithubUrl200JSONResponse GithubResolved
+
+func (response ResolveGithubUrl200JSONResponse) VisitResolveGithubUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveGithubUrldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ResolveGithubUrldefaultApplicationProblemPlusJSONResponse) VisitResolveGithubUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListGithubSourcesRequestObject struct {
 }
 
@@ -10194,10 +10284,13 @@ type StrictServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /bundles/{bundleId}/waivers)
 	RequestWaiver(ctx context.Context, request RequestWaiverRequestObject) (RequestWaiverResponseObject, error)
+	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
+	// (POST /github/resolve)
+	ResolveGithubUrl(ctx context.Context, request ResolveGithubUrlRequestObject) (ResolveGithubUrlResponseObject, error)
 	// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
 	// (GET /github/sources)
 	ListGithubSources(ctx context.Context, request ListGithubSourcesRequestObject) (ListGithubSourcesResponseObject, error)
-	// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// AddGithubSource Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 	// (POST /github/sources)
 	AddGithubSource(ctx context.Context, request AddGithubSourceRequestObject) (AddGithubSourceResponseObject, error)
 	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
@@ -12083,6 +12176,37 @@ func (sh *strictHandler) RequestWaiver(w http.ResponseWriter, r *http.Request, b
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RequestWaiverResponseObject); ok {
 		if err := validResponse.VisitRequestWaiverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResolveGithubUrl operation middleware
+func (sh *strictHandler) ResolveGithubUrl(w http.ResponseWriter, r *http.Request) {
+	var request ResolveGithubUrlRequestObject
+
+	var body ResolveGithubUrlJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResolveGithubUrl(ctx, request.(ResolveGithubUrlRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResolveGithubUrl")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResolveGithubUrlResponseObject); ok {
+		if err := validResponse.VisitResolveGithubUrlResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

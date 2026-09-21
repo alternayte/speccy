@@ -128,7 +128,15 @@ The **score** is passed checks divided by applicable checks. It is for tracking,
 
 ## Try it on your existing specs
 
-Run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
+Point Speccy at a repo on GitHub, with no clone: **From GitHub** on the bundles screen, or
+
+```sh
+speccy add https://github.com/acme/specs/blob/main/docs/prd-payments.md
+```
+
+A repo, a folder in one, or a single doc all work, as does `owner/name`. Speccy shows what the address names before it reads anything. Local mode uses the token of your `gh` login, so run `gh auth login` first; with no `gh`, paste a fine-grained token in Admin → GitHub. Speccy reads through the GitHub API, writes no file into your folder, and never changes the branch: an edit becomes a pull request.
+
+Or run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
 
 ```yaml
 map:                      # single files, with assets in <name>.assets/

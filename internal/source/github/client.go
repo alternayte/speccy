@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,6 +45,12 @@ func (e *Error) Error() string {
 		return "GitHub found nothing at " + e.Path + ". Check the repo and branch names, and that the token can read the repo"
 	}
 	return fmt.Sprintf("GitHub answered %d: %s", e.Status, e.Message)
+}
+
+// IsNotFound says whether an error is GitHub's 404, which a read of an absent file gives.
+func IsNotFound(err error) bool {
+	var e *Error
+	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
 // RepoPattern is owner/name.
@@ -192,6 +199,27 @@ type Change struct {
 type PullRequest struct {
 	Number int    `json:"number"`
 	URL    string `json:"html_url"`
+}
+
+// FileAt reads a file at a ref (a branch, a tag, or a commit). ok is false when the ref has
+// no such file.
+func (c *Client) FileAt(ctx context.Context, repo, ref, p string) (content []byte, ok bool, err error) {
+	var out struct {
+		Content  string `json:"content"`
+		Encoding string `json:"encoding"`
+	}
+	err = c.do(ctx, "GET", repoPath(repo)+"/contents/"+url.PathEscape(p)+"?ref="+url.QueryEscape(ref), nil, &out)
+	if err != nil {
+		if IsNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if out.Encoding != "base64" {
+		return nil, false, fmt.Errorf("%s came back as %q, not base64", p, out.Encoding)
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(out.Content, "\n", ""))
+	return raw, err == nil, err
 }
 
 // Publish commits changes on a new branch from base, and opens a pull request into target

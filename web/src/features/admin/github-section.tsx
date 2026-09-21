@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import {
-  addGithubSourceMutation,
   deleteGithubConnectionMutation,
   deleteGithubSourceMutation,
   getGithubConnectionOptions,
@@ -17,6 +16,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { relativeTime as timeAgo } from "@/features/bundle/time";
 import { problemMessage } from "@/lib/problem";
+import { GitHubDialog } from "@/features/bundle/github-dialog";
 import { Section } from "./admin-page";
 
 // GitHubSection sets the workspace token (DEC-019) and the repos Speccy reads bundles from
@@ -29,6 +29,7 @@ export function GitHubSection() {
     qc.invalidateQueries({ queryKey: getGithubConnectionQueryKey() });
     qc.invalidateQueries({ queryKey: listGithubSourcesQueryKey() });
   };
+  const [adding, setAdding] = useState(false);
   const [token, setToken] = useState("");
   const [apiUrl, setApiUrl] = useState("");
   const [login, setLogin] = useState<string>();
@@ -41,18 +42,6 @@ export function GitHubSection() {
     },
   });
   const remove = useMutation({ ...deleteGithubConnectionMutation(), onSuccess: refresh });
-  const [repo, setRepo] = useState("");
-  const [branch, setBranch] = useState("");
-  const [path, setPath] = useState("");
-  const add = useMutation({
-    ...addGithubSourceMutation(),
-    onSuccess: () => {
-      setRepo("");
-      setBranch("");
-      setPath("");
-      refresh();
-    },
-  });
   const sync = useMutation({ ...syncGithubSourceMutation(), onSuccess: refresh });
   const drop = useMutation({ ...deleteGithubSourceMutation(), onSuccess: refresh });
   const configured = !!conn.data?.configured;
@@ -120,8 +109,8 @@ export function GitHubSection() {
           </div>
         ) : sources.data.items.length === 0 ? (
           <Empty title="No GitHub sources">
-            Add a repo, a branch, and a folder. Speccy reads the bundles in it, and keeps them in step every 5 minutes.
-            Edits in Speccy are drafts until an author publishes them as a pull request.
+            Paste the address of a repo, a folder, or one doc. Speccy reads the bundles in it, and keeps them in step
+            every 5 minutes. Edits in Speccy are drafts until an author publishes them as a pull request.
           </Empty>
         ) : (
           <ul className="divide-y divide-line">
@@ -171,35 +160,17 @@ export function GitHubSection() {
             <ErrorState message={problemMessage(error)} />
           </div>
         ) : null}
-        <form
-          className="grid gap-3 border-t border-line p-4 sm:grid-cols-[2fr_1fr_1fr_auto] sm:items-end"
-          onSubmit={(e) => {
-            e.preventDefault();
-            add.mutate({ body: { repo, branch: branch || undefined, path: path || undefined } });
-          }}
-        >
-          <div>
-            <Label htmlFor="gh-repo">Repo</Label>
-            <Input id="gh-repo" value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="acme/specs" />
-          </div>
-          <div>
-            <Label htmlFor="gh-branch">Branch</Label>
-            <Input id="gh-branch" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="default" />
-          </div>
-          <div>
-            <Label htmlFor="gh-path">Folder</Label>
-            <Input id="gh-path" value={path} onChange={(e) => setPath(e.target.value)} placeholder="docs" />
-          </div>
-          <Button type="submit" variant="primary" disabled={!configured || !repo.trim() || add.isPending}>
-            {add.isPending ? "Reading" : "Add"}
+        <div className="flex flex-wrap items-center gap-3 border-t border-line p-4">
+          <Button variant="primary" disabled={!configured} onClick={() => setAdding(true)}>
+            Add a source
           </Button>
-          {add.isError ? (
-            <div className="sm:col-span-4">
-              <ErrorState message={problemMessage(add.error)} />
-            </div>
-          ) : null}
-          {!configured ? <p className="text-xs text-ink-3 sm:col-span-4">Set a token first.</p> : null}
-        </form>
+          <p className="text-xs text-ink-3">
+            {configured
+              ? "Paste a repo, a folder, or a doc address. Speccy shows what it found before it reads it."
+              : "Set a token first."}
+          </p>
+        </div>
+        <GitHubDialog open={adding} onOpenChange={setAdding} />
       </Section>
     </>
   );

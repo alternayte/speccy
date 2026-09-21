@@ -16,8 +16,9 @@ import (
 
 var errNoGitHubToken = kernel.Invalid("github_not_configured", "No GitHub token is set. An admin sets one in Admin → GitHub.")
 
-// GitHubClient returns the GitHub client with the workspace token (DEC-019).
-func (a *API) GitHubClient(ctx context.Context) (*github.Client, error) {
+// GitHubClient returns the GitHub client with the workspace token (DEC-019). apiURL names the
+// host of the source; a token set for one host does not reach another.
+func (a *API) GitHubClient(ctx context.Context, apiURL string) (*github.Client, error) {
 	row, err := a.DB.Queries().GetGithubConnection(ctx, a.Workspace)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errNoGitHubToken
@@ -28,6 +29,9 @@ func (a *API) GitHubClient(ctx context.Context) (*github.Client, error) {
 	token, err := a.Sealer.Open(row.TokenEncrypted)
 	if err != nil {
 		return nil, err
+	}
+	if apiURL != "" && apiURL != row.ApiUrl {
+		return nil, kernel.Invalid("github_other_host", "The workspace token is for %s, and this address is on %s. An admin sets the token in Admin → GitHub.", row.ApiUrl, apiURL)
 	}
 	return &github.Client{API: row.ApiUrl, Token: string(token)}, nil
 }
@@ -46,9 +50,6 @@ func (a *API) GetGithubConnection(ctx context.Context, _ api.GetGithubConnection
 
 // SetGithubConnection checks the token with GitHub, then stores it encrypted (SDD §14.1).
 func (a *API) SetGithubConnection(ctx context.Context, req api.SetGithubConnectionRequestObject) (api.SetGithubConnectionResponseObject, error) {
-	if a.Accounts == nil {
-		return nil, kernel.Invalid("github_unavailable", "GitHub sources are for hosted mode. In local mode, clone the repo and run speccy in it.")
-	}
 	token := strings.TrimSpace(req.Body.Token)
 	apiURL := github.DefaultAPI
 	if req.Body.ApiUrl != nil && strings.TrimSpace(*req.Body.ApiUrl) != "" {

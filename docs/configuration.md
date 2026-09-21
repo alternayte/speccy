@@ -18,6 +18,7 @@ Speccy keeps its state in `<dir>/.speccy/state/`. Do not commit that folder.
 |---|---|
 | `speccy review <path…>` | Reviews the bundles in the paths. A folder names every bundle in it; a file names its bundle. |
 | `speccy init` | Writes `.speccy.yaml`, adds `.speccy/state/` to `.gitignore`, and offers to give loose markdown files a type. |
+| `speccy add <url>` | Makes a GitHub source from a source URL: `owner/name`, a repo URL, or the URL of a folder or a doc. Local mode takes the token from `gh auth token`; with no `gh` login, paste a fine-grained token in Admin → GitHub. Speccy never runs `git`. |
 | `speccy tui` | The terminal UI. It uses `$VISUAL` or `$EDITOR` to open files. |
 | `speccy mcp` | The MCP server over stdio. |
 | `speccy profile validate <file>` | Checks a profile file against the schema and prints each error with its path. |

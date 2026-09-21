@@ -17,8 +17,9 @@ SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY
 SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 
 -- name: InsertGithubSource :exec
-INSERT INTO github_source (id, workspace_id, repo, branch, path, created_by, created_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(repo), sqlc.arg(branch), sqlc.arg(path), sqlc.arg(created_by), sqlc.arg(created_at));
+INSERT INTO github_source (id, workspace_id, repo, branch, path, is_file, profile, api_url, created_by, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(repo), sqlc.arg(branch), sqlc.arg(path), sqlc.arg(is_file),
+        sqlc.arg(profile), sqlc.arg(api_url), sqlc.arg(created_by), sqlc.arg(created_at));
 
 -- name: DeleteGithubSource :exec
 DELETE FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);

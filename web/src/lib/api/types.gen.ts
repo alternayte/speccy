@@ -678,10 +678,46 @@ export type GithubSource = {
     repo: string;
     branch: string;
     path: string;
+    /**
+     * The path names one doc (REQ-128).
+     */
+    file: boolean;
     head_commit: string;
     synced_at?: string;
     error: string;
     bundles: number;
+};
+
+export type GithubResolved = {
+    repo: string;
+    /**
+     * The branch of the URL, or the repo's default branch.
+     */
+    branch: string;
+    /**
+     * The folder, the doc, or "." for the whole repo.
+     */
+    path: string;
+    /**
+     * The path names one doc.
+     */
+    file: boolean;
+    /**
+     * The title of the doc a one-doc URL names.
+     */
+    title?: string;
+    /**
+     * The profile the doc names or a mapping gives, or the guess when it has neither.
+     */
+    profile?: string;
+    /**
+     * The profile is a guess, so the person confirms it before the source is made.
+     */
+    guessed?: boolean;
+    /**
+     * The profile keys to choose from.
+     */
+    profiles: Array<string>;
 };
 
 export type FindingList = {
@@ -3930,17 +3966,13 @@ export type ListGithubSourcesResponse = ListGithubSourcesResponses[keyof ListGit
 export type AddGithubSourceData = {
     body: {
         /**
-         * owner/name
+         * A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
          */
-        repo: string;
+        url: string;
         /**
-         * The default is the repo's default branch.
+         * The profile of a one-doc source whose doc has no type and no mapping.
          */
-        branch?: string;
-        /**
-         * The folder in the repo. The default is the whole repo.
-         */
-        path?: string;
+        profile?: string;
     };
     path?: never;
     query?: never;
@@ -3964,6 +3996,33 @@ export type AddGithubSourceResponses = {
 };
 
 export type AddGithubSourceResponse = AddGithubSourceResponses[keyof AddGithubSourceResponses];
+
+export type ResolveGithubUrlData = {
+    body: {
+        url: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/github/resolve';
+};
+
+export type ResolveGithubUrlErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ResolveGithubUrlError = ResolveGithubUrlErrors[keyof ResolveGithubUrlErrors];
+
+export type ResolveGithubUrlResponses = {
+    /**
+     * What the URL names.
+     */
+    200: GithubResolved;
+};
+
+export type ResolveGithubUrlResponse = ResolveGithubUrlResponses[keyof ResolveGithubUrlResponses];
 
 export type DeleteGithubSourceData = {
     body?: never;

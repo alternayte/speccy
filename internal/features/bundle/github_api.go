@@ -5,18 +5,22 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 )
 
 func (a *API) sourceAPI(ctx context.Context, src pgdb.GithubSource) (api.GithubSource, error) {
-	out := api.GithubSource{Id: src.ID, Repo: src.Repo, Branch: src.Branch, Path: src.Path, HeadCommit: src.HeadCommit, Error: src.Error}
+	out := api.GithubSource{Id: src.ID, Repo: src.Repo, Branch: src.Branch, Path: src.Path, File: src.IsFile,
+		HeadCommit: src.HeadCommit, Error: src.Error}
 	if src.SyncedAt.Valid {
 		t := src.SyncedAt.Time.UTC()
 		out.SyncedAt = &t
@@ -52,42 +56,142 @@ func (a *API) ListGithubSources(ctx context.Context, _ api.ListGithubSourcesRequ
 	return out, nil
 }
 
-// AddGithubSource checks that the token can read the repo, adds the source, and syncs it.
-func (a *API) AddGithubSource(ctx context.Context, req api.AddGithubSourceRequestObject) (api.AddGithubSourceResponseObject, error) {
+// resolve reads a source URL and asks GitHub what it names: the branch, the folder or the
+// doc, and the profile the doc would use (REQ-128). It makes no source.
+func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubResolved, error) {
 	s := a.Service
-	c, err := s.github(ctx)
+	ref, err := github.ParseURL(raw)
+	if err != nil {
+		return ref, api.GithubResolved{}, kernel.Invalid("bad_url", "%s.", sentence(err.Error()))
+	}
+	c, err := s.github(ctx, ref.APIURL())
+	if err != nil {
+		return ref, api.GithubResolved{}, err
+	}
+	def, err := c.Repo(ctx, ref.Repo)
+	if err != nil {
+		return ref, api.GithubResolved{}, repoUnreadable(ref.Repo, err)
+	}
+	if ref.Branch == "" {
+		ref.Branch = def
+	}
+	out := api.GithubResolved{Repo: ref.Repo, Branch: ref.Branch, Path: ref.Path, File: ref.File, Profiles: a.profileKeys()}
+	if !ref.File {
+		return ref, out, nil
+	}
+	// A one-doc URL: the doc says its type, or the repo's .speccy.yaml maps it, or Speccy
+	// guesses and the person confirms (REQ-128).
+	content, ok, err := c.FileAt(ctx, ref.Repo, ref.Branch, ref.Path)
+	if err != nil {
+		return ref, out, repoUnreadable(ref.Repo, err)
+	}
+	if !ok {
+		return ref, out, kernel.NotFound("doc_not_found", "%s is not on %s of %s.", ref.Path, ref.Branch, ref.Repo)
+	}
+	if !source.IsMarkdown(ref.Path) {
+		return ref, out, kernel.Invalid("not_markdown", "%s is not a markdown file. A bundle's main doc is markdown.", ref.Path)
+	}
+	fm, _, _ := source.ReadFrontmatter(content)
+	key, guessed := fm.Type, false
+	if key == "" {
+		if cfg, err := a.repoConfig(ctx, c, ref); err == nil {
+			key, _ = cfg.MappedProfile(ref.Path)
+		}
+	}
+	if key == "" {
+		key, _ = profile.Guess(a.Profiles(), content)
+		guessed = true
+	}
+	if key != "" {
+		out.Profile, out.Guessed = &key, &guessed
+	}
+	if t := docTitle(content); t != "" {
+		out.Title = &t
+	}
+	return ref, out, nil
+}
+
+// repoConfig reads the .speccy.yaml of the ref's branch. A repo with none maps nothing.
+func (a *API) repoConfig(ctx context.Context, c *github.Client, ref github.Ref) (source.RepoConfig, error) {
+	raw, ok, err := c.FileAt(ctx, ref.Repo, ref.Branch, source.RepoConfigFile)
+	if err != nil || !ok {
+		return source.RepoConfig{}, err
+	}
+	return source.ParseRepoConfig(raw)
+}
+
+func (a *API) profileKeys() []string {
+	out := make([]string, 0, len(a.Profiles()))
+	for k := range a.Profiles() {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// docTitle is the first heading of a doc, for the dialog.
+func docTitle(content []byte) string {
+	for _, line := range strings.Split(string(content), "\n") {
+		if t, ok := strings.CutPrefix(strings.TrimSpace(line), "# "); ok {
+			return strings.TrimSpace(t)
+		}
+	}
+	return ""
+}
+
+// repoUnreadable says that the credentials cannot read the repo, which GitHub answers with a
+// 404 for a private repo (REQ-129).
+func repoUnreadable(repo string, err error) error {
+	if github.IsNotFound(err) {
+		return kernel.Invalid("repo_no_access", "The GitHub credentials have no access to %s. It may be private, or the token may not cover it.", repo)
+	}
+	return kernel.Invalid("repo_unreadable", "Speccy cannot read %s: %s.", repo, strings.TrimSuffix(err.Error(), "."))
+}
+
+// ResolveGithubUrl says what a source URL names, before the source is made (REQ-128).
+func (a *API) ResolveGithubUrl(ctx context.Context, req api.ResolveGithubUrlRequestObject) (api.ResolveGithubUrlResponseObject, error) {
+	_, out, err := a.resolve(ctx, req.Body.Url)
 	if err != nil {
 		return nil, err
 	}
-	repo := strings.Trim(strings.TrimSpace(req.Body.Repo), "/")
-	repo = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(repo, "https://github.com/"), "github.com/"), ".git")
-	if !github.RepoPattern.MatchString(repo) {
-		return nil, kernel.Invalid("bad_repo", "Name the repo as owner/name, such as acme/specs.")
-	}
-	branch := ""
-	if req.Body.Branch != nil {
-		branch = strings.TrimSpace(*req.Body.Branch)
-	}
-	def, err := c.Repo(ctx, repo)
+	return api.ResolveGithubUrl200JSONResponse(out), nil
+}
+
+// AddGithubSource makes a source from a source URL and syncs it once (REQ-128).
+func (a *API) AddGithubSource(ctx context.Context, req api.AddGithubSourceRequestObject) (api.AddGithubSourceResponseObject, error) {
+	s := a.Service
+	ref, res, err := a.resolve(ctx, req.Body.Url)
 	if err != nil {
-		return nil, kernel.Invalid("repo_unreadable", "Speccy cannot read %s: %s.", repo, strings.TrimSuffix(err.Error(), "."))
+		return nil, err
 	}
-	if branch == "" {
-		branch = def
+	key := ""
+	if req.Body.Profile != nil {
+		key = strings.TrimSpace(*req.Body.Profile)
 	}
-	p := "."
-	if req.Body.Path != nil && strings.Trim(*req.Body.Path, "/ ") != "" {
-		p = strings.Trim(strings.TrimSpace(*req.Body.Path), "/")
+	if key == "" && res.Profile != nil {
+		key = *res.Profile
 	}
-	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: repo, Branch: branch, Path: p,
+	if ref.File {
+		if key == "" {
+			return nil, kernel.Invalid("no_profile", "%s names no type, and Speccy cannot guess one. Name a profile: %s.",
+				ref.Path, strings.Join(a.profileKeys(), ", "))
+		}
+		if _, ok := a.Profiles()[key]; !ok {
+			return nil, kernel.Invalid("no_such_profile", "There is no profile %q. The profiles are: %s.", key, strings.Join(a.profileKeys(), ", "))
+		}
+	} else {
+		key = ""
+	}
+	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: ref.Repo, Branch: ref.Branch,
+		Path: ref.Path, IsFile: ref.File, Profile: key, ApiUrl: ref.APIURL(),
 		CreatedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: time.Now().UTC()}
 	if err := s.DB.Queries().InsertGithubSource(ctx, src); err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique") {
-			return nil, kernel.Conflict("source_exists", "Speccy already reads %s on %s at %s.", repo, branch, p)
+			return nil, kernel.Conflict("source_exists", "Speccy already reads %s on %s at %s.", ref.Repo, ref.Branch, ref.Path)
 		}
 		return nil, err
 	}
-	// A failed first sync keeps the source, with its error, so the admin can fix and retry.
+	// A failed first sync keeps the source, with its error, so a person can fix and retry.
 	_ = s.SyncSource(ctx, src.ID, true)
 	row, err := s.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: src.ID})
 	if err != nil {

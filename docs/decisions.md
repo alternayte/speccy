@@ -670,3 +670,9 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Alternative:** Keep the plain list of lines, or draw bordered panes around every region.
 - **Reason:** The old TUI wrote a few lines at the top and left the rest of the terminal empty, with no column headers, no focus, and no way to see every key. Borders around everything would cost four columns per pane at the 80-column floor.
 - **Test:** `TestView_FrameFitsTheTerminal` checks that every line is exactly as wide as the terminal and the frame is exactly as tall, at four sizes and on every screen. It found the overflowing title bar.
+
+## 2026-09-21 — A GitHub URL as the way in
+
+- **Choice:** A source URL makes a GitHub source in local mode and in hosted mode: `owner/name`, a repo URL, a `tree` URL, or a `blob` URL. `POST /github/resolve` says what the URL names before the source exists, and the dialog and `speccy add` both use it. A `blob` URL makes a one-doc source: `github_source` gains `is_file`, `profile`, and `api_url`, and the sync maps that doc so the single-file bundle rule (REQ-131) makes the bundle, with its `<name>.assets/` folder. Local mode gets its token from `gh auth token --hostname <host>` for each call and stores nothing, with a pasted fine-grained token as the fallback; the error says which of gh missing, gh logged out, or no access stopped it. Both modes poll every 5 minutes. A 404 on the repo reads as "no access", not "not found".
+- **Alternative:** Clone the repo to disk in local mode, or read it with `gh api`.
+- **Reason:** A copy on disk with no git behind it becomes a second truth, and the app already reads a repo tree through an `fs.FS`, so the scan rules are the same for a folder and a repo. `gh` gives the credential the machine already holds; using it for more than the token would be a second way to read a repo.

@@ -158,6 +158,7 @@ var operations = map[string]access{
 	"setGithubConnection":    adminOnly,
 	"deleteGithubConnection": adminOnly,
 	"listGithubSources":      member,
+	"resolveGithubUrl":       adminOnly,
 	"addGithubSource":        adminOnly,
 	"deleteGithubSource":     adminOnly,
 	"syncGithubSource":       adminOnly,

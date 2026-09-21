@@ -604,19 +604,33 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ResolveGithubUrlWithBody Read a source URL and say what it names, before the source is made (REQ-128).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+	ResolveGithubUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+	ResolveGithubUrl(ctx context.Context, body ResolveGithubUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
 	//
 	// Corresponds with GET /github/sources (the `ListGithubSources` operationId).
 	ListGithubSources(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AddGithubSourceWithBody Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// AddGithubSourceWithBody Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
 	AddGithubSourceWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// AddGithubSource Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -2297,6 +2311,40 @@ func (c *Client) RequestWaiver(ctx context.Context, bundleId BundleId, body Requ
 	return c.Client.Do(req)
 }
 
+// ResolveGithubUrlWithBody Read a source URL and say what it names, before the source is made (REQ-128).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+func (c *Client) ResolveGithubUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResolveGithubUrlRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+func (c *Client) ResolveGithubUrl(ctx context.Context, body ResolveGithubUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResolveGithubUrlRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListGithubSources The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
 //
 // Corresponds with GET /github/sources (the `ListGithubSources` operationId).
@@ -2312,7 +2360,7 @@ func (c *Client) ListGithubSources(ctx context.Context, reqEditors ...RequestEdi
 	return c.Client.Do(req)
 }
 
-// AddGithubSourceWithBody Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+// AddGithubSourceWithBody Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 //
 // Takes any type of body and a specified content type.
 //
@@ -2329,7 +2377,7 @@ func (c *Client) AddGithubSourceWithBody(ctx context.Context, contentType string
 	return c.Client.Do(req)
 }
 
-// AddGithubSource Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+// AddGithubSource Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -5800,6 +5848,46 @@ func NewRequestWaiverRequestWithBody(server string, bundleId BundleId, contentTy
 	return req, nil
 }
 
+// NewResolveGithubUrlRequest calls the generic ResolveGithubUrl builder with application/json body
+func NewResolveGithubUrlRequest(server string, body ResolveGithubUrlJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewResolveGithubUrlRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewResolveGithubUrlRequestWithBody constructs an http.Request for the ResolveGithubUrl method, with any body, and a specified content type
+func NewResolveGithubUrlRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/resolve")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListGithubSourcesRequest constructs an http.Request for the ListGithubSources method
 func NewListGithubSourcesRequest(server string) (*http.Request, error) {
 	var err error
@@ -7942,6 +8030,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
 
+	// ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+	ResolveGithubUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolveGithubUrlResponse, error)
+
+	// ResolveGithubUrlWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+	ResolveGithubUrlWithResponse(ctx context.Context, body ResolveGithubUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*ResolveGithubUrlResponse, error)
+
 	// ListGithubSourcesWithResponse The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -7949,14 +8051,14 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /github/sources (the `ListGithubSources` operationId).
 	ListGithubSourcesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListGithubSourcesResponse, error)
 
-	// AddGithubSourceWithBodyWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// AddGithubSourceWithBodyWithResponse Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /github/sources (the `AddGithubSource` operationId).
 	AddGithubSourceWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddGithubSourceResponse, error)
 
-	// AddGithubSourceWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+	// AddGithubSourceWithResponse Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -11267,6 +11369,54 @@ func (r RequestWaiverResponse) ContentType() string {
 	return ""
 }
 
+type ResolveGithubUrlResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubResolved
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ResolveGithubUrlResponse) GetJSON200() *GithubResolved {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ResolveGithubUrlResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ResolveGithubUrlResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ResolveGithubUrlResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ResolveGithubUrlResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ResolveGithubUrlResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListGithubSourcesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14320,6 +14470,32 @@ func (c *ClientWithResponses) RequestWaiverWithResponse(ctx context.Context, bun
 	return ParseRequestWaiverResponse(rsp)
 }
 
+// ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+func (c *ClientWithResponses) ResolveGithubUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolveGithubUrlResponse, error) {
+	rsp, err := c.ResolveGithubUrlWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResolveGithubUrlResponse(rsp)
+}
+
+// ResolveGithubUrlWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/resolve (the `ResolveGithubUrl` operationId).
+func (c *ClientWithResponses) ResolveGithubUrlWithResponse(ctx context.Context, body ResolveGithubUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*ResolveGithubUrlResponse, error) {
+	rsp, err := c.ResolveGithubUrl(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResolveGithubUrlResponse(rsp)
+}
+
 // ListGithubSourcesWithResponse The GitHub repos, branches, and folders that Speccy reads bundles from (REQ-123).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -14333,7 +14509,7 @@ func (c *ClientWithResponses) ListGithubSourcesWithResponse(ctx context.Context,
 	return ParseListGithubSourcesResponse(rsp)
 }
 
-// AddGithubSourceWithBodyWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+// AddGithubSourceWithBodyWithResponse Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -14346,7 +14522,7 @@ func (c *ClientWithResponses) AddGithubSourceWithBodyWithResponse(ctx context.Co
 	return ParseAddGithubSourceResponse(rsp)
 }
 
-// AddGithubSourceWithResponse Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+// AddGithubSourceWithResponse Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -17046,6 +17222,39 @@ func ParseRequestWaiverResponse(rsp *http.Response) (*RequestWaiverResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Waiver
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseResolveGithubUrlResponse parses an HTTP response from a ResolveGithubUrlWithResponse call
+func ParseResolveGithubUrlResponse(rsp *http.Response) (*ResolveGithubUrlResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ResolveGithubUrlResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubResolved
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
