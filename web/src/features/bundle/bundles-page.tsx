@@ -153,22 +153,26 @@ export function BundlesPage() {
                   <Link
                     to="/bundles/$bundleId"
                     params={{ bundleId: b.id }}
-                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-sunken sm:grid-cols-[1fr_11rem_4rem_14rem_3rem_6rem]"
+                    className="flex flex-col gap-1.5 px-4 py-3 transition-colors hover:bg-sunken sm:grid sm:grid-cols-[1fr_11rem_4rem_14rem_3rem_6rem] sm:items-center sm:gap-x-4 sm:gap-y-1"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink">{b.title}</span>
                       <span className="block truncate font-mono text-xs text-ink-3">{b.slug}</span>
                     </span>
-                    <span className="col-start-1 sm:col-start-auto">
-                      {b.run_error ? (
-                        <span className="text-xs text-bad">Cannot review</span>
-                      ) : (
-                        <VerdictPill verdict={b.verdict} />
-                      )}
-                    </span>
-                    <span className="row-start-1 justify-self-end sm:row-start-auto sm:justify-self-start">
-                      <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-2xs tracking-wide text-ink-2 uppercase">
-                        {b.profile_key}
+                    {/* The title leads the row. Below it, the state and the type sit on one
+                        line, so a narrow screen keeps the same order as a wide one. */}
+                    <span className="flex items-center gap-2 sm:contents">
+                      <span className="whitespace-nowrap">
+                        {b.run_error ? (
+                          <span className="text-xs text-bad">Cannot review</span>
+                        ) : (
+                          <VerdictPill verdict={b.verdict} />
+                        )}
+                      </span>
+                      <span className="whitespace-nowrap">
+                        <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-2xs tracking-wide text-ink-2 uppercase">
+                          {b.profile_key}
+                        </span>
                       </span>
                     </span>
                     <span className="col-start-1 hidden truncate text-xs text-ink-2 sm:col-start-auto sm:block">
