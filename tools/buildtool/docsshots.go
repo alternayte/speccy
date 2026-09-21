@@ -146,10 +146,12 @@ func (d *shots) gif(name, url string, speed int, act func() error) error {
 	return nil
 }
 
-// railTab selects one tab of the review rail by its place. The names carry a count, so a name
-// does not select them.
-func railTab(n int) string {
-	return fmt.Sprintf("[role=tablist] button:nth-child(%d)", n)
+// tab clicks one tab of the review rail by its label. A tab appears only when the doc's state
+// earns it, so its place moves; and its name carries a count, so a name does not select it.
+func (d *shots) tab(label string) error {
+	js := fmt.Sprintf(`(() => { const b=[...document.querySelectorAll("[role=tab]")].find(x=>x.textContent.trim().startsWith(%q)); if(!b) throw new Error("no tab "+%q); b.click(); return true; })()`, label, label)
+	_, err := d.ab("eval", js)
+	return err
 }
 
 // scaleDown rewrites a picture at docsWidth.
@@ -240,7 +242,7 @@ func (d *shots) guide(s *server, model string) error {
 		return err
 	}
 	if err := d.png("guide-findings", u("/bundles/"+draft.ID+"?view=preview"), func() error {
-		if _, err := d.ab("click", railTab(1)); err != nil {
+		if err := d.tab("Findings"); err != nil {
 			return err
 		}
 		_, err := d.ab("wait", "600")
@@ -249,7 +251,7 @@ func (d *shots) guide(s *server, model string) error {
 		return err
 	}
 	if err := d.png("guide-questions", u("/bundles/"+draft.ID+"?view=preview"), func() error {
-		if _, err := d.ab("click", railTab(3)); err != nil {
+		if err := d.tab("Evidence"); err != nil {
 			return err
 		}
 		_, err := d.ab("wait", "600")
@@ -312,7 +314,7 @@ func (d *shots) guide(s *server, model string) error {
 		return err
 	}
 	if err := d.png("guide-handoff", u("/bundles/"+ready.ID+"?view=preview"), func() error {
-		if _, err := d.ab("click", railTab(4)); err != nil {
+		if err := d.tab("History"); err != nil {
 			return err
 		}
 		_, err := d.ab("wait", "600")

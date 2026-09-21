@@ -1,8 +1,7 @@
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { ChevronDown, Compass, Download, FileText, FolderTree, ListChecks, Network, Printer } from "lucide-react";
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { ListChecks } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Divider, useDivider } from "@/components/ui/divider";
@@ -11,9 +10,9 @@ import { EditorPane, type View } from "@/features/editor/editor-pane";
 import {
   getBundleAccessOptions,
   getBundleOptions,
-  getRunOptions,
   listFilesOptions,
   listFindingsOptions,
+  listHandoffsOptions,
   listWaiversOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
@@ -21,7 +20,7 @@ import { GitHubControl } from "./github-control";
 import { ShareDialog } from "./share-dialog";
 import { ReviewStatus } from "./review-status";
 import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
-import type { Anchor, Finding, Waiver } from "@/lib/api";
+import type { Anchor, Finding, NextAction, Waiver } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 import { EvidencePanel } from "./evidence-panel";
 import { QuestionsPanel } from "./questions-panel";
@@ -29,21 +28,21 @@ import { Explorer } from "./explorer";
 import { FindingsPanel, waiverCovers } from "./findings-panel";
 import type { BundleSearch } from "./search";
 import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
-import { VerdictBar } from "./verdict";
-import { AdoptBar } from "./adopt-bar";
 import { VersionsPanel } from "./versions-panel";
 import { HandoffsPanel } from "./handoffs-panel";
 import { ReviewerPage } from "@/features/review/reviewer-page";
+import { ControlRow } from "./control-row";
+import { adoptFrontmatterMutation } from "@/lib/api/@tanstack/react-query.gen";
 import { useReviewerMode } from "@/features/review/mode";
 
 type Panel = "files" | "rail" | null;
-type RailTab = "findings" | "threads" | "evidence" | "versions";
+type RailTab = "findings" | "threads" | "evidence" | "history";
 
 const railLabels: Record<RailTab, string> = {
   findings: "Findings",
   threads: "Threads",
   evidence: "Evidence",
-  versions: "Versions",
+  history: "History",
 };
 
 export function BundlePage({ bundleId, search }: { bundleId: string; search: BundleSearch }) {
@@ -80,7 +79,11 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   }, [dirty]);
 
   const selected = search.file ?? bundle.data?.main_doc ?? "";
-  const view: View = search.view ?? "split";
+  const view: View = search.view ?? lastView();
+
+  useEffect(() => {
+    if (search.view) saveView(search.view);
+  }, [search.view]);
 
   const setSearch = useCallback(
     (next: BundleSearch) => navigate({ to: "/bundles/$bundleId", params: { bundleId }, search: next, replace: true }),
@@ -107,17 +110,16 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
     qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
   }, [qc, bundleId]);
   const run = useActiveRun(bundleId, refresh);
-  const verdictRun = bundle.data?.verdict?.kind === "full" ? bundle.data.verdict.run_id : undefined;
-  const report = useQuery({ ...getRunOptions({ path: { runId: verdictRun ?? "" } }), enabled: !!verdictRun });
   const findingsRun = bundle.data?.verdict?.run_id;
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: findingsRun ?? "" } }), enabled: !!findingsRun });
   const me = useMe();
   const hosted = me.data?.mode === "hosted";
   const guest = !!me.data?.guest;
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
-  // Waivers that wait for this person: the verdict bar counts them, and the rail opens them.
+  // History holds the versions and the handoffs. A v1 doc with a handoff has history too.
+  const handoffs = useQuery(listHandoffsOptions({ path: { bundleId } }));
+  // Waivers that wait for this person: the next action opens the first one.
   const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
-  const waiting = (waivers.data?.items ?? []).filter((w) => w.status === "requested" && w.can_approve);
   // openWaiver shows a waiver where it can be judged: the rail selects the finding it excuses,
   // and the preview focuses the whole section the waiver covers (SDD §9.1).
   const mainDoc = bundle.data?.main_doc;
@@ -150,6 +152,48 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const explorer = useDivider({ key: "speccy-explorer-width", from: "left", min: 180, max: 480, initial: 248 });
   const rail = useDivider({ key: "speccy-rail-width", from: "right", min: 260, max: 560, initial: 320 });
   const mode = useReviewerMode(bundleId);
+  // The control row opens the same dialogs as the buttons it holds.
+  const runReview = useRef<() => void>(undefined);
+  const askReview = useRef<() => void>(undefined);
+  const adopt = useMutation({ ...adoptFrontmatterMutation(), onSuccess: () => refresh() });
+
+  // doNext does the one thing the server named (SDD §13.4).
+  const doNext = (next?: NextAction) => {
+    if (!next) return;
+    switch (next.kind) {
+      case "waiver": {
+        const w = waivers.data?.items.find((x) => x.id === next.waiver_id);
+        if (w) openWaiver(w);
+        return;
+      }
+      case "decide":
+        navigate({ to: "/bundles/$bundleId/tour", params: { bundleId } });
+        return;
+      case "fix": {
+        setTab("findings");
+        setPanel("rail");
+        const f = (findings.data?.items ?? []).find((x) => x.id === next.finding_id);
+        if (f) {
+          setSelectedFinding(f.id);
+          openFinding(f);
+        }
+        return;
+      }
+      case "review":
+        runReview.current?.();
+        return;
+      case "adopt":
+        adopt.mutate({ path: { bundleId } });
+        return;
+      case "request_review":
+        askReview.current?.();
+        return;
+      case "handoff":
+        setTab("history");
+        setPanel("rail");
+        return;
+    }
+  };
   // Local mode: the one user edits everything. Hosted: authors and admins (SDD §3).
   const canEdit = !hosted || !!access.data?.can_edit;
 
@@ -165,103 +209,59 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
     );
   const b = bundle.data;
   const file = files.data?.items.find((f) => f.path === selected);
+  // Each panel earns its place from the doc's state: an empty tab teaches nothing (SDD §13.4).
+  const reviewed = !!b.verdict;
+  const assets = (files.data?.items.length ?? 1) > 1;
+  const tabs: RailTab[] = [
+    ...(reviewed ? (["findings"] as const) : []),
+    "threads",
+    ...(b.verdict?.kind === "full" ? (["evidence"] as const) : []),
+    ...(b.current_version.number > 1 || (handoffs.data?.items.length ?? 0) > 0 ? (["history"] as const) : []),
+  ];
+  const shownTab = tabs.includes(tab) ? tab : "threads";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="no-print flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-3 py-2 sm:px-4">
-        <div className="flex items-center gap-1 lg:hidden">
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-label="Files"
-            icon={<FolderTree className="size-4" />}
-            onClick={() => setPanel(panel === "files" ? null : "files")}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold tracking-tight">{b.title}</h1>
-          <p className="truncate font-mono text-2xs text-ink-3">
-            {b.slug} · <span className="uppercase">{b.profile_key}</span> · v{b.current_version.number}
-          </p>
-        </div>
-        <Link to="/bundles/$bundleId/tour" params={{ bundleId }} className={navLink}>
-          <Compass aria-hidden className="size-3.5" />
-          <span className="hidden sm:inline">Tour</span>
-          <span className="sr-only sm:hidden">Tour</span>
-        </Link>
-        <Link to="/bundles/$bundleId/trace" params={{ bundleId }} className={navLink}>
-          <Network aria-hidden className="size-3.5" />
-          <span className="hidden sm:inline">Traceability</span>
-          <span className="sr-only sm:hidden">Traceability</span>
-        </Link>
-        <div className="flex items-center gap-1.5">
-          {guest ? null : <GitHubControl bundle={b} canEdit={canEdit} />}
-          {guest ? null : <ReviewStatus bundleId={bundleId} signedIn={!guest} />}
-          {hosted && canEdit ? <ShareDialog bundleId={bundleId} /> : null}
-          {guest ? null : <RunReviewButton bundleId={bundleId} active={!!run.active} onStarted={() => run.refetch()} />}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="xl:hidden"
-            aria-label="Findings and versions"
-            icon={<ListChecks className="size-4" />}
-            onClick={() => setPanel(panel === "rail" ? null : "rail")}
-          />
-          <Menu
-            trigger={
-              <Button variant="ghost" size="sm" icon={<Download className="size-3.5" />} aria-label="Export">
-                <span className="hidden sm:inline">Export</span>
-                <ChevronDown aria-hidden className="size-3.5" />
-              </Button>
-            }
-          >
-            <MenuItem
-              icon={<FileText className="size-3.5" />}
-              onSelect={() => window.location.assign(`/api/v1/bundles/${bundleId}/export?format=html`)}
-            >
-              HTML report
-            </MenuItem>
-            <MenuItem
-              icon={<Printer className="size-3.5" />}
-              onSelect={() => {
-                if (view === "code") setSearch({ ...search, view: "preview" });
-                setTimeout(() => window.print(), 300);
-              }}
-            >
-              Print, or save as PDF
-            </MenuItem>
-            <MenuItem
-              icon={<Download className="size-3.5" />}
-              onSelect={() => window.location.assign(`/api/v1/bundles/${bundleId}/export`)}
-            >
-              Bundle as .zip
-            </MenuItem>
-          </Menu>
-        </div>
-      </div>
+      <ControlRow
+        bundle={b}
+        next={b.next_action}
+        busy={!!run.active}
+        onNext={() => doNext(b.next_action)}
+        onFiles={() => setPanel(panel === "files" ? null : "files")}
+        onRunReview={() => runReview.current?.()}
+        onRequestReview={hosted ? () => askReview.current?.() : undefined}
+        onExport={(format) =>
+          window.location.assign(`/api/v1/bundles/${bundleId}/export${format === "html" ? "?format=html" : ""}`)
+        }
+        onPrint={() => {
+          if (view === "code") setSearch({ ...search, view: "preview" });
+          setTimeout(() => window.print(), 300);
+        }}
+        extra={
+          <>
+            <GitHubControl bundle={b} canEdit={canEdit} />
+            <ReviewStatus bundleId={bundleId} signedIn register={(f) => (askReview.current = f)} />
+            {hosted ? <ShareDialog bundleId={bundleId} /> : null}
+            <RunReviewButton
+              bundleId={bundleId}
+              active={!!run.active}
+              onStarted={() => run.refetch()}
+              register={(f) => (runReview.current = f)}
+              button={false}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="xl:hidden"
+              aria-label="Findings and history"
+              icon={<ListChecks className="size-4" />}
+              onClick={() => setPanel(panel === "rail" ? null : "rail")}
+            />
+          </>
+        }
+      />
 
-      <div className="no-print">
-        {run.active ? <RunProgress events={run.events} /> : null}
-        <AdoptBar bundleId={bundleId} adopt={b.adopt} canEdit={canEdit} />
-        <VerdictBar
-          verdict={b.verdict}
-          runError={b.run_error}
-          currentVersion={b.current_version.number}
-          report={report.data}
-          bundleId={bundleId}
-          onShowFindings={() => {
-            setTab("findings");
-            setPanel("rail");
-          }}
-          waiting={waiting.length}
-          onShowWaivers={() => {
-            setTab("findings");
-            setPanel("rail");
-            // The rail sorts a finding with a waiver request to the top, so it is already there.
-            setSelectedFinding(undefined);
-          }}
-        />
-      </div>
+      <div className="no-print">{run.active ? <RunProgress events={run.events} /> : null}</div>
 
       <div className="relative flex min-h-0 flex-1">
         <aside
@@ -270,7 +270,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             "no-print shrink-0 border-r border-line bg-surface",
             panel === "files"
               ? "absolute inset-y-0 left-0 z-20 shadow-pop lg:static lg:shadow-none"
-              : "hidden lg:block",
+              : assets
+                ? "hidden lg:block"
+                : "hidden",
           )}
         >
           {files.isError ? (
@@ -295,7 +297,11 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           )}
         </aside>
 
-        <Divider label="Width of the file explorer" className="hidden lg:block" {...explorer.props} />
+        <Divider
+          label="Width of the file explorer"
+          className={assets ? "hidden lg:block" : "hidden"}
+          {...explorer.props}
+        />
 
         <main className="min-w-0 flex-1">
           {files.data && !file ? (
@@ -368,16 +374,16 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               aria-label="Review"
               className="flex h-10 shrink-0 items-end gap-2 border-b border-line px-3 whitespace-nowrap"
             >
-              {(["findings", "threads", "evidence", "versions"] as const).map((t) => (
+              {tabs.map((t) => (
                 <button
                   key={t}
                   role="tab"
                   type="button"
-                  aria-selected={tab === t}
+                  aria-selected={shownTab === t}
                   onClick={() => setTab(t)}
                   className={clsx(
                     "-mb-px border-b-2 pb-2 text-2xs font-semibold tracking-[var(--tracking-caps)] uppercase transition-colors",
-                    tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink-2",
+                    shownTab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink-2",
                   )}
                 >
                   {railLabels[t]}
@@ -393,7 +399,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               ))}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {tab === "findings" ? (
+              {shownTab === "findings" ? (
                 <FindingsPanel
                   runId={b.verdict?.run_id}
                   selected={selectedFinding}
@@ -411,7 +417,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                     })
                   }
                 />
-              ) : tab === "threads" ? (
+              ) : shownTab === "threads" ? (
                 <ThreadsPanel
                   bundleId={bundleId}
                   member={!guest}
@@ -419,7 +425,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                   onPendingDone={() => setNewThread(undefined)}
                   onOpenAnchor={openAnchor}
                 />
-              ) : tab === "evidence" ? (
+              ) : shownTab === "evidence" ? (
                 <>
                   <EvidencePanel
                     bundleId={bundleId}
@@ -449,6 +455,22 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   );
 }
 
-// Tour and Traceability are places to go, not actions, so they carry no button weight.
-const navLink =
-  "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-ink-2 hover:bg-sunken hover:text-ink";
+// The view a person picked last, in this browser. A first visit gets the preview: it is the
+// only view a non-technical author needs (SDD §13.4).
+function lastView(): View {
+  try {
+    const v = localStorage.getItem("speccy-view");
+    if (v === "code" || v === "split" || v === "preview") return v;
+  } catch {
+    // Storage is not available: the preview it is.
+  }
+  return "preview";
+}
+
+function saveView(v: View) {
+  try {
+    localStorage.setItem("speccy-view", v);
+  } catch {
+    // Storage is not available: the choice lasts for this page load.
+  }
+}

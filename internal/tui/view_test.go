@@ -20,7 +20,8 @@ func TestView_FrameFitsTheTerminal(t *testing.T) {
 		Kind: api.BundleVerdictKindFull, RunId: uuid.New(), VersionNumber: 7}
 	b := api.Bundle{Title: "Speccy — Software Design Document", Slug: "docs/specs/a-rather-long-bundle-slug",
 		ProfileKey: "sdd", MainDoc: "SDD.md", CurrentVersion: api.Version{Number: 7}, SourceKind: "local",
-		Status: &st, UpdatedAt: time.Now().Add(-70 * time.Minute), Verdict: v}
+		Status: &st, UpdatedAt: time.Now().Add(-70 * time.Minute), Verdict: v,
+		NextAction: &api.NextAction{Kind: api.NextActionKindFix, Sentence: strings.Repeat("fix this thing ", 12)}}
 	fix := strings.Repeat("a long fix that must be cut ", 8)
 	fs := []api.Finding{
 		{Level: api.FindingLevelMUST, CheckSlug: "sdd.data.model", Stage: "rubric", Fix: &fix,
@@ -55,5 +56,33 @@ func TestView_FrameFitsTheTerminal(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// The next action reaches every screen: the status line says it, and the key bar shows the key
+// that does it. A hidden panel is acceptable, a hidden key is not (SDD §13.4).
+func TestView_NextActionIsAlwaysOffered(t *testing.T) {
+	b := api.Bundle{Title: "Payment retries", Slug: "payments", ProfileKey: "prd", MainDoc: "PRD.md",
+		CurrentVersion: api.Version{Number: 1}, SourceKind: "local", UpdatedAt: time.Now(),
+		NextAction: &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc"}}
+	for name, m := range map[string]*model{
+		"list":   {screen: screenList, bundles: []api.Bundle{b}},
+		"bundle": {screen: screenBundle, bundle: &b},
+		"tour":   {screen: screenTour, bundle: &b},
+	} {
+		m.width, m.height = 100, 30
+		out := m.View()
+		if !strings.Contains(out, "Check this doc") {
+			t.Errorf("%s: the screen does not say the next action", name)
+		}
+		if !strings.Contains(out, "do the next thing") {
+			t.Errorf("%s: the key bar does not offer n", name)
+		}
+	}
+	// No next action, no key.
+	plain := api.Bundle{Title: "Done", Slug: "done", MainDoc: "PRD.md", CurrentVersion: api.Version{Number: 1}, SourceKind: "local", UpdatedAt: time.Now()}
+	m := &model{screen: screenBundle, bundle: &plain, width: 100, height: 30}
+	if strings.Contains(m.View(), "do the next thing") {
+		t.Error("the key bar offers n with no next action")
 	}
 }

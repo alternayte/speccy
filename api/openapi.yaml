@@ -2262,6 +2262,29 @@ components:
           $ref: "#/components/schemas/Visibility"
         status:
           $ref: "#/components/schemas/ReviewStatus"
+        next_action:
+          $ref: "#/components/schemas/NextAction"
+
+    NextAction:
+      type: object
+      description: The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
+      required: [kind, sentence]
+      properties:
+        kind:
+          type: string
+          enum: [waiver, decide, fix, review, adopt, request_review, handoff]
+        sentence:
+          type: string
+          description: What to do, in words, for a button label or a status line.
+        waiver_id:
+          type: string
+          format: uuid
+        finding_id:
+          type: string
+          format: uuid
+        tour_key:
+          type: string
+          description: The key of the tour point to open.
 
     BundleVerdict:
       type: object

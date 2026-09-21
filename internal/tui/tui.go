@@ -287,6 +287,10 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "?":
 		m.help = !m.help
 		return m, nil
+	case "n":
+		if !m.help {
+			return m.doNext()
+		}
 	}
 	if m.help {
 		// The overlay takes every other key, so nothing moves behind it.
@@ -341,9 +345,9 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch k.String() {
 		case "esc", "h", "left":
 			m.screen = screenBundle
-		case "j", "down", "n":
+		case "j", "down":
 			m.tcursor = min(m.tcursor+1, max(0, len(m.tour)-1))
-		case "k", "up", "p":
+		case "k", "up":
 			m.tcursor = max(m.tcursor-1, 0)
 		case "e", "enter":
 			if len(m.tour) > 0 && m.tour[m.tcursor].Anchor != nil {
@@ -404,4 +408,60 @@ func truncate(s string, n int) string {
 	}
 	r := []rune(s)
 	return string(r[:n-1]) + "…"
+}
+
+// next is the next action of the bundle in hand: the one under the cursor on the list, or the
+// open one. The server names it, so the TUI says what the web app says (SDD §13.4).
+func (m *model) next() *api.NextAction {
+	if m.screen == screenList {
+		if len(m.bundles) == 0 {
+			return nil
+		}
+		return m.bundles[m.cursor].NextAction
+	}
+	if m.bundle == nil {
+		return nil
+	}
+	return m.bundle.NextAction
+}
+
+// doNext does the named thing, as far as a terminal can: it runs a review, opens the tour, or
+// opens the file at the finding. The rest needs the app, and the status line says so.
+func (m *model) doNext() (tea.Model, tea.Cmd) {
+	n := m.next()
+	if n == nil {
+		return m, nil
+	}
+	b := m.bundle
+	if m.screen == screenList && len(m.bundles) > 0 {
+		x := m.bundles[m.cursor]
+		b = &x
+	}
+	if b == nil {
+		return m, nil
+	}
+	switch n.Kind {
+	case api.NextActionKindReview:
+		if m.running != "" {
+			return m, nil
+		}
+		m.bundle = b
+		return m, m.startReview(b.Id)
+	case api.NextActionKindDecide:
+		m.bundle = b
+		return m, m.loadTour(b.Id)
+	case api.NextActionKindFix:
+		if m.screen != screenBundle {
+			m.bundle, m.findings, m.fcursor, m.screen = b, nil, 0, screenBundle
+			return m, m.loadBundle(b.Id)
+		}
+		if len(m.findings) > 0 {
+			f := m.findings[m.fcursor]
+			return m, m.openEditor(b.Slug, f.Anchor.File, m.line(f.Anchor))
+		}
+		return m, m.openEditor(b.Slug, b.MainDoc, 0)
+	default:
+		m.status = n.Sentence + ": do this in the app."
+		return m, nil
+	}
 }

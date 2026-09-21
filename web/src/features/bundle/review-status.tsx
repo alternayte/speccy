@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { BadgeCheck, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -25,10 +25,22 @@ const statusStyle: Record<Status, { label: string; tone: string }> = {
 
 // ReviewStatus shows the bundle's status (§9.5) and the review actions: an author requests a
 // review with reviewers (REQ-090); a reviewer approves (REQ-076).
-export function ReviewStatus({ bundleId, signedIn }: { bundleId: string; signedIn: boolean }) {
+export function ReviewStatus({
+  bundleId,
+  signedIn,
+  register,
+}: {
+  bundleId: string;
+  signedIn: boolean;
+  // register hands the request-review opener to the control row (SDD §13.4).
+  register?: (open: () => void) => void;
+}) {
   const qc = useQueryClient();
   const status = useQuery({ ...getBundleStatusOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const [asking, setAsking] = useState(false);
+  useEffect(() => {
+    register?.(() => setAsking(true));
+  }, [register]);
   const done = (s: unknown) => {
     qc.setQueryData(getBundleStatusQueryKey({ path: { bundleId } }), s);
     qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
@@ -51,7 +63,7 @@ export function ReviewStatus({ bundleId, signedIn }: { bundleId: string; signedI
         {st.label}
         {s.status === "in_review" ? ` · ${approvedNow}/${s.required}` : ""}
       </span>
-      {signedIn && s.can_request ? (
+      {signedIn && s.can_request && !register ? (
         <Button size="sm" icon={<UserPlus className="size-3.5" />} onClick={() => setAsking(true)}>
           <span className="hidden sm:inline">{s.status === "draft" ? "Request review" : "Reviewers"}</span>
         </Button>
@@ -59,7 +71,7 @@ export function ReviewStatus({ bundleId, signedIn }: { bundleId: string; signedI
       {signedIn && s.status === "in_review" && !s.can_request ? (
         <Button
           size="sm"
-          variant={s.can_approve ? "primary" : "secondary"}
+          variant="secondary"
           icon={<BadgeCheck className="size-3.5" />}
           disabled={!s.can_approve || approve.isPending}
           title={s.approve_blocked_by}

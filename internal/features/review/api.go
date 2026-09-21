@@ -283,3 +283,22 @@ func Layer(slug, stage string, level kernel.Level) string {
 }
 
 func ptrInt(n int) *int { return &n }
+
+// FirstMust returns the first MUST finding of a run that no waiver covers, or nil. The next
+// action reads it (SDD §13.4).
+func (a *API) FirstMust(ctx context.Context, runID uuid.UUID) (*api.Finding, error) {
+	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: runID})
+	if err != nil {
+		return nil, err
+	}
+	list, ok := res.(api.ListFindings200JSONResponse)
+	if !ok {
+		return nil, nil
+	}
+	for i, f := range list.Items {
+		if f.Level == api.FindingLevelMUST && !f.Waived {
+			return &list.Items[i], nil
+		}
+	}
+	return nil, nil
+}

@@ -18,6 +18,8 @@ type API struct {
 	Service *Service
 	// Profiles returns the current profiles, for bundles made from a template (REQ-016).
 	Profiles func() map[string]profile.Versioned
+	// Deps are the other features the next action reads (SDD §13.4).
+	Deps Deps
 }
 
 func toAPI(ctx context.Context, q store.Querier, b pgdb.Bundle) (api.Bundle, error) {

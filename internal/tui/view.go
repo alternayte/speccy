@@ -40,7 +40,7 @@ func (m *model) View() string {
 	}
 	b.WriteString(pad(m.statusLine(w), w) + "\n")
 	b.WriteString(rule.Render(strings.Repeat(ruleGlyf, w)) + "\n")
-	b.WriteString(pad(keyBar(keys), w))
+	b.WriteString(pad(keyBar(keys, w), w))
 	return b.String()
 }
 
@@ -56,7 +56,7 @@ func (m *model) screenParts(w, rows int) (string, string, []string, [][2]string)
 }
 
 func (m *model) listBody(w, rows int) (string, string, []string, [][2]string) {
-	keys := [][2]string{{"j/k", "move"}, {"enter", "open"}, {"r", "review"}, {"?", "keys"}, {"q", "quit"}}
+	keys := m.keysWithNext([][2]string{{"j/k", "move"}, {"enter", "open"}, {"r", "review"}, {"?", "keys"}, {"q", "quit"}})
 	meta := fmt.Sprintf("%d bundle%s", len(m.bundles), plural(len(m.bundles)))
 	if len(m.bundles) == 0 {
 		return "bundles", meta, center(rows, w, emptyText.Render("No bundles here."),
@@ -111,10 +111,9 @@ func (m *model) bundlePreview(w int) []string {
 	out[4] = "  " + faint.Render(fmt.Sprintf("v%d · %s · %s · changed %s", b.CurrentVersion.Number, b.SourceKind, status, ago(b.UpdatedAt)))
 	if b.RunError != nil {
 		out[5] = "  " + bad.Render("The last review failed: ") + truncate(*b.RunError, max(10, w-30))
-	} else if b.Verdict != nil && b.Verdict.Must > 0 {
-		out[5] = "  " + faint.Render(fmt.Sprintf("Press enter to see the %d MUST finding%s.", b.Verdict.Must, plural(b.Verdict.Must)))
-	} else if b.Verdict == nil {
-		out[5] = "  " + faint.Render("Press r to review this bundle.")
+	} else if b.NextAction != nil {
+		// The server names the next thing, so the preview and the status line agree.
+		out[5] = "  " + keyGlyph.Render("n") + " " + faint.Render(truncate(b.NextAction.Sentence, max(10, w-30)))
 	}
 	return out
 }
@@ -134,7 +133,7 @@ func ago(t time.Time) string {
 }
 
 func (m *model) bundleBody(w, rows int) (string, string, []string, [][2]string) {
-	keys := [][2]string{{"j/k", "move"}, {"e", "edit"}, {"r", "review"}, {"t", "tour"}, {"esc", "back"}, {"?", "keys"}}
+	keys := m.keysWithNext([][2]string{{"j/k", "move"}, {"e", "edit"}, {"r", "review"}, {"t", "tour"}, {"esc", "back"}, {"?", "keys"}})
 	bu := m.bundle
 	meta := fmt.Sprintf("%s · %s · v%d", truncate(bu.Title, 44), strings.ToUpper(bu.ProfileKey), bu.CurrentVersion.Number)
 	head := []string{"  " + verdictStyled(bu.Verdict) + countsText(bu.Verdict), ""}
@@ -183,7 +182,7 @@ func (m *model) findingDetail(w int) []string {
 }
 
 func (m *model) tourBody(w, rows int) (string, string, []string, [][2]string) {
-	keys := [][2]string{{"j/k", "next and previous"}, {"e", "edit"}, {"esc", "back"}, {"?", "keys"}}
+	keys := m.keysWithNext([][2]string{{"j/k", "next and previous"}, {"e", "edit"}, {"esc", "back"}, {"?", "keys"}})
 	if len(m.tour) == 0 {
 		return "tour", m.bundle.Slug, center(rows, w, emptyText.Render("Nothing needs a decision."),
 			faint.Render("Every point of this bundle is answered.")), keys
@@ -226,11 +225,24 @@ func (m *model) statusLine(w int) string {
 	case m.status != "":
 		return "  " + faint.Render(truncate(m.status, max(10, w-4)))
 	}
+	if n := m.next(); n != nil {
+		return "  " + keyGlyph.Render("n") + " " + truncate(n.Sentence, max(10, w-8))
+	}
 	return ""
+}
+
+// keysWithNext puts the next action first in the key bar. A hidden panel is acceptable, a
+// hidden key is not (SDD §13.4).
+func (m *model) keysWithNext(keys [][2]string) [][2]string {
+	if m.next() == nil {
+		return keys
+	}
+	return append([][2]string{{"n", "do the next thing"}}, keys...)
 }
 
 func helpBody(s screen) []string {
 	rows := [][2]string{
+		{"n", "do the next thing the status line names"},
 		{"j / k, ↓ / ↑", "move"},
 		{"enter", "open the bundle, or the finding in $EDITOR"},
 		{"e", "open the file in $EDITOR at the finding"},
@@ -258,12 +270,22 @@ func selectable(line string, w int, on bool) string {
 	return mark.Render(markGlyf) + rowSel.Render(" "+body)
 }
 
-func keyBar(keys [][2]string) string {
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, keyGlyph.Render(k[0])+" "+keyLabel.Render(k[1]))
+// keyBar renders the key hints. A bar that does not fit drops its middle hints, never its
+// first, which is the next action, and never its last, which is the help key.
+func keyBar(keys [][2]string, w int) string {
+	render := func(ks [][2]string) string {
+		parts := make([]string, 0, len(ks))
+		for _, k := range ks {
+			parts = append(parts, keyGlyph.Render(k[0])+" "+keyLabel.Render(k[1]))
+		}
+		return "  " + strings.Join(parts, keyLabel.Render(" · "))
 	}
-	return "  " + strings.Join(parts, keyLabel.Render(" · "))
+	out := render(keys)
+	for len(keys) > 2 && lipgloss.Width(out) > w {
+		keys = append(keys[:len(keys)-2:len(keys)-2], keys[len(keys)-1])
+		out = render(keys)
+	}
+	return out
 }
 
 func progressBar(at, of, w int) string {

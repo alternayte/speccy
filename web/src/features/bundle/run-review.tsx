@@ -17,12 +17,22 @@ export function RunReviewButton({
   bundleId,
   active,
   onStarted,
+  register,
+  button = true,
 }: {
   bundleId: string;
   active: boolean;
   onStarted: (run: Run) => void;
+  // register hands the opener to the control row, so the More menu and the next action open
+  // the same dialog as the button.
+  register?: (open: () => void) => void;
+  // button is false when the control row owns the action: only the dialog renders.
+  button?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    register?.(() => setOpen(true));
+  }, [register]);
   const estimate = useQuery({ ...estimateRunOptions({ path: { bundleId } }), enabled: open, staleTime: 0 });
   const start = useMutation({
     ...startRunMutation(),
@@ -34,15 +44,17 @@ export function RunReviewButton({
   const setupMissing = estimate.isError && problemCode(estimate.error) === "role_unassigned";
   return (
     <>
-      <Button
-        size="sm"
-        variant="primary"
-        disabled={active}
-        icon={active ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-        onClick={() => setOpen(true)}
-      >
-        {active ? "Reviewing" : "Run review"}
-      </Button>
+      {button ? (
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={active}
+          icon={active ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
+          onClick={() => setOpen(true)}
+        >
+          {active ? "Reviewing" : "Run review"}
+        </Button>
+      ) : null}
       <Dialog
         open={open}
         onOpenChange={(o) => {

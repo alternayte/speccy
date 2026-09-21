@@ -20,5 +20,8 @@ func (a *API) GetBundle(ctx context.Context, req api.GetBundleRequestObject) (ap
 	}
 	// Only one bundle reads its main doc for this: the list must stay cheap.
 	out.Adopt = adoptOf(ctx, q, b, a.Profiles())
+	if err := a.full(ctx, q, b, &out); err != nil {
+		return nil, err
+	}
 	return api.GetBundle200JSONResponse(out), nil
 }
