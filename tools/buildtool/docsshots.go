@@ -69,7 +69,10 @@ func cmdDocsShots() error {
 	if _, err := d.ab("set", "viewport", fmt.Sprint(shotWidth), "900"); err != nil {
 		return err
 	}
-	return d.guide(s, dir, model)
+	if err := d.guide(s, dir, model); err != nil {
+		return err
+	}
+	return d.linked(s, dir, model)
 }
 
 type shots struct {
@@ -183,7 +186,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 		return err
 	}
 	if err := d.png("guide-new-bundle", u("/"), func() error {
-		if _, err := d.ab("find", "role", "button", "click", "New bundle"); err != nil {
+		if _, err := d.ab("find", "role", "button", "click", "--name", "New"); err != nil {
 			return err
 		}
 		_, err := d.ab("wait", "600")
@@ -204,7 +207,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 		return err
 	}
 	if err := d.png("guide-import", u("/"), func() error {
-		if _, err := d.ab("find", "role", "button", "click", "Import"); err != nil {
+		if _, err := d.ab("find", "role", "button", "click", "--name", "Import"); err != nil {
 			return err
 		}
 		if _, err := d.ab("wait", "600"); err != nil {
@@ -353,6 +356,123 @@ func (d *shots) guide(s *server, dir, model string) error {
 		return err
 	}
 	if err := d.png("guide-trace", u("/bundles/"+ready.ID+"/trace"), nil); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// linked captures the pictures of docs/linked-docs.md: two docs that must agree. It uses the
+// payments PRD and the SDD that implements it, and the two SDDs that break a rule on purpose.
+func (d *shots) linked(s *server, dir, model string) error {
+	u := func(p string) string { return s.base + p }
+	bs, err := s.bundles()
+	if err != nil {
+		return err
+	}
+	for _, slug := range []string{"payments-prd", "payments-sdd", "restated-sdd", "contradicting-sdd"} {
+		if _, ok := bs[slug]; !ok {
+			return fmt.Errorf("no bundle %s in build/dev-bundles", slug)
+		}
+	}
+	prd, sdd := bs["payments-prd"], bs["payments-sdd"]
+
+	// The matrix: every upstream ID against the docs that implement it.
+	if err := d.png("linked-matrix", u("/bundles/"+prd.ID+"/trace"), nil); err != nil {
+		return err
+	}
+
+	// A coverage gap: the sidecar of the SDD holds the acknowledgement of REQ-003, so taking
+	// it away opens the gap that a reader of the doc meets first.
+	sidecar := filepath.Join(dir, ".speccy", "decisions", "payments-sdd", "SPEC.md.yaml")
+	kept, err := os.ReadFile(sidecar)
+	if err != nil {
+		return fmt.Errorf("the sidecar of payments-sdd is missing: %w", err)
+	}
+	if err := os.Remove(sidecar); err != nil {
+		return err
+	}
+	if _, err := d.ab("wait", "5000"); err != nil {
+		return err
+	}
+	if err := d.png("linked-gap", u("/bundles/"+sdd.ID+"?view=preview"), func() error {
+		if err := d.tab("Findings"); err != nil {
+			return err
+		}
+		_, err := d.ab("wait", "800")
+		return err
+	}); err != nil {
+		return err
+	}
+	// The acknowledgement closes it, and the doc itself does not change.
+	if err := os.WriteFile(sidecar, kept, 0o644); err != nil {
+		return err
+	}
+	if _, err := d.ab("wait", "5000"); err != nil {
+		return err
+	}
+	if err := d.png("linked-ack", u("/bundles/"+sdd.ID+"/trace"), nil); err != nil {
+		return err
+	}
+
+	// A restatement: a downstream paragraph that repeats the upstream instead of linking.
+	if err := d.png("linked-restatement", u("/bundles/"+bs["restated-sdd"].ID+"?view=preview"), func() error {
+		if err := d.tab("Findings"); err != nil {
+			return err
+		}
+		_, err := d.ab("wait", "800")
+		return err
+	}); err != nil {
+		return err
+	}
+
+	// A contradiction: the coherence stage reads both docs, so this one calls the model.
+	var started struct{ ID string }
+	if err := s.call("POST", "/bundles/"+bs["contradicting-sdd"].ID+"/runs", nil, &started); err != nil {
+		return err
+	}
+	if err := s.waitRun(started.ID); err != nil {
+		return err
+	}
+	// The Contradicted overlay layer shows the conflict itself, not every other finding.
+	if err := d.png("linked-contradiction", u("/bundles/"+bs["contradicting-sdd"].ID+"?view=preview"), func() error {
+		if _, err := d.ab("find", "text", "Contradicted", "click"); err != nil {
+			return err
+		}
+		_, err := d.ab("wait", "1500")
+		return err
+	}); err != nil {
+		return err
+	}
+
+	// An upstream edit makes the downstream verdict stale. Only a full verdict goes stale: a
+	// lint verdict is cheap, so Speccy lints it again instead.
+	var full struct{ ID string }
+	if err := s.call("POST", "/bundles/"+sdd.ID+"/runs", nil, &full); err != nil {
+		return err
+	}
+	if err := s.waitRun(full.ID); err != nil {
+		return err
+	}
+	prdDoc := filepath.Join(dir, "payments-prd", "PRD.md")
+	text, err := os.ReadFile(prdDoc)
+	if err != nil {
+		return err
+	}
+	next := strings.Replace(string(text), "HTTP 503", "HTTP 503 or an HTTP 429", 1)
+	if next == string(text) {
+		return errors.New("payments-prd/PRD.md no longer holds the requirement the picture edits")
+	}
+	if err := os.WriteFile(prdDoc, []byte(next), 0o644); err != nil {
+		return err
+	}
+	if _, err := d.ab("wait", "6000"); err != nil {
+		return err
+	}
+	if err := d.png("linked-stale", u("/bundles/"+sdd.ID+"?view=preview"), nil); err != nil {
+		return err
+	}
+	if err := os.WriteFile(prdDoc, text, 0o644); err != nil {
 		return err
 	}
 

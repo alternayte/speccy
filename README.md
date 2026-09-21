@@ -44,6 +44,8 @@ To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
 | Document | What it holds |
 |---|---|
 | [docs/guide.md](docs/guide.md) | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder. |
+| [docs/github.md](docs/github.md) | Specs in pull requests: adopt a repo, read the comment, decide with a reply, and read a repo back into Speccy from its URL. |
+| [docs/linked-docs.md](docs/linked-docs.md) | Two docs that must agree: links, trace IDs, the matrix, coverage, restatement, contradiction, and the stale verdict after an upstream edit. |
 | [docs/cli-and-tui.md](docs/cli-and-tui.md) | Every command, the terminal UI and its keys, connected mode, and the MCP server. |
 | [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing. |
 | [docs/decisions.md](docs/decisions.md) | Each design decision, its alternative, and its reason. |
@@ -191,21 +193,11 @@ jobs:
 
 The Action is advisory by default: a Not Build Ready verdict shows in the comment and the check, and the job still passes. Set `enforcement: blocking`, or `enforcement: blocking` in `.speccy.yaml`, to fail the job. The HTML report of each bundle is an artifact of the run.
 
-**Waivers in CI.** A waiver is an entry under `waivers:` in the doc's sidecar, `.speccy/decisions/<doc path>.yaml`. Reply to a Speccy comment in the pull request to ask for one:
+**Decide in the pull request.** Reply to a Speccy comment with `/speccy waive <reason>` or `/speccy ack <ID> <reason>`. The next run writes the entry into the doc's sidecar, commits it to the branch, and resolves the comment. Speccy approves nothing of its own: your branch protection reviews that commit like any other.
 
-```text
-/speccy waive The provider sets this limit, and the design cannot change it.
-/speccy ack REQ-002 The mail service sends it.
-```
+**Adoption mode.** `speccy init --github` puts the checks that fail on your repo today in `adoption.relaxed`, so the first verdict names the checks your team opted into. `/speccy enforce <slug>` turns one back on when it passes everywhere.
 
-The next run commits the entry to the pull request's branch and resolves that comment. Speccy approves nothing of its own: the commit is reviewed like any other change, so the approval comes from branch protection. Require a review from the code owners of your spec folders.
-
-```text
-# .github/CODEOWNERS
-/docs/ @acme/spec-maintainers
-```
-
-While a waiver is in the pull request and not merged, the comment gives both verdicts, so a self-granted waiver does not read as an agreement. A pull request from a fork gives the Action no write token, so the comment prints the sidecar to paste instead.
+[docs/github.md](docs/github.md) has the whole flow: the comment, every reply, forks, the two verdicts of an unmerged waiver, and reading a repo back into Speccy from its URL.
 
 In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs. The server changes no bundle. It keeps each review for 90 days, and the summary comment links each bundle to its report on the server. Members of the workspace can open the report.
 

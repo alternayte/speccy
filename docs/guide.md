@@ -154,6 +154,8 @@ Fix what the findings and the tour raised. Save. Run the review again. Build Rea
 
 **Traceability** shows every upstream ID, and whether this doc references it, covers it elsewhere, or leaves a gap.
 
+Two linked docs also have to agree with each other. [linked-docs.md](linked-docs.md) follows a PRD and the SDD that implements it: the matrix, a coverage gap, the acknowledgement that closes it, a restatement, a contradiction, and the stale verdict after an upstream edit.
+
 ![The traceability matrix](images/guide-trace.png)
 
 A bundle reaches `approved` when it has a current Build Ready verdict and the approvals its profile requires. An author cannot approve their own bundle. Any change to the main doc or its assets revokes the approvals, and the bundle returns to `in_review`.
@@ -170,4 +172,4 @@ For one profile, the false-ready rate is the share of Build Ready handoffs that 
 
 ## 12. Keep the verdict in CI
 
-`speccy review docs/specs/*` gives the same verdict in a terminal. The GitHub Action posts the findings on the pull request. See [cli-and-tui.md](cli-and-tui.md) and [configuration.md](configuration.md).
+`speccy review docs/specs/*` gives the same verdict in a terminal. The GitHub Action posts the findings on the pull request, and a reply there settles one. [github.md](github.md) follows a repo end to end. See also [cli-and-tui.md](cli-and-tui.md) and [configuration.md](configuration.md).

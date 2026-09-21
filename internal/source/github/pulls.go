@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -234,4 +235,27 @@ func (c *Client) ResolveThread(ctx context.Context, id string) error {
 func splitRepo(repo string) (string, string) {
 	owner, name, _ := strings.Cut(repo, "/")
 	return owner, name
+}
+
+// ClosePullRequest closes a pull request without merging it. The picture job uses it to leave
+// the scratch repo as it found it.
+func (c *Client) ClosePullRequest(ctx context.Context, repo string, number int) error {
+	return c.do(ctx, "PATCH", fmt.Sprintf("%s/pulls/%d", repoPath(repo), number), map[string]string{"state": "closed"}, nil)
+}
+
+// DeleteBranch removes a branch.
+func (c *Client) DeleteBranch(ctx context.Context, repo, branch string) error {
+	return c.do(ctx, "DELETE", repoPath(repo)+"/git/refs/heads/"+url.PathEscape(branch), nil, nil)
+}
+
+// ReplyToThread adds a comment to a review thread.
+func (c *Client) ReplyToThread(ctx context.Context, id, body string) error {
+	var data any
+	q := `mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}`
+	return c.graphql(ctx, q, map[string]any{"id": id, "body": body}, &data)
+}
+
+// DeleteIssueComment removes a conversation comment.
+func (c *Client) DeleteIssueComment(ctx context.Context, repo string, id int64) error {
+	return c.do(ctx, "DELETE", fmt.Sprintf("%s/issues/comments/%d", repoPath(repo), id), nil, nil)
 }
