@@ -10,7 +10,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 || (os.Args[1] == "gauntlet") != (len(os.Args) == 3) || len(os.Args) > 3 {
-		fmt.Fprintln(os.Stderr, "usage: buildtool budget|conventions|sqladapter|docs-shots|gauntlet <run>")
+		fmt.Fprintln(os.Stderr, "usage: buildtool budget|conventions|sqladapter|docs-shots|docs-shots-github|gauntlet <run>")
 		os.Exit(2)
 	}
 	var err error
@@ -21,6 +21,8 @@ func main() {
 		err = cmdConventions()
 	case "sqladapter":
 		err = cmdSQLAdapter()
+	case "docs-shots-github":
+		err = cmdDocsShotsGitHub()
 	case "docs-shots":
 		err = cmdDocsShots()
 	case "gauntlet":

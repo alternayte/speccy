@@ -56,6 +56,8 @@ type Service struct {
 	// Profiles returns the current profiles by key. Repo returns .speccy.yaml.
 	Profiles func() map[string]profile.Versioned
 	Repo     func() source.RepoConfig
+	// Decisions returns a bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
+	Decisions func(context.Context, pgdb.Bundle) (source.Decisions, error)
 	// Gateway calls models. Search returns the MCP search source, or nil when none is set.
 	Gateway *model.Gateway
 	Search  func(ctx context.Context) (Searcher, error)
@@ -128,6 +130,8 @@ type input struct {
 	profile profile.Versioned
 	relaxed map[string]bool
 	fm      source.Frontmatter
+	// dec is the bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
+	dec source.Decisions
 	// size is the doc's size, and sizeInferred says the frontmatter did not name it.
 	size         kernel.Size
 	sizeInferred bool
@@ -155,6 +159,11 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.Bundle, versionID uuid.U
 	}
 	in.doc = section.Parse(in.main)
 	in.fm, _, _ = source.ReadFrontmatter(in.main)
+	if s.Decisions != nil {
+		if in.dec, err = s.Decisions(ctx, b); err != nil {
+			return input{}, err
+		}
+	}
 	in.size, in.sizeInferred = docSize(in.fm, in.main)
 	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
 		return input{}, err
@@ -221,7 +230,7 @@ func lintStage(in input) evaluation {
 				slug: HasUpstreamSlug, level: level, stage: StageCoherence, anchor: docAnchor(in),
 				message: fmt.Sprintf("This %s has no %s link to a %s, and no standalone acknowledgement.",
 					strings.ToUpper(in.profile.Profile.Key), strings.Join(up.Kinds, " or "), strings.ToUpper(strings.Join(up.Types, " or "))),
-				fix: "Add a link under links: in the frontmatter, or a standalone: entry with the reason.",
+				fix: "Add a link under links: in the frontmatter, or a standalone: entry with the reason in the sidecar.",
 			})
 			if missing != "" {
 				f := &ev.findings[len(ev.findings)-1]
@@ -405,6 +414,16 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bu
 			main = f.Content
 		}
 	}
+	if s.Decisions != nil {
+		dec, err := s.Decisions(ctx, b)
+		if err != nil {
+			return err
+		}
+		if decisionsHash(dec) != latest.DecisionsHash {
+			_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
+			return err
+		}
+	}
 	links := resolveLinksIn(all, b, main, s.linkRules())
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
@@ -470,6 +489,16 @@ func sameVersions(used []pgdb.RunLink, links []link) bool {
 	return true
 }
 
+// decisionsHash is the hash of a doc's sidecar. A run records it, so a waiver approved after
+// the run lints the doc again although the doc's text did not change (DEC-009).
+func decisionsHash(d source.Decisions) string {
+	out, err := d.Marshal()
+	if err != nil {
+		return ""
+	}
+	return version.Hash(out)
+}
+
 // noProfile is the error of a run on a doc whose type has no profile.
 func (s *Service) noProfile(key string) string {
 	return fmt.Sprintf("No profile has the key %q, so Speccy cannot review this doc. Use a built-in type (%s), or add .speccy/profiles/%s.yaml.",
@@ -495,6 +524,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) 
 	if err != nil {
 		return run, err
 	}
+	run.DecisionsHash = decisionsHash(in.dec)
 	if in.sizeInferred {
 		run.Notes, _ = json.Marshal([]string{sizeNote(in.size)})
 	}
@@ -510,7 +540,7 @@ func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished 
 	return q.InsertRun(ctx, pgdb.InsertRunParams{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, BundleID: r.BundleID, VersionID: r.VersionID, ProfileKey: r.ProfileKey,
 		ProfileVersion: r.ProfileVersion, Kind: r.Kind, Status: r.Status, Stage: r.Stage, Error: r.Error,
-		Notes: notes, StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
+		Notes: notes, DecisionsHash: r.DecisionsHash, StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})
 }
 
@@ -604,7 +634,7 @@ func plural(n int) string {
 }
 
 func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
-	if standalone(in.fm) {
+	if standalone(in.dec) {
 		return true, ""
 	}
 	for _, l := range in.links {

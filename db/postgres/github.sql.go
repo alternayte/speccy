@@ -56,7 +56,7 @@ func (q *Queries) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID
 }
 
 const getGithubSource = `-- name: GetGithubSource :one
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at FROM github_source WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, is_file, profile, api_url FROM github_source WHERE workspace_id = $1 AND id = $2
 `
 
 type GetGithubSourceParams struct {
@@ -78,13 +78,17 @@ func (q *Queries) GetGithubSource(ctx context.Context, arg GetGithubSourceParams
 		&i.Error,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.IsFile,
+		&i.Profile,
+		&i.ApiUrl,
 	)
 	return i, err
 }
 
 const insertGithubSource = `-- name: InsertGithubSource :exec
-INSERT INTO github_source (id, workspace_id, repo, branch, path, created_by, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO github_source (id, workspace_id, repo, branch, path, is_file, profile, api_url, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10)
 `
 
 type InsertGithubSourceParams struct {
@@ -93,6 +97,9 @@ type InsertGithubSourceParams struct {
 	Repo        string
 	Branch      string
 	Path        string
+	IsFile      bool
+	Profile     string
+	ApiUrl      string
 	CreatedBy   string
 	CreatedAt   time.Time
 }
@@ -104,6 +111,9 @@ func (q *Queries) InsertGithubSource(ctx context.Context, arg InsertGithubSource
 		arg.Repo,
 		arg.Branch,
 		arg.Path,
+		arg.IsFile,
+		arg.Profile,
+		arg.ApiUrl,
 		arg.CreatedBy,
 		arg.CreatedAt,
 	)
@@ -111,7 +121,7 @@ func (q *Queries) InsertGithubSource(ctx context.Context, arg InsertGithubSource
 }
 
 const listGithubSources = `-- name: ListGithubSources :many
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at FROM github_source WHERE workspace_id = $1 ORDER BY repo, branch, path
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, is_file, profile, api_url FROM github_source WHERE workspace_id = $1 ORDER BY repo, branch, path
 `
 
 func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error) {
@@ -134,6 +144,9 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 			&i.Error,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.IsFile,
+			&i.Profile,
+			&i.ApiUrl,
 		); err != nil {
 			return nil, err
 		}

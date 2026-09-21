@@ -1339,7 +1339,7 @@ paths:
       - $ref: "#/components/parameters/WaiverId"
     post:
       operationId: approveWaiver
-      summary: Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+      summary: Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
       responses:
         "200":
           description: The waiver.
@@ -1856,24 +1856,21 @@ paths:
           $ref: "#/components/responses/Problem"
     post:
       operationId: addGithubSource
-      summary: Read the bundles of a folder on a branch of a repo, and keep them in step (REQ-123).
+      summary: Make a source from a source URL, and keep its bundles in step (REQ-123, REQ-128).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [repo]
+              required: [url]
               properties:
-                repo:
+                url:
                   type: string
-                  description: owner/name
-                branch:
+                  description: A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
+                profile:
                   type: string
-                  description: The default is the repo's default branch.
-                path:
-                  type: string
-                  description: The folder in the repo. The default is the whole repo.
+                  description: The profile of a one-doc source whose doc has no type and no mapping.
       responses:
         "200":
           description: The source, after its first sync.
@@ -1881,6 +1878,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GithubSource"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /github/resolve:
+    post:
+      operationId: resolveGithubUrl
+      summary: Read a source URL and say what it names, before the source is made (REQ-128).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+      responses:
+        "200":
+          description: What the URL names.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubResolved"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3204,7 +3225,7 @@ components:
 
     GithubSource:
       type: object
-      required: [id, repo, branch, path, head_commit, error, bundles]
+      required: [id, repo, branch, path, file, head_commit, error, bundles]
       properties:
         id:
           type: string
@@ -3215,6 +3236,9 @@ components:
           type: string
         path:
           type: string
+        file:
+          type: boolean
+          description: The path names one doc (REQ-128).
         head_commit:
           type: string
         synced_at:
@@ -3224,6 +3248,36 @@ components:
           type: string
         bundles:
           type: integer
+
+    GithubResolved:
+      type: object
+      required: [repo, branch, path, file, profiles]
+      properties:
+        repo:
+          type: string
+        branch:
+          type: string
+          description: The branch of the URL, or the repo's default branch.
+        path:
+          type: string
+          description: The folder, the doc, or "." for the whole repo.
+        file:
+          type: boolean
+          description: The path names one doc.
+        title:
+          type: string
+          description: The title of the doc a one-doc URL names.
+        profile:
+          type: string
+          description: The profile the doc names or a mapping gives, or the guess when it has neither.
+        guessed:
+          type: boolean
+          description: The profile is a guess, so the person confirms it before the source is made.
+        profiles:
+          type: array
+          description: The profile keys to choose from.
+          items:
+            type: string
 
     FindingList:
       type: object

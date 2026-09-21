@@ -28,6 +28,12 @@ type session struct {
 // models, the cache, and the runs of the app are shared; otherwise a temporary store that is
 // removed when ctx ends (T-098: no speccy init needed).
 func openSession(ctx context.Context, dir string) (*session, error) {
+	return openSessionIn(ctx, dir, false)
+}
+
+// openSessionIn opens local mode over dir. keep makes the store in dir/.speccy/state even when
+// it does not exist yet, for a command whose result must outlive it, such as speccy add.
+func openSessionIn(ctx context.Context, dir string, keep bool) (*session, error) {
 	root, err := local.Open(dir)
 	if err != nil {
 		return nil, err
@@ -37,6 +43,10 @@ func openSession(ctx context.Context, dir string) (*session, error) {
 	if dir := os.Getenv("SPECCY_STATE_DIR"); dir != "" {
 		// CI keeps the store between runs, for example in the Actions cache (SDD §12.4).
 		state = dir
+	} else if keep {
+		if err := os.MkdirAll(state, 0o755); err != nil {
+			return nil, err
+		}
 	} else if _, err := os.Stat(filepath.Join(state, "speccy.db")); err != nil {
 		tmp, err := os.MkdirTemp("", "speccy-review-")
 		if err != nil {

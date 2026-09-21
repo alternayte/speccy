@@ -154,6 +154,9 @@ type GithubSource struct {
 	Error       string
 	CreatedBy   string
 	CreatedAt   time.Time
+	IsFile      bool
+	Profile     string
+	ApiUrl      string
 }
 
 type Handoff struct {
@@ -304,6 +307,7 @@ type ReviewRun struct {
 	FinishedAt     sql.NullTime
 	Notes          dbtype.JSON
 	Stages         dbtype.JSON
+	DecisionsHash  string
 }
 
 type RoleAssignment struct {

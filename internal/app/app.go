@@ -85,11 +85,16 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	svc := &bundle.Service{DB: db, Workspace: ws, Local: root}
 	adminAPI := &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway}
 	reviews := &review.Service{
-		DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig,
+		DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig, Decisions: svc.Decisions,
 		Gateway: gateway, Search: adminAPI.SearchSource, Progress: review.NewBroker(),
 		// REQ-105: the admin sets the parallel model calls.
 		Parallel: func(ctx context.Context) int { return settings(ctx).ParallelCalls },
 		ES:       events,
+	}
+	if root != nil {
+		// REQ-129: local mode reads GitHub with the machine's gh login, and falls back to a
+		// token pasted in the app.
+		svc.GitHub = adminAPI.LocalGitHubClient
 	}
 	if root == nil {
 		// REQ-123: hosted mode reads bundles from GitHub with the workspace token.
@@ -113,13 +118,13 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}
 	// SDD §7.2: one worker runs queued reviews.
 	go reviews.Work(ctx)
-	if root == nil {
-		go svc.WatchGitHub(ctx, 5*time.Minute)
-	}
+	// REQ-123: both modes keep their GitHub sources in step.
+	go svc.WatchGitHub(ctx, 5*time.Minute)
 	shareAPI := &share.API{DB: db, Workspace: ws}
 	reviewAPI := &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change}
 	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}
-	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change}
+	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change,
+		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions}
 	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people}
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
 	tourAPI := &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
@@ -148,7 +153,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			WaiverAPI:   waiverAPI,
 			ApprovalAPI: approvalAPI,
 			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people, Waivers: waiverAPI},
-			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current},
+			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current, Decisions: svc.Decisions},
 			TourAPI:     tourAPI,
 			HandoffAPI:  handoffAPI,
 		},

@@ -104,12 +104,20 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle, stages Stages) (p
 		ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
 		ProfileKey: b.ProfileKey, ProfileVersion: p.Version, Kind: "full", Status: "queued", Stage: "queued", StartedAt: now,
 	}
+	if s.Decisions != nil {
+		dec, err := s.Decisions(ctx, b)
+		if err != nil {
+			return pgdb.ReviewRun{}, err
+		}
+		run.DecisionsHash = decisionsHash(dec)
+	}
 	payload, _ := json.Marshal(runJob{RunID: run.ID.String(), Stages: stages})
 	err := s.DB.InTx(ctx, func(tx store.Tx) error {
 		tq := tx.Queries()
 		if err := tq.InsertRun(ctx, pgdb.InsertRunParams{
 			ID: run.ID, WorkspaceID: run.WorkspaceID, BundleID: run.BundleID, VersionID: run.VersionID, ProfileKey: run.ProfileKey,
-			ProfileVersion: run.ProfileVersion, Kind: run.Kind, Status: run.Status, Stage: run.Stage, StartedAt: now,
+			ProfileVersion: run.ProfileVersion, Kind: run.Kind, Status: run.Status, Stage: run.Stage,
+			DecisionsHash: run.DecisionsHash, StartedAt: now,
 		}); err != nil {
 			return err
 		}
@@ -433,7 +441,7 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, err
 	}
 
 	// Coherence: one call per linked doc that the contradiction check reads.
-	if !standalone(in.fm) {
+	if !standalone(in.dec) {
 		for _, l := range in.linked {
 			if !slices.Contains(contradictionKinds, l.kind) {
 				continue

@@ -12,12 +12,12 @@ func waiverKey(check string, path []string) string {
 	return check + "\x00" + strings.Join(path, "\x00")
 }
 
-// validWaivers returns the frontmatter waivers that still hold: a reason, and a section hash
-// equal to the section's hash now (REQ-074). DEC-009: a waiver added to the frontmatter by hand
-// is honoured the same way.
+// validWaivers returns the sidecar waivers that still hold: a reason, and a section hash equal
+// to the section's hash now (REQ-074). DEC-009: a waiver written into the sidecar by hand is
+// honoured the same way.
 func validWaivers(in input) map[string]bool {
 	out := map[string]bool{}
-	for _, w := range in.fm.Waivers {
+	for _, w := range in.dec.Waivers {
 		if strings.TrimSpace(w.Reason) == "" || w.Check == "" {
 			continue
 		}

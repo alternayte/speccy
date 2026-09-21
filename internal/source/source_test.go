@@ -1,7 +1,6 @@
 package source
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -105,30 +104,49 @@ func TestLinkRule(t *testing.T) {
 	}
 }
 
-func TestAddWaiver(t *testing.T) {
-	doc := []byte("---\ntype: sdd # the type\ntitle: Pay\n---\n\n# Pay\n\n## Limits\n\nText.\n")
-	w := Waiver{Check: "sdd.limits", Section: []string{"Pay", "Limits"}, Reason: "The provider sets them.", SectionHash: "sha256:x", ApprovedBy: "maria"}
-	out, err := AddWaiver(doc, w)
+func TestDecisions_Sidecar(t *testing.T) {
+	d, err := ParseDecisions([]byte("waivers:\n  - check: sdd.limits\n    section: [Pay, Limits]\n    reason: The provider sets them.\n    section_hash: sha256:x\n"))
+	if err != nil || len(d.Waivers) != 1 || d.Waivers[0].SectionHash != "sha256:x" {
+		t.Fatalf("decisions %+v, %v", d, err)
+	}
+	// The same check and section replaces the entry; another check is added.
+	d = d.WithWaiver(Waiver{Check: "sdd.limits", Section: []string{"Pay", "Limits"}, Reason: "Still true.", SectionHash: "sha256:y", RequestedBy: "maria"})
+	d = d.WithWaiver(Waiver{Check: "sdd.data.model", Section: []string{}, Reason: "The migrations hold it.", SectionHash: "sha256:z"})
+	if len(d.Waivers) != 2 || d.Waivers[0].SectionHash != "sha256:y" || d.Waivers[0].RequestedBy != "maria" {
+		t.Fatalf("waivers %+v", d.Waivers)
+	}
+	out, err := d.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
-	fm, _, err := ReadFrontmatter(out)
-	if err != nil || fm.Type != "sdd" || len(fm.Waivers) != 1 || fm.Waivers[0].SectionHash != "sha256:x" {
-		t.Fatalf("frontmatter %+v, %v:\n%s", fm, err, out)
+	back, err := ParseDecisions(out)
+	if err != nil || len(back.Waivers) != 2 {
+		t.Fatalf("round trip %+v, %v:\n%s", back, err, out)
 	}
-	if !bytes.HasSuffix(out, []byte("\n# Pay\n\n## Limits\n\nText.\n")) || !bytes.Contains(out, []byte("# the type")) {
-		t.Errorf("the body or the comment changed:\n%s", out)
+	// An unknown key is an error, so a typo does not pass silently.
+	if _, err := ParseDecisions([]byte("waiver:\n  - check: x\n")); err == nil {
+		t.Error("an unknown key parsed")
 	}
-	// The same check and section replaces the entry.
-	w.SectionHash = "sha256:y"
-	out, _ = AddWaiver(out, w)
-	fm, _, _ = ReadFrontmatter(out)
-	if len(fm.Waivers) != 1 || fm.Waivers[0].SectionHash != "sha256:y" {
-		t.Errorf("waivers after a second approval: %+v", fm.Waivers)
+	if p := SidecarPath("docs/prd-payments.md"); p != ".speccy/decisions/docs/prd-payments.md.yaml" || !IsSidecar(p) {
+		t.Errorf("sidecar path %q", p)
 	}
-	// A doc with no frontmatter gets one.
-	out, _ = AddWaiver([]byte("# Doc\n"), w)
-	if fm, ok, _ := ReadFrontmatter(out); !ok || len(fm.Waivers) != 1 {
-		t.Errorf("no frontmatter: %s", out)
+}
+
+func TestEnforce_RemovesARelaxedCheck(t *testing.T) {
+	src := []byte("# keep this comment\nmap:\n  - glob: \"docs/*.md\"\n    profile: prd\nadoption:\n  relaxed:\n    - lint.placeholder\n    - links.has-upstream\n")
+	out, ok, err := Enforce(src, "links.has-upstream")
+	if err != nil || !ok {
+		t.Fatalf("Enforce: %v, %v", ok, err)
+	}
+	cfg, err := ParseRepoConfig(out)
+	if err != nil || len(cfg.Adoption.Relaxed) != 1 || cfg.Adoption.Relaxed[0] != "lint.placeholder" {
+		t.Fatalf("relaxed %v, %v:\n%s", cfg.Adoption.Relaxed, err, out)
+	}
+	if !strings.Contains(string(out), "keep this comment") || len(cfg.Map) != 1 {
+		t.Errorf("the rest of the file changed:\n%s", out)
+	}
+	// A slug that is not relaxed changes nothing, so the same comment asks twice for nothing.
+	if _, ok, err := Enforce(out, "links.has-upstream"); ok || err != nil {
+		t.Errorf("a second enforce reported %v, %v", ok, err)
 	}
 }

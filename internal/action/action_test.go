@@ -6,22 +6,27 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 )
 
 // fakePR is the part of the GitHub API that the Action uses, for one pull request.
 type fakePR struct {
-	mu       sync.Mutex
-	threads  []thread
-	issue    []github.IssueComment
-	checks   []map[string]any
-	reviews  int
-	resolved []string
+	mu        sync.Mutex
+	threads   []thread
+	issue     []github.IssueComment
+	checks    []map[string]any
+	reviews   int
+	resolved  []string
+	committed []string
+	moved     int
 }
 
 type thread struct {
@@ -30,6 +35,7 @@ type thread struct {
 	path     string
 	line     int
 	resolved bool
+	replies  []github.Reply
 }
 
 func (f *fakePR) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -57,8 +63,12 @@ func (f *fakePR) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var nodes []map[string]any
 		for _, t := range f.threads {
+			comments := []map[string]any{{"body": t.body}}
+			for _, r := range t.replies {
+				comments = append(comments, map[string]any{"body": r.Body, "author": map[string]string{"login": r.Author}})
+			}
 			nodes = append(nodes, map[string]any{"id": t.id, "isResolved": t.resolved,
-				"comments": map[string]any{"nodes": []map[string]string{{"body": t.body}}}})
+				"comments": map[string]any{"nodes": comments}})
 		}
 		send(map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
 			"reviewThreads": map[string]any{"nodes": nodes}}}}})
@@ -85,6 +95,28 @@ func (f *fakePR) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&in)
 		f.issue[0].Body = in.Body
 		send(f.issue[0])
+	case p == "/git/ref/heads/topic" && r.Method == "GET":
+		send(map[string]any{"object": map[string]string{"sha": "base-sha"}})
+	case p == "/git/commits/base-sha" && r.Method == "GET":
+		send(map[string]any{"tree": map[string]string{"sha": "base-tree"}})
+	case p == "/git/blobs":
+		send(map[string]string{"sha": "blob-sha"})
+	case p == "/git/trees":
+		var in struct {
+			Tree []struct {
+				Path string `json:"path"`
+			} `json:"tree"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		for _, e := range in.Tree {
+			f.committed = append(f.committed, e.Path)
+		}
+		send(map[string]string{"sha": "tree-sha"})
+	case p == "/git/commits":
+		send(map[string]string{"sha": "0123456789"})
+	case strings.HasPrefix(p, "/git/refs/heads/") && r.Method == "PATCH":
+		f.moved++
+		send(map[string]any{})
 	case p == "/check-runs":
 		var in map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&in)
@@ -259,5 +291,128 @@ func TestChangedLines(t *testing.T) {
 	}
 	if len(got) != 3 {
 		t.Errorf("changed lines %v", got)
+	}
+}
+
+// sidecars is the checkout's sidecars, by doc path, for the Options.Sidecar of a test.
+type sidecars map[string]string
+
+func (s sidecars) read(doc string) (source.Decisions, error) {
+	return source.ParseDecisions([]byte(s[doc]))
+}
+
+// A reply of /speccy waive on a Speccy comment commits the waiver to the pull request's branch
+// and resolves that thread (DEC-009).
+func TestAction_ReplyCommandCommitsTheWaiver(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	side := sidecars{}
+	o.Sidecar, o.HeadRef, o.BaseRef = side.read, "topic", "main"
+	src := doc()
+	fs := []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD")}
+	b := Bundle{Slug: "docs/refunds", Dir: "docs/refunds", MainDoc: "PRD.md", Verdict: "not_build_ready", Must: 1,
+		Findings: fs, Files: map[string][]byte{"PRD.md": src}}
+	files := []github.PRFile{{Filename: "docs/refunds/PRD.md", Patch: patchFor(8)}}
+	if res := Run(ctx, o, []Bundle{b}, files); res.Posted != 1 {
+		t.Fatalf("posted %d, want 1: %v", res.Posted, res.Warnings)
+	}
+
+	// The approver replies on Speccy's comment.
+	f.threads[0].replies = []github.Reply{{Author: "kim", Body: "/speccy waive The owner lands in the next doc."}}
+	res := Run(ctx, o, []Bundle{b}, files)
+	if res.Decided != 1 {
+		t.Fatalf("decided %d, want 1: %v", res.Decided, res.Warnings)
+	}
+	if want := ".speccy/decisions/docs/refunds/PRD.md.yaml"; !slices.Contains(f.committed, want) {
+		t.Errorf("committed %v, want %s", f.committed, want)
+	}
+	if f.moved != 1 || !f.threads[0].resolved {
+		t.Errorf("moved the branch %d times, thread resolved %v", f.moved, f.threads[0].resolved)
+	}
+	if body := f.issue[0].Body; !strings.Contains(body, "@kim asked for a waiver of `lint.placeholder`") {
+		t.Errorf("the summary does not name the decision:\n%s", body)
+	}
+}
+
+// A fork's pull request gets the sidecar to paste, and no commit.
+func TestAction_ForkPastesTheSidecar(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	side := sidecars{}
+	o.Sidecar, o.HeadRef, o.BaseRef, o.Fork = side.read, "topic", "main", true
+	src := doc()
+	b := Bundle{Slug: "refunds", Dir: "refunds", MainDoc: "PRD.md", Verdict: "not_build_ready", Must: 1,
+		Findings: []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD")},
+		Files:    map[string][]byte{"PRD.md": src}}
+	files := []github.PRFile{{Filename: "refunds/PRD.md", Patch: patchFor(8)}}
+	Run(ctx, o, []Bundle{b}, files)
+	f.threads[0].replies = []github.Reply{{Author: "kim", Body: "/speccy waive The owner lands in the next doc."}}
+	res := Run(ctx, o, []Bundle{b}, files)
+	if res.Decided != 0 || len(f.committed) != 0 || f.moved != 0 {
+		t.Fatalf("a fork was committed to: decided %d, committed %v", res.Decided, f.committed)
+	}
+	body := f.issue[0].Body
+	if !strings.Contains(body, "comes from a fork") || !strings.Contains(body, "check: lint.placeholder") {
+		t.Errorf("the summary has no text to paste:\n%s", body)
+	}
+}
+
+// A waiver that the pull request adds counts, and the comment says the verdict depends on it.
+func TestAction_UnmergedWaiverNamedInTheSummary(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	src := doc()
+	fs := []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD")}
+	fs[0].Waived = true
+	fs[0].Anchor.HeadingPath = []string{"Refunds"}
+	hash, _ := section.HashAt(section.Parse(src), src, []string{"Refunds"})
+	side := sidecars{"docs/refunds/PRD.md": "waivers:\n  - check: lint.placeholder\n    section: [Refunds]\n    reason: The owner lands in the next doc.\n    section_hash: " + hash + "\n"}
+	o.Sidecar, o.HeadRef, o.BaseRef = side.read, "topic", "main"
+	b := Bundle{Slug: "docs/refunds", Dir: "docs/refunds", MainDoc: "PRD.md", Verdict: "build_ready", Waivers: 1,
+		Findings: fs, Files: map[string][]byte{"PRD.md": src}}
+	Run(ctx, o, []Bundle{b}, []github.PRFile{{Filename: "docs/refunds/PRD.md", Patch: patchFor(8)}})
+	body := f.issue[0].Body
+	if !strings.Contains(body, "1 waiver in this pull request is not merged yet. Without them: Not Build Ready.") {
+		t.Errorf("the summary does not name the waiver the verdict depends on:\n%s", body)
+	}
+	if len(f.checks) == 0 || !strings.Contains(fmt.Sprint(f.checks[0]["output"]), "has not merged") {
+		t.Errorf("the check run does not say the verdict depends on an unmerged waiver: %v", f.checks)
+	}
+}
+
+// The summary comment offers a relaxed check that now passes, and a reply in the conversation
+// commits its removal from .speccy.yaml (REQ-133).
+func TestAction_EnforceRamp(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	side := sidecars{}
+	o.Sidecar, o.HeadRef, o.BaseRef = side.read, "topic", "main"
+	o.Relaxed = []string{"lint.placeholder", "links.has-upstream"}
+	o.Ready = []string{"links.has-upstream"}
+	o.Config = []byte("map:\n  - glob: \"docs/*.md\"\n    profile: prd\nadoption:\n  relaxed:\n    - lint.placeholder\n    - links.has-upstream\n")
+	src := doc()
+	b := Bundle{Slug: "docs/refunds", Dir: "docs/refunds", MainDoc: "PRD.md", Verdict: "not_build_ready",
+		Findings: []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD")},
+		Files:    map[string][]byte{"PRD.md": src}}
+	files := []github.PRFile{{Filename: "docs/refunds/PRD.md", Patch: patchFor(8)}}
+	Run(ctx, o, []Bundle{b}, files)
+	if body := f.issue[0].Body; !strings.Contains(body, "/speccy enforce links.has-upstream") {
+		t.Fatalf("the summary does not offer the check that now passes:\n%s", body)
+	}
+
+	// A maintainer replies in the conversation.
+	f.issue = append(f.issue, github.IssueComment{ID: 9, Body: "/speccy enforce links.has-upstream",
+		User: &struct {
+			Login string `json:"login"`
+		}{Login: "kim"}})
+	res := Run(ctx, o, []Bundle{b}, files)
+	if res.Enforced != 1 {
+		t.Fatalf("enforced %d, want 1: %v", res.Enforced, res.Warnings)
+	}
+	if !slices.Contains(f.committed, ".speccy.yaml") {
+		t.Errorf("committed %v, want .speccy.yaml", f.committed)
+	}
+	if body := f.issue[0].Body; !strings.Contains(body, "@kim turned `links.has-upstream` back on") {
+		t.Errorf("the summary does not name the change:\n%s", body)
 	}
 }

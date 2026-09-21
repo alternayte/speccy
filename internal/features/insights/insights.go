@@ -13,7 +13,6 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/profile"
-	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/store"
@@ -24,6 +23,8 @@ type API struct {
 	DB        *store.DB
 	Workspace uuid.UUID
 	Profiles  func() map[string]profile.Versioned
+	// Decisions returns a bundle's sidecar (DEC-009).
+	Decisions func(ctx context.Context, b pgdb.Bundle) (source.Decisions, error)
 }
 
 type bundleStats struct {
@@ -144,7 +145,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 			if sv, err := q.GetBundleStatusView(ctx, b.ID); err == nil && sv.ReviewRequestedAt.Valid && sv.ApprovedAt.Valid {
 				hoursApproval = append(hoursApproval, sv.ApprovedAt.Time.Sub(sv.ReviewRequestedAt.Time).Hours())
 			}
-			if standalone(ctx, q, b) {
+			if a.standalone(ctx, b) {
 				pi.Standalone++
 			}
 		}
@@ -231,21 +232,15 @@ func sectionOf(raw []byte) string {
 	return strings.Join(an.HeadingPath, " › ")
 }
 
-func standalone(ctx context.Context, q store.Querier, b pgdb.Bundle) bool {
-	if !b.CurrentVersionID.Valid {
+func (a *API) standalone(ctx context.Context, b pgdb.Bundle) bool {
+	if a.Decisions == nil {
 		return false
 	}
-	files, err := version.Files(ctx, q, b.CurrentVersionID.UUID)
+	dec, err := a.Decisions(ctx, b)
 	if err != nil {
 		return false
 	}
-	for _, f := range files {
-		if f.Path == b.MainDoc {
-			fm, _, _ := source.ReadFrontmatter(f.Content)
-			return fm.Standalone != nil && strings.TrimSpace(fm.Standalone.Reason) != ""
-		}
-	}
-	return false
+	return dec.Standalone != nil && strings.TrimSpace(dec.Standalone.Reason) != ""
 }
 
 func median(xs []float64) float64 {

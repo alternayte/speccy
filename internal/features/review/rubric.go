@@ -112,16 +112,15 @@ func (rc *runCtx) publish(e Event) {
 }
 
 // bundleHash is the input hash of a doc-scope step: every file's path and content hash. The
-// main doc's frontmatter waivers are left out: approving a waiver writes them, and changes no
-// text that a model reviews, so the cache and the pinned questions stay (REQ-021, REQ-047).
+// sidecar is left out: approving a waiver writes it, and changes no text that a model reviews,
+// so the cache and the pinned questions stay (REQ-021, REQ-047).
 func bundleHash(in input) string {
 	parts := make([]string, 0, len(in.files)*2)
 	for _, f := range in.files {
-		content := f.Content
-		if f.Path == in.bundle.MainDoc {
-			content = source.WithoutWaivers(content)
+		if source.IsSidecar(f.Path) {
+			continue
 		}
-		parts = append(parts, f.Path, version.Hash(content))
+		parts = append(parts, f.Path, version.Hash(f.Content))
 	}
 	return hashOf(parts...)
 }

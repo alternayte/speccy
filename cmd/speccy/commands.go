@@ -183,14 +183,22 @@ enforcement: advisory   # advisory | blocking
 // runInit is speccy init (SDD §12.2): it writes .speccy.yaml, adds .speccy/state/ to
 // .gitignore, and offers to turn loose markdown files into bundles.
 func runInit(args []string, stdin io.Reader, stdout, stderr io.Writer, interactive bool) int {
-	if len(args) != 0 {
-		fmt.Fprint(stderr, "Usage: speccy init\n")
+	forGitHub := false
+	for _, a := range args {
+		if a == "--github" {
+			forGitHub = true
+			continue
+		}
+		fmt.Fprint(stderr, "Usage: speccy init [--github]\n")
 		return exitUsage
 	}
 	dir, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 		return exitUsage
+	}
+	if forGitHub {
+		return initGitHub(dir, stdout, stderr)
 	}
 	cfgPath := filepath.Join(dir, source.RepoConfigFile)
 	if _, err := os.Stat(cfgPath); err == nil {

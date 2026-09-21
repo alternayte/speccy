@@ -36,7 +36,8 @@ Three ways to start one:
 
 - **New bundle** writes the profile's template.
 - Drag a folder or a file from Finder or Explorer onto the bundles screen. Speccy makes one bundle per folder, and a single-file bundle per loose markdown file.
-- `speccy init` in a repo that holds specs already. Then set the paths in `.speccy.yaml`. See [configuration.md](configuration.md).
+- `speccy init --github` in a repo that holds specs already. It maps the docs it recognises, relaxes the checks that fail today, and writes the Action's workflow. One pull request adopts the repo, and the first review names the checks your team opted into. See [configuration.md](configuration.md).
+- **From GitHub** on the bundles screen, or `speccy add <url>`. Paste the address of a repo, a folder in one, or a single doc. Speccy shows the repo, the branch, the doc and the doc type before it reads anything. It reads through the GitHub API and writes no file into your folder. Local mode uses the token of your `gh` login; run `gh auth login` first, or paste a token in Admin → GitHub.
 
 A doc written before Speccy names no type. **Import** takes it anyway: it guesses the type from the headings, shows the guess, and lets you pick another. It then writes one line, `type: <key>`, at the top of the file it creates, and changes nothing else. A drop whose type Speccy cannot guess opens the same dialog with the file in it.
 
@@ -129,7 +130,7 @@ The run report shows the stages, their timings, and the findings by category.
 
 `j` and `k` move. `d` records a decision. `w` asks for a waiver. `c` opens a comment. `Esc` leaves.
 
-A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. The profile's waiver policy says who may approve: any member, a non-author, N distinct non-authors, a profile maintainer, or nobody. An approved waiver is written into the main doc's frontmatter, so it travels with the doc in git. Any edit of that section ends the waiver, and the check runs again.
+A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. The profile's waiver policy says who may approve: any member, a non-author, N distinct non-authors, a profile maintainer, or nobody. An approved waiver is written into the doc's sidecar, `.speccy/decisions/<doc path>.yaml`, so it travels with the repo in git and the doc itself does not change. Any edit of that section ends the waiver, and the check runs again.
 
 An acknowledgement uses the same mechanism for a link or a trace item that is intentionally absent.
 
@@ -153,6 +154,8 @@ Fix what the findings and the tour raised. Save. Run the review again. Build Rea
 
 **Traceability** shows every upstream ID, and whether this doc references it, covers it elsewhere, or leaves a gap.
 
+Two linked docs also have to agree with each other. [linked-docs.md](linked-docs.md) follows a PRD and the SDD that implements it: the matrix, a coverage gap, the acknowledgement that closes it, a restatement, a contradiction, and the stale verdict after an upstream edit.
+
 ![The traceability matrix](images/guide-trace.png)
 
 A bundle reaches `approved` when it has a current Build Ready verdict and the approvals its profile requires. An author cannot approve their own bundle. Any change to the main doc or its assets revokes the approvals, and the bundle returns to `in_review`.
@@ -169,4 +172,4 @@ For one profile, the false-ready rate is the share of Build Ready handoffs that 
 
 ## 12. Keep the verdict in CI
 
-`speccy review docs/specs/*` gives the same verdict in a terminal. The GitHub Action posts the findings on the pull request. See [cli-and-tui.md](cli-and-tui.md) and [configuration.md](configuration.md).
+`speccy review docs/specs/*` gives the same verdict in a terminal. The GitHub Action posts the findings on the pull request, and a reply there settles one. [github.md](github.md) follows a repo end to end. See also [cli-and-tui.md](cli-and-tui.md) and [configuration.md](configuration.md).

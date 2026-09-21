@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/alternayte/speccy/internal/source"
 )
 
 // Watch calls onChange after files under the root change, at most once per quiet period.
@@ -60,10 +62,19 @@ func (r *Root) isState(p string) bool {
 	return p == state || strings.HasPrefix(p, state+string(filepath.Separator))
 }
 
-// addWatches watches every folder that a scan reads, and .speccy and .speccy/profiles for
-// profile changes. .speccy.yaml is in the root, which is watched.
+// addWatches watches every folder that a scan reads, .speccy and .speccy/profiles for profile
+// changes, and the sidecars, where a waiver written by hand lives (DEC-009). .speccy.yaml is in
+// the root, which is watched.
 func (r *Root) addWatches(w *fsnotify.Watcher) {
-	for _, extra := range []string{filepath.Join(r.dir, ".speccy"), filepath.Join(r.dir, ".speccy", "profiles")} {
+	extras := []string{filepath.Join(r.dir, ".speccy"), filepath.Join(r.dir, ".speccy", "profiles")}
+	decisions := r.abs(source.SidecarDir)
+	_ = filepath.WalkDir(decisions, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() {
+			extras = append(extras, p)
+		}
+		return nil
+	})
+	for _, extra := range extras {
 		if info, err := os.Stat(extra); err == nil && info.IsDir() {
 			_ = w.Add(extra)
 		}

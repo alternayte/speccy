@@ -44,6 +44,8 @@ To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
 | Document | What it holds |
 |---|---|
 | [docs/guide.md](docs/guide.md) | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder. |
+| [docs/github.md](docs/github.md) | Specs in pull requests: adopt a repo, read the comment, decide with a reply, and read a repo back into Speccy from its URL. |
+| [docs/linked-docs.md](docs/linked-docs.md) | Two docs that must agree: links, trace IDs, the matrix, coverage, restatement, contradiction, and the stale verdict after an upstream edit. |
 | [docs/cli-and-tui.md](docs/cli-and-tui.md) | Every command, the terminal UI and its keys, connected mode, and the MCP server. |
 | [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing. |
 | [docs/decisions.md](docs/decisions.md) | Each design decision, its alternative, and its reason. |
@@ -128,7 +130,15 @@ The **score** is passed checks divided by applicable checks. It is for tracking,
 
 ## Try it on your existing specs
 
-Run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
+Point Speccy at a repo on GitHub, with no clone: **From GitHub** on the bundles screen, or
+
+```sh
+speccy add https://github.com/acme/specs/blob/main/docs/prd-payments.md
+```
+
+A repo, a folder in one, or a single doc all work, as does `owner/name`. Speccy shows what the address names before it reads anything. Local mode uses the token of your `gh` login, so run `gh auth login` first; with no `gh`, paste a fine-grained token in Admin → GitHub. Speccy reads through the GitHub API, writes no file into your folder, and never changes the branch: an edit becomes a pull request.
+
+Or run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
 
 ```yaml
 map:                      # single files, with assets in <name>.assets/
@@ -142,13 +152,19 @@ adoption:                 # these checks report as INFO for now
   relaxed: [links.has-upstream, lint.required-headings]
 ```
 
+A relaxed check stays relaxed until a maintainer takes it out of the list. When one of them passes on every mapped doc, the summary comment of the next pull request says so and offers the reply that removes it:
+
+```text
+/speccy enforce links.has-upstream
+```
+
 Or review them all in one command. It needs no server and no setup:
 
 ```sh
 speccy review docs/ --summary
 ```
 
-It prints one line per bundle, with the verdict, the score, and the top three failing checks, then the checks that fail most often. Add `--format md` for a pull request comment, or `--format json` for a script. `speccy init` writes a commented `.speccy.yaml` and adds `.speccy/state/` to `.gitignore`.
+It prints one line per bundle, with the verdict, the score, and the top three failing checks, then the checks that fail most often. Add `--format md` for a pull request comment, or `--format json` for a script. `speccy init` writes a commented `.speccy.yaml` and adds `.speccy/state/` to `.gitignore`. `speccy init --github` adopts a whole repo in one command: it guesses a profile for each spec, writes the mappings, puts the checks that fail today in adoption mode, and writes the workflow below.
 
 ## GitHub Action
 
@@ -161,7 +177,7 @@ on:
   pull_request:
     paths: ["docs/**", ".speccy.yaml"]
 permissions:
-  contents: read
+  contents: write        # commit a decision that a reply asked for
   pull-requests: write   # the summary and inline comments
   checks: write          # one check per bundle
 jobs:
@@ -177,12 +193,11 @@ jobs:
 
 The Action is advisory by default: a Not Build Ready verdict shows in the comment and the check, and the job still passes. Set `enforcement: blocking`, or `enforcement: blocking` in `.speccy.yaml`, to fail the job. The HTML report of each bundle is an artifact of the run.
 
-**Waivers in CI.** A waiver is an entry under `waivers:` in the main doc's frontmatter. Anyone can write one in a pull request, so the approval comes from branch protection: require a review from the code owners of your spec folders.
+**Decide in the pull request.** Reply to a Speccy comment with `/speccy waive <reason>` or `/speccy ack <ID> <reason>`. The next run writes the entry into the doc's sidecar, commits it to the branch, and resolves the comment. Speccy approves nothing of its own: your branch protection reviews that commit like any other.
 
-```text
-# .github/CODEOWNERS
-/docs/ @acme/spec-maintainers
-```
+**Adoption mode.** `speccy init --github` puts the checks that fail on your repo today in `adoption.relaxed`, so the first verdict names the checks your team opted into. `/speccy enforce <slug>` turns one back on when it passes everywhere.
+
+[docs/github.md](docs/github.md) has the whole flow: the comment, every reply, forks, the two verdicts of an unmerged waiver, and reading a repo back into Speccy from its URL.
 
 In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs. The server changes no bundle. It keeps each review for 90 days, and the summary comment links each bundle to its report on the server. Members of the workspace can open the report.
 

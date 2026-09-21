@@ -24,6 +24,12 @@ title: Refunds
 - **REQ-002:** The system MUST email the customer when the refund is paid.
 `
 
+// traceAck is the sidecar of refunds-sdd: REQ-002 is acknowledged as out of scope (DEC-009).
+const traceAck = "trace:\n  - id: REQ-002\n    status: out_of_scope\n    reason: The mail service sends it.\n"
+
+// ackPath is the sidecar of the doc at docPath.
+func ackPath(docPath string) string { return ".speccy/decisions/" + docPath + ".yaml" }
+
 // sdd returns an SDD that implements the refunds PRD, with extra frontmatter and body text.
 func sdd(frontmatter, body string) string {
 	return "---\ntype: sdd\ntitle: Refunds design\nlinks:\n  - kind: implements\n    target: refunds-prd\n" + frontmatter +
@@ -54,7 +60,7 @@ func TestCoherence_UncoveredReqIsMust(t *testing.T) {
 				t.Errorf("the coverage gap does not block: %s", v.BlockingFindingIds)
 			}
 			// An acknowledgement with a reason covers it.
-			writeFile(t, en.dir, "refunds-sdd/SPEC.md", sdd("trace:\n  - id: REQ-002\n    status: out_of_scope\n    reason: The mail service sends it.\n", ""))
+			writeFile(t, en.dir, ackPath("refunds-sdd/SPEC.md"), traceAck)
 			if err := en.bundles.Sync(context.Background()); err != nil {
 				t.Fatal(err)
 			}
@@ -70,11 +76,12 @@ func TestCoherence_StandaloneAck(t *testing.T) {
 	for _, e := range storetest.Engines() {
 		t.Run(e.Name, func(t *testing.T) {
 			// A link rule would link the SDD to the PRD, but the SDD says it stands alone.
-			standaloneSDD := "---\ntype: sdd\ntitle: Refunds design\nstandalone:\n  reason: An internal change.\n  acknowledged_by: nathan\n---\n\n# Refunds design\n\n" +
+			standaloneSDD := "---\ntype: sdd\ntitle: Refunds design\n---\n\n# Refunds design\n\n" +
 				"## Design\n\nThe system MUST refund a card payment within 5 working days of the request.\n"
 			en := newEnv(t, e, map[string]string{
 				".speccy.yaml":   "map:\n  - glob: \"*.md\"\n    profile: sdd\nlink_rules:\n  - \"sdd-{name}.md implements prd-{name}.md\"\n",
 				"prd-refunds.md": upstreamPRD, "sdd-refunds.md": standaloneSDD,
+				ackPath("sdd-refunds.md"): "standalone:\n  reason: An internal change.\n  acknowledged_by: nathan\n",
 			})
 			_, fs, v := en.latest(t, "sdd-refunds")
 			for _, slug := range []string{review.CoverageSlug, review.RestatementSlug, review.HasUpstreamSlug} {
@@ -96,8 +103,8 @@ func TestCoherence_UpstreamEditStales(t *testing.T) {
 	for _, e := range storetest.Engines() {
 		t.Run(e.Name, func(t *testing.T) {
 			ctx := context.Background()
-			ack := "trace:\n  - id: REQ-002\n    status: out_of_scope\n    reason: The mail service sends it.\n"
-			pe := newPipeline(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, "")}, "fake-1")
+			ack := ""
+			pe := newPipeline(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, ""), ackPath("refunds-sdd/SPEC.md"): traceAck}, "fake-1")
 			q := pe.bundles.DB.Queries()
 			summary := func(slug string) *string {
 				b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
@@ -124,7 +131,7 @@ func TestCoherence_UpstreamEditStales(t *testing.T) {
 			}
 
 			// A lint-only verdict is linted again instead.
-			en := newEnv(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, "")})
+			en := newEnv(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, ""), ackPath("refunds-sdd/SPEC.md"): traceAck})
 			first, _, _ := en.latest(t, "refunds-sdd")
 			writeFile(t, en.dir, "refunds-prd/PRD.md", strings.Replace(upstreamPRD, "5 working days", "3 working days", 1))
 			if err := en.bundles.Sync(ctx); err != nil {
@@ -142,10 +149,10 @@ func TestCoherence_UpstreamEditStales(t *testing.T) {
 func TestCoherence_RestatementShingles(t *testing.T) {
 	for _, e := range storetest.Engines() {
 		t.Run(e.Name, func(t *testing.T) {
-			ack := "trace:\n  - id: REQ-002\n    status: out_of_scope\n    reason: The mail service sends it.\n"
+			ack := ""
 			restated := "\n## Scope\n\nThe system must refund a card payment within 5 working days of the request, as the PRD says.\n\n" +
 				"## Storage\n\nThe refund worker writes each refund to the refunds table with the order ID and the amount.\n"
-			en := newEnv(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, restated)})
+			en := newEnv(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, restated), ackPath("refunds-sdd/SPEC.md"): traceAck})
 			_, fs, v := en.latest(t, "refunds-sdd")
 			got := findingsOf(fs, review.RestatementSlug)
 			if len(got) != 1 || got[0].Level != "SHOULD" || !strings.Contains(got[0].Message, "Link, do not repeat") {
@@ -207,9 +214,9 @@ func TestConfig_LinkRules(t *testing.T) {
 // REQ-054: a conflict with a linked doc is a MUST finding anchored in both docs. A conflict
 // whose quotes are not in the docs is dropped.
 func TestCoherence_Contradiction(t *testing.T) {
-	ack := "trace:\n  - id: REQ-002\n    status: out_of_scope\n    reason: The mail service sends it.\n"
+	ack := ""
 	body := "\n## Timing\n\nThe worker pays each refund within 10 working days. The invented case is handled.\n"
-	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, body)}, "fake-1")
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, body), ackPath("refunds-sdd/SPEC.md"): traceAck}, "fake-1")
 	run, fs, v := pe.run(t, "refunds-sdd")
 	got := findingsOf(fs, review.ContradictionSlug)
 	if len(got) != 1 || got[0].Level != "MUST" {

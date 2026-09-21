@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, FolderPlus, Plus } from "lucide-react";
+import { AlertTriangle, FolderPlus, GitBranch, Plus } from "lucide-react";
 import { useState } from "react";
 import { useMe } from "@/features/account/me";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle, putFileContent } from "@/lib/api";
 import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
 import { bundlesFromDrop, filesFromDrop, isZip, mainDocOf } from "./drop";
+import { GitHubDialog } from "./github-dialog";
 import { ImportDialog } from "./import-dialog";
 import { NewBundleDialog } from "./new-bundle-dialog";
 import { relativeTime } from "./time";
@@ -24,6 +25,7 @@ import { VerdictPill } from "./verdict";
 export function BundlesPage() {
   const bundles = useQuery({ ...listBundlesOptions({ query: { limit: 100 } }), refetchInterval: 3000 });
   const [importing, setImporting] = useState(false);
+  const [fromGitHub, setFromGitHub] = useState(false);
   const [creating, setCreating] = useState(false);
   const hosted = useMe().data?.mode === "hosted";
   const qc = useQueryClient();
@@ -85,7 +87,7 @@ export function BundlesPage() {
       }}
     >
       <div className="mx-auto max-w-[960px] px-4 py-8 sm:px-6">
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Bundles</h1>
             <p className="mt-1 text-sm text-ink-2">
@@ -94,7 +96,10 @@ export function BundlesPage() {
                 : "Each bundle is a folder with one main doc and its assets."}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button icon={<GitBranch className="size-4" />} onClick={() => setFromGitHub(true)}>
+              From GitHub
+            </Button>
             <Button icon={<FolderPlus className="size-4" />} onClick={() => setImporting(true)}>
               Import
             </Button>
@@ -202,6 +207,7 @@ export function BundlesPage() {
           </section>
         ) : null}
       </div>
+      <GitHubDialog open={fromGitHub} onOpenChange={setFromGitHub} />
       <ImportDialog
         open={importing}
         dropped={dropped}

@@ -200,3 +200,50 @@ func (r LinkRule) Target(from string) (string, bool) {
 	}
 	return to, true
 }
+
+// Enforce removes a check slug from the adoption mode list of .speccy.yaml, so the check
+// reports at its own level again (REQ-133). ok is false when the slug is not in the list. The
+// rest of the file keeps its keys and its comments.
+func Enforce(src []byte, slug string) (out []byte, ok bool, err error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(src, &doc); err != nil {
+		return nil, false, fmt.Errorf("%s does not parse: %w", RepoConfigFile, err)
+	}
+	if doc.Kind == 0 || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, false, nil
+	}
+	list := findKey(findKey(doc.Content[0], "adoption"), "relaxed")
+	if list == nil || list.Kind != yaml.SequenceNode {
+		return nil, false, nil
+	}
+	for i, n := range list.Content {
+		if n.Value != slug {
+			continue
+		}
+		list.Content = append(list.Content[:i], list.Content[i+1:]...)
+		var buf bytes.Buffer
+		enc := yaml.NewEncoder(&buf)
+		enc.SetIndent(2)
+		if err := enc.Encode(&doc); err != nil {
+			return nil, false, err
+		}
+		if err := enc.Close(); err != nil {
+			return nil, false, err
+		}
+		return buf.Bytes(), true, nil
+	}
+	return nil, false, nil
+}
+
+// findKey returns the value node of key in a mapping, or nil.
+func findKey(m *yaml.Node, key string) *yaml.Node {
+	if m == nil || m.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return m.Content[i+1]
+		}
+	}
+	return nil
+}

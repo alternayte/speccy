@@ -106,6 +106,11 @@ docs-shots: build
     test -d build/dev-bundles || cp -R testdata/bundles build/dev-bundles
     go run ./tools/buildtool docs-shots
 
+# Capture the pull request pictures of docs/github.md from a real pull request on the public
+# scratch repo (BUILD.md §6.3). Needs agent-browser and a gh login.
+docs-shots-github: build
+    go run ./tools/buildtool docs-shots-github
+
 # Build the release archives and images locally, without publishing (a snapshot).
 release-check:
     goreleaser release --snapshot --clean

@@ -127,7 +127,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		return out, err
 	}
 
-	// The verdict rule (SDD §8.6) on the findings, with the waivers in the frontmatter. Content
+	// The verdict rule (SDD §8.6) on the findings, with the waivers in the sidecar. Content
 	// has no threads, so none blocks.
 	waived := applyWaivers(in, &ev)
 	vin := ev.in

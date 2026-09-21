@@ -154,7 +154,9 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			})
 			srv := httptest.NewServer(gh)
 			defer srv.Close()
-			s.GitHub = func(context.Context) (*github.Client, error) { return &github.Client{API: srv.URL, Token: "t"}, nil }
+			s.GitHub = func(context.Context, string) (*github.Client, error) {
+				return &github.Client{API: srv.URL, Token: "t"}, nil
+			}
 			q := s.DB.Queries()
 			src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main", Path: "docs",
 				CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
@@ -250,5 +252,50 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 				t.Fatalf("after discard: %+v, SPEC.md %q", state, spec)
 			}
 		})
+	}
+}
+
+// REQ-128: a source URL that names one doc makes a single-file bundle, with its assets, and
+// with the profile the person picked when the doc names none.
+func TestGitHubSource_OneDoc(t *testing.T) {
+	ctx := context.Background()
+	s := services()[0].open(t)
+	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+	gh.refs["main"] = gh.commit(map[string]string{
+		"docs/prd-payments.md":               "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n",
+		"docs/prd-payments.assets/limits.md": "Limits.\n",
+		"docs/prd-refunds.md":                "# Refunds\n",
+		"docs/pay/SPEC.md":                   mainDoc,
+	})
+	srv := httptest.NewServer(gh)
+	defer srv.Close()
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return &github.Client{API: srv.URL, Token: "t"}, nil
+	}
+	q := s.DB.Queries()
+	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
+		Path: "docs/prd-payments.md", IsFile: true, Profile: "prd", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+	if err := q.InsertGithubSource(ctx, src); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SyncSource(ctx, src.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	if err != nil {
+		t.Fatalf("the one doc did not become a bundle: %v", err)
+	}
+	if b.ProfileKey != "prd" || b.MainDoc != "prd-payments.md" {
+		t.Errorf("bundle profile %q, main doc %q", b.ProfileKey, b.MainDoc)
+	}
+	files, _ := version.Files(ctx, q, b.CurrentVersionID.UUID)
+	if len(files) != 2 {
+		t.Errorf("files %+v, want the doc and its asset", files)
+	}
+	// No other doc of the folder comes with it.
+	for _, slug := range []string{"docs/prd-refunds", "docs/pay"} {
+		if _, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: slug}); err == nil {
+			t.Errorf("%s came with a one-doc source", slug)
+		}
 	}
 }

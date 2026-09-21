@@ -47,8 +47,9 @@ type Service struct {
 	AfterChange func(context.Context) error
 	// Limits returns the REQ-009 limits in force. Nil means the defaults.
 	Limits func(context.Context) source.Limits
-	// GitHub returns the client with the workspace token (hosted mode), and nil in local mode.
-	GitHub func(context.Context) (*github.Client, error)
+	// GitHub returns the client for a GitHub host: the workspace token in hosted mode, and the
+	// machine's gh login in local mode (REQ-129). apiURL is the source's API address.
+	GitHub func(ctx context.Context, apiURL string) (*github.Client, error)
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan

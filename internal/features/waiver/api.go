@@ -33,6 +33,9 @@ type API struct {
 	Profiles  func() map[string]profile.Versioned
 	People    kernel.Directory
 	Change    Change
+	// Decisions reads a bundle's sidecar, and SetDecisions writes it (DEC-009).
+	Decisions    func(ctx context.Context, b pgdb.Bundle) (source.Decisions, error)
+	SetDecisions func(ctx context.Context, b pgdb.Bundle, d source.Decisions, by, message string) error
 }
 
 // PolicyFor is the waiver policy of a check at a level (§9.1): the check's own policy when it
@@ -133,7 +136,7 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 }
 
 // ApproveWaiver approves under the policy. A final approval first writes the waiver to the
-// main doc's frontmatter as a new version, then records WaiverApproved (DEC-009).
+// doc's sidecar, then records WaiverApproved (DEC-009).
 func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObject) (api.ApproveWaiverResponseObject, error) {
 	s, b, err := a.load(ctx, req.WaiverId)
 	if err != nil {
@@ -148,7 +151,7 @@ func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObj
 		return nil, err
 	}
 	if Evolve(s, events[0]).Status == StatusApproved {
-		if err := a.writeFrontmatter(ctx, b, s, who.UserID); err != nil {
+		if err := a.writeSidecar(ctx, b, s, who.UserID); err != nil {
 			return nil, err
 		}
 	}
@@ -162,7 +165,9 @@ func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObj
 	return api.ApproveWaiver200JSONResponse(w), nil
 }
 
-func (a *API) writeFrontmatter(ctx context.Context, b pgdb.Bundle, s State, approvedBy string) error {
+// writeSidecar writes the approved waiver to the doc's sidecar (DEC-009). The doc text does
+// not change, so no version of the doc is made here.
+func (a *API) writeSidecar(ctx context.Context, b pgdb.Bundle, s State, approvedBy string) error {
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return err
@@ -170,16 +175,15 @@ func (a *API) writeFrontmatter(ctx context.Context, b pgdb.Bundle, s State, appr
 	if h, ok := section.HashAt(doc, main, s.Section); !ok || h != s.SectionHash {
 		return kernel.Conflict("section_changed", "The section changed after the request, so this waiver no longer fits it. Ask for a new waiver.")
 	}
-	next, err := source.AddWaiver(main, source.Waiver{
-		Check: s.Check, Section: s.Section, Reason: s.Reason, SectionHash: s.SectionHash,
-		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(), ApprovedBy: kernel.PersonByID(ctx, a.People, approvedBy).Label(),
-	})
+	dec, err := a.Decisions(ctx, b)
 	if err != nil {
 		return err
 	}
-	_, _, err = a.Change(ctx, b.ID, b.CurrentVersionID.UUID, source.Op{Kind: source.OpWrite, Path: b.MainDoc, Content: next},
-		approvedBy, "Approved a waiver for "+s.Check)
-	return err
+	dec = dec.WithWaiver(source.Waiver{
+		Check: s.Check, Section: s.Section, Reason: s.Reason, SectionHash: s.SectionHash,
+		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(),
+	})
+	return a.SetDecisions(ctx, b, dec, approvedBy, "Approved a waiver for "+s.Check)
 }
 
 // RejectWaiver rejects a requested waiver.
