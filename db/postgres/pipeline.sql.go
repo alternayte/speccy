@@ -50,6 +50,15 @@ func (q *Queries) ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 	return i, err
 }
 
+const deleteLinkStates = `-- name: DeleteLinkStates :exec
+DELETE FROM link_state WHERE bundle_id = $1
+`
+
+func (q *Queries) DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLinkStates, bundleID)
+	return err
+}
+
 const deleteLinksFrom = `-- name: DeleteLinksFrom :exec
 DELETE FROM link WHERE from_bundle_id = $1
 `
@@ -145,7 +154,7 @@ func (q *Queries) GetCache(ctx context.Context, keyHash string) (dbtype.JSON, er
 }
 
 const getMCPConnection = `-- name: GetMCPConnection :one
-SELECT id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4, tool_allowlist, is_search, search_tool, created_at FROM mcp_connection WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4, tool_allowlist, is_search, search_tool, created_at, hosts, fetch_tool FROM mcp_connection WHERE workspace_id = $1 AND id = $2
 `
 
 type GetMCPConnectionParams struct {
@@ -168,6 +177,8 @@ func (q *Queries) GetMCPConnection(ctx context.Context, arg GetMCPConnectionPara
 		&i.IsSearch,
 		&i.SearchTool,
 		&i.CreatedAt,
+		&i.Hosts,
+		&i.FetchTool,
 	)
 	return i, err
 }
@@ -287,9 +298,9 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
 }
 
 const insertLink = `-- name: InsertLink :exec
-INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin)
+INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url)
 VALUES ($1, $2, $3, $4, $5,
-        $6, $7, $8)
+        $6, $7, $8, $9)
 `
 
 type InsertLinkParams struct {
@@ -301,6 +312,7 @@ type InsertLinkParams struct {
 	TargetBundleID uuid.NullUUID
 	TargetRef      string
 	Origin         string
+	TargetUrl      string
 }
 
 func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
@@ -313,16 +325,43 @@ func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
 		arg.TargetBundleID,
 		arg.TargetRef,
 		arg.Origin,
+		arg.TargetUrl,
+	)
+	return err
+}
+
+const insertLinkState = `-- name: InsertLinkState :exec
+INSERT INTO link_state (bundle_id, target_ref, state, reason, checked_ref, checked_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type InsertLinkStateParams struct {
+	BundleID   uuid.UUID
+	TargetRef  string
+	State      string
+	Reason     string
+	CheckedRef string
+	CheckedAt  time.Time
+}
+
+func (q *Queries) InsertLinkState(ctx context.Context, arg InsertLinkStateParams) error {
+	_, err := q.db.ExecContext(ctx, insertLinkState,
+		arg.BundleID,
+		arg.TargetRef,
+		arg.State,
+		arg.Reason,
+		arg.CheckedRef,
+		arg.CheckedAt,
 	)
 	return err
 }
 
 const insertMCPConnection = `-- name: InsertMCPConnection :exec
 INSERT INTO mcp_connection (id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4,
-                            tool_allowlist, is_search, search_tool, created_at)
+                            tool_allowlist, is_search, search_tool, created_at, hosts, fetch_tool)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9,
-        $10, $11)
+        $10, $11, $12, $13)
 `
 
 type InsertMCPConnectionParams struct {
@@ -337,6 +376,8 @@ type InsertMCPConnectionParams struct {
 	IsSearch        bool
 	SearchTool      string
 	CreatedAt       time.Time
+	Hosts           dbtype.JSON
+	FetchTool       string
 }
 
 func (q *Queries) InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error {
@@ -352,6 +393,8 @@ func (q *Queries) InsertMCPConnection(ctx context.Context, arg InsertMCPConnecti
 		arg.IsSearch,
 		arg.SearchTool,
 		arg.CreatedAt,
+		arg.Hosts,
+		arg.FetchTool,
 	)
 	return err
 }
@@ -498,8 +541,42 @@ func (q *Queries) ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, err
 	return items, nil
 }
 
+const listLinkStates = `-- name: ListLinkStates :many
+SELECT bundle_id, target_ref, state, reason, checked_ref, checked_at FROM link_state WHERE bundle_id = $1 ORDER BY target_ref
+`
+
+func (q *Queries) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]LinkState, error) {
+	rows, err := q.db.QueryContext(ctx, listLinkStates, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LinkState
+	for rows.Next() {
+		var i LinkState
+		if err := rows.Scan(
+			&i.BundleID,
+			&i.TargetRef,
+			&i.State,
+			&i.Reason,
+			&i.CheckedRef,
+			&i.CheckedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLinksFrom = `-- name: ListLinksFrom :many
-SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin FROM link WHERE from_bundle_id = $1 ORDER BY kind, target_ref
+SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url FROM link WHERE from_bundle_id = $1 ORDER BY kind, target_ref
 `
 
 func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error) {
@@ -520,6 +597,7 @@ func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]
 			&i.TargetBundleID,
 			&i.TargetRef,
 			&i.Origin,
+			&i.TargetUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -535,7 +613,7 @@ func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]
 }
 
 const listLinksTo = `-- name: ListLinksTo :many
-SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin FROM link WHERE target_bundle_id = $1 ORDER BY kind, from_bundle_id
+SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url FROM link WHERE target_bundle_id = $1 ORDER BY kind, from_bundle_id
 `
 
 func (q *Queries) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error) {
@@ -556,6 +634,7 @@ func (q *Queries) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID)
 			&i.TargetBundleID,
 			&i.TargetRef,
 			&i.Origin,
+			&i.TargetUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -571,7 +650,7 @@ func (q *Queries) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID)
 }
 
 const listMCPConnections = `-- name: ListMCPConnections :many
-SELECT id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4, tool_allowlist, is_search, search_tool, created_at FROM mcp_connection WHERE workspace_id = $1 ORDER BY name
+SELECT id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4, tool_allowlist, is_search, search_tool, created_at, hosts, fetch_tool FROM mcp_connection WHERE workspace_id = $1 ORDER BY name
 `
 
 func (q *Queries) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error) {
@@ -595,6 +674,8 @@ func (q *Queries) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID)
 			&i.IsSearch,
 			&i.SearchTool,
 			&i.CreatedAt,
+			&i.Hosts,
+			&i.FetchTool,
 		); err != nil {
 			return nil, err
 		}
@@ -827,8 +908,9 @@ const updateMCPConnection = `-- name: UpdateMCPConnection :exec
 UPDATE mcp_connection
 SET name = $1, transport = $2, command_or_url = $3,
     secret_encrypted = $4, secret_last4 = $5,
-    tool_allowlist = $6, is_search = $7, search_tool = $8
-WHERE workspace_id = $9 AND id = $10
+    tool_allowlist = $6, is_search = $7, search_tool = $8,
+    hosts = $9, fetch_tool = $10
+WHERE workspace_id = $11 AND id = $12
 `
 
 type UpdateMCPConnectionParams struct {
@@ -840,6 +922,8 @@ type UpdateMCPConnectionParams struct {
 	ToolAllowlist   dbtype.JSON
 	IsSearch        bool
 	SearchTool      string
+	Hosts           dbtype.JSON
+	FetchTool       string
 	WorkspaceID     uuid.UUID
 	ID              uuid.UUID
 }
@@ -854,6 +938,8 @@ func (q *Queries) UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnecti
 		arg.ToolAllowlist,
 		arg.IsSearch,
 		arg.SearchTool,
+		arg.Hosts,
+		arg.FetchTool,
 		arg.WorkspaceID,
 		arg.ID,
 	)

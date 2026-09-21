@@ -295,7 +295,7 @@ export type BundleRef = {
 };
 
 export type BundleLink = {
-    kind: 'implements' | 'refines' | 'references' | 'supersedes';
+    kind: 'implements' | 'refines' | 'references' | 'supersedes' | 'implemented-by';
     origin: 'frontmatter' | 'rule';
     target_kind: 'bundle' | 'external';
     /**
@@ -306,6 +306,22 @@ export type BundleLink = {
      * The linked bundle. Absent when no bundle matches the target.
      */
     bundle?: BundleRef;
+    /**
+     * Where a person opens an external target (DEC-021).
+     */
+    target_url?: string;
+    /**
+     * The state of an external link, as the last review run read it.
+     */
+    state?: 'aligned' | 'drifted' | 'conflicting' | 'unchecked';
+    /**
+     * Why the link is in that state. It says what stopped an unchecked read.
+     */
+    state_reason?: string;
+    /**
+     * When a run last read the external target.
+     */
+    checked_at?: string;
 };
 
 export type Standalone = {
@@ -403,6 +419,14 @@ export type McpConnectionInput = {
      * The allowlisted tool that searches, when is_search is true.
      */
     search_tool?: string;
+    /**
+     * The hosts this connection can read, such as company.atlassian.net. An external link on one of them is read with this connection (DEC-021).
+     */
+    hosts?: Array<string>;
+    /**
+     * The allowlisted read-only tool that reads one page or issue, needed when hosts is not empty.
+     */
+    fetch_tool?: string;
 };
 
 export type McpConnection = {
@@ -417,6 +441,8 @@ export type McpConnection = {
     tool_allowlist: Array<string>;
     is_search: boolean;
     search_tool: string;
+    hosts: Array<string>;
+    fetch_tool: string;
 };
 
 export type McpTool = {
@@ -884,6 +910,10 @@ export type BuildPacket = {
      */
     files: Array<ContentFile>;
     /**
+     * The issues, pages, and code this doc links to (DEC-021). Speccy fetches no content for them.
+     */
+    external_links: Array<PacketExternalLink>;
+    /**
      * The main doc of each bundle this one links to.
      */
     links: Array<PacketLink>;
@@ -904,6 +934,19 @@ export type PacketLink = {
      */
     path: string;
     content: string;
+};
+
+export type PacketExternalLink = {
+    kind: string;
+    /**
+     * The target as the doc writes it, such as github:acme/app#internal/pay.
+     */
+    ref: string;
+    url: string;
+    /**
+     * For a code target, the commit the last review run read.
+     */
+    commit?: string;
 };
 
 export type PacketTraceId = {

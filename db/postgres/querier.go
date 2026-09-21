@@ -27,6 +27,7 @@ type Querier interface {
 	DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error
 	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
+	DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error
 	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
 	DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error
@@ -76,6 +77,7 @@ type Querier interface {
 	InsertInvite(ctx context.Context, arg InsertInviteParams) error
 	InsertJob(ctx context.Context, arg InsertJobParams) error
 	InsertLink(ctx context.Context, arg InsertLinkParams) error
+	InsertLinkState(ctx context.Context, arg InsertLinkStateParams) error
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
 	InsertProfileMaintainer(ctx context.Context, arg InsertProfileMaintainerParams) error
@@ -123,6 +125,7 @@ type Querier interface {
 	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
 	ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Handoff, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
+	ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]LinkState, error)
 	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
 	ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error)
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)

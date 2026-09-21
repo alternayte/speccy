@@ -16,6 +16,24 @@ divergence:
   questions: { min: 10, max: 20 }
   themes: [users, scope, acceptance, priorities, dependencies, edge cases]
 checks:
+  - slug: links.external-target
+    level: MUST
+    stage: coherence
+    scope: doc
+    question: Does every external link target parse?
+    pass_when: Every external link target is a github target, a scheme with a pattern, or a full URL.
+  - slug: links.code-drift
+    level: SHOULD
+    stage: coherence
+    scope: doc
+    question: Has the code this doc points at changed since this version?
+    pass_when: No implemented-by target has a commit newer than this version.
+  - slug: coherence.external
+    level: SHOULD
+    stage: coherence
+    scope: doc
+    question: Does this doc agree with the issues and pages it links to?
+    pass_when: No statement in this doc conflicts with a linked issue or page.
   - slug: prd.problem.evidence
     level: MUST
     stage: rubric

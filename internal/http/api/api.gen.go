@@ -145,15 +145,18 @@ func (e BundleSourceKind) Valid() bool {
 
 // Defines values for BundleLinkKind.
 const (
-	Implements BundleLinkKind = "implements"
-	References BundleLinkKind = "references"
-	Refines    BundleLinkKind = "refines"
-	Supersedes BundleLinkKind = "supersedes"
+	ImplementedBy BundleLinkKind = "implemented-by"
+	Implements    BundleLinkKind = "implements"
+	References    BundleLinkKind = "references"
+	Refines       BundleLinkKind = "refines"
+	Supersedes    BundleLinkKind = "supersedes"
 )
 
 // Valid indicates whether the value is a known member of the BundleLinkKind enum.
 func (e BundleLinkKind) Valid() bool {
 	switch e {
+	case ImplementedBy:
+		return true
 	case Implements:
 		return true
 	case References:
@@ -179,6 +182,30 @@ func (e BundleLinkOrigin) Valid() bool {
 	case Frontmatter:
 		return true
 	case Rule:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BundleLinkState.
+const (
+	Aligned     BundleLinkState = "aligned"
+	Conflicting BundleLinkState = "conflicting"
+	Drifted     BundleLinkState = "drifted"
+	Unchecked   BundleLinkState = "unchecked"
+)
+
+// Valid indicates whether the value is a known member of the BundleLinkState enum.
+func (e BundleLinkState) Valid() bool {
+	switch e {
+	case Aligned:
+		return true
+	case Conflicting:
+		return true
+	case Drifted:
+		return true
+	case Unchecked:
 		return true
 	default:
 		return false
@@ -1235,6 +1262,9 @@ type BuildPacket struct {
 	// Bundle The bundle slug.
 	Bundle string `json:"bundle"`
 
+	// ExternalLinks The issues, pages, and code this doc links to (DEC-021). Speccy fetches no content for them.
+	ExternalLinks []PacketExternalLink `json:"external_links"`
+
 	// Files The main doc and its assets.
 	Files     []ContentFile      `json:"files"`
 	HandoffId openapi_types.UUID `json:"handoff_id"`
@@ -1369,13 +1399,25 @@ type BundleGithub struct {
 // BundleLink defines model for BundleLink.
 type BundleLink struct {
 	// Bundle The linked bundle. Absent when no bundle matches the target.
-	Bundle     *BundleRef           `json:"bundle,omitempty"`
-	Kind       BundleLinkKind       `json:"kind"`
-	Origin     BundleLinkOrigin     `json:"origin"`
-	TargetKind BundleLinkTargetKind `json:"target_kind"`
+	Bundle *BundleRef `json:"bundle,omitempty"`
+
+	// CheckedAt When a run last read the external target.
+	CheckedAt *time.Time       `json:"checked_at,omitempty"`
+	Kind      BundleLinkKind   `json:"kind"`
+	Origin    BundleLinkOrigin `json:"origin"`
+
+	// State The state of an external link, as the last review run read it.
+	State *BundleLinkState `json:"state,omitempty"`
+
+	// StateReason Why the link is in that state. It says what stopped an unchecked read.
+	StateReason *string              `json:"state_reason,omitempty"`
+	TargetKind  BundleLinkTargetKind `json:"target_kind"`
 
 	// TargetRef The target as written. For an incoming link, the source bundle's slug.
 	TargetRef string `json:"target_ref"`
+
+	// TargetUrl Where a person opens an external target (DEC-021).
+	TargetUrl *string `json:"target_url,omitempty"`
 }
 
 // BundleLinkKind defines model for BundleLink.Kind.
@@ -1383,6 +1425,9 @@ type BundleLinkKind string
 
 // BundleLinkOrigin defines model for BundleLink.Origin.
 type BundleLinkOrigin string
+
+// BundleLinkState The state of an external link, as the last review run read it.
+type BundleLinkState string
 
 // BundleLinkTargetKind defines model for BundleLink.TargetKind.
 type BundleLinkTargetKind string
@@ -1819,7 +1864,9 @@ type LineOpOp string
 // MCPConnection defines model for MCPConnection.
 type MCPConnection struct {
 	Command       *[]string          `json:"command,omitempty"`
+	FetchTool     string             `json:"fetch_tool"`
 	HasSecret     bool               `json:"has_secret"`
+	Hosts         []string           `json:"hosts"`
 	Id            openapi_types.UUID `json:"id"`
 	IsSearch      bool               `json:"is_search"`
 	Name          string             `json:"name"`
@@ -1834,7 +1881,13 @@ type MCPConnection struct {
 // MCPConnectionInput defines model for MCPConnectionInput.
 type MCPConnectionInput struct {
 	// Command For stdio, one argument per item.
-	Command  *[]string `json:"command,omitempty"`
+	Command *[]string `json:"command,omitempty"`
+
+	// FetchTool The allowlisted read-only tool that reads one page or issue, needed when hosts is not empty.
+	FetchTool *string `json:"fetch_tool,omitempty"`
+
+	// Hosts The hosts this connection can read, such as company.atlassian.net. An external link on one of them is read with this connection (DEC-021).
+	Hosts    *[]string `json:"hosts,omitempty"`
 	IsSearch bool      `json:"is_search"`
 	Name     string    `json:"name"`
 
@@ -1933,6 +1986,17 @@ type OpenThreadAddressedTo string
 
 // OpenThreadAnchorKind defines model for OpenThread.AnchorKind.
 type OpenThreadAnchorKind string
+
+// PacketExternalLink defines model for PacketExternalLink.
+type PacketExternalLink struct {
+	// Commit For a code target, the commit the last review run read.
+	Commit *string `json:"commit,omitempty"`
+	Kind   string  `json:"kind"`
+
+	// Ref The target as the doc writes it, such as github:acme/app#internal/pay.
+	Ref string `json:"ref"`
+	Url string `json:"url"`
+}
 
 // PacketLink defines model for PacketLink.
 type PacketLink struct {

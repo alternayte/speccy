@@ -2612,7 +2612,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [implements, refines, references, supersedes]
+          enum: [implements, refines, references, supersedes, implemented-by]
         origin:
           type: string
           enum: [frontmatter, rule]
@@ -2625,6 +2625,20 @@ components:
         bundle:
           $ref: "#/components/schemas/BundleRef"
           description: The linked bundle. Absent when no bundle matches the target.
+        target_url:
+          type: string
+          description: Where a person opens an external target (DEC-021).
+        state:
+          type: string
+          enum: [aligned, drifted, conflicting, unchecked]
+          description: The state of an external link, as the last review run read it.
+        state_reason:
+          type: string
+          description: Why the link is in that state. It says what stopped an unchecked read.
+        checked_at:
+          type: string
+          format: date-time
+          description: When a run last read the external target.
 
     Standalone:
       type: object
@@ -2801,10 +2815,18 @@ components:
         search_tool:
           type: string
           description: The allowlisted tool that searches, when is_search is true.
+        hosts:
+          type: array
+          items:
+            type: string
+          description: The hosts this connection can read, such as company.atlassian.net. An external link on one of them is read with this connection (DEC-021).
+        fetch_tool:
+          type: string
+          description: The allowlisted read-only tool that reads one page or issue, needed when hosts is not empty.
 
     MCPConnection:
       type: object
-      required: [id, name, transport, has_secret, secret_last4, tool_allowlist, is_search, search_tool]
+      required: [id, name, transport, has_secret, secret_last4, tool_allowlist, is_search, search_tool, hosts, fetch_tool]
       properties:
         id:
           type: string
@@ -2832,6 +2854,12 @@ components:
         is_search:
           type: boolean
         search_tool:
+          type: string
+        hosts:
+          type: array
+          items:
+            type: string
+        fetch_tool:
           type: string
 
     MCPTool:
@@ -3513,7 +3541,7 @@ components:
     BuildPacket:
       type: object
       description: What a coding agent needs to build one bundle (REQ-136).
-      required: [handoff_id, bundle, title, version_number, main_doc, files, links, trace_ids, questions, handoff_md]
+      required: [handoff_id, bundle, title, version_number, main_doc, files, links, external_links, trace_ids, questions, handoff_md]
       properties:
         handoff_id:
           type: string
@@ -3534,6 +3562,11 @@ components:
           description: The main doc and its assets.
           items:
             $ref: "#/components/schemas/ContentFile"
+        external_links:
+          type: array
+          description: The issues, pages, and code this doc links to (DEC-021). Speccy fetches no content for them.
+          items:
+            $ref: "#/components/schemas/PacketExternalLink"
         links:
           type: array
           description: The main doc of each bundle this one links to.
@@ -3566,6 +3599,21 @@ components:
           description: The path the packet writes it at, such as links/payments-prd.md.
         content:
           type: string
+
+    PacketExternalLink:
+      type: object
+      required: [kind, ref, url]
+      properties:
+        kind:
+          type: string
+        ref:
+          type: string
+          description: The target as the doc writes it, such as github:acme/app#internal/pay.
+        url:
+          type: string
+        commit:
+          type: string
+          description: For a code target, the commit the last review run read.
 
     PacketTraceId:
       type: object

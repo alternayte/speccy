@@ -34,16 +34,17 @@ SELECT * FROM mcp_connection WHERE workspace_id = sqlc.arg(workspace_id) AND id 
 
 -- name: InsertMCPConnection :exec
 INSERT INTO mcp_connection (id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4,
-                            tool_allowlist, is_search, search_tool, created_at)
+                            tool_allowlist, is_search, search_tool, created_at, hosts, fetch_tool)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(transport), sqlc.arg(command_or_url),
         sqlc.arg(secret_encrypted), sqlc.arg(secret_last4), sqlc.arg(tool_allowlist), sqlc.arg(is_search),
-        sqlc.arg(search_tool), sqlc.arg(created_at));
+        sqlc.arg(search_tool), sqlc.arg(created_at), sqlc.arg(hosts), sqlc.arg(fetch_tool));
 
 -- name: UpdateMCPConnection :exec
 UPDATE mcp_connection
 SET name = sqlc.arg(name), transport = sqlc.arg(transport), command_or_url = sqlc.arg(command_or_url),
     secret_encrypted = sqlc.arg(secret_encrypted), secret_last4 = sqlc.arg(secret_last4),
-    tool_allowlist = sqlc.arg(tool_allowlist), is_search = sqlc.arg(is_search), search_tool = sqlc.arg(search_tool)
+    tool_allowlist = sqlc.arg(tool_allowlist), is_search = sqlc.arg(is_search), search_tool = sqlc.arg(search_tool),
+    hosts = sqlc.arg(hosts), fetch_tool = sqlc.arg(fetch_tool)
 WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 
 -- name: DeleteMCPConnection :exec
@@ -116,9 +117,9 @@ SELECT * FROM question_result WHERE run_id = sqlc.arg(run_id);
 DELETE FROM link WHERE from_bundle_id = sqlc.arg(from_bundle_id);
 
 -- name: InsertLink :exec
-INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin)
+INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(from_bundle_id), sqlc.arg(kind), sqlc.arg(target_kind),
-        sqlc.arg(target_bundle_id), sqlc.arg(target_ref), sqlc.arg(origin));
+        sqlc.arg(target_bundle_id), sqlc.arg(target_ref), sqlc.arg(origin), sqlc.arg(target_url));
 
 -- name: ListLinksFrom :many
 SELECT * FROM link WHERE from_bundle_id = sqlc.arg(from_bundle_id) ORDER BY kind, target_ref;
@@ -131,3 +132,13 @@ INSERT INTO run_link (run_id, bundle_id, version_id) VALUES (sqlc.arg(run_id), s
 
 -- name: ListRunLinks :many
 SELECT * FROM run_link WHERE run_id = sqlc.arg(run_id) ORDER BY bundle_id;
+
+-- name: DeleteLinkStates :exec
+DELETE FROM link_state WHERE bundle_id = sqlc.arg(bundle_id);
+
+-- name: InsertLinkState :exec
+INSERT INTO link_state (bundle_id, target_ref, state, reason, checked_ref, checked_at)
+VALUES (sqlc.arg(bundle_id), sqlc.arg(target_ref), sqlc.arg(state), sqlc.arg(reason), sqlc.arg(checked_ref), sqlc.arg(checked_at));
+
+-- name: ListLinkStates :many
+SELECT * FROM link_state WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY target_ref;

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,7 +32,10 @@ type RepoConfig struct {
 	Map []Mapping `yaml:"map"`
 	// LinkRules are link rules by path convention (REQ-132): "<from> <kind> <to>".
 	LinkRules []string `yaml:"link_rules"`
-	Adoption  struct {
+	// LinkPatterns expand a short external target key to a URL, by scheme. A pattern holds
+	// {key}, such as "https://company.atlassian.net/browse/{key}" for jira.
+	LinkPatterns map[string]string `yaml:"link_patterns"`
+	Adoption     struct {
 		// Relaxed lists check slugs that report at level INFO (REQ-133).
 		Relaxed []string `yaml:"relaxed"`
 	} `yaml:"adoption"`
@@ -90,6 +94,11 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 			problems = append(problems, fmt.Sprintf("link_rules[%d]: %v", i, err))
 		}
 	}
+	for _, scheme := range slices.Sorted(maps.Keys(c.LinkPatterns)) {
+		if p := LinkPatternProblem(scheme, c.LinkPatterns[scheme]); p != "" {
+			problems = append(problems, "link_patterns: "+p)
+		}
+	}
 	switch c.Mode {
 	case "", "standalone", "connected":
 	default:
@@ -139,8 +148,12 @@ func (c RepoConfig) Relaxed(slug string) bool {
 	return false
 }
 
-// LinkKinds are the link kinds of REQ-050.
-var LinkKinds = []string{"implements", "refines", "references", "supersedes"}
+// LinkKinds are the link kinds of REQ-050. ExternalKind names a code target, so only a
+// frontmatter link uses it.
+var LinkKinds = []string{"implements", "refines", "references", "supersedes", ExternalKind}
+
+// BundleLinkKinds are the kinds a link rule may use: a rule links two bundles.
+var BundleLinkKinds = LinkKinds[:len(LinkKinds)-1]
 
 // LinkRule links bundles by path convention (REQ-132): "docs/sdd-{name}.md implements
 // docs/prd-{name}.md". A path is a single-file bundle's file, or a folder bundle's folder,
@@ -162,8 +175,8 @@ func ParseLinkRule(rule string) (LinkRule, error) {
 		return LinkRule{}, fmt.Errorf("%q is not \"<from> <kind> <to>\"", rule)
 	}
 	r := LinkRule{From: parts[0], Kind: parts[1], To: parts[2]}
-	if !slices.Contains(LinkKinds, r.Kind) {
-		return LinkRule{}, fmt.Errorf("%q: the kind %q is not one of %s", rule, r.Kind, strings.Join(LinkKinds, ", "))
+	if !slices.Contains(BundleLinkKinds, r.Kind) {
+		return LinkRule{}, fmt.Errorf("%q: the kind %q is not one of %s", rule, r.Kind, strings.Join(BundleLinkKinds, ", "))
 	}
 	var pattern strings.Builder
 	pattern.WriteString("^")

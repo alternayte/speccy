@@ -86,7 +86,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	adminAPI := &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway}
 	reviews := &review.Service{
 		DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig, Decisions: svc.Decisions,
-		Gateway: gateway, Search: adminAPI.SearchSource, Progress: review.NewBroker(),
+		Gateway: gateway, Search: adminAPI.SearchSource, Fetch: adminAPI.FetchSource, Progress: review.NewBroker(),
 		// REQ-105: the admin sets the parallel model calls.
 		Parallel: func(ctx context.Context) int { return settings(ctx).ParallelCalls },
 		ES:       events,
@@ -95,10 +95,12 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		// REQ-129: local mode reads GitHub with the machine's gh login, and falls back to a
 		// token pasted in the app.
 		svc.GitHub = adminAPI.LocalGitHubClient
+		reviews.GitHub = adminAPI.LocalGitHubClient
 	}
 	if root == nil {
 		// REQ-123: hosted mode reads bundles from GitHub with the workspace token.
 		svc.GitHub = adminAPI.GitHubClient
+		reviews.GitHub = adminAPI.GitHubClient
 		// REQ-009: the admin sets the size limits of hosted mode.
 		svc.Limits = func(ctx context.Context) source.Limits { return settings(ctx).Limits() }
 	}

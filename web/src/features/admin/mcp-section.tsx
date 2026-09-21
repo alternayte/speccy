@@ -67,6 +67,8 @@ function inputOf(c: McpConnection): McpConnectionInput {
     tool_allowlist: c.tool_allowlist,
     is_search: c.is_search,
     ...(c.search_tool ? { search_tool: c.search_tool } : {}),
+    hosts: c.hosts,
+    ...(c.fetch_tool ? { fetch_tool: c.fetch_tool } : {}),
   };
 }
 
@@ -76,6 +78,8 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
   const tools = useQuery({ ...listMcpToolsOptions({ path: { connectionId: c.id } }), enabled: choosing, retry: false });
   const [allow, setAllow] = useState<string[]>(c.tool_allowlist);
   const [search, setSearch] = useState(c.search_tool);
+  const [fetchTool, setFetchTool] = useState(c.fetch_tool);
+  const [hosts, setHosts] = useState(c.hosts.join(", "));
   const refresh = () => qc.invalidateQueries({ queryKey: listMcpConnectionsQueryKey() });
   const save = useMutation({
     ...updateMcpConnectionMutation(),
@@ -97,6 +101,11 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
         {c.is_search ? (
           <span className="inline-flex items-center gap-1 text-xs text-accent">
             <Search aria-hidden className="size-3" /> search: {c.search_tool}
+          </span>
+        ) : null}
+        {c.hosts.length > 0 ? (
+          <span className="truncate text-xs text-ink-2">
+            reads {c.hosts.join(", ")} with {c.fetch_tool}
           </span>
         ) : null}
         <div className="ml-auto flex gap-1">
@@ -122,13 +131,20 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                const wanted = hosts
+                  .split(",")
+                  .map((h) => h.trim())
+                  .filter(Boolean);
                 const body = {
                   ...inputOf(c),
                   tool_allowlist: allow,
                   is_search: !!search,
                   ...(search ? { search_tool: search } : {}),
+                  hosts: wanted,
+                  ...(fetchTool ? { fetch_tool: fetchTool } : {}),
                 };
                 if (!search) delete body.search_tool;
+                if (!fetchTool) delete body.fetch_tool;
                 save.mutate({ path: { connectionId: c.id }, body });
               }}
               className="space-y-2"
@@ -169,11 +185,37 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
                       />
                       search
                     </label>
+                    <label className="flex shrink-0 items-center gap-1 text-xs text-ink-2">
+                      <input
+                        type="radio"
+                        name={`fetch-${c.id}`}
+                        disabled={!allow.includes(t.name)}
+                        checked={fetchTool === t.name}
+                        onChange={() => setFetchTool(t.name)}
+                        className="accent-[var(--accent)]"
+                      />
+                      reads a page
+                    </label>
                   </li>
                 ))}
               </ul>
+              <label className="block text-xs text-ink-2">
+                Hosts this connection reads, separated by commas. A link on one of them is read with the tool marked
+                &ldquo;reads a page&rdquo;.
+                <input
+                  value={hosts}
+                  onChange={(e) => setHosts(e.target.value)}
+                  placeholder="company.atlassian.net, linear.app"
+                  className="mt-1 w-full rounded-md border border-line bg-surface px-2 py-1 font-mono text-xs text-ink"
+                />
+              </label>
               {save.isError ? <ErrorState message={problemMessage(save.error)} /> : null}
               <div className="flex justify-end gap-2">
+                {fetchTool ? (
+                  <Button size="sm" variant="ghost" onClick={() => setFetchTool("")}>
+                    Reads no pages
+                  </Button>
+                ) : null}
                 {search ? (
                   <Button size="sm" variant="ghost" onClick={() => setSearch("")}>
                     Not a search source
@@ -229,6 +271,7 @@ function AddConnection({ onClose }: { onClose: () => void }) {
               ...(secretEnv.trim() ? { secret_env: secretEnv.trim() } : {}),
               tool_allowlist: [],
               is_search: false,
+              hosts: [],
             },
           });
         }}
