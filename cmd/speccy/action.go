@@ -172,7 +172,11 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 			}
 		}
 		if p, ok := profiles[r.Profile]; ok {
-			ab.Prefixes = p.Profile.Trace.Prefixes
+			ab.Prefixes, ab.CoverPrefixes = p.Profile.Trace.Prefixes, p.Profile.Trace.Cover
+			ab.DocScope = map[string]bool{}
+			for _, c := range p.Profile.Checks {
+				ab.DocScope[c.Slug] = p.Profile.DocScope(c.Slug)
+			}
 		}
 		if _, ok := reports[r.Path]; ok && runURL != "" {
 			ab.Report = runURL // the reports are artifacts of the run
@@ -184,9 +188,34 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	}
 
 	o := action.Options{GitHub: gh, Repo: repo, InlineLimit: cfg.PR.InlineLimit, Blocking: enforcement == "blocking", RunURL: runURL}
+	// Adoption mode: which relaxed checks now pass on every mapped doc (REQ-133). The sweep
+	// lints the docs this pull request did not change, and makes no model call.
+	o.Relaxed = cfg.Adoption.Relaxed
+	if len(o.Relaxed) > 0 {
+		o.Config, _ = os.ReadFile(filepath.Join(root.Dir(), source.RepoConfigFile))
+		o.Ready = readyToEnforce(ctx, s, fl, root.Dir(), o.Relaxed, scan.Bundles, results, stderr)
+	}
+	// The sidecars sit at the root of the checkout, where git sees them (DEC-009).
+	o.Sidecar = func(doc string) (source.Decisions, error) {
+		raw, err := os.ReadFile(filepath.Join(root.Dir(), filepath.FromSlash(source.SidecarPath(doc))))
+		if os.IsNotExist(err) {
+			return source.Decisions{}, nil
+		}
+		if err != nil {
+			return source.Decisions{}, err
+		}
+		return source.ParseDecisions(raw)
+	}
 	var res action.Result
 	if event.PullRequest != nil {
 		o.PR, o.HeadSHA = event.PullRequest.Number, event.PullRequest.Head.SHA
+		// The branch to commit a decision to, and the branch that says which waivers are merged.
+		if pr, err := gh.PullRequest(ctx, repo, o.PR); err != nil {
+			fmt.Fprintf(stderr, "Warning: the pull request does not read, so Speccy records no decision: %v\n", err)
+			o.Sidecar = nil
+		} else {
+			o.HeadRef, o.BaseRef, o.Fork = pr.HeadRef, pr.BaseRef, pr.Fork(repo)
+		}
 		res = action.Run(ctx, o, bundles, files)
 	} else {
 		fmt.Fprintln(stderr, "This event has no pull request, so Speccy posts no comments.")
@@ -207,8 +236,8 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 			}
 		}
 	}
-	fmt.Fprintf(stdout, "Speccy reviewed %d bundle%s, posted %d inline comment%s, and resolved %d.\n",
-		len(bundles), pluralS(len(bundles)), res.Posted, pluralS(res.Posted), res.Resolved)
+	fmt.Fprintf(stdout, "Speccy reviewed %d bundle%s, posted %d inline comment%s, resolved %d, and recorded %d decision%s.\n",
+		len(bundles), pluralS(len(bundles)), res.Posted, pluralS(res.Posted), res.Resolved, res.Decided, pluralS(res.Decided))
 	for _, r := range results {
 		if r.Error != "" {
 			return exitRun
@@ -234,4 +263,48 @@ func pluralS(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// readyToEnforce returns the relaxed checks with no finding on any mapped doc. It reuses the
+// results of this run and lints the rest of the repo, which lint does in well under a second
+// for each doc (T-081). With no local session (connected mode) it offers nothing.
+func readyToEnforce(ctx context.Context, s *session, fl reviewFlags, rootDir string, relaxed []string,
+	all []local.Bundle, done []reviewed, stderr io.Writer) []string {
+	if s == nil {
+		return nil
+	}
+	failing := map[string]bool{}
+	seen := map[string]bool{}
+	for _, r := range done {
+		seen[r.Path] = true
+		for _, f := range r.Findings {
+			failing[f.CheckSlug] = true
+		}
+	}
+	var rest []local.Bundle
+	for _, b := range all {
+		if !seen[b.Slug] {
+			rest = append(rest, b)
+		}
+	}
+	if len(rest) > 0 {
+		sweep := reviewFlags{format: "text", stages: review.StageLint, stagesSet: true, root: rootDir}
+		results, code := reviewWith(ctx, s, sweep, review.Stages{}, true, rest, io.Discard)
+		if code != exitOK {
+			fmt.Fprintln(stderr, "Warning: the adoption mode sweep did not finish, so Speccy offers no check to enforce.")
+			return nil
+		}
+		for _, r := range results {
+			for _, f := range r.Findings {
+				failing[f.CheckSlug] = true
+			}
+		}
+	}
+	var out []string
+	for _, slug := range relaxed {
+		if !failing[slug] {
+			out = append(out, slug)
+		}
+	}
+	return out
 }

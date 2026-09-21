@@ -59,7 +59,7 @@ func TestGolden_FixtureBundles(t *testing.T) {
 		t.Fatal(err)
 	}
 	bundles := &bundle.Service{DB: db, Workspace: ws, Local: r}
-	reviews := &review.Service{DB: db, Workspace: ws, Profiles: func() map[string]profile.Versioned { return versions }, Repo: bundles.RepoConfig}
+	reviews := &review.Service{DB: db, Workspace: ws, Profiles: func() map[string]profile.Versioned { return versions }, Repo: bundles.RepoConfig, Decisions: bundles.Decisions}
 	bundles.AfterChange = reviews.EnsureLinted
 	if err := bundles.Sync(ctx); err != nil {
 		t.Fatal(err)

@@ -544,3 +544,51 @@ func writeAtomic(dst string, content []byte) error {
 	_ = os.Chmod(tmp.Name(), mode)
 	return os.Rename(tmp.Name(), dst)
 }
+
+// ReadRepoFile reads a file by its path in the served folder. A missing file is empty content
+// and no error, so a doc with no sidecar reads as no decisions (DEC-009).
+func (r *Root) ReadRepoFile(rel string) ([]byte, error) {
+	clean, err := repoFilePath(rel)
+	if err != nil {
+		return nil, err
+	}
+	content, err := fs.ReadFile(r.fsys, clean)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return content, err
+}
+
+// WriteRepoFile writes a file by its path in the served folder, making its folders. Empty
+// content removes the file.
+func (r *Root) WriteRepoFile(rel string, content []byte) error {
+	if r.dir == "" {
+		return errReadOnly
+	}
+	clean, err := repoFilePath(rel)
+	if err != nil {
+		return err
+	}
+	dst := r.abs(clean)
+	if len(content) == 0 {
+		if err := os.Remove(dst); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		r.removeEmptyParents(filepath.Dir(dst), r.dir)
+		return nil
+	}
+	if err := r.mkdirInside(filepath.Dir(dst)); err != nil {
+		return err
+	}
+	return writeAtomic(dst, content)
+}
+
+// repoFilePath cleans a path that Speccy itself owns, such as a sidecar. It allows the hidden
+// .speccy folder, which CleanPath refuses for the files of a bundle.
+func repoFilePath(rel string) (string, error) {
+	clean := path.Clean(rel)
+	if clean == "." || path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", fmt.Errorf("%q is outside the served folder", rel)
+	}
+	return clean, nil
+}

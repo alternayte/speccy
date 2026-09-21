@@ -18,12 +18,16 @@ func TestWaiver_DocScopeCoversWholeDoc(t *testing.T) {
 	body := "# Doc\n\n## Data\n\nTables.\n\n## Interfaces\n\nThe API.\n"
 	wholeHash, _ := section.HashAt(section.Parse([]byte(body)), []byte(body), []string{})
 	dataHash, _ := section.HashAt(section.Parse([]byte(body)), []byte(body), []string{"Doc", "Data"})
-	fm := fmt.Sprintf("---\ntype: sdd\nwaivers:\n  - check: sdd.data.model\n    section: []\n    reason: The migrations hold the types.\n    section_hash: %s\n  - check: sdd.section-check\n    section: [Doc, Data]\n    reason: Not in this section.\n    section_hash: %s\n---\n", wholeHash, dataHash)
-	main := []byte(fm + body)
+	sidecar := fmt.Sprintf("waivers:\n  - check: sdd.data.model\n    section: []\n    reason: The migrations hold the types.\n    section_hash: %s\n  - check: sdd.section-check\n    section: [Doc, Data]\n    reason: Not in this section.\n    section_hash: %s\n", wholeHash, dataHash)
+	main := []byte("---\ntype: sdd\n---\n" + body)
 	in := input{main: main, doc: section.Parse(main), profile: profile.Versioned{Loaded: profile.Loaded{Profile: profile.Profile{Checks: []profile.Check{
 		{Slug: "sdd.data.model", Scope: "doc"}, {Slug: "sdd.section-check", Scope: "section"},
 	}}}}}
 	in.fm, _, _ = source.ReadFrontmatter(main)
+	var err error
+	if in.dec, err = source.ParseDecisions([]byte(sidecar)); err != nil {
+		t.Fatal(err)
+	}
 	at := func(path ...string) anchor.Anchor { return anchor.Anchor{File: "SPEC.md", HeadingPath: path} }
 	ev := &evaluation{findings: []pending{
 		{slug: "sdd.data.model", level: kernel.Must, anchor: at("Doc", "Interfaces")},

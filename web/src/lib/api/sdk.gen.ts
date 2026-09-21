@@ -526,7 +526,7 @@ export const requestWaiver = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
- * Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+ * Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
  */
 export const approveWaiver = <ThrowOnError extends boolean = false>(options: Options<ApproveWaiverData, ThrowOnError>): RequestResult<ApproveWaiverResponses, ApproveWaiverErrors, ThrowOnError> => (options.client ?? client).post<ApproveWaiverResponses, ApproveWaiverErrors, ThrowOnError>({ url: '/waivers/{waiverId}/approve', ...options });
 

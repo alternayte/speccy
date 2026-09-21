@@ -21,10 +21,10 @@ SELECT * FROM profile_version WHERE profile_id = sqlc.arg(profile_id) AND versio
 
 -- name: InsertRun :exec
 INSERT INTO review_run (id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage,
-                        error, notes, started_at, finished_at)
+                        error, notes, decisions_hash, started_at, finished_at)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.arg(profile_key),
         sqlc.arg(profile_version), sqlc.arg(kind), sqlc.arg(status), sqlc.arg(stage), sqlc.arg(error),
-        sqlc.arg(notes), sqlc.arg(started_at), sqlc.narg(finished_at));
+        sqlc.arg(notes), sqlc.arg(decisions_hash), sqlc.arg(started_at), sqlc.narg(finished_at));
 
 -- name: GetRun :one
 SELECT * FROM review_run WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);

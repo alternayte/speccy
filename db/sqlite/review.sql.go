@@ -103,7 +103,7 @@ func (q *Queries) GetProfileVersion(ctx context.Context, arg GetProfileVersionPa
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetRunParams struct {
@@ -135,6 +135,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, erro
 		&i.FinishedAt,
 		&i.Notes,
 		&i.Stages,
+		&i.DecisionsHash,
 	)
 	return i, err
 }
@@ -287,10 +288,10 @@ func (q *Queries) InsertProfileVersion(ctx context.Context, arg InsertProfileVer
 
 const insertRun = `-- name: InsertRun :exec
 INSERT INTO review_run (id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage,
-                        error, notes, started_at, finished_at)
+                        error, notes, decisions_hash, started_at, finished_at)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, ?9, ?10,
-        ?11, ?12, ?13)
+        ?11, ?12, ?13, ?14)
 `
 
 type InsertRunParams struct {
@@ -305,6 +306,7 @@ type InsertRunParams struct {
 	Stage          string
 	Error          string
 	Notes          dbtype.JSON
+	DecisionsHash  string
 	StartedAt      time.Time
 	FinishedAt     sql.NullTime
 }
@@ -322,6 +324,7 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) error {
 		arg.Stage,
 		arg.Error,
 		arg.Notes,
+		arg.DecisionsHash,
 		arg.StartedAt,
 		arg.FinishedAt,
 	)
@@ -358,7 +361,7 @@ func (q *Queries) InsertVerdict(ctx context.Context, arg InsertVerdictParams) er
 }
 
 const latestCompleteRun = `-- name: LatestCompleteRun :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
 WHERE bundle_id = ?1 AND version_id = ?2 AND status = 'complete' AND kind = ?3
 ORDER BY started_at DESC, id DESC
 LIMIT 1
@@ -395,12 +398,13 @@ func (q *Queries) LatestCompleteRun(ctx context.Context, arg LatestCompleteRunPa
 		&i.FinishedAt,
 		&i.Notes,
 		&i.Stages,
+		&i.DecisionsHash,
 	)
 	return i, err
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
 WHERE bundle_id = ?1
 ORDER BY started_at DESC, id DESC
 LIMIT 1
@@ -430,12 +434,13 @@ func (q *Queries) LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun,
 		&i.FinishedAt,
 		&i.Notes,
 		&i.Stages,
+		&i.DecisionsHash,
 	)
 	return i, err
 }
 
 const latestRunFor = `-- name: LatestRunFor :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
 WHERE bundle_id = ?1 AND version_id = ?2
   AND profile_key = ?3 AND profile_version = ?4
 ORDER BY started_at DESC, id DESC
@@ -478,6 +483,7 @@ func (q *Queries) LatestRunFor(ctx context.Context, arg LatestRunForParams) (Rev
 		&i.FinishedAt,
 		&i.Notes,
 		&i.Stages,
+		&i.DecisionsHash,
 	)
 	return i, err
 }
@@ -555,7 +561,7 @@ func (q *Queries) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Pr
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages FROM review_run
+SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
 WHERE bundle_id = ?1 AND started_at < ?2
 ORDER BY started_at DESC, id DESC
 LIMIT ?3
@@ -597,6 +603,7 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun
 			&i.FinishedAt,
 			&i.Notes,
 			&i.Stages,
+			&i.DecisionsHash,
 		); err != nil {
 			return nil, err
 		}

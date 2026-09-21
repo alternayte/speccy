@@ -56,6 +56,10 @@ export function FindingsPanel({
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
   const requests = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const decide = useDecide(bundleId);
+  // A GitHub bundle's sidecar reaches the repo through a pull request, so an approval here is
+  // not final until that pull request merges (REQ-123, DEC-009).
+  const bundle = useQuery(getBundleOptions({ path: { bundleId } }));
+  const viaPullRequest = bundle.data?.source_kind === "github";
   // decided holds the waivers this person decided here, so the card stays on its finding
   // and shows what happened, instead of vanishing on the refetch.
   const [decided, setDecided] = useState<string[]>([]);
@@ -144,6 +148,7 @@ export function FindingsPanel({
                   <WaiverCard
                     waiver={w}
                     waivers={all}
+                    viaPullRequest={viaPullRequest}
                     decide={decide}
                     onDecided={() => setDecided((d) => [...d, w.id])}
                     next={nextWaiting(all, items, decided, w)}
@@ -311,6 +316,7 @@ function nextWaiting(all: Waiver[], items: Finding[], decided: string[], not: Wa
 function WaiverCard({
   waiver: w,
   waivers,
+  viaPullRequest,
   decide,
   onDecided,
   next,
@@ -318,6 +324,7 @@ function WaiverCard({
 }: {
   waiver: Waiver;
   waivers: Waiver[];
+  viaPullRequest: boolean;
   decide: Decide;
   onDecided: () => void;
   next: Waiver[];
@@ -405,18 +412,26 @@ function WaiverCard({
             </div>
           </form>
         ) : (
-          <div className="mt-2 flex gap-1.5">
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={decide.approve.isPending}
-              onClick={() => decide.approve.mutate({ path: { waiverId: w.id } }, { onSuccess: onDecided })}
-            >
-              Approve
-            </Button>
-            <Button size="sm" onClick={() => setRejecting(true)}>
-              Reject
-            </Button>
+          <div className="mt-2">
+            {viaPullRequest ? (
+              <p className="mb-1.5 text-ink-3">
+                The approval writes the sidecar into a pull request. The waiver stays pending until that pull request
+                merges.
+              </p>
+            ) : null}
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={decide.approve.isPending}
+                onClick={() => decide.approve.mutate({ path: { waiverId: w.id } }, { onSuccess: onDecided })}
+              >
+                Approve
+              </Button>
+              <Button size="sm" onClick={() => setRejecting(true)}>
+                Reject
+              </Button>
+            </div>
           </div>
         )
       ) : null}

@@ -3160,7 +3160,7 @@ type ServerInterface interface {
 	// SetThreadStatus Resolve or reopen the thread.
 	// (PUT /threads/{threadId}/status)
 	SetThreadStatus(w http.ResponseWriter, r *http.Request, threadId ThreadId)
-	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	// (POST /waivers/{waiverId}/approve)
 	ApproveWaiver(w http.ResponseWriter, r *http.Request, waiverId WaiverId)
 	// RejectWaiver Reject a waiver, with a decision reason the requester reads.
@@ -10311,7 +10311,7 @@ type StrictServerInterface interface {
 	// SetThreadStatus Resolve or reopen the thread.
 	// (PUT /threads/{threadId}/status)
 	SetThreadStatus(ctx context.Context, request SetThreadStatusRequestObject) (SetThreadStatusResponseObject, error)
-	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the frontmatter (DEC-009).
+	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	// (POST /waivers/{waiverId}/approve)
 	ApproveWaiver(ctx context.Context, request ApproveWaiverRequestObject) (ApproveWaiverResponseObject, error)
 	// RejectWaiver Reject a waiver, with a decision reason the requester reads.

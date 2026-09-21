@@ -36,7 +36,7 @@ Three ways to start one:
 
 - **New bundle** writes the profile's template.
 - Drag a folder or a file from Finder or Explorer onto the bundles screen. Speccy makes one bundle per folder, and a single-file bundle per loose markdown file.
-- `speccy init` in a repo that holds specs already. Then set the paths in `.speccy.yaml`. See [configuration.md](configuration.md).
+- `speccy init --github` in a repo that holds specs already. It maps the docs it recognises, relaxes the checks that fail today, and writes the Action's workflow. One pull request adopts the repo, and the first review names the checks your team opted into. See [configuration.md](configuration.md).
 
 A doc written before Speccy names no type. **Import** takes it anyway: it guesses the type from the headings, shows the guess, and lets you pick another. It then writes one line, `type: <key>`, at the top of the file it creates, and changes nothing else. A drop whose type Speccy cannot guess opens the same dialog with the file in it.
 
@@ -129,7 +129,7 @@ The run report shows the stages, their timings, and the findings by category.
 
 `j` and `k` move. `d` records a decision. `w` asks for a waiver. `c` opens a comment. `Esc` leaves.
 
-A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. The profile's waiver policy says who may approve: any member, a non-author, N distinct non-authors, a profile maintainer, or nobody. An approved waiver is written into the main doc's frontmatter, so it travels with the doc in git. Any edit of that section ends the waiver, and the check runs again.
+A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. The profile's waiver policy says who may approve: any member, a non-author, N distinct non-authors, a profile maintainer, or nobody. An approved waiver is written into the doc's sidecar, `.speccy/decisions/<doc path>.yaml`, so it travels with the repo in git and the doc itself does not change. Any edit of that section ends the waiver, and the check runs again.
 
 An acknowledgement uses the same mechanism for a link or a trace item that is intentionally absent.
 

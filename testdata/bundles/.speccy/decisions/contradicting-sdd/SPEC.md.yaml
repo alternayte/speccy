@@ -1,0 +1,5 @@
+trace:
+  - id: REQ-003
+    status: out_of_scope
+    reason: The checkout page shows this message. This design covers the payment service only.
+    acknowledged_by: nathan

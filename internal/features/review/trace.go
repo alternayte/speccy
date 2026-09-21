@@ -171,8 +171,8 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 			downstream = append(downstream, from)
 		}
 	}
-	if in.fm.Standalone != nil {
-		out.Standalone = &api.Standalone{Reason: in.fm.Standalone.Reason, AcknowledgedBy: in.fm.Standalone.AcknowledgedBy}
+	if in.dec.Standalone != nil {
+		out.Standalone = &api.Standalone{Reason: in.dec.Standalone.Reason, AcknowledgedBy: in.dec.Standalone.AcknowledgedBy}
 	}
 
 	// REQ-058: this bundle's IDs against the bundles that implement it, and the IDs of each
@@ -256,9 +256,14 @@ func (a *API) matrix(ctx context.Context, up pgdb.Bundle, upMain []byte, downs [
 			}
 		}
 		doc := section.Parse(main)
-		fm, _, _ := source.ReadFrontmatter(main)
+		var dec source.Decisions
+		if a.Service.Decisions != nil {
+			if dec, err = a.Service.Decisions(ctx, d); err != nil {
+				return nil, err
+			}
+		}
 		acks := fmAcks{}
-		for _, t := range fm.Trace {
+		for _, t := range dec.Trace {
 			acks[t.ID] = coherence.Ack{Status: t.Status, Target: t.Target, Reason: t.Reason}
 		}
 		cover := profiles[d.ProfileKey].Profile.Trace.Cover

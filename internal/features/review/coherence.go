@@ -31,8 +31,8 @@ var (
 )
 
 // standalone reports whether the doc has a standalone acknowledgement with a reason (REQ-057).
-func standalone(fm source.Frontmatter) bool {
-	return fm.Standalone != nil && strings.TrimSpace(fm.Standalone.Reason) != ""
+func standalone(d source.Decisions) bool {
+	return d.Standalone != nil && strings.TrimSpace(d.Standalone.Reason) != ""
 }
 
 // upstreamIDs returns the IDs that the implements and refines targets define, or nil when
@@ -57,7 +57,7 @@ func upstreamIDs(in input) map[string]bool {
 // restatement (REQ-055). They run on every save, like lint. A standalone doc has no
 // coherence checks (REQ-057: not applicable).
 func coherenceChecks(in input, ev *evaluation) {
-	if standalone(in.fm) {
+	if standalone(in.dec) {
 		return
 	}
 	covered := in.profile.Profile.Trace.Cover
@@ -66,7 +66,7 @@ func coherenceChecks(in input, ev *evaluation) {
 		referenced[d.ID] = true
 	}
 	acks := map[string]coherence.Ack{}
-	for _, a := range in.fm.Trace {
+	for _, a := range in.dec.Trace {
 		acks[a.ID] = coherence.Ack{Status: a.Status, Target: a.Target, Reason: a.Reason}
 	}
 	coverLevel := in.level(CoverageSlug, checkLevel(in.profile.Profile, CoverageSlug, kernel.Must))
@@ -99,7 +99,7 @@ func coherenceChecks(in input, ev *evaluation) {
 				}
 				ev.findings = append(ev.findings, pending{
 					slug: CoverageSlug, level: coverLevel, stage: StageCoherence, anchor: docAnchor(in), message: msg,
-					fix: fmt.Sprintf("Reference %s where the design covers it, or add it under trace: in the frontmatter as covered_by or out_of_scope, with a reason.", c.ID),
+					fix: fmt.Sprintf("Reference %s where the design covers it, or acknowledge it in the sidecar under trace: as covered_by or out_of_scope, with a reason.", c.ID),
 					evidence: map[string]any{"id": c.ID, "text": strings.TrimSpace(d.Text), "upstream": l.target.Slug,
 						"upstream_bundle_id": l.target.ID, "upstream_anchor": up},
 				})
@@ -140,7 +140,7 @@ type conflict struct {
 // (REQ-054). A conflict is kept only when both quotes are in their docs; it becomes a MUST
 // finding anchored in this doc, with the other doc's anchor in its evidence.
 func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, ev *evaluation, fingerprint string) error {
-	if standalone(in.fm) {
+	if standalone(in.dec) {
 		return nil
 	}
 	var targets []linked
