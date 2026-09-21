@@ -89,6 +89,9 @@ type Problem struct {
 type Scan struct {
 	Bundles  []Bundle
 	Problems []Problem
+	// Skipped are the markdown files the scan passed over because they name no type. The app
+	// offers to adopt them (REQ-001).
+	Skipped []string
 	// bundleDirs holds every folder bundle, valid or not. Their files never count as assets of
 	// a parent bundle. excluded holds mapped files and their assets folders, which belong to
 	// single-file bundles.
@@ -110,6 +113,7 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 	s := &Scan{bundleDirs: map[string]bool{}, excluded: map[string]bool{}, bySlug: map[string]int{}}
 	var dirs []string
 	var mapped []string
+	var markdown []string
 	err := fs.WalkDir(r.fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if rel == "." {
@@ -128,6 +132,8 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		if d.Type().IsRegular() && source.IsMarkdown(rel) {
 			if _, ok := cfg.MappedProfile(rel); ok {
 				mapped = append(mapped, rel)
+			} else {
+				markdown = append(markdown, rel)
 			}
 		}
 		return nil
@@ -187,6 +193,25 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		s.bySlug[b.Slug] = i
 	}
 	sort.Slice(s.Problems, func(i, j int) bool { return s.Problems[i].Path < s.Problems[j].Path })
+	// What the scan passed over: a markdown file with no type, in no bundle.
+	inBundle := map[string]bool{}
+	for _, b := range s.Bundles {
+		for _, f := range b.Files {
+			inBundle[path.Join(b.Dir, f.Path)] = true
+		}
+		inBundle[b.Slug] = true
+	}
+	for _, m := range markdown {
+		if inBundle[m] {
+			continue
+		}
+		content, err := fs.ReadFile(r.fsys, m)
+		if err != nil || !source.Skipped(m, content) {
+			continue
+		}
+		s.Skipped = append(s.Skipped, m)
+	}
+	sort.Strings(s.Skipped)
 	return s, nil
 }
 

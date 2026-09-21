@@ -1723,6 +1723,9 @@ type ImportRequest struct {
 	// Name The bundle folder name. The default comes from the file name or the doc title.
 	Name *string `json:"name,omitempty"`
 
+	// Profile The doc type for a file that names none. Speccy writes the type line into the frontmatter of the imported file.
+	Profile *string `json:"profile,omitempty"`
+
 	// Text Pasted markdown.
 	Text *string `json:"text,omitempty"`
 }
@@ -2225,6 +2228,15 @@ type ShareInfo struct {
 	Title    string             `json:"title"`
 }
 
+// SkippedDoc defines model for SkippedDoc.
+type SkippedDoc struct {
+	// Path The file, relative to the served folder.
+	Path string `json:"path"`
+
+	// Profile The profile Speccy guesses from the headings. Absent when none fits.
+	Profile *string `json:"profile,omitempty"`
+}
+
 // StageTiming defines model for StageTiming.
 type StageTiming struct {
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
@@ -2687,6 +2699,11 @@ type CreateProfileJSONBody struct {
 	Yaml     string `json:"yaml"`
 }
 
+// GuessProfileJSONBody defines parameters for GuessProfile.
+type GuessProfileJSONBody struct {
+	Text string `json:"text"`
+}
+
 // SetMaintainersJSONBody defines parameters for SetMaintainers.
 type SetMaintainersJSONBody struct {
 	UserIds []string `json:"user_ids"`
@@ -2695,6 +2712,12 @@ type SetMaintainersJSONBody struct {
 // JoinShareJSONBody defines parameters for JoinShare.
 type JoinShareJSONBody struct {
 	DisplayName string `json:"display_name"`
+}
+
+// AdoptSkippedJSONBody defines parameters for AdoptSkipped.
+type AdoptSkippedJSONBody struct {
+	Path    string `json:"path"`
+	Profile string `json:"profile"`
 }
 
 // SetThreadBlockingJSONBody defines parameters for SetThreadBlocking.
@@ -2796,6 +2819,9 @@ type ReportBuildJSONRequestBody = BuildReport
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
 
+// GuessProfileJSONRequestBody defines body for GuessProfile for application/json ContentType.
+type GuessProfileJSONRequestBody GuessProfileJSONBody
+
 // UpdateProfileJSONRequestBody defines body for UpdateProfile for application/json ContentType.
 type UpdateProfileJSONRequestBody = ProfileInput
 
@@ -2813,6 +2839,9 @@ type ReviewContentJSONRequestBody = ContentReviewRequest
 
 // JoinShareJSONRequestBody defines body for JoinShare for application/json ContentType.
 type JoinShareJSONRequestBody JoinShareJSONBody
+
+// AdoptSkippedJSONRequestBody defines body for AdoptSkipped for application/json ContentType.
+type AdoptSkippedJSONRequestBody AdoptSkippedJSONBody
 
 // SetThreadBlockingJSONRequestBody defines body for SetThreadBlocking for application/json ContentType.
 type SetThreadBlockingJSONRequestBody SetThreadBlockingJSONBody
@@ -3053,6 +3082,9 @@ type ServerInterface interface {
 	// CreateProfile Create a profile for a new doc type. Admins only.
 	// (POST /profiles)
 	CreateProfile(w http.ResponseWriter, r *http.Request)
+	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
+	// (POST /profiles/guess)
+	GuessProfile(w http.ResponseWriter, r *http.Request)
 	// GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 	// (GET /profiles/{key})
 	GetProfile(w http.ResponseWriter, r *http.Request, key ProfileKey)
@@ -3107,6 +3139,12 @@ type ServerInterface interface {
 	// JoinShare Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
 	// (POST /share/{token})
 	JoinShare(w http.ResponseWriter, r *http.Request, token string)
+	// ListSkipped The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+	// (GET /skipped)
+	ListSkipped(w http.ResponseWriter, r *http.Request)
+	// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// (POST /skipped)
+	AdoptSkipped(w http.ResponseWriter, r *http.Request)
 	// GetThread A thread with its messages.
 	// (GET /threads/{threadId})
 	GetThread(w http.ResponseWriter, r *http.Request, threadId ThreadId)
@@ -4998,6 +5036,20 @@ func (siw *ServerInterfaceWrapper) CreateProfile(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GuessProfile operation middleware
+func (siw *ServerInterfaceWrapper) GuessProfile(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GuessProfile(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProfile operation middleware
 func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Request) {
 
@@ -5460,6 +5512,34 @@ func (siw *ServerInterfaceWrapper) JoinShare(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// ListSkipped operation middleware
+func (siw *ServerInterfaceWrapper) ListSkipped(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSkipped(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdoptSkipped operation middleware
+func (siw *ServerInterfaceWrapper) AdoptSkipped(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdoptSkipped(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetThread operation middleware
 func (siw *ServerInterfaceWrapper) GetThread(w http.ResponseWriter, r *http.Request) {
 
@@ -5815,6 +5895,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix", wrapper.SuggestFix)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix/accept", wrapper.AcceptFix)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/skipped", wrapper.ListSkipped)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/skipped", wrapper.AdoptSkipped)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/guess", wrapper.GuessProfile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.ListBundleThreads)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.OpenBundleThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/threads/{threadId}", wrapper.GetThread)
@@ -8779,6 +8862,47 @@ func (response CreateProfiledefaultApplicationProblemPlusJSONResponse) VisitCrea
 	return err
 }
 
+type GuessProfileRequestObject struct {
+	Body *GuessProfileJSONRequestBody
+}
+
+type GuessProfileResponseObject interface {
+	VisitGuessProfileResponse(w http.ResponseWriter) error
+}
+
+type GuessProfile200JSONResponse struct {
+	Profile *string `json:"profile,omitempty"`
+}
+
+func (response GuessProfile200JSONResponse) VisitGuessProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GuessProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GuessProfiledefaultApplicationProblemPlusJSONResponse) VisitGuessProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProfileRequestObject struct {
 	Key ProfileKey `json:"key"`
 }
@@ -9528,6 +9652,85 @@ func (response JoinSharedefaultApplicationProblemPlusJSONResponse) VisitJoinShar
 	return err
 }
 
+type ListSkippedRequestObject struct {
+}
+
+type ListSkippedResponseObject interface {
+	VisitListSkippedResponse(w http.ResponseWriter) error
+}
+
+type ListSkipped200JSONResponse struct {
+	Items []SkippedDoc `json:"items"`
+}
+
+func (response ListSkipped200JSONResponse) VisitListSkippedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSkippeddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListSkippeddefaultApplicationProblemPlusJSONResponse) VisitListSkippedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptSkippedRequestObject struct {
+	Body *AdoptSkippedJSONRequestBody
+}
+
+type AdoptSkippedResponseObject interface {
+	VisitAdoptSkippedResponse(w http.ResponseWriter) error
+}
+
+type AdoptSkipped201JSONResponse Bundle
+
+func (response AdoptSkipped201JSONResponse) VisitAdoptSkippedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptSkippeddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AdoptSkippeddefaultApplicationProblemPlusJSONResponse) VisitAdoptSkippedResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetThreadRequestObject struct {
 	ThreadId ThreadId `json:"threadId"`
 }
@@ -10030,6 +10233,9 @@ type StrictServerInterface interface {
 	// CreateProfile Create a profile for a new doc type. Admins only.
 	// (POST /profiles)
 	CreateProfile(ctx context.Context, request CreateProfileRequestObject) (CreateProfileResponseObject, error)
+	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
+	// (POST /profiles/guess)
+	GuessProfile(ctx context.Context, request GuessProfileRequestObject) (GuessProfileResponseObject, error)
 	// GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 	// (GET /profiles/{key})
 	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
@@ -10084,6 +10290,12 @@ type StrictServerInterface interface {
 	// JoinShare Enter a share link as a guest with a display name (REQ-086). Sets the guest cookie.
 	// (POST /share/{token})
 	JoinShare(ctx context.Context, request JoinShareRequestObject) (JoinShareResponseObject, error)
+	// ListSkipped The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
+	// (GET /skipped)
+	ListSkipped(ctx context.Context, request ListSkippedRequestObject) (ListSkippedResponseObject, error)
+	// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// (POST /skipped)
+	AdoptSkipped(ctx context.Context, request AdoptSkippedRequestObject) (AdoptSkippedResponseObject, error)
 	// GetThread A thread with its messages.
 	// (GET /threads/{threadId})
 	GetThread(ctx context.Context, request GetThreadRequestObject) (GetThreadResponseObject, error)
@@ -12217,6 +12429,37 @@ func (sh *strictHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GuessProfile operation middleware
+func (sh *strictHandler) GuessProfile(w http.ResponseWriter, r *http.Request) {
+	var request GuessProfileRequestObject
+
+	var body GuessProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GuessProfile(ctx, request.(GuessProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GuessProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GuessProfileResponseObject); ok {
+		if err := validResponse.VisitGuessProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProfile operation middleware
 func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, key ProfileKey) {
 	var request GetProfileRequestObject
@@ -12718,6 +12961,61 @@ func (sh *strictHandler) JoinShare(w http.ResponseWriter, r *http.Request, token
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(JoinShareResponseObject); ok {
 		if err := validResponse.VisitJoinShareResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSkipped operation middleware
+func (sh *strictHandler) ListSkipped(w http.ResponseWriter, r *http.Request) {
+	var request ListSkippedRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSkipped(ctx, request.(ListSkippedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSkipped")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSkippedResponseObject); ok {
+		if err := validResponse.VisitListSkippedResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdoptSkipped operation middleware
+func (sh *strictHandler) AdoptSkipped(w http.ResponseWriter, r *http.Request) {
+	var request AdoptSkippedRequestObject
+
+	var body AdoptSkippedJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdoptSkipped(ctx, request.(AdoptSkippedRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdoptSkipped")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdoptSkippedResponseObject); ok {
+		if err := validResponse.VisitAdoptSkippedResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

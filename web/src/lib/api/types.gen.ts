@@ -132,6 +132,17 @@ export type Bundle = {
     next_action?: NextAction;
 };
 
+export type SkippedDoc = {
+    /**
+     * The file, relative to the served folder.
+     */
+    path: string;
+    /**
+     * The profile Speccy guesses from the headings. Absent when none fits.
+     */
+    profile?: string;
+};
+
 /**
  * The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
  */
@@ -1192,6 +1203,10 @@ export type ImportRequest = {
      * Pasted markdown.
      */
     text?: string;
+    /**
+     * The doc type for a file that names none. Speccy writes the type line into the frontmatter of the imported file.
+     */
+    profile?: string;
 };
 
 export type Diff = {
@@ -2788,6 +2803,90 @@ export type ListFindingsResponses = {
 };
 
 export type ListFindingsResponse = ListFindingsResponses[keyof ListFindingsResponses];
+
+export type ListSkippedData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/skipped';
+};
+
+export type ListSkippedErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListSkippedError = ListSkippedErrors[keyof ListSkippedErrors];
+
+export type ListSkippedResponses = {
+    /**
+     * The skipped files, with the profile Speccy guesses for each.
+     */
+    200: {
+        items: Array<SkippedDoc>;
+    };
+};
+
+export type ListSkippedResponse = ListSkippedResponses[keyof ListSkippedResponses];
+
+export type AdoptSkippedData = {
+    body: {
+        path: string;
+        profile: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/skipped';
+};
+
+export type AdoptSkippedErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AdoptSkippedError = AdoptSkippedErrors[keyof AdoptSkippedErrors];
+
+export type AdoptSkippedResponses = {
+    /**
+     * The new bundle.
+     */
+    201: Bundle;
+};
+
+export type AdoptSkippedResponse = AdoptSkippedResponses[keyof AdoptSkippedResponses];
+
+export type GuessProfileData = {
+    body: {
+        text: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/profiles/guess';
+};
+
+export type GuessProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GuessProfileError = GuessProfileErrors[keyof GuessProfileErrors];
+
+export type GuessProfileResponses = {
+    /**
+     * The guess. profile is absent when no profile fits.
+     */
+    200: {
+        profile?: string;
+    };
+};
+
+export type GuessProfileResponse = GuessProfileResponses[keyof GuessProfileResponses];
 
 export type ListBundleThreadsData = {
     body?: never;

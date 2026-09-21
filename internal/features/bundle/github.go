@@ -188,6 +188,11 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err := s.applyGitHubScan(ctx, src, commit, cfg, scan); err != nil {
 		return fail(err)
 	}
+	// A repo is other people's tree: Speccy writes no type into it. It says which files need
+	// one, instead of finding nothing in silence.
+	if err := noBundleHere(src, scan); err != nil {
+		return fail(err)
+	}
 	if err := q.SetGithubSourceSynced(ctx, pgdb.SetGithubSourceSyncedParams{ID: src.ID, HeadCommit: commit,
 		SyncedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}}); err != nil {
 		return err
@@ -448,4 +453,28 @@ func (s *Service) DiscardDraft(ctx context.Context, id uuid.UUID, by string) (pg
 		_ = s.SyncSource(ctx, ref.Source, true)
 	}
 	return v, s.afterChange(ctx)
+}
+
+// noBundleHere reports the markdown files under a source's path that name no type, when the
+// source has no bundle at all.
+func noBundleHere(src pgdb.GithubSource, scan *local.Scan) error {
+	for _, b := range scan.Bundles {
+		if github.Under(b.Slug, src.Path) || github.Under(b.Dir, src.Path) {
+			return nil
+		}
+	}
+	var skipped []string
+	for _, p := range scan.Skipped {
+		if github.Under(p, src.Path) {
+			skipped = append(skipped, p)
+		}
+	}
+	if len(skipped) == 0 {
+		return nil
+	}
+	if len(skipped) > 3 {
+		skipped = append(skipped[:3:3], "and more")
+	}
+	return fmt.Errorf("no file under %s names a type, so this source has no bundle. Add \"type: <key>\" to the frontmatter of %s in the repo",
+		src.Path, strings.Join(skipped, ", "))
 }

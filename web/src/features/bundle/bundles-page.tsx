@@ -5,8 +5,14 @@ import { useState } from "react";
 import { useMe } from "@/features/account/me";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import { listBundlesOptions } from "@/lib/api/@tanstack/react-query.gen";
-import { problemMessage } from "@/lib/problem";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  adoptSkippedMutation,
+  listBundlesOptions,
+  listProfilesOptions,
+  listSkippedOptions,
+} from "@/lib/api/@tanstack/react-query.gen";
+import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle, putFileContent } from "@/lib/api";
 import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
 import { bundlesFromDrop, filesFromDrop, isZip, mainDocOf } from "./drop";
@@ -22,6 +28,8 @@ export function BundlesPage() {
   const hosted = useMe().data?.mode === "hosted";
   const qc = useQueryClient();
   const [over, setOver] = useState(false);
+  // dropped is a file whose type Speccy cannot guess: the import dialog asks for one.
+  const [dropped, setDropped] = useState<File | null>(null);
 
   // A drop makes one bundle per folder, and one per loose markdown or .zip file. The folder's
   // main doc starts the bundle, and its other files follow as assets.
@@ -32,7 +40,18 @@ export function BundlesPage() {
       for (const group of groups) {
         const main = isZip(group.files[0]!.path) ? group.files[0]! : mainDocOf(group.files);
         if (!main) throw new Error(`${group.name} has no markdown file, so it is not a bundle.`);
-        const created = await importBundle({ body: { name: group.name, file: main.file }, throwOnError: true });
+        let created;
+        try {
+          created = await importBundle({ body: { name: group.name, file: main.file }, throwOnError: true });
+        } catch (err) {
+          // No type in the file, and no profile fits its headings: ask for the type.
+          if (problemCode(err) === "no_profile" && group.files.length === 1) {
+            setDropped(main.file);
+            setImporting(true);
+            return;
+          }
+          throw err;
+        }
         let base = created.data.current_version.id;
         for (const item of group.files) {
           if (item === main) continue;
@@ -129,7 +148,7 @@ export function BundlesPage() {
                   <Link
                     to="/bundles/$bundleId"
                     params={{ bundleId: b.id }}
-                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-sunken sm:grid-cols-[1fr_11rem_4rem_3rem_3rem_6rem]"
+                    className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-4 py-3 transition-colors hover:bg-sunken sm:grid-cols-[1fr_11rem_4rem_14rem_3rem_6rem]"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink">{b.title}</span>
@@ -147,8 +166,8 @@ export function BundlesPage() {
                         {b.profile_key}
                       </span>
                     </span>
-                    <span className="hidden font-mono text-xs text-ink-2 sm:block" title="Score: for metrics only">
-                      {b.verdict ? b.verdict.score : "–"}
+                    <span className="col-start-1 hidden truncate text-xs text-ink-2 sm:col-start-auto sm:block">
+                      {b.next_action?.sentence ?? ""}
                     </span>
                     <span className="hidden text-xs text-ink-2 sm:block">v{b.current_version.number}</span>
                     <span className="hidden text-xs text-ink-3 sm:block">{relativeTime(b.updated_at)}</span>
@@ -158,6 +177,8 @@ export function BundlesPage() {
             </ul>
           )}
         </div>
+
+        <SkippedDocs />
 
         {bundles.data && bundles.data.problems.length > 0 ? (
           <section className="mt-6" aria-labelledby="problems">
@@ -181,8 +202,81 @@ export function BundlesPage() {
           </section>
         ) : null}
       </div>
-      <ImportDialog open={importing} onOpenChange={setImporting} />
+      <ImportDialog
+        open={importing}
+        dropped={dropped}
+        onOpenChange={(o) => {
+          setImporting(o);
+          if (!o) setDropped(null);
+        }}
+      />
       <NewBundleDialog open={creating} onOpenChange={setCreating} />
     </div>
+  );
+}
+
+// SkippedDocs lists the markdown files the local scan passed over, and adopts one with the
+// type Speccy guesses. The same line goes into the file as speccy init writes.
+function SkippedDocs() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const skipped = useQuery(listSkippedOptions());
+  const profiles = useQuery(listProfilesOptions());
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const adopt = useMutation({
+    ...adoptSkippedMutation(),
+    onSuccess: async (b) => {
+      await qc.invalidateQueries();
+      navigate({ to: "/bundles/$bundleId", params: { bundleId: b.id } });
+    },
+  });
+  const items = skipped.data?.items ?? [];
+  if (items.length === 0) return null;
+  return (
+    <section className="mt-6" aria-labelledby="skipped">
+      <h2 id="skipped" className="text-sm font-semibold text-ink">
+        Markdown files that are not bundles yet
+      </h2>
+      <p className="mt-1 text-sm text-ink-2">
+        These files name no type. Adopt one to write the type into it and review it.
+      </p>
+      {adopt.isError ? (
+        <div className="mt-2">
+          <ErrorState message={problemMessage(adopt.error)} />
+        </div>
+      ) : null}
+      <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
+        {items.map((it) => {
+          const key = picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? "";
+          return (
+            <li
+              key={it.path}
+              className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0"
+            >
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{it.path}</span>
+              <select
+                aria-label={`Doc type for ${it.path}`}
+                value={key}
+                onChange={(e) => setPicked({ ...picked, [it.path]: e.target.value })}
+                className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+              >
+                {(profiles.data?.items ?? []).map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                disabled={!key || adopt.isPending}
+                onClick={() => adopt.mutate({ body: { path: it.path, profile: key } })}
+              >
+                Adopt
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
