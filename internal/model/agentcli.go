@@ -152,6 +152,7 @@ func (a *agentCLI) Call(ctx context.Context, model string, c Call) (Raw, error) 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = dir
 	cmd.WaitDelay = 5 * time.Second
+	detach(cmd)
 	if a.preset.PromptVia == "stdin" {
 		cmd.Stdin = strings.NewReader(prompt)
 	}
@@ -233,6 +234,13 @@ func parseCursor(out []byte) (Raw, error) {
 	var r struct {
 		IsError bool   `json:"is_error"`
 		Result  string `json:"result"`
+		// Usage holds the counts the CLI reports. A version that reports none leaves them at
+		// zero, and the caller estimates them instead.
+		Usage struct {
+			InputTokens     int64 `json:"inputTokens"`
+			OutputTokens    int64 `json:"outputTokens"`
+			CacheReadTokens int64 `json:"cacheReadTokens"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(bytes.TrimSpace(out), &r); err != nil {
 		return Raw{}, fmt.Errorf("the output is not the JSON result object: %w", err)
@@ -240,7 +248,9 @@ func parseCursor(out []byte) (Raw, error) {
 	if r.IsError {
 		return Raw{}, fmt.Errorf("the run failed: %s", tail(r.Result, 300))
 	}
-	return Raw{Text: r.Result}, nil
+	// The cached tokens went into the request, so they count as input, as they do for the
+	// other backends.
+	return Raw{Text: r.Result, TokensIn: r.Usage.InputTokens + r.Usage.CacheReadTokens, TokensOut: r.Usage.OutputTokens}, nil
 }
 
 // parseOpencode reads opencode run --format json: one JSON event per line. Text parts hold
