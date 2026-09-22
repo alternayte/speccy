@@ -369,8 +369,13 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 			return nil, err
 		}
 	}
+	// A sync that fails keeps its reason on the source, as it does when the source is added
+	// and when a person asks for a sync. The accepted types stand, so a person can fix the
+	// cause and try again.
 	if err := s.SyncSource(ctx, src.ID, true); err != nil {
-		return nil, err
+		if ke, ok := kernel.AsError(err); ok && ke.Status == 404 {
+			return nil, err
+		}
 	}
 	row, err := s.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: req.SourceId})
 	if err != nil {

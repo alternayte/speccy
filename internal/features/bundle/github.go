@@ -208,7 +208,8 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err != nil {
 		return fail(err)
 	}
-	if err := s.applyGitHubScan(ctx, src, commit, cfg, scan, tfs); err != nil {
+	taken, err := s.applyGitHubScan(ctx, src, commit, cfg, scan, tfs)
+	if err != nil {
 		return fail(err)
 	}
 	// The files the scan passed over, so the app lists them with no second read of the tree.
@@ -225,6 +226,11 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err := noBundleHere(src, scan); err != nil {
 		return fail(err)
 	}
+	// A doc another source already holds makes no bundle here. Say so: a person who accepted a
+	// type for it would otherwise read "accepted" and find nothing.
+	if len(taken) > 0 {
+		return fail(alreadyHeld(taken))
+	}
 	if err := q.SetGithubSourceSynced(ctx, pgdb.SetGithubSourceSyncedParams{ID: src.ID, HeadCommit: commit,
 		SyncedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}}); err != nil {
 		return err
@@ -232,9 +238,13 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	return s.afterChange(ctx)
 }
 
-func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, commit string, cfg source.RepoConfig, scan *local.Scan, tfs fs.FS) error {
+// applyGitHubScan writes the bundles of a scan. It returns the docs it did not take, because a
+// bundle of that slug belongs to another source: a person who accepted a type must not be told
+// it worked while nothing appears.
+func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, commit string, cfg source.RepoConfig, scan *local.Scan, tfs fs.FS) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var taken []string
 	now := time.Now().UTC()
 	message := "From GitHub " + short(commit)
 	found := map[string]bool{}
@@ -273,10 +283,12 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 			} else if err != nil {
 				return err
 			} else if b.SourceKind != KindGitHub {
-				return nil // another source has this slug; the scan problem list says so below
+				taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
+				return nil
 			} else {
 				_ = json.Unmarshal(b.SourceRef, &ref)
 				if ref.Source != src.ID {
+					taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
 					return nil
 				}
 			}
@@ -315,12 +327,12 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 			return q.SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: now})
 		})
 		if err != nil {
-			return err
+			return taken, err
 		}
 	}
 	existing, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
 	if err != nil {
-		return err
+		return taken, err
 	}
 	for _, b := range existing {
 		var ref githubRef
@@ -328,11 +340,11 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 		if ref.Source == src.ID && !found[b.Slug] && !b.ArchivedAt.Valid {
 			if err := s.DB.Queries().SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID,
 				ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now}); err != nil {
-				return err
+				return taken, err
 			}
 		}
 	}
-	return nil
+	return taken, nil
 }
 
 // underSource says whether a repo path belongs to the source: anything in its folder, or the
@@ -579,6 +591,24 @@ func SkippedUnder(src pgdb.GithubSource, scan *local.Scan) []string {
 		}
 	}
 	return out
+}
+
+// alreadyHeld names the docs another source holds, and what to do about it.
+func alreadyHeld(taken []string) error {
+	sort.Strings(taken)
+	shown := taken
+	if len(shown) > 3 {
+		shown = append(shown[:3:3], "and more")
+	}
+	return fmt.Errorf("another source already holds %s, so this source makes no bundle for %s. Remove the other source, or point this one at a folder it does not cover",
+		strings.Join(shown, ", "), plural2(len(taken), "that doc", "those docs"))
+}
+
+func plural2(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // noBundleHere reports the markdown files under a source's path that name no type, when the
