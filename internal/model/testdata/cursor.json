@@ -1,1 +1,1 @@
-{"type":"result","subtype":"success","is_error":false,"duration_ms":1234,"duration_api_ms":1234,"result":"{\"answer\":\"Paris\"}","session_id":"00000000-0000-0000-0000-000000000000"}
+{"type":"result","subtype":"success","is_error":false,"duration_ms":12772,"duration_api_ms":12772,"result":"{\"answer\":\"Paris\"}","session_id":"00000000-0000-0000-0000-000000000000","request_id":"00000000-0000-0000-0000-000000000000","usage":{"inputTokens":20735,"outputTokens":79,"cacheReadTokens":6656,"cacheWriteTokens":0}}

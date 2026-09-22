@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -136,7 +139,7 @@ func TestAgentCLIParsers(t *testing.T) {
 		in, out      int64
 	}{
 		{"claude", "testdata/claude.json", 9064, 1171},
-		{"cursor-agent", "testdata/cursor.json", 0, 0},
+		{"cursor-agent", "testdata/cursor.json", 27391, 79},
 		{"opencode", "testdata/opencode.jsonl", -1, -1},
 		{"pi", "testdata/pi.jsonl", 830, 7},
 	} {
@@ -185,5 +188,47 @@ func TestAgentCLI_Custom(t *testing.T) {
 	c.Files = []File{{Path: "../escape", Content: []byte("x")}}
 	if _, err := be.Call(context.Background(), "m", c); err == nil {
 		t.Error("a file path that leaves the working folder was written")
+	}
+}
+
+// Each agent CLI preset must run without an interactive prompt: Speccy gives every call a
+// fresh temp folder, captures stdout and stderr, and has no way to answer a question. The
+// cursor-agent preset asked for workspace trust on every call, and the run blocked.
+func TestPresetsNeverPrompt(t *testing.T) {
+	need := map[string][]string{
+		// "Trust the current workspace without prompting (only works with --print/headless
+		// mode)". The preset already passes -p.
+		"cursor-agent": {"--trust"},
+		// The others were run live in a fresh folder and asked nothing: claude answered,
+		// opencode and pi reached their model call.
+		"claude":   {"--no-session-persistence"},
+		"opencode": {"--pure"},
+		"pi":       {"--no-session"},
+	}
+	for name, flags := range need {
+		p, ok := Presets[name]
+		if !ok {
+			t.Fatalf("no preset %q", name)
+		}
+		for _, f := range flags {
+			if !slices.Contains(p.Command, f) {
+				t.Errorf("the %s preset does not pass %s, so a call can block on a prompt nobody can answer", name, f)
+			}
+		}
+	}
+}
+
+// A CLI that asks its question on /dev/tty must fail at once, not wait. A review run has no
+// terminal at either end, so Speccy gives the CLI its own session and no controlling terminal.
+// This asserts the flag, not the behaviour: `go test` itself runs with no controlling
+// terminal, so an end-to-end test of it passes whether the call is there or not.
+func TestAgentCLI_LeavesTheControllingTerminal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows has no controlling terminal to leave")
+	}
+	cmd := exec.Command("true")
+	detach(cmd)
+	if cmd.SysProcAttr == nil || !cmd.SysProcAttr.Setsid {
+		t.Error("the CLI keeps the controlling terminal, so a question on /dev/tty would wait for an answer nobody can give")
 	}
 }
