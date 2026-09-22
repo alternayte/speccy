@@ -4,7 +4,7 @@ Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not
 
 ![The bundle screen: the verdict bar, the doc with its findings marked, and the findings rail.](docs/images/guide-editor.png)
 
-Speccy is at release 0.1.0. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. The overlay marks the text of each finding, and the **Tour** lists the points that need a human decision. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs. `speccy review` reviews bundles in a terminal or in CI, `speccy tui` is the terminal UI, and `speccy mcp` lets coding agents review and fix docs.
+Speccy is at release 0.11.0. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. The overlay marks the text of each finding, and the **Tour** lists the points that need a human decision. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs. After the build, `speccy verify` reads the repo at one commit and says where each requirement was implemented and tested, and where the code contradicts it. `speccy review` reviews bundles in a terminal or in CI, `speccy tui` is the terminal UI, and `speccy mcp` lets coding agents review and fix docs.
 
 ## Quick start
 
@@ -124,10 +124,11 @@ The **score** is passed checks divided by applicable checks. It is for tracking,
 | Local | `speccy` | Edit, import, compare, and export bundles on 127.0.0.1. |
 | Hosted | `speccy serve --hosted` | Accounts from invite links, admin and member roles, private and shared bundles, guests, and API tokens. Needs Postgres. See [configuration](docs/configuration.md). |
 | Headless | `speccy review <path…>` | Review bundles in a terminal or in CI, and print text, JSON, or markdown. |
+| Verification | `speccy verify <path> --repo <owner/name> --sha <sha>` | Verify one build against the bundle: where each requirement is implemented and tested, and where the code contradicts it. Speccy reads the code and runs nothing. |
 | Terminal UI | `speccy tui` | Bundles, verdicts, findings, and the tour in the terminal. `e` opens a finding in `$EDITOR`. |
 | Agents | `speccy mcp` | An MCP server over stdio. Hosted mode also serves MCP at `/mcp` with an API token. |
 
-`speccy review` exits with 0 for Build Ready, or for any verdict in advisory mode; 1 for Not Build Ready with `--enforcement blocking`; 2 for a usage or configuration error; and 3 when a review fails. With no model assigned, it runs lint only and says so.
+`speccy verify` exits with 1 when the run is Not Verified. `speccy review` exits with 0 for Build Ready, or for any verdict in advisory mode; 1 for Not Build Ready with `--enforcement blocking`; 2 for a usage or configuration error; and 3 when a review fails. With no model assigned, it runs lint only and says so.
 
 ## Try it on your existing specs
 
@@ -186,7 +187,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alternayte/speccy@v0.1.0
+      - uses: alternayte/speccy@v0.11.0
         with:
           models: all=anthropic:<model>             # leave out for lint checks only
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
