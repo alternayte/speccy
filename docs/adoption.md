@@ -61,7 +61,7 @@ map:
     profile: sdd
 ```
 
-It writes one mapping per folder when the accepted docs in it share a type, and one per doc otherwise. It changes no doc, and it writes no workflow.
+It writes one mapping per folder only when you accepted every doc there, with the same type. A folder you accepted part of gets one mapping per doc, so the glob never takes in a doc you left alone. It changes no doc, and it writes no workflow.
 
 ## 5. A repo your team reviews in
 
