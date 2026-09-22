@@ -1454,6 +1454,10 @@ export type BundleProblem = {
 
 export type BundleFile = {
     path: string;
+    /**
+     * The doc whose reference brought this file in. A carried file is read only.
+     */
+    carried_by?: string;
     size: number;
     sha256: string;
     is_main_doc: boolean;

@@ -293,17 +293,24 @@ func (q *Queries) InsertVersion(ctx context.Context, arg InsertVersionParams) er
 }
 
 const insertVersionFile = `-- name: InsertVersionFile :exec
-INSERT INTO version_file (version_id, path, sha256) VALUES ($1, $2, $3)
+INSERT INTO version_file (version_id, path, sha256, carried_by)
+VALUES ($1, $2, $3, $4)
 `
 
 type InsertVersionFileParams struct {
 	VersionID uuid.UUID
 	Path      string
 	Sha256    string
+	CarriedBy string
 }
 
 func (q *Queries) InsertVersionFile(ctx context.Context, arg InsertVersionFileParams) error {
-	_, err := q.db.ExecContext(ctx, insertVersionFile, arg.VersionID, arg.Path, arg.Sha256)
+	_, err := q.db.ExecContext(ctx, insertVersionFile,
+		arg.VersionID,
+		arg.Path,
+		arg.Sha256,
+		arg.CarriedBy,
+	)
 	return err
 }
 
@@ -468,16 +475,17 @@ func (q *Queries) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Hando
 }
 
 const listVersionFiles = `-- name: ListVersionFiles :many
-SELECT vf.path, vf.sha256, b.size
+SELECT vf.path, vf.sha256, vf.carried_by, b.size
 FROM version_file vf JOIN blob b ON b.sha256 = vf.sha256
 WHERE vf.version_id = $1
 ORDER BY vf.path
 `
 
 type ListVersionFilesRow struct {
-	Path   string
-	Sha256 string
-	Size   int64
+	Path      string
+	Sha256    string
+	CarriedBy string
+	Size      int64
 }
 
 func (q *Queries) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error) {
@@ -489,7 +497,12 @@ func (q *Queries) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]
 	var items []ListVersionFilesRow
 	for rows.Next() {
 		var i ListVersionFilesRow
-		if err := rows.Scan(&i.Path, &i.Sha256, &i.Size); err != nil {
+		if err := rows.Scan(
+			&i.Path,
+			&i.Sha256,
+			&i.CarriedBy,
+			&i.Size,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -45,6 +45,10 @@ func (a *API) ListFiles(ctx context.Context, req api.ListFilesRequestObject) (ap
 	out := api.FileList{Version: version.ToAPI(v), Items: make([]api.BundleFile, len(rows))}
 	for i, r := range rows {
 		out.Items[i] = api.BundleFile{Path: r.Path, Size: r.Size, Sha256: r.Sha256, IsMainDoc: r.Path == main}
+		if r.CarriedBy != "" {
+			by := r.CarriedBy
+			out.Items[i].CarriedBy = &by
+		}
 	}
 	return api.ListFiles200JSONResponse(out), nil
 }

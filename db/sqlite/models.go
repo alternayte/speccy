@@ -453,6 +453,7 @@ type VersionFile struct {
 	VersionID uuid.UUID
 	Path      string
 	Sha256    string
+	CarriedBy string
 }
 
 type WaiverView struct {

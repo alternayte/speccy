@@ -165,7 +165,7 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	}
 	tfs := github.NewTreeFS(entries, func(p string) bool {
 		// The sidecars sit at the root of the repo, outside the source's path (DEC-009).
-		return p == source.RepoConfigFile || source.IsSidecar(p) || underSource(src, p)
+		return p == source.RepoConfigFile || source.IsSidecar(p) || readable(src, p)
 	}, func(e github.Entry) ([]byte, error) {
 		if b, ok := s.blobs.get(e.SHA); ok {
 			return b, nil
@@ -356,6 +356,19 @@ func underSource(src pgdb.GithubSource, p string) bool {
 	return p == src.Path || github.Under(p, path.Join(path.Dir(src.Path), source.AssetsDir(path.Base(src.Path))))
 }
 
+// readable says which paths the scan may read. It is wider than underSource: a bundle carries
+// the files its doc references, and those sit beside the doc or below it. The scan decides
+// what a bundle takes; this decides only what Speccy fetches.
+func readable(src pgdb.GithubSource, p string) bool {
+	if underSource(src, p) {
+		return true
+	}
+	if !src.IsFile {
+		return false
+	}
+	return github.Under(p, path.Dir(src.Path))
+}
+
 // bundleOfSource says whether a scanned bundle belongs to the source.
 func bundleOfSource(src pgdb.GithubSource, b local.Bundle) bool {
 	if !src.IsFile {
@@ -474,6 +487,11 @@ func diffChanges(dir, mainDoc string, from, to []source.File) []github.Change {
 	seen := map[string]bool{}
 	for _, f := range to {
 		seen[f.Path] = true
+		// A carried file belongs to the repo, and another bundle may carry the same one.
+		// Speccy never writes it back.
+		if f.Carried() {
+			continue
+		}
 		if h, ok := old[f.Path]; !ok || h != version.Hash(f.Content) {
 			content := f.Content
 			if content == nil {
@@ -483,7 +501,7 @@ func diffChanges(dir, mainDoc string, from, to []source.File) []github.Change {
 		}
 	}
 	for _, f := range from {
-		if !seen[f.Path] {
+		if !seen[f.Path] && !f.Carried() {
 			out = append(out, github.Change{Path: repoPath(f.Path)})
 		}
 	}

@@ -6,6 +6,7 @@ import {
   FilePlus2,
   FileText,
   Folder,
+  Link2,
   MoreHorizontal,
   Pencil,
   Star,
@@ -46,6 +47,9 @@ export function Explorer({
 }) {
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), [files]);
   const main = files.find((f) => f.is_main_doc)?.path;
+  // A carried file is in the bundle because a doc references it. Speccy renders it and never
+  // writes it back, so the explorer offers no change to it.
+  const carriedBy = new Map(files.filter((f) => f.carried_by).map((f) => [f.path, f.carried_by!]));
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState<Pending>(null);
   const [name, setName] = useState("");
@@ -197,6 +201,12 @@ export function Explorer({
             {n.name}
           </span>
           {n.path === main ? <Star aria-label="Main doc" className="size-3 shrink-0 fill-accent text-accent" /> : null}
+          {carriedBy.has(n.path) ? (
+            <Link2
+              aria-label={`Carried: ${carriedBy.get(n.path)} references it`}
+              className="size-3 shrink-0 text-ink-3"
+            />
+          ) : null}
           {copied === n.path ? <span className="ml-auto text-2xs text-accent">Copied</span> : null}
         </button>
         <div className="absolute top-0.5 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
@@ -214,7 +224,7 @@ export function Explorer({
             <MenuItem icon={<Copy className="size-3.5" />} onSelect={() => copy(n.path)}>
               Copy markdown link
             </MenuItem>
-            {readOnly ? null : (
+            {readOnly || carriedBy.has(n.path) ? null : (
               <>
                 <MenuItem
                   icon={<Pencil className="size-3.5" />}

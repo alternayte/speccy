@@ -20,7 +20,14 @@ import (
 type File struct {
 	Path    string
 	Content []byte
+	// CarriedBy names the file whose reference brought this one into the bundle. A carried
+	// file is read-only: Speccy renders it, exports it and hands it to a builder, and never
+	// writes it back, because another bundle may carry the same file.
+	CarriedBy string `json:",omitempty"`
 }
+
+// Carried reports whether a bundle holds this file only because a doc references it.
+func (f File) Carried() bool { return f.CarriedBy != "" }
 
 // Op is one change to a bundle's files.
 type Op struct {
@@ -88,6 +95,11 @@ func Apply(files []File, op Op) ([]File, error) {
 	for i, f := range files {
 		if f.Path == p {
 			idx = i
+			// A carried file belongs to the repo, and another bundle may carry the same one.
+			// Speccy renders it and never writes it.
+			if f.Carried() {
+				return nil, fmt.Errorf("%q is here because %s references it, so it is read only. Change it where it lives", p, f.CarriedBy)
+			}
 		}
 		out = append(out, f)
 	}

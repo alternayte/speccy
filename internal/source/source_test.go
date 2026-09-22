@@ -60,12 +60,12 @@ func TestFindMainDoc(t *testing.T) {
 		want    string
 		wantErr string
 	}{
-		{"one main doc", []File{{"SPEC.md", main}, {"notes.md", []byte("# Notes\n")}}, "SPEC.md", ""},
-		{"main doc in a subfolder is an asset", []File{{"a/SPEC.md", main}}, "", "no main doc"},
-		{"none", []File{{"notes.md", []byte("# Notes\n")}}, "", "no main doc"},
-		{"two", []File{{"a.md", main}, {"b.md", main}}, "", "a.md, b.md"},
-		{"empty type", []File{{"a.md", []byte("---\ntype: ''\n---\n")}}, "", "no main doc"},
-		{"bad yaml", []File{{"a.md", []byte("---\ntype: [\n---\n")}}, "", "a.md"},
+		{"one main doc", []File{{Path: "SPEC.md", Content: main}, {Path: "notes.md", Content: []byte("# Notes\n")}}, "SPEC.md", ""},
+		{"main doc in a subfolder is an asset", []File{{Path: "a/SPEC.md", Content: main}}, "", "no main doc"},
+		{"none", []File{{Path: "notes.md", Content: []byte("# Notes\n")}}, "", "no main doc"},
+		{"two", []File{{Path: "a.md", Content: main}, {Path: "b.md", Content: main}}, "", "a.md, b.md"},
+		{"empty type", []File{{Path: "a.md", Content: []byte("---\ntype: ''\n---\n")}}, "", "no main doc"},
+		{"bad yaml", []File{{Path: "a.md", Content: []byte("---\ntype: [\n---\n")}}, "", "a.md"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
