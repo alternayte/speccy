@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -185,5 +186,32 @@ func TestAgentCLI_Custom(t *testing.T) {
 	c.Files = []File{{Path: "../escape", Content: []byte("x")}}
 	if _, err := be.Call(context.Background(), "m", c); err == nil {
 		t.Error("a file path that leaves the working folder was written")
+	}
+}
+
+// Each agent CLI preset must run without an interactive prompt: Speccy gives every call a
+// fresh temp folder, captures stdout and stderr, and has no way to answer a question. The
+// cursor-agent preset asked for workspace trust on every call, and the run blocked.
+func TestPresetsNeverPrompt(t *testing.T) {
+	need := map[string][]string{
+		// "Trust the current workspace without prompting (only works with --print/headless
+		// mode)". The preset already passes -p.
+		"cursor-agent": {"--trust"},
+		// The others were run live in a fresh folder and asked nothing: claude answered,
+		// opencode and pi reached their model call.
+		"claude":   {"--no-session-persistence"},
+		"opencode": {"--pure"},
+		"pi":       {"--no-session"},
+	}
+	for name, flags := range need {
+		p, ok := Presets[name]
+		if !ok {
+			t.Fatalf("no preset %q", name)
+		}
+		for _, f := range flags {
+			if !slices.Contains(p.Command, f) {
+				t.Errorf("the %s preset does not pass %s, so a call can block on a prompt nobody can answer", name, f)
+			}
+		}
 	}
 }

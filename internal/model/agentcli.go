@@ -53,10 +53,14 @@ var Presets = map[string]Preset{
 		Verified: "claude 2.1.277, live call",
 	},
 	"cursor-agent": {
-		Name:      "cursor-agent",
-		Command:   []string{"cursor-agent", "-p", "--output-format", "json", "--mode", "ask", "--model", "{model}", followFile},
+		Name: "cursor-agent",
+		// --trust takes the workspace trust prompt off. Speccy gives every call a fresh temp
+		// folder, so cursor-agent meets an untrusted workspace each time, and it asks a
+		// question that nobody can answer: stdout and stderr are pipes, and there is no
+		// person at the other end.
+		Command:   []string{"cursor-agent", "-p", "--output-format", "json", "--mode", "ask", "--trust", "--model", "{model}", followFile},
 		PromptVia: "file", parse: parseCursor,
-		Verified: "cursor.com/docs CLI reference, 2026-09-19 (not run: no subscription on the build machine)",
+		Verified: "cursor-agent 2026.06.19, flags read from the installed CLI; --trust is \"Trust the current workspace without prompting (only works with --print/headless mode)\"",
 	},
 	"opencode": {
 		Name: "opencode",

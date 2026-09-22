@@ -256,7 +256,7 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 
 - **Choice:** Four presets, each in a temporary folder that holds only the bundle and `prompt.md`:
   - `claude` (2.1.277, live call): `claude -p --output-format json --json-schema {schema} --tools "" --no-session-persistence --strict-mcp-config --model {model}`; prompt on stdin; answer in `structured_output`; tokens in `usage`.
-  - `cursor-agent` (docs only, no subscription on the build machine): `cursor-agent -p --output-format json --mode ask --model {model} "<follow prompt.md>"`; answer in `result`; no token counts, so they are estimated.
+  - `cursor-agent`: `cursor-agent -p --output-format json --mode ask --trust --model {model} "<follow prompt.md>"`; answer in `result`; no token counts, so they are estimated. `--trust` takes the workspace trust prompt off: Speccy gives every call a fresh temp folder, so the CLI meets an untrusted workspace each time, and a prompt there blocks a run that nobody can answer.
   - `opencode` (1.18.26, live call): `opencode run --format json --pure --agent plan -m {model} -f prompt.md -- "<follow prompt.md>"`; JSON lines; answer in `text` events; tokens in `step_finish`. Its plan agent adds about 12,000 input tokens per call.
   - `pi` (0.85.1, live call): `pi -p --mode json --no-tools --no-session --no-context-files --no-extensions --no-skills --model {model}`; prompt on stdin; answer and tokens in the `agent_end` event.
 - **Alternative:** Presets for claude and cursor-agent only.
