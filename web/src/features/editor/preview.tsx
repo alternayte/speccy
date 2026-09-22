@@ -21,6 +21,9 @@ type Edit = {
   left: number;
   width: number;
   height: number;
+  // el is the rendered block the box covers. It hides while the box is open, so the two do
+  // not draw on top of each other.
+  el: HTMLElement;
 };
 
 // The server renders the preview with the review engine's parser (DEC-017).
@@ -121,6 +124,16 @@ export const Preview = forwardRef<
     el.setSelectionRange(caret.current, caret.current);
   }, [caretKey]);
 
+  // The rendered block hides while its box is open. Both drew on the same lines before.
+  useLayoutEffect(() => {
+    const el = editing?.el;
+    if (!el) return;
+    el.style.visibility = "hidden";
+    return () => {
+      el.style.visibility = "";
+    };
+  }, [editing?.el]);
+
   // The box grows with its text, so no line hides under the block below.
   useLayoutEffect(() => {
     const el = box.current;
@@ -158,6 +171,7 @@ export const Preview = forwardRef<
       left: block.el.offsetLeft,
       width: block.el.offsetWidth,
       height: block.el.offsetHeight,
+      el: block.el,
     });
   };
 
@@ -204,7 +218,7 @@ export const Preview = forwardRef<
                   }
                 }}
                 style={{ top: editing.top, left: editing.left, width: editing.width }}
-                className="absolute z-10 resize-none rounded-sm bg-accent-soft/40 px-1 font-mono text-sm leading-doc text-ink outline-2 outline-focus"
+                className="absolute z-10 resize-none rounded-sm bg-surface px-1 font-mono text-sm leading-doc text-ink outline-2 outline-focus"
               />
             ) : null}
           </div>
