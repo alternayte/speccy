@@ -141,27 +141,32 @@ function ExternalLinks({ links }: { links: BundleLink[] }) {
         {links.map((l) => {
           const state = stateStyle[l.state ?? "unchecked"];
           return (
-            <li key={`${l.kind}-${l.target_ref}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2">
+            <li
+              key={`${l.kind}-${l.target_ref}`}
+              className="grid grid-cols-[minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 px-3 py-2 sm:grid-cols-[minmax(0,22rem)_5.5rem_7rem_minmax(0,1fr)_auto]"
+            >
               {l.target_url ? (
                 <a
                   href={l.target_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="font-mono text-xs text-ink hover:text-accent"
+                  className="truncate font-mono text-xs text-ink hover:text-accent"
                 >
                   {l.target_ref}
                 </a>
               ) : (
-                <span className="font-mono text-xs text-ink">{l.target_ref}</span>
+                <span className="truncate font-mono text-xs text-ink">{l.target_ref}</span>
               )}
-              <span className={clsx("rounded-sm border px-1.5 py-px text-2xs font-medium", state.tone)}>
+              <span
+                className={clsx("justify-self-start rounded-sm border px-1.5 py-px text-2xs font-medium", state.tone)}
+              >
                 {state.text}
               </span>
-              <span className="text-xs text-ink-3">{kindText[l.kind]}</span>
-              {l.state_reason ? <span className="min-w-0 flex-1 text-xs text-ink-2">{l.state_reason}</span> : null}
-              {l.checked_at ? (
-                <span className="ml-auto text-2xs text-ink-3">read {new Date(l.checked_at).toLocaleDateString()}</span>
-              ) : null}
+              <span className="truncate text-xs text-ink-3">{kindText[l.kind]}</span>
+              <span className="min-w-0 text-xs text-ink-2">{l.state_reason ?? ""}</span>
+              <span className="text-2xs text-ink-3">
+                {l.checked_at ? `read ${new Date(l.checked_at).toLocaleDateString()}` : ""}
+              </span>
             </li>
           );
         })}
