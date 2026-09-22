@@ -6,17 +6,35 @@ Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not
 
 Speccy is at release 0.11.0. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. The overlay marks the text of each finding, and the **Tour** lists the points that need a human decision. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs. After the build, `speccy verify` reads the repo at one commit and says where each requirement was implemented and tested, and where the code contradicts it. `speccy review` reviews bundles in a terminal or in CI, `speccy tui` is the terminal UI, and `speccy mcp` lets coding agents review and fix docs.
 
-## Quick start
+## Install
 
-You need Go, Node 24 or later, and `just`. `just test-pg` and `just verify` also need Docker.
+Speccy is one binary. It holds the app, the CLI, the terminal UI, and the MCP server, so you need nothing else to run it.
+
+Download it from the [releases page](https://github.com/alternayte/speccy/releases), or take the archive for your machine:
 
 ```sh
-git clone https://github.com/alternayte/speccy && cd speccy
-just build
-./bin/speccy
+VERSION=0.11.0
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')          # darwin or linux
+ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+BASE=https://github.com/alternayte/speccy/releases/download/v$VERSION
+
+curl -fLO $BASE/speccy_${VERSION}_${OS}_${ARCH}.tar.gz
+curl -fLO $BASE/checksums.txt
+shasum -a 256 --ignore-missing -c checksums.txt      # sha256sum on Linux
+tar xzf speccy_${VERSION}_${OS}_${ARCH}.tar.gz
+sudo mv speccy /usr/local/bin/
 ```
 
-`speccy` starts local mode on the current folder and opens your browser. Add `--dir <folder>` to serve another folder, and `--no-open` to stop the browser from opening.
+Check the checksum before you run the binary. On Windows, download the `.zip`, compare it with `Get-FileHash`, and put `speccy.exe` on your `PATH`.
+
+## Quick start
+
+```sh
+cd <the folder with your specs>
+speccy
+```
+
+`speccy` starts local mode on the current folder and opens your browser. It needs no account and no server, and it binds to 127.0.0.1 only. Add `--dir <folder>` to serve another folder, and `--no-open` to stop the browser from opening.
 
 A bundle is a folder with one markdown file that has a `type` field in its frontmatter:
 
@@ -215,6 +233,18 @@ Use **Test** to check a backend and model with one short call. Set a monthly tok
 ## Configuration
 
 See [docs/configuration.md](docs/configuration.md) for the flags of local mode, and the environment, accounts, roles, and sharing of hosted mode.
+
+## Build from source
+
+You need Go, Node 24 or later, and `just`. `just test-pg` and `just verify` also need Docker.
+
+```sh
+git clone https://github.com/alternayte/speccy && cd speccy
+just build
+./bin/speccy
+```
+
+`just dev` runs the Go server and Vite together. `just verify` is the gate a pull request must pass.
 
 ## Licence
 
