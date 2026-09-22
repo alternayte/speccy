@@ -8,6 +8,7 @@ import { drawSelection, EditorView, highlightActiveLine, keymap, lineNumbers } f
 import { tags as t } from "@lezer/highlight";
 import { GFM, parser as markdownParser } from "@lezer/markdown";
 import { useEffect, useRef } from "react";
+import { flash } from "./flash";
 import { continueList } from "./list-continue";
 
 // The theme reads the design tokens, so it follows the light and dark themes with no rebuild.
@@ -87,6 +88,7 @@ export function CodeEditor({
           lineNumbers(),
           history(),
           drawSelection(),
+          flash(),
           highlightActiveLine(),
           highlightSelectionMatches(),
           syntaxHighlighting(highlight),
