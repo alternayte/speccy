@@ -4423,7 +4423,7 @@ components:
           type: array
           items:
             type: object
-            required: [version, created_by, created_at]
+            required: [version, created_by, created_at, origin]
             properties:
               version:
                 type: integer
@@ -4433,6 +4433,9 @@ components:
               created_at:
                 type: string
                 format: date-time
+              origin:
+                type: string
+                description: Where the version came from. A rollback says which version it repeats.
         maintainers:
           type: array
           items:

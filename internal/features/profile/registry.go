@@ -33,6 +33,28 @@ type Registry struct {
 	mu       sync.RWMutex
 	current  map[string]Versioned
 	problems []string
+	// origins holds the origin of the next version to record for a key, so a rollback says
+	// which version it repeats in local mode too.
+	origins map[string]string
+}
+
+// noteOrigin sets the origin of the next version this registry records for key. A rollback
+// uses it, so the history says which version the new one repeats in both modes.
+func (r *Registry) noteOrigin(key, origin string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.origins == nil {
+		r.origins = map[string]string{}
+	}
+	r.origins[key] = origin
+}
+
+func (r *Registry) takeOrigin(key string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	o := r.origins[key]
+	delete(r.origins, key)
+	return o
 }
 
 // Reload loads the profiles again and records new versions.
@@ -47,6 +69,12 @@ func (r *Registry) Reload(ctx context.Context) error {
 		if loadErr != nil {
 			for _, e := range unwrapAll(loadErr) {
 				problems = append(problems, e.Error())
+			}
+		}
+		for key, l := range loaded {
+			if o := r.takeOrigin(key); o != "" {
+				l.Origin = o
+				loaded[key] = l
 			}
 		}
 		versions, err = Record(ctx, r.DB, r.Workspace, loaded, "local")
@@ -134,6 +162,9 @@ func (r *Registry) SaveAs(ctx context.Context, key string, src, template []byte,
 	} else {
 		if r.Dir == "" {
 			return Versioned{}, kernel.Invalid("no_profiles_dir", "This server has no profiles folder.")
+		}
+		if origin != "" {
+			r.noteOrigin(key, origin)
 		}
 		tp := filepath.Clean(filepath.FromSlash(l.Profile.Template))
 		if filepath.IsAbs(tp) || strings.HasPrefix(tp, "..") {
@@ -251,13 +282,16 @@ func (a *API) detail(ctx context.Context, key string) (api.ProfileDetail, error)
 		out.Versions = append(out.Versions, struct {
 			CreatedAt time.Time `json:"created_at"`
 			CreatedBy string    `json:"created_by"`
+			Origin    string    `json:"origin"`
 			Version   int64     `json:"version"`
-		}{CreatedAt: pv.CreatedAt.UTC(), CreatedBy: kernel.PersonByID(ctx, a.People, pv.CreatedBy).Label(), Version: pv.Version})
+		}{CreatedAt: pv.CreatedAt.UTC(), CreatedBy: kernel.PersonByID(ctx, a.People, pv.CreatedBy).Label(),
+			Origin: pv.Origin, Version: pv.Version})
 	}
 	if out.Versions == nil {
 		out.Versions = []struct {
 			CreatedAt time.Time `json:"created_at"`
 			CreatedBy string    `json:"created_by"`
+			Origin    string    `json:"origin"`
 			Version   int64     `json:"version"`
 		}{}
 	}

@@ -1309,6 +1309,10 @@ export type ProfileDetail = {
         version: number;
         created_by: string;
         created_at: string;
+        /**
+         * Where the version came from. A rollback says which version it repeats.
+         */
+        origin: string;
     }>;
     maintainers: Array<string>;
     can_edit: boolean;

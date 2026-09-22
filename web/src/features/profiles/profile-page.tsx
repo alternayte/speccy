@@ -370,8 +370,11 @@ function Versions({ p }: { p: ProfileDetail }) {
             >
               v{v.version}
             </button>
-            <span className="min-w-0 flex-1 truncate text-ink-2" title={v.created_by}>
+            <span className="min-w-0 flex-1 truncate text-ink-2" title={`${v.created_by} · ${v.origin}`}>
               {v.created_by}
+              {/^rolled back to /.test(v.origin) ? (
+                <span className="ml-2 text-xs text-ink-3">{v.origin.replace(/ by .*$/, "")}</span>
+              ) : null}
             </span>
             <span className="text-xs text-ink-3">{relativeTime(v.created_at)}</span>
             {p.can_edit && v.version !== latest ? (

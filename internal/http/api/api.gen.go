@@ -2312,7 +2312,10 @@ type ProfileDetail struct {
 	Versions    []struct {
 		CreatedAt time.Time `json:"created_at"`
 		CreatedBy string    `json:"created_by"`
-		Version   int64     `json:"version"`
+
+		// Origin Where the version came from. A rollback says which version it repeats.
+		Origin  string `json:"origin"`
+		Version int64  `json:"version"`
 	} `json:"versions"`
 	Yaml string `json:"yaml"`
 }

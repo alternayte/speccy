@@ -38,8 +38,12 @@ func (a *API) DeleteProfile(ctx context.Context, req api.DeleteProfileRequestObj
 		for _, b := range rows {
 			slugs = append(slugs, b.Slug)
 		}
+		names := "1 bundle names"
+		if n != 1 {
+			names = fmt.Sprintf("%d bundles name", n)
+		}
 		return nil, kernel.Conflict("profile_in_use",
-			"%d bundle%s name %s: %s. Give them another doc type first.", n, plural(int(n)), req.Key, strings.Join(slugs, ", "))
+			"%s %s: %s. Give them another doc type first.", names, req.Key, strings.Join(slugs, ", "))
 	}
 	row, err := q.GetProfileByKey(ctx, pgdb.GetProfileByKeyParams{WorkspaceID: r.Workspace, Key: req.Key})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -139,11 +143,4 @@ func builtinKey(key string) bool {
 		}
 	}
 	return false
-}
-
-func plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
 }
