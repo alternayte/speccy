@@ -154,7 +154,7 @@ Fix what the findings and the tour raised. Save. Run the review again. Build Rea
 
 **Traceability** shows every upstream ID, and whether this doc references it, covers it elsewhere, or leaves a gap.
 
-Two linked docs also have to agree with each other. [linked-docs.md](linked-docs.md) follows a PRD and the SDD that implements it: the matrix, a coverage gap, the acknowledgement that closes it, a restatement, a contradiction, and the stale verdict after an upstream edit.
+Two linked docs also have to agree with each other. [linked-docs.md](linked-docs.md) follows a PRD and the SDD that implements it: the matrix, a coverage gap, the acknowledgement that closes it, a restatement, a contradiction, the stale verdict after an upstream edit, and the links from a doc to an issue, a page, or the code.
 
 ![The traceability matrix](images/guide-trace.png)
 
