@@ -1542,10 +1542,12 @@ type BundleAccess struct {
 
 // BundleFile defines model for BundleFile.
 type BundleFile struct {
-	IsMainDoc bool   `json:"is_main_doc"`
-	Path      string `json:"path"`
-	Sha256    string `json:"sha256"`
-	Size      int64  `json:"size"`
+	// CarriedBy The doc whose reference brought this file in. A carried file is read only.
+	CarriedBy *string `json:"carried_by,omitempty"`
+	IsMainDoc bool    `json:"is_main_doc"`
+	Path      string  `json:"path"`
+	Sha256    string  `json:"sha256"`
+	Size      int64   `json:"size"`
 }
 
 // BundleGithub Where a GitHub bundle comes from, and its draft (REQ-123).

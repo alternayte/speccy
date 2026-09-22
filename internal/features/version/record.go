@@ -83,7 +83,8 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 		return pgdb.Version{}, false, err
 	}
 	for _, f := range c.Files {
-		if err := q.InsertVersionFile(ctx, pgdb.InsertVersionFileParams{VersionID: v.ID, Path: f.Path, Sha256: hashes[f.Path]}); err != nil {
+		if err := q.InsertVersionFile(ctx, pgdb.InsertVersionFileParams{VersionID: v.ID, Path: f.Path,
+			Sha256: hashes[f.Path], CarriedBy: f.CarriedBy}); err != nil {
 			return pgdb.Version{}, false, err
 		}
 	}
@@ -119,7 +120,7 @@ func Files(ctx context.Context, q store.Querier, versionID uuid.UUID) ([]source.
 		if err != nil {
 			return nil, err
 		}
-		files[i] = source.File{Path: r.Path, Content: content}
+		files[i] = source.File{Path: r.Path, Content: content, CarriedBy: r.CarriedBy}
 	}
 	return files, nil
 }

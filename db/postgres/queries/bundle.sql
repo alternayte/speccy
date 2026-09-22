@@ -49,7 +49,8 @@ VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(numb
         sqlc.arg(message), sqlc.arg(created_at));
 
 -- name: InsertVersionFile :exec
-INSERT INTO version_file (version_id, path, sha256) VALUES (sqlc.arg(version_id), sqlc.arg(path), sqlc.arg(sha256));
+INSERT INTO version_file (version_id, path, sha256, carried_by)
+VALUES (sqlc.arg(version_id), sqlc.arg(path), sqlc.arg(sha256), sqlc.arg(carried_by));
 
 -- name: NextVersionNumber :one
 SELECT CAST(COALESCE(MAX(number), 0) + 1 AS BIGINT) AS next FROM version WHERE bundle_id = sqlc.arg(bundle_id);
@@ -67,7 +68,7 @@ ORDER BY number DESC
 LIMIT sqlc.arg(page_size)::bigint;
 
 -- name: ListVersionFiles :many
-SELECT vf.path, vf.sha256, b.size
+SELECT vf.path, vf.sha256, vf.carried_by, b.size
 FROM version_file vf JOIN blob b ON b.sha256 = vf.sha256
 WHERE vf.version_id = sqlc.arg(version_id)
 ORDER BY vf.path;

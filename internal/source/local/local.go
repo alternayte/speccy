@@ -188,6 +188,11 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		}
 		s.Bundles = append(s.Bundles, b)
 	}
+	// Every bundle takes the files its markdown points at (the carried files). The walk runs
+	// after both kinds of bundle exist, so a reference to another bundle's doc is known.
+	for i := range s.Bundles {
+		s.Problems = append(s.Problems, s.carry(r, &s.Bundles[i], source.DefaultLimits.BundleBytes)...)
+	}
 	sort.Slice(s.Bundles, func(i, j int) bool { return s.Bundles[i].Slug < s.Bundles[j].Slug })
 	for i, b := range s.Bundles {
 		s.bySlug[b.Slug] = i
@@ -591,4 +596,76 @@ func repoFilePath(rel string) (string, error) {
 		return "", fmt.Errorf("%q is outside the served folder", rel)
 	}
 	return clean, nil
+}
+
+// carry adds the files a bundle's markdown points at, to closure. A reference is a relative
+// link or an image that resolves at or below the bundle's folder: a bundle path may hold no
+// ".." segment, so a target above the folder has no path here, and the doc's link is never
+// rewritten. A mapped doc is another bundle, and a file already in the bundle is not taken
+// twice, so a cycle ends by itself.
+func (s *Scan) carry(r *Root, b *Bundle, limit int64) []Problem {
+	var problems []Problem
+	held := map[string]bool{} // paths in the bundle, relative to it
+	var total int64
+	for _, f := range b.Files {
+		held[f.Path] = true
+		total += int64(len(f.Content))
+	}
+	// The queue holds the bundle-relative paths whose references are still to read.
+	var queue []string
+	for _, f := range b.Files {
+		if source.IsMarkdown(f.Path) {
+			queue = append(queue, f.Path)
+		}
+	}
+	for len(queue) > 0 {
+		from := queue[0]
+		queue = queue[1:]
+		content := fileIn(b.Files, from)
+		if content == nil {
+			continue
+		}
+		for _, ref := range source.References(content) {
+			// The reference is relative to the folder of the file that wrote it.
+			inBundle := path.Join(path.Dir(from), ref)
+			if strings.HasPrefix(inBundle, "..") || inBundle == "." || held[inBundle] {
+				continue
+			}
+			rel := path.Join(b.Dir, inBundle)
+			if s.excluded[rel] || s.bundleDirs[rel] {
+				continue // another bundle holds it
+			}
+			info, err := fs.Stat(r.fsys, rel)
+			if err != nil || !info.Mode().IsRegular() {
+				continue // a link to nothing stays a broken link finding
+			}
+			if limit > 0 && total+info.Size() > limit {
+				problems = append(problems, Problem{Path: rel,
+					Message: fmt.Sprintf("%s references this file, and the bundle limit stops Speccy from taking it.", from)})
+				continue
+			}
+			content, err := r.readCapped(rel)
+			if err != nil {
+				continue
+			}
+			held[inBundle] = true
+			total += int64(len(content))
+			b.Files = append(b.Files, source.File{Path: inBundle, Content: content, CarriedBy: from})
+			if source.IsMarkdown(inBundle) {
+				queue = append(queue, inBundle)
+			}
+		}
+	}
+	source.Sort(b.Files)
+	return problems
+}
+
+// fileIn returns the content of one file of a bundle.
+func fileIn(files []source.File, p string) []byte {
+	for _, f := range files {
+		if f.Path == p {
+			return f.Content
+		}
+	}
+	return nil
 }
