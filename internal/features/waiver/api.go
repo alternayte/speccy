@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
+	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/es"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -150,7 +152,9 @@ func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObj
 	if err != nil {
 		return nil, err
 	}
-	if Evolve(s, events[0]).Status == StatusApproved {
+	// A verification waiver never goes in the sidecar: it excuses one trace ID in one code
+	// repo, and the sidecar travels with the doc into every build of it.
+	if Evolve(s, events[0]).Status == StatusApproved && s.Scope != ScopeVerify {
 		if err := a.writeSidecar(ctx, b, s, who.UserID); err != nil {
 			return nil, err
 		}
@@ -378,4 +382,62 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.Bundle) 
 		}
 	}
 	return nil
+}
+
+// RequestVerificationWaiver asks to excuse one trace ID in one code repo. It keeps the whole
+// waiver mechanism: a reason of at least MinReason characters, the profile's policy for a MUST,
+// no self-approval, and an end when the requirement's section changes. It never goes in the
+// doc's sidecar, because the sidecar travels with the doc into every build of it.
+func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVerificationWaiverRequestObject) (api.RequestVerificationWaiverResponseObject, error) {
+	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.BundleId)
+	if err != nil {
+		return nil, err
+	}
+	p, ok := a.Profiles()[b.ProfileKey]
+	if !ok {
+		return nil, kernel.Invalid("no_profile", "The bundle's doc type has no profile.")
+	}
+	traceID := strings.TrimSpace(req.Body.TraceId)
+	repo := strings.TrimSpace(req.Body.Repo)
+	if traceID == "" || repo == "" {
+		return nil, kernel.Invalid("no_target", "Name the trace ID and the repo this waiver excuses.")
+	}
+	main, doc, err := a.mainDoc(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	prefixes := append(append([]string(nil), p.Profile.Trace.Prefixes...), p.Profile.Verify.Prefixes...)
+	var path []string
+	found := false
+	for _, d := range lint.Definitions(main, prefixes) {
+		if strings.EqualFold(d.ID, traceID) {
+			an := anchor.New(b.MainDoc, main, doc, d.Start, d.End)
+			path, found = an.HeadingPath, true
+			break
+		}
+	}
+	if !found {
+		return nil, kernel.Invalid("trace_id_not_found", "The doc defines no %s.", traceID)
+	}
+	if path == nil {
+		path = []string{}
+	}
+	hash, ok := section.HashAt(doc, main, path)
+	if !ok {
+		return nil, kernel.Conflict("section_gone", "The section of %s is not in the current version.", traceID)
+	}
+	slug := "verify." + strings.ToLower(traceID)
+	r := Request{
+		ID: kernel.NewID(), BundleID: b.ID, Check: slug, Scope: ScopeVerify, TraceID: traceID, Repo: repo,
+		Level: kernel.Must, Section: path, SectionHash: hash, Reason: req.Body.Reason,
+		By: kernel.ActorFrom(ctx).UserID, Policy: p.Profile.Waivers.Must,
+	}
+	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
+		return nil, err
+	}
+	w, err := a.waiver(ctx, r.ID)
+	if err != nil {
+		return nil, err
+	}
+	return api.RequestVerificationWaiver200JSONResponse(w), nil
 }

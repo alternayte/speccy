@@ -51,8 +51,8 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 DELETE FROM mcp_connection WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 
 -- name: InsertClaim :exec
-INSERT INTO claim (id, run_id, text, label, reason, sources, anchor)
-VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(text), sqlc.arg(label), sqlc.arg(reason), sqlc.arg(sources), sqlc.arg(anchor));
+INSERT INTO claim (id, run_id, text, label, reason, class, sources, anchor)
+VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(text), sqlc.arg(label), sqlc.arg(reason), sqlc.arg(class), sqlc.arg(sources), sqlc.arg(anchor));
 
 -- name: ListClaims :many
 SELECT * FROM claim WHERE run_id = sqlc.arg(run_id) ORDER BY id;

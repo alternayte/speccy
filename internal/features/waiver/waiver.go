@@ -38,11 +38,26 @@ const (
 // MinReason is REQ-072's shortest reason.
 const MinReason = 20
 
+// Scope values. A check waiver excuses a review finding and goes in the doc's sidecar. A
+// verification waiver excuses one trace ID in one code repo, and it never goes in the
+// sidecar: the sidecar travels with the doc into every build, and this fact belongs to one
+// build.
+const (
+	ScopeCheck  = "check"
+	ScopeVerify = "verify"
+)
+
 // State is a waiver.
 type State struct {
-	ID          uuid.UUID      `json:"id"`
-	BundleID    uuid.UUID      `json:"bundle_id"`
-	Check       string         `json:"check"`
+	ID       uuid.UUID `json:"id"`
+	BundleID uuid.UUID `json:"bundle_id"`
+	Check    string    `json:"check"`
+	// Scope is ScopeCheck or ScopeVerify. An empty value is ScopeCheck, for the waivers that
+	// exist already.
+	Scope string `json:"scope,omitempty"`
+	// TraceID and Repo name what a verification waiver excuses.
+	TraceID     string         `json:"trace_id,omitempty"`
+	Repo        string         `json:"repo,omitempty"`
 	Level       kernel.Level   `json:"level"`
 	Section     []string       `json:"section"`
 	SectionHash string         `json:"section_hash"`
@@ -69,6 +84,9 @@ type Request struct {
 	ID          uuid.UUID
 	BundleID    uuid.UUID
 	Check       string
+	Scope       string
+	TraceID     string
+	Repo        string
 	Level       kernel.Level
 	Section     []string
 	SectionHash string
@@ -181,7 +199,12 @@ func Evolve(s State, e es.Event) State {
 		var p requestedV1
 		_ = json.Unmarshal(e.Payload, &p)
 		r := p.Request
-		return State{ID: r.ID, BundleID: r.BundleID, Check: r.Check, Level: r.Level, Section: r.Section, SectionHash: r.SectionHash,
+		scope := r.Scope
+		if scope == "" {
+			scope = ScopeCheck
+		}
+		return State{ID: r.ID, BundleID: r.BundleID, Check: r.Check, Scope: scope, TraceID: r.TraceID, Repo: r.Repo,
+			Level: r.Level, Section: r.Section, SectionHash: r.SectionHash,
 			Reason: strings.TrimSpace(r.Reason), Policy: r.Policy, Status: StatusRequested, RequestedBy: r.By, Approvals: []string{}}
 	case Approved:
 		var p approvedV1

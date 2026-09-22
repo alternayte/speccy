@@ -12,6 +12,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/divergence"
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/engine/sourcepolicy"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -93,6 +94,40 @@ func (a *API) ListAssumptions(ctx context.Context, req api.ListAssumptionsReques
 	return out, nil
 }
 
+// claimSourcesAPI returns the sources of a claim, with what the resolver learned about each.
+func claimSourcesAPI(in []sourcepolicy.Source) []api.ClaimSource {
+	out := make([]api.ClaimSource, 0, len(in))
+	for _, s := range in {
+		c := api.ClaimSource{Url: s.URL}
+		if s.FinalURL != "" {
+			c.FinalUrl = &s.FinalURL
+		}
+		if len(s.Chain) > 0 {
+			chain := s.Chain
+			c.Chain = &chain
+		}
+		if s.Status != 0 {
+			st := s.Status
+			c.Status = &st
+		}
+		c.RetrievedAt, c.Modified = s.RetrievedAt, s.Modified
+		if s.Tier != "" {
+			t := api.ClaimSourceTier(s.Tier)
+			c.Tier = &t
+		}
+		if s.Dropped {
+			d := true
+			c.Dropped = &d
+		}
+		if s.Reason != "" {
+			r := s.Reason
+			c.Reason = &r
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
 func anchorAPI(an anchor.Anchor) api.Anchor {
 	path := an.HeadingPath
 	if path == nil {
@@ -115,9 +150,10 @@ func (a *API) ListClaims(ctx context.Context, req api.ListClaimsRequestObject) (
 	for _, c := range rows {
 		var an anchor.Anchor
 		_ = json.Unmarshal(c.Anchor, &an)
-		sources := []string{}
+		sources := []sourcepolicy.Source{}
 		_ = json.Unmarshal(c.Sources, &sources)
-		out.Items = append(out.Items, api.Claim{Id: c.ID, Text: c.Text, Label: api.ClaimLabel(c.Label), Reason: c.Reason, Sources: sources, Anchor: anchorAPI(an)})
+		out.Items = append(out.Items, api.Claim{Id: c.ID, Text: c.Text, Label: api.ClaimLabel(c.Label), Reason: c.Reason,
+			Class: c.Class, Sources: claimSourcesAPI(sources), Anchor: anchorAPI(an)})
 	}
 	return out, nil
 }

@@ -65,6 +65,67 @@
         }
       }
     },
+    "grounding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sources": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The source policy: which domains the grounding stage accepts, their tier, their freshness period, and the claim class of a section.",
+          "properties": {
+            "allow": { "type": "array", "items": { "$ref": "#/$defs/hostPattern" } },
+            "forbid": { "type": "array", "items": { "$ref": "#/$defs/hostPattern" } },
+            "domains": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pattern", "tier"],
+                "properties": {
+                  "pattern": { "$ref": "#/$defs/hostPattern" },
+                  "tier": { "enum": ["primary", "secondary"] }
+                }
+              }
+            },
+            "freshness": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Days a source of that tier stays usable. Zero is no limit.",
+              "properties": {
+                "primary": { "type": "integer", "minimum": 0 },
+                "secondary": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "require_primary": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "classes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["pattern", "class"],
+                "properties": {
+                  "pattern": { "type": "string", "minLength": 1, "description": "A heading path, with / between headings. A * segment matches one heading, and a trailing ** matches the rest." },
+                  "class": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            "unclassified": { "enum": ["allow", "warn", "require-classification"] }
+          }
+        }
+      }
+    },
+    "verify": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The post-build verification gate: the trace IDs it verifies, and the bounds of its repo scan.",
+      "properties": {
+        "prefixes": { "type": "array", "items": { "$ref": "#/$defs/prefix" } },
+        "exclude": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "max_file_kb": { "type": "integer", "minimum": 1 },
+        "max_mapper_files": { "type": "integer", "minimum": 1 }
+      }
+    },
     "trace": {
       "type": "object",
       "additionalProperties": false,
@@ -143,10 +204,16 @@
     }
   },
   "$defs": {
+    "hostPattern": {
+      "type": "string",
+      "pattern": "^(\\*\\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$",
+      "description": "A host, such as example.com, or *.example.com for its subdomains."
+    },
     "prefix": { "type": "string", "pattern": "^[A-Z]{2,6}$" },
     "lintSlug": {
       "enum": [
         "lint.placeholder",
+        "lint.requirement-grammar",
         "lint.required-headings",
         "lint.broken-link",
         "lint.duplicate-id",

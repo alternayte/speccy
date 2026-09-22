@@ -26,9 +26,18 @@ func Projection(workspace uuid.UUID) es.Projection {
 			ID: s.ID, WorkspaceID: workspace, BundleID: s.BundleID, CheckSlug: s.Check, Level: string(s.Level),
 			SectionPath: dbtype.JSON(section), SectionHash: s.SectionHash, Reason: s.Reason, Status: s.Status,
 			RequestedBy: s.RequestedBy, Approvals: dbtype.JSON(approvals), DecidedBy: s.DecidedBy,
+			Scope: scopeOf(s), TraceID: s.TraceID, Repo: s.Repo,
 			CreatedAt: firstTime(snap), UpdatedAt: snap.UpdatedAt,
 		})
 	}
+}
+
+// scopeOf gives a waiver written before the verification gate its original scope.
+func scopeOf(s State) string {
+	if s.Scope == "" {
+		return ScopeCheck
+	}
+	return s.Scope
 }
 
 // firstTime is the stream's time on its first append; later upserts keep created_at.

@@ -554,12 +554,18 @@ func summary(o Options, bundles []Bundle, rest map[string][]string, pending map[
 }
 
 func upsertSummary(ctx context.Context, o Options, body string, create bool) error {
+	return upsertMarked(ctx, o, summaryMarker, body, create)
+}
+
+// upsertMarked keeps one comment per marker, so the review summary and the verification
+// summary each have their own.
+func upsertMarked(ctx context.Context, o Options, marker, body string, create bool) error {
 	comments, err := o.GitHub.IssueComments(ctx, o.Repo, o.PR)
 	if err != nil {
 		return err
 	}
 	for _, c := range comments {
-		if strings.HasPrefix(c.Body, summaryMarker) {
+		if strings.HasPrefix(c.Body, marker) {
 			return o.GitHub.UpdateIssueComment(ctx, o.Repo, c.ID, body)
 		}
 	}

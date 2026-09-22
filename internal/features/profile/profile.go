@@ -22,6 +22,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/engine/sourcepolicy"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/schemas"
 )
@@ -38,6 +39,8 @@ type Profile struct {
 	Waivers    Waivers    `yaml:"waivers" json:"waivers"`
 	Approvals  Approvals  `yaml:"approvals" json:"approvals"`
 	Divergence Divergence `yaml:"divergence" json:"divergence"`
+	Grounding  Grounding  `yaml:"grounding" json:"grounding"`
+	Verify     Verify     `yaml:"verify" json:"verify"`
 	Lint       Lint       `yaml:"lint" json:"lint"`
 	Checks     []Check    `yaml:"checks" json:"checks"`
 }
@@ -67,6 +70,27 @@ type Upstream struct {
 	Kinds    []string `yaml:"kinds" json:"kinds"`
 	Types    []string `yaml:"types" json:"types"`
 	Required bool     `yaml:"required" json:"required"`
+}
+
+// Grounding holds the profile's grounding configuration. Sources is the source policy: which
+// domains the grounding stage accepts, their tier, their freshness period, and the claim class
+// of a section.
+type Grounding struct {
+	Sources sourcepolicy.Policy `yaml:"sources" json:"sources"`
+}
+
+// Verify configures the post-build verification gate: which trace IDs it verifies, and the
+// bounds of its repo scan.
+type Verify struct {
+	// Prefixes are the trace ID prefixes the gate verifies. A decision ID or a goal ID names
+	// no code, so reporting it missing makes the whole table noise.
+	Prefixes []string `yaml:"prefixes" json:"prefixes"`
+	// Exclude are path globs the scan passes over, such as the vendor directories.
+	Exclude []string `yaml:"exclude" json:"exclude"`
+	// MaxFileKB is the largest file the scan reads.
+	MaxFileKB int `yaml:"max_file_kb" json:"max_file_kb"`
+	// MaxMapperFiles bounds the files the AI mapper sees, highest ranked first.
+	MaxMapperFiles int `yaml:"max_mapper_files" json:"max_mapper_files"`
 }
 
 type Trace struct {
@@ -161,6 +185,12 @@ var defaults = Profile{
 	Limits:    Limits{MaxWords: 8000, MaxSectionWords: 900, MaxSentenceWords: 25, MaxCodeBlockLines: 40, MaxTableRows: 15},
 	Waivers:   Waivers{Should: Policy{Name: "non_author"}, Must: Policy{Name: "maintainer"}},
 	Approvals: Approvals{Required: 1},
+	Verify: Verify{
+		Prefixes:       []string{"REQ", "NFR"},
+		Exclude:        []string{"vendor/**", "node_modules/**", "dist/**", "build/**", ".git/**", "**/testdata/**", "**/*.min.js", "**/*.lock", "**/*.sum"},
+		MaxFileKB:      512,
+		MaxMapperFiles: 200,
+	},
 }
 
 func init() {
@@ -228,6 +258,15 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 	}
 	if p.Divergence.Questions.Min > p.Divergence.Questions.Max {
 		problems = append(problems, "/divergence/questions: min is larger than max")
+	}
+	if p.Verify.MaxFileKB <= 0 {
+		p.Verify.MaxFileKB = defaults.Verify.MaxFileKB
+	}
+	if p.Verify.MaxMapperFiles <= 0 {
+		p.Verify.MaxMapperFiles = defaults.Verify.MaxMapperFiles
+	}
+	if err := p.Grounding.Sources.Validate(); err != nil {
+		problems = append(problems, "/grounding/sources: "+err.Error())
 	}
 	tmpl, err := readTemplate(p.Template)
 	if err != nil {

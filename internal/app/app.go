@@ -22,6 +22,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
 	"github.com/alternayte/speccy/internal/features/tour"
+	"github.com/alternayte/speccy/internal/features/verify"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
@@ -29,6 +30,7 @@ import (
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
+	"github.com/alternayte/speccy/internal/sourceresolve"
 	"github.com/alternayte/speccy/internal/store"
 )
 
@@ -89,7 +91,11 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		Gateway: gateway, Search: adminAPI.SearchSource, Fetch: adminAPI.FetchSource, Progress: review.NewBroker(),
 		// REQ-105: the admin sets the parallel model calls.
 		Parallel: func(ctx context.Context) int { return settings(ctx).ParallelCalls },
-		ES:       events,
+		// The metadata resolver reads a grounding source's redirect chain and dates. The admin
+		// can turn it off.
+		Resolve:        sourceresolve.New(),
+		ResolveSources: func(ctx context.Context) bool { return settings(ctx).ResolveSourcesOn() },
+		ES:             events,
 	}
 	if root != nil {
 		// REQ-129: local mode reads GitHub with the machine's gh login, and falls back to a
@@ -130,6 +136,8 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people}
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
 	tourAPI := &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
+	verifyAPI := &verify.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway,
+		GitHub: reviews.GitHub, Threads: threadAPI}
 	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
 		Waiting:    waiverAPI.Waiting,
 		FirstPoint: tourAPI.FirstPoint,
@@ -158,6 +166,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current, Decisions: svc.Decisions},
 			TourAPI:     tourAPI,
 			HandoffAPI:  handoffAPI,
+			VerifyAPI:   verifyAPI,
 		},
 	}, nil
 }

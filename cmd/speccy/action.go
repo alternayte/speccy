@@ -20,11 +20,48 @@ import (
 	"github.com/alternayte/speccy/internal/source/local"
 )
 
+// actionEvent is the part of the GitHub event file the Action reads.
+type actionEvent struct {
+	PullRequest *struct {
+		Number int `json:"number"`
+		Head   struct {
+			SHA string `json:"sha"`
+		} `json:"head"`
+	} `json:"pull_request"`
+}
+
 // runAction is speccy action, the GitHub Action (SDD §12.4, REQ-124). It reviews the bundles
 // that a pull request changes, posts or updates one summary comment, posts inline comments on
 // changed lines, and sets one check run per bundle. It reads the Actions environment:
 // GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_PATH, and GITHUB_API_URL.
+// prNumber and headSHA read the pull request of the event, or zero values with none.
+func prNumber(e actionEvent) int {
+	if e.PullRequest == nil {
+		return 0
+	}
+	return e.PullRequest.Number
+}
+
+func headSHA(e actionEvent) string {
+	if e.PullRequest == nil {
+		return ""
+	}
+	return e.PullRequest.Head.SHA
+}
+
 func runAction(args []string, stdout, stderr io.Writer) int {
+	// --verify runs the post-build verification gate instead of the review (the spec contract
+	// gate). It reads the same Actions environment.
+	verifyMode := false
+	var kept []string
+	for _, a := range args {
+		if a == "--verify" {
+			verifyMode = true
+			continue
+		}
+		kept = append(kept, a)
+	}
+	args = kept
 	fl, err := parseReviewFlags(append(args, "."))
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]\n", err)
@@ -37,14 +74,7 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "speccy action runs in GitHub Actions. It needs GITHUB_TOKEN, GITHUB_REPOSITORY, and GITHUB_EVENT_PATH.")
 		return exitUsage
 	}
-	var event struct {
-		PullRequest *struct {
-			Number int `json:"number"`
-			Head   struct {
-				SHA string `json:"sha"`
-			} `json:"head"`
-		} `json:"pull_request"`
-	}
+	var event actionEvent
 	raw, err := os.ReadFile(getenv("GITHUB_EVENT_PATH"))
 	if err == nil {
 		err = json.Unmarshal(raw, &event)
@@ -109,6 +139,11 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 				}
 			}
 		}
+	}
+
+	if verifyMode {
+		return runActionVerify(ctx, fl, gh, repo, event.PullRequest != nil, prNumber(event), headSHA(event),
+			selected, files, cfg, enforcement, root.Dir(), stdout, stderr)
 	}
 
 	var results []reviewed

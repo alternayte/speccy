@@ -41,10 +41,11 @@ ORDER BY m.created_at DESC LIMIT 500;
 
 -- name: UpsertWaiverView :exec
 INSERT INTO waiver_view (id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status,
-                         requested_by, approvals, decided_by, created_at, updated_at)
+                         requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(check_slug), sqlc.arg(level),
         sqlc.arg(section_path), sqlc.arg(section_hash), sqlc.arg(reason), sqlc.arg(status), sqlc.arg(requested_by),
-        sqlc.arg(approvals), sqlc.arg(decided_by), sqlc.arg(created_at), sqlc.arg(updated_at))
+        sqlc.arg(approvals), sqlc.arg(decided_by), sqlc.arg(created_at), sqlc.arg(updated_at),
+        sqlc.arg(scope), sqlc.arg(trace_id), sqlc.arg(repo))
 ON CONFLICT (id) DO UPDATE SET status = excluded.status, approvals = excluded.approvals,
     decided_by = excluded.decided_by, updated_at = excluded.updated_at;
 
@@ -53,6 +54,10 @@ SELECT * FROM waiver_view WHERE workspace_id = sqlc.arg(workspace_id) AND id = s
 
 -- name: ListBundleWaivers :many
 SELECT * FROM waiver_view WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY created_at DESC;
+
+-- name: ListVerificationWaivers :many
+SELECT * FROM waiver_view
+WHERE bundle_id = sqlc.arg(bundle_id) AND scope = 'verify' AND repo = sqlc.arg(repo) AND status = 'approved';
 
 -- name: ListWorkspaceWaivers :many
 SELECT * FROM waiver_view WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY created_at DESC;

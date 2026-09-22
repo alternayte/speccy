@@ -30,6 +30,7 @@ import type { BundleSearch } from "./search";
 import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VersionsPanel } from "./versions-panel";
 import { HandoffsPanel } from "./handoffs-panel";
+import { VerificationsPanel } from "./verifications-panel";
 import { ReviewerPage } from "@/features/review/reviewer-page";
 import { ControlRow } from "./control-row";
 import { adoptFrontmatterMutation } from "@/lib/api/@tanstack/react-query.gen";
@@ -445,6 +446,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                 <>
                   <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
                   <HandoffsPanel bundleId={bundleId} current={b.current_version.number} />
+                  <VerificationsPanel bundleId={bundleId} />
                 </>
               )}
             </div>

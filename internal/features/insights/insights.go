@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/engine/verify"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
@@ -89,6 +90,10 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 	}
 	// REQ-137: a Build Ready handoff that came back blocked says the verdict was wrong. It is
 	// the only measure of the review against reality, so it is counted per profile.
+	verifications, err := q.ListWorkspaceVerificationRuns(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
 	handoffs, err := q.ListWorkspaceHandoffs(ctx, a.Workspace)
 	if err != nil {
 		return nil, err
@@ -168,6 +173,23 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 		}
 		if ready > 0 {
 			pi.FalseReadyRate = float32(cameBack) / float32(ready)
+		}
+		// The breach rate is the share of verified trace IDs that came back breached or
+		// missing. A profile whose requirements are built wrong has a weak rubric.
+		verified, wrong := 0, 0
+		for _, v := range verifications {
+			if !ids[v.BundleID] {
+				continue
+			}
+			var c verify.Counts
+			if err := json.Unmarshal(v.Counts, &c); err != nil {
+				continue
+			}
+			verified += c.Implemented + c.Untested + c.Unproven + c.Missing + c.Breached
+			wrong += c.Missing + c.Breached
+		}
+		if verified > 0 {
+			pi.BreachRate = float32(wrong) / float32(verified)
 		}
 		for name, n := range sections {
 			pi.BlockedSections = append(pi.BlockedSections, struct {

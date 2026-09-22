@@ -183,7 +183,7 @@ func (q *Queries) GetUserState(ctx context.Context, userID string) (UserState, e
 }
 
 const getWaiverView = `-- name: GetWaiverView :one
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at FROM waiver_view WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetWaiverViewParams struct {
@@ -209,6 +209,9 @@ func (q *Queries) GetWaiverView(ctx context.Context, arg GetWaiverViewParams) (W
 		&i.DecidedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Scope,
+		&i.TraceID,
+		&i.Repo,
 	)
 	return i, err
 }
@@ -541,7 +544,7 @@ func (q *Queries) ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID)
 }
 
 const listBundleWaivers = `-- name: ListBundleWaivers :many
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at FROM waiver_view WHERE bundle_id = ?1 ORDER BY created_at DESC
+SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE bundle_id = ?1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]WaiverView, error) {
@@ -568,6 +571,9 @@ func (q *Queries) ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Scope,
+			&i.TraceID,
+			&i.Repo,
 		); err != nil {
 			return nil, err
 		}
@@ -922,8 +928,59 @@ func (q *Queries) ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([
 	return items, nil
 }
 
+const listVerificationWaivers = `-- name: ListVerificationWaivers :many
+SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view
+WHERE bundle_id = ?1 AND scope = 'verify' AND repo = ?2 AND status = 'approved'
+`
+
+type ListVerificationWaiversParams struct {
+	BundleID uuid.UUID
+	Repo     string
+}
+
+func (q *Queries) ListVerificationWaivers(ctx context.Context, arg ListVerificationWaiversParams) ([]WaiverView, error) {
+	rows, err := q.db.QueryContext(ctx, listVerificationWaivers, arg.BundleID, arg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WaiverView
+	for rows.Next() {
+		var i WaiverView
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.BundleID,
+			&i.CheckSlug,
+			&i.Level,
+			&i.SectionPath,
+			&i.SectionHash,
+			&i.Reason,
+			&i.Status,
+			&i.RequestedBy,
+			&i.Approvals,
+			&i.DecidedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Scope,
+			&i.TraceID,
+			&i.Repo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkspaceWaivers = `-- name: ListWorkspaceWaivers :many
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at FROM waiver_view WHERE workspace_id = ?1 ORDER BY created_at DESC
+SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE workspace_id = ?1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error) {
@@ -950,6 +1007,9 @@ func (q *Queries) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUI
 			&i.DecidedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Scope,
+			&i.TraceID,
+			&i.Repo,
 		); err != nil {
 			return nil, err
 		}
@@ -1079,10 +1139,11 @@ func (q *Queries) UpsertThreadView(ctx context.Context, arg UpsertThreadViewPara
 
 const upsertWaiverView = `-- name: UpsertWaiverView :exec
 INSERT INTO waiver_view (id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status,
-                         requested_by, approvals, decided_by, created_at, updated_at)
+                         requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, ?9, ?10,
-        ?11, ?12, ?13, ?14)
+        ?11, ?12, ?13, ?14,
+        ?15, ?16, ?17)
 ON CONFLICT (id) DO UPDATE SET status = excluded.status, approvals = excluded.approvals,
     decided_by = excluded.decided_by, updated_at = excluded.updated_at
 `
@@ -1102,6 +1163,9 @@ type UpsertWaiverViewParams struct {
 	DecidedBy   string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Scope       string
+	TraceID     string
+	Repo        string
 }
 
 func (q *Queries) UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewParams) error {
@@ -1120,6 +1184,9 @@ func (q *Queries) UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewPara
 		arg.DecidedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.Scope,
+		arg.TraceID,
+		arg.Repo,
 	)
 	return err
 }

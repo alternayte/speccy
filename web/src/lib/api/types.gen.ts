@@ -82,6 +82,10 @@ export type Settings = {
      */
     invite_ttl_days: number;
     /**
+     * Read the metadata of each grounding source. Default true. With it off, a source carries no redirect chain and no retrieval date.
+     */
+    resolve_sources?: boolean;
+    /**
      * REQ-105. Model calls at a time per run. Default 4.
      */
     parallel_calls: number;
@@ -261,12 +265,166 @@ export type RunEvent = {
     cache_hits?: number;
 };
 
+/**
+ * The code target of one verification run: a GitHub repo and a commit, or a folder on disk.
+ */
+export type VerificationRequest = {
+    /**
+     * The repo, as owner/name.
+     */
+    repo?: string;
+    /**
+     * The commit the run reads.
+     */
+    sha?: string;
+    /**
+     * A folder on disk. Local mode only. A folder run has no base commit.
+     */
+    path?: string;
+    /**
+     * The handoff a builder took, when the caller names one.
+     */
+    handoff_id?: string;
+    /**
+     * The builder's claims. A claim replaces the derived targets of its trace ID.
+     */
+    claims?: Array<VerificationClaim>;
+};
+
+export type VerificationClaim = {
+    trace_id: string;
+    targets: Array<VerificationTarget>;
+};
+
+export type VerificationTarget = {
+    kind: 'code' | 'test';
+    /**
+     * The file, relative to the repo root.
+     */
+    path: string;
+    /**
+     * The verbatim anchor. It must appear in the file exactly once.
+     */
+    quote: string;
+    /**
+     * The line Speccy found the quote at.
+     */
+    line?: number;
+    holds?: boolean;
+    /**
+     * Why the target does not hold.
+     */
+    fault?: string;
+    provenance?: 'claim' | 'literal' | 'mapper';
+};
+
+export type VerificationOutcome = {
+    trace_id: string;
+    /**
+     * A test target is a citation, not a pass. Speccy runs no tests.
+     */
+    outcome: 'implemented' | 'untested' | 'unproven' | 'missing' | 'breached';
+    level: 'MUST' | 'SHOULD' | 'INFO';
+    /**
+     * The outcome opened a blocking thread.
+     */
+    blocks: boolean;
+    waived: boolean;
+    provenance: 'claim' | 'literal' | 'mapper';
+    note?: string;
+    targets: Array<VerificationTarget>;
+    requirement_quote?: string;
+    code_quote?: string;
+    reason?: string;
+};
+
+export type VerificationCounts = {
+    implemented: number;
+    untested: number;
+    unproven: number;
+    missing: number;
+    breached: number;
+    waived: number;
+    blocking: number;
+    /**
+     * Trace IDs outside the profile's verify prefixes, which the gate did not verify.
+     */
+    skipped: number;
+};
+
+export type Verification = {
+    id: string;
+    bundle_id: string;
+    handoff_id?: string;
+    /**
+     * The run's own verdict. It is not the bundle's Build Ready verdict.
+     */
+    verdict: 'verified' | 'not_verified';
+    repo: string;
+    sha: string;
+    /**
+     * The commit the ranking compared against. Empty when the run had no base.
+     */
+    base_sha?: string;
+    /**
+     * The content digest of a folder run.
+     */
+    digest?: string;
+    counts: VerificationCounts;
+    /**
+     * The limits the scan hit.
+     */
+    notes: Array<string>;
+    /**
+     * The bundle got a new version after this run.
+     */
+    stale: boolean;
+    started_by?: string;
+    created_at: string;
+    outcomes: Array<VerificationOutcome>;
+};
+
+export type VerificationList = {
+    items: Array<Verification>;
+};
+
+/**
+ * One source of a claim, with what the metadata resolver learned about it.
+ */
+export type ClaimSource = {
+    /**
+     * The address the search returned.
+     */
+    url: string;
+    /**
+     * The address that answered, after the redirects. Empty when the resolver did not run.
+     */
+    final_url?: string;
+    /**
+     * Every address Speccy requested, in order.
+     */
+    chain?: Array<string>;
+    status?: number;
+    retrieved_at?: string;
+    modified?: string;
+    tier?: 'primary' | 'secondary';
+    /**
+     * The source policy refused the source.
+     */
+    dropped?: boolean;
+    reason?: string;
+};
+
 export type Claim = {
     id: string;
     text: string;
     label: 'verified' | 'contradicted' | 'unverified';
     reason: string;
-    sources: Array<string>;
+    /**
+     * The claim class the profile gave the section, or unclassified.
+     */
+    class: string;
+    sources: Array<ClaimSource>;
     anchor: Anchor;
 };
 
@@ -1088,6 +1246,10 @@ export type ProfileInsights = {
         count: number;
     }>;
     /**
+     * The share of verified trace IDs of this profile that came back breached or missing. 0 with no verification runs.
+     */
+    breach_rate: number;
+    /**
      * The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.
      */
     false_ready_rate: number;
@@ -1633,6 +1795,121 @@ export type TakeHandoffResponses = {
 };
 
 export type TakeHandoffResponse = TakeHandoffResponses[keyof TakeHandoffResponses];
+
+export type RequestVerificationWaiverData = {
+    body: {
+        trace_id: string;
+        /**
+         * The code repo, or the folder, this excuse applies to.
+         */
+        repo: string;
+        reason: string;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/verification-waivers';
+};
+
+export type RequestVerificationWaiverErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RequestVerificationWaiverError = RequestVerificationWaiverErrors[keyof RequestVerificationWaiverErrors];
+
+export type RequestVerificationWaiverResponses = {
+    /**
+     * The waiver.
+     */
+    200: Waiver;
+};
+
+export type RequestVerificationWaiverResponse = RequestVerificationWaiverResponses[keyof RequestVerificationWaiverResponses];
+
+export type ListVerificationsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/verifications';
+};
+
+export type ListVerificationsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListVerificationsError = ListVerificationsErrors[keyof ListVerificationsErrors];
+
+export type ListVerificationsResponses = {
+    /**
+     * The verification runs.
+     */
+    200: VerificationList;
+};
+
+export type ListVerificationsResponse = ListVerificationsResponses[keyof ListVerificationsResponses];
+
+export type RunVerificationData = {
+    body: VerificationRequest;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/verifications';
+};
+
+export type RunVerificationErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RunVerificationError = RunVerificationErrors[keyof RunVerificationErrors];
+
+export type RunVerificationResponses = {
+    /**
+     * The verification run.
+     */
+    200: Verification;
+};
+
+export type RunVerificationResponse = RunVerificationResponses[keyof RunVerificationResponses];
+
+export type GetVerificationData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/verifications/{runId}';
+};
+
+export type GetVerificationErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetVerificationError = GetVerificationErrors[keyof GetVerificationErrors];
+
+export type GetVerificationResponses = {
+    /**
+     * The verification run.
+     */
+    200: Verification;
+};
+
+export type GetVerificationResponse = GetVerificationResponses[keyof GetVerificationResponses];
 
 export type AdoptFrontmatterData = {
     body?: never;

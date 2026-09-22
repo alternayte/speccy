@@ -27,6 +27,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
 	"github.com/alternayte/speccy/internal/features/tour"
+	"github.com/alternayte/speccy/internal/features/verify"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
 	"github.com/alternayte/speccy/internal/http/api"
@@ -53,6 +54,7 @@ type API struct {
 	*InsightsAPI
 	*TourAPI
 	*HandoffAPI
+	*VerifyAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -71,6 +73,7 @@ type (
 	InsightsAPI = insights.API
 	TourAPI     = tour.API
 	HandoffAPI  = handoff.API
+	VerifyAPI   = verify.API
 )
 
 // Core serves the operations that belong to no feature.

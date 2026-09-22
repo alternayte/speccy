@@ -11,6 +11,7 @@ import {
   getBundleAccessOptions,
   getBundleOptions,
   getTraceOptions,
+  listVerificationsOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { problemMessage } from "@/lib/problem";
@@ -101,6 +102,8 @@ export function TracePage({ bundleId }: { bundleId: string }) {
             </section>
 
             <ExternalLinks links={trace.data.links.filter((l) => l.target_kind === "external")} />
+
+            <CodeAndTests bundleId={bundleId} />
 
             <section className="mt-8">
               <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Coverage</h2>
@@ -206,6 +209,69 @@ function BundleName({ id, title, slug }: { id: string; title: string; slug: stri
     >
       {title} <span className="font-mono text-xs font-normal text-ink-3">{slug}</span>
     </Link>
+  );
+}
+
+// CodeAndTests is the code column and the test column of the newest verification run, so one
+// view answers where a requirement is and what tests it. A cited test is a citation, not a
+// pass: Speccy reads the code and runs nothing.
+function CodeAndTests({ bundleId }: { bundleId: string }) {
+  const runs = useQuery(listVerificationsOptions({ path: { bundleId } }));
+  const run = runs.data?.items?.[0];
+  if (!run || run.outcomes.length === 0) return null;
+  const rows = [...run.outcomes].sort((a, b) => a.trace_id.localeCompare(b.trace_id));
+  const where = (o: (typeof rows)[number], kind: "code" | "test") => {
+    const t = o.targets.find((t) => t.kind === kind && t.holds);
+    return t ? `${t.path}:${t.line ?? 0}` : "";
+  };
+  return (
+    <section className="mt-8">
+      <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Code and tests</h2>
+      <p className="mt-1 text-sm text-ink-2">
+        {run.repo} at {run.sha ? run.sha.slice(0, 7) : "a folder"}
+        {run.stale ? " · the bundle changed after this run" : ""}
+      </p>
+      <div className="mt-2 overflow-x-auto rounded-md border border-line">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-line bg-sunken text-left text-xs text-ink-2">
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Trace ID
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Outcome
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Code
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Test cited
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((o) => (
+              <tr key={o.trace_id} className="border-b border-line last:border-b-0">
+                <th scope="row" className="px-4 py-3 text-left font-mono text-xs font-semibold">
+                  {o.trace_id}
+                </th>
+                <td
+                  className={clsx(
+                    "px-4 py-3 text-xs",
+                    (o.outcome === "missing" || o.outcome === "breached") && "bg-bad/10 text-bad",
+                  )}
+                >
+                  {o.outcome}
+                  {o.waived ? " (waived)" : ""}
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-ink-2">{where(o, "code")}</td>
+                <td className="px-4 py-3 font-mono text-xs text-ink-2">{where(o, "test")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
