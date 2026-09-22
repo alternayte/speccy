@@ -5,10 +5,13 @@ import { ErrorState } from "@/components/ui/states";
 import type { GithubSource } from "@/lib/api";
 import {
   adoptSkippedDocsMutation,
+  dismissDocMutation,
+  listDismissedDocsOptions,
   listGithubSourcesOptions,
   listProfilesOptions,
   listSkippedDocsOptions,
   publishSourceMappingMutation,
+  undismissDocMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 
@@ -34,19 +37,26 @@ function SourceSection({ source }: { source: GithubSource }) {
   const [picked, setPicked] = useState<Record<string, string>>({});
   const adopt = useMutation({ ...adoptSkippedDocsMutation(), onSuccess: () => qc.invalidateQueries() });
   const mapping = useMutation({ ...publishSourceMappingMutation(), onSuccess: () => qc.invalidateQueries() });
+  const dismissed = useQuery(listDismissedDocsOptions());
+  const [showDismissed, setShowDismissed] = useState(false);
+  const dismiss = useMutation({ ...dismissDocMutation(), onSuccess: () => qc.invalidateQueries() });
+  const undismiss = useMutation({ ...undismissDocMutation(), onSuccess: () => qc.invalidateQueries() });
+  const marked = (dismissed.data?.items ?? []).filter((d) => d.source_id === source.id);
   const items = skipped.data?.items ?? [];
   const total = skipped.data?.total ?? 0;
-  if (items.length === 0) return null;
+  if (items.length === 0 && marked.length === 0) return null;
   const where = `${source.repo} · ${source.branch}${source.path === "." ? "" : ` · ${source.path}`}`;
   return (
     <section className="mt-6" aria-labelledby={`src-${source.id}`}>
       <h2 id={`src-${source.id}`} className="text-sm font-semibold text-ink">
         Docs in {where} that name no type
       </h2>
-      <p className="mt-1 text-sm text-ink-2">
-        Accept a type to review the doc. Speccy holds the type, and the repo takes no commit.
-        {total > items.length ? ` ${total} files name no type. Narrow the source to a folder to see the rest.` : ""}
-      </p>
+      {items.length > 0 ? (
+        <p className="mt-1 text-sm text-ink-2">
+          Accept a type to review the doc. Speccy holds the type, and the repo takes no commit.
+          {total > items.length ? ` ${total} files name no type. Narrow the source to a folder to see the rest.` : ""}
+        </p>
+      ) : null}
       {adopt.isError ? (
         <div className="mt-2">
           <ErrorState message={problemMessage(adopt.error)} />
@@ -57,44 +67,79 @@ function SourceSection({ source }: { source: GithubSource }) {
           <ErrorState message={problemMessage(mapping.error)} />
         </div>
       ) : null}
-      <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
-        {items.map((it) => {
-          const key = picked[it.path] || it.adopted || it.guess || "";
-          return (
-            <li
-              key={it.path}
-              className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0"
-            >
-              <span className="w-full min-w-0 truncate font-mono text-xs text-ink-2 sm:w-auto sm:flex-1">
-                {it.path}
-              </span>
-              <span className="text-2xs text-ink-3">{it.guess ? `guess: ${it.guess}` : "No guess"}</span>
-              <select
-                aria-label={`Doc type for ${it.path}`}
-                value={key}
-                onChange={(e) => setPicked({ ...picked, [it.path]: e.target.value })}
-                className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+      {items.length > 0 ? (
+        <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
+          {items.map((it) => {
+            const key = picked[it.path] || it.adopted || it.guess || "";
+            return (
+              <li
+                key={it.path}
+                className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0"
               >
-                <option value="">Pick a type</option>
-                {(profiles.data?.items ?? []).map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <Button
-                size="sm"
-                disabled={!key || adopt.isPending}
-                onClick={() =>
-                  adopt.mutate({ path: { sourceId: source.id }, body: { items: [{ path: it.path, profile: key }] } })
-                }
-              >
-                {it.adopted ? "Change" : "Accept"}
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
+                <span className="w-full min-w-0 truncate font-mono text-xs text-ink-2 sm:w-auto sm:flex-1">
+                  {it.path}
+                </span>
+                <span className="text-2xs text-ink-3">{it.guess ? `guess: ${it.guess}` : "No guess"}</span>
+                <select
+                  aria-label={`Doc type for ${it.path}`}
+                  value={key}
+                  onChange={(e) => setPicked({ ...picked, [it.path]: e.target.value })}
+                  className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+                >
+                  <option value="">Pick a type</option>
+                  {(profiles.data?.items ?? []).map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={dismiss.isPending}
+                  onClick={() => dismiss.mutate({ body: { path: it.path, source_id: source.id } })}
+                >
+                  Not a spec
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!key || adopt.isPending}
+                  onClick={() =>
+                    adopt.mutate({ path: { sourceId: source.id }, body: { items: [{ path: it.path, profile: key }] } })
+                  }
+                >
+                  {it.adopted ? "Change" : "Accept"}
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {marked.length > 0 ? (
+        <div className="mt-2 text-xs text-ink-3">
+          {marked.length} file{marked.length === 1 ? "" : "s"} marked not a spec.{" "}
+          <button type="button" onClick={() => setShowDismissed((v) => !v)} className="text-accent">
+            {showDismissed ? "hide" : "show"}
+          </button>
+          {showDismissed ? (
+            <ul className="mt-1 space-y-1">
+              {marked.map((d) => (
+                <li key={d.path} className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 truncate font-mono text-xs text-ink-2">{d.path}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={undismiss.isPending}
+                    onClick={() => undismiss.mutate({ query: { path: d.path, source_id: source.id } })}
+                  >
+                    Undo
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
       {(source.adopted ?? 0) > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Button

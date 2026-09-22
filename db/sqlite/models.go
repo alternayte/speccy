@@ -109,6 +109,14 @@ type ContentReview struct {
 	CreatedAt      time.Time
 }
 
+type DismissedDoc struct {
+	WorkspaceID uuid.UUID
+	SourceID    uuid.NullUUID
+	Path        string
+	DismissedBy string
+	CreatedAt   time.Time
+}
+
 type EsEvent struct {
 	StreamID   uuid.UUID
 	Version    int64

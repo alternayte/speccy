@@ -1638,6 +1638,15 @@ type DiffSummary struct {
 	ToVerdict *VerdictResult `json:"to_verdict,omitempty"`
 }
 
+// DismissedDoc defines model for DismissedDoc.
+type DismissedDoc struct {
+	// Path The file's path, in the repo for a source, or in the served folder.
+	Path string `json:"path"`
+
+	// SourceId The source the file belongs to. Absent for a file of the served folder.
+	SourceId *openapi_types.UUID `json:"source_id,omitempty"`
+}
+
 // FileDiff defines model for FileDiff.
 type FileDiff struct {
 	Binary bool `json:"binary"`
@@ -2786,6 +2795,12 @@ type RequestWaiverJSONBody struct {
 	Reason    string             `json:"reason"`
 }
 
+// UndismissDocParams defines parameters for UndismissDoc.
+type UndismissDocParams struct {
+	Path     string              `form:"path" json:"path"`
+	SourceId *openapi_types.UUID `form:"source_id,omitempty" json:"source_id,omitempty"`
+}
+
 // ResolveGithubUrlJSONBody defines parameters for ResolveGithubUrl.
 type ResolveGithubUrlJSONBody struct {
 	Url string `json:"url"`
@@ -2925,6 +2940,9 @@ type SetVisibilityJSONRequestBody SetVisibilityJSONBody
 
 // RequestWaiverJSONRequestBody defines body for RequestWaiver for application/json ContentType.
 type RequestWaiverJSONRequestBody RequestWaiverJSONBody
+
+// DismissDocJSONRequestBody defines body for DismissDoc for application/json ContentType.
+type DismissDocJSONRequestBody = DismissedDoc
 
 // ResolveGithubUrlJSONRequestBody defines body for ResolveGithubUrl for application/json ContentType.
 type ResolveGithubUrlJSONRequestBody ResolveGithubUrlJSONBody
@@ -3165,6 +3183,15 @@ type ServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /bundles/{bundleId}/waivers)
 	RequestWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
+	// (DELETE /dismissed-docs)
+	UndismissDoc(w http.ResponseWriter, r *http.Request, params UndismissDocParams)
+	// ListDismissedDocs The markdown files a person marked as not a spec (REQ-133).
+	// (GET /dismissed-docs)
+	ListDismissedDocs(w http.ResponseWriter, r *http.Request)
+	// DismissDoc Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+	// (POST /dismissed-docs)
+	DismissDoc(w http.ResponseWriter, r *http.Request)
 	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
 	// (POST /github/resolve)
 	ResolveGithubUrl(w http.ResponseWriter, r *http.Request)
@@ -4952,6 +4979,80 @@ func (siw *ServerInterfaceWrapper) RequestWaiver(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// UndismissDoc operation middleware
+func (siw *ServerInterfaceWrapper) UndismissDoc(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UndismissDocParams
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "source_id" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "source_id", r.URL.Query(), &params.SourceId, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "source_id"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source_id", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UndismissDoc(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListDismissedDocs operation middleware
+func (siw *ServerInterfaceWrapper) ListDismissedDocs(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDismissedDocs(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DismissDoc operation middleware
+func (siw *ServerInterfaceWrapper) DismissDoc(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DismissDoc(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ResolveGithubUrl operation middleware
 func (siw *ServerInterfaceWrapper) ResolveGithubUrl(w http.ResponseWriter, r *http.Request) {
 
@@ -6165,6 +6266,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources", wrapper.AddGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/resolve", wrapper.ResolveGithubUrl)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/github/sources/{sourceId}", wrapper.DeleteGithubSource)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/dismissed-docs", wrapper.UndismissDoc)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/dismissed-docs", wrapper.ListDismissedDocs)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/dismissed-docs", wrapper.DismissDoc)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/github/sources/{sourceId}/skipped", wrapper.ListSkippedDocs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/skipped", wrapper.AdoptSkippedDocs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/mapping", wrapper.PublishSourceMapping)
@@ -8600,6 +8704,112 @@ func (response RequestWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequ
 	return err
 }
 
+type UndismissDocRequestObject struct {
+	Params UndismissDocParams
+}
+
+type UndismissDocResponseObject interface {
+	VisitUndismissDocResponse(w http.ResponseWriter) error
+}
+
+type UndismissDoc204Response struct {
+}
+
+func (response UndismissDoc204Response) VisitUndismissDocResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UndismissDocdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UndismissDocdefaultApplicationProblemPlusJSONResponse) VisitUndismissDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDismissedDocsRequestObject struct {
+}
+
+type ListDismissedDocsResponseObject interface {
+	VisitListDismissedDocsResponse(w http.ResponseWriter) error
+}
+
+type ListDismissedDocs200JSONResponse struct {
+	Items []DismissedDoc `json:"items"`
+}
+
+func (response ListDismissedDocs200JSONResponse) VisitListDismissedDocsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDismissedDocsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListDismissedDocsdefaultApplicationProblemPlusJSONResponse) VisitListDismissedDocsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DismissDocRequestObject struct {
+	Body *DismissDocJSONRequestBody
+}
+
+type DismissDocResponseObject interface {
+	VisitDismissDocResponse(w http.ResponseWriter) error
+}
+
+type DismissDoc204Response struct {
+}
+
+func (response DismissDoc204Response) VisitDismissDocResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DismissDocdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DismissDocdefaultApplicationProblemPlusJSONResponse) VisitDismissDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ResolveGithubUrlRequestObject struct {
 	Body *ResolveGithubUrlJSONRequestBody
 }
@@ -10589,6 +10799,15 @@ type StrictServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /bundles/{bundleId}/waivers)
 	RequestWaiver(ctx context.Context, request RequestWaiverRequestObject) (RequestWaiverResponseObject, error)
+	// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
+	// (DELETE /dismissed-docs)
+	UndismissDoc(ctx context.Context, request UndismissDocRequestObject) (UndismissDocResponseObject, error)
+	// ListDismissedDocs The markdown files a person marked as not a spec (REQ-133).
+	// (GET /dismissed-docs)
+	ListDismissedDocs(ctx context.Context, request ListDismissedDocsRequestObject) (ListDismissedDocsResponseObject, error)
+	// DismissDoc Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+	// (POST /dismissed-docs)
+	DismissDoc(ctx context.Context, request DismissDocRequestObject) (DismissDocResponseObject, error)
 	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
 	// (POST /github/resolve)
 	ResolveGithubUrl(ctx context.Context, request ResolveGithubUrlRequestObject) (ResolveGithubUrlResponseObject, error)
@@ -12490,6 +12709,87 @@ func (sh *strictHandler) RequestWaiver(w http.ResponseWriter, r *http.Request, b
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RequestWaiverResponseObject); ok {
 		if err := validResponse.VisitRequestWaiverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UndismissDoc operation middleware
+func (sh *strictHandler) UndismissDoc(w http.ResponseWriter, r *http.Request, params UndismissDocParams) {
+	var request UndismissDocRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UndismissDoc(ctx, request.(UndismissDocRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UndismissDoc")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UndismissDocResponseObject); ok {
+		if err := validResponse.VisitUndismissDocResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListDismissedDocs operation middleware
+func (sh *strictHandler) ListDismissedDocs(w http.ResponseWriter, r *http.Request) {
+	var request ListDismissedDocsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDismissedDocs(ctx, request.(ListDismissedDocsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDismissedDocs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDismissedDocsResponseObject); ok {
+		if err := validResponse.VisitListDismissedDocsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DismissDoc operation middleware
+func (sh *strictHandler) DismissDoc(w http.ResponseWriter, r *http.Request) {
+	var request DismissDocRequestObject
+
+	var body DismissDocJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DismissDoc(ctx, request.(DismissDocRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DismissDoc")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DismissDocResponseObject); ok {
+		if err := validResponse.VisitDismissDocResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

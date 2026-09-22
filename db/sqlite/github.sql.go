@@ -28,6 +28,23 @@ func (q *Queries) DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypePa
 	return err
 }
 
+const deleteDismissedDoc = `-- name: DeleteDismissedDoc :exec
+DELETE FROM dismissed_doc WHERE workspace_id = ?1
+  AND coalesce(source_id, '00000000-0000-0000-0000-000000000000') = coalesce(?2, '00000000-0000-0000-0000-000000000000')
+  AND path = ?3
+`
+
+type DeleteDismissedDocParams struct {
+	WorkspaceID uuid.UUID
+	SourceID    uuid.NullUUID
+	Path        string
+}
+
+func (q *Queries) DeleteDismissedDoc(ctx context.Context, arg DeleteDismissedDocParams) error {
+	_, err := q.db.ExecContext(ctx, deleteDismissedDoc, arg.WorkspaceID, arg.SourceID, arg.Path)
+	return err
+}
+
 const deleteGithubConnection = `-- name: DeleteGithubConnection :exec
 DELETE FROM github_connection WHERE workspace_id = ?1
 `
@@ -100,6 +117,31 @@ func (q *Queries) GetGithubSource(ctx context.Context, arg GetGithubSourceParams
 	return i, err
 }
 
+const insertDismissedDoc = `-- name: InsertDismissedDoc :exec
+INSERT INTO dismissed_doc (workspace_id, source_id, path, dismissed_by, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT DO NOTHING
+`
+
+type InsertDismissedDocParams struct {
+	WorkspaceID uuid.UUID
+	SourceID    uuid.NullUUID
+	Path        string
+	DismissedBy string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) InsertDismissedDoc(ctx context.Context, arg InsertDismissedDocParams) error {
+	_, err := q.db.ExecContext(ctx, insertDismissedDoc,
+		arg.WorkspaceID,
+		arg.SourceID,
+		arg.Path,
+		arg.DismissedBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const insertGithubSource = `-- name: InsertGithubSource :exec
 INSERT INTO github_source (id, workspace_id, repo, branch, path, is_file, profile, api_url, created_by, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
@@ -149,6 +191,39 @@ func (q *Queries) ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]A
 	for rows.Next() {
 		var i AdoptedType
 		if err := rows.Scan(&i.SourceID, &i.Path, &i.Profile); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDismissedDocs = `-- name: ListDismissedDocs :many
+SELECT workspace_id, source_id, path, dismissed_by, created_at FROM dismissed_doc WHERE workspace_id = ?1 ORDER BY path
+`
+
+func (q *Queries) ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) ([]DismissedDoc, error) {
+	rows, err := q.db.QueryContext(ctx, listDismissedDocs, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DismissedDoc
+	for rows.Next() {
+		var i DismissedDoc
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.SourceID,
+			&i.Path,
+			&i.DismissedBy,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
@@ -295,8 +297,18 @@ func (a *API) ListSkippedDocs(ctx context.Context, req api.ListSkippedDocsReques
 	if err != nil {
 		return nil, err
 	}
+	var all []string
+	_ = json.Unmarshal(src.Skipped, &all)
+	gone, err := a.dismissed(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var paths []string
-	_ = json.Unmarshal(src.Skipped, &paths)
+	for _, p := range all {
+		if !gone[src.ID][p] {
+			paths = append(paths, p)
+		}
+	}
 	sort.Strings(paths)
 	total := len(paths)
 	if len(paths) > skippedLimit {
@@ -349,6 +361,11 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 			return nil, kernel.Invalid("not_skipped", "%s is not a file the scan passed over.", it.Path)
 		}
 		if err := s.DB.Queries().SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
+			return nil, err
+		}
+		// Accepting a type contradicts the mark, so the newer act wins (REQ-133).
+		if err := s.DB.Queries().DeleteDismissedDoc(ctx, pgdb.DeleteDismissedDocParams{WorkspaceID: s.Workspace,
+			SourceID: uuid.NullUUID{UUID: src.ID, Valid: true}, Path: it.Path}); err != nil {
 			return nil, err
 		}
 	}

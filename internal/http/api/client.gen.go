@@ -604,6 +604,30 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
+	//
+	// Corresponds with DELETE /dismissed-docs (the `UndismissDoc` operationId).
+	UndismissDoc(ctx context.Context, params *UndismissDocParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListDismissedDocs The markdown files a person marked as not a spec (REQ-133).
+	//
+	// Corresponds with GET /dismissed-docs (the `ListDismissedDocs` operationId).
+	ListDismissedDocs(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DismissDocWithBody Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+	DismissDocWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DismissDoc Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+	DismissDoc(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ResolveGithubUrlWithBody Read a source URL and say what it names, before the source is made (REQ-128).
 	//
 	// Takes any type of body and a specified content type.
@@ -2325,6 +2349,70 @@ func (c *Client) RequestWaiverWithBody(ctx context.Context, bundleId BundleId, c
 // Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 func (c *Client) RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRequestWaiverRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
+//
+// Corresponds with DELETE /dismissed-docs (the `UndismissDoc` operationId).
+func (c *Client) UndismissDoc(ctx context.Context, params *UndismissDocParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUndismissDocRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListDismissedDocs The markdown files a person marked as not a spec (REQ-133).
+//
+// Corresponds with GET /dismissed-docs (the `ListDismissedDocs` operationId).
+func (c *Client) ListDismissedDocs(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDismissedDocsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DismissDocWithBody Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+func (c *Client) DismissDocWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDismissDocRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DismissDoc Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+func (c *Client) DismissDoc(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDismissDocRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5936,6 +6024,135 @@ func NewRequestWaiverRequestWithBody(server string, bundleId BundleId, contentTy
 	return req, nil
 }
 
+// NewUndismissDocRequest constructs an http.Request for the UndismissDoc method
+func NewUndismissDocRequest(server string, params *UndismissDocParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dismissed-docs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.SourceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "source_id", *params.SourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListDismissedDocsRequest constructs an http.Request for the ListDismissedDocs method
+func NewListDismissedDocsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dismissed-docs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDismissDocRequest calls the generic DismissDoc builder with application/json body
+func NewDismissDocRequest(server string, body DismissDocJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDismissDocRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDismissDocRequestWithBody constructs an http.Request for the DismissDoc method, with any body, and a specified content type
+func NewDismissDocRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dismissed-docs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewResolveGithubUrlRequest calls the generic ResolveGithubUrl builder with application/json body
 func NewResolveGithubUrlRequest(server string, body ResolveGithubUrlJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -8232,6 +8449,34 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
+
+	// UndismissDocWithResponse Take the mark off a file, so it appears again (REQ-133).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /dismissed-docs (the `UndismissDoc` operationId).
+	UndismissDocWithResponse(ctx context.Context, params *UndismissDocParams, reqEditors ...RequestEditorFn) (*UndismissDocResponse, error)
+
+	// ListDismissedDocsWithResponse The markdown files a person marked as not a spec (REQ-133).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /dismissed-docs (the `ListDismissedDocs` operationId).
+	ListDismissedDocsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDismissedDocsResponse, error)
+
+	// DismissDocWithBodyWithResponse Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+	DismissDocWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DismissDocResponse, error)
+
+	// DismissDocWithResponse Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+	DismissDocWithResponse(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*DismissDocResponse, error)
 
 	// ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
 	//
@@ -11600,6 +11845,140 @@ func (r RequestWaiverResponse) ContentType() string {
 	return ""
 }
 
+type UndismissDocResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UndismissDocResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UndismissDocResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UndismissDocResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UndismissDocResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UndismissDocResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListDismissedDocsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []DismissedDoc `json:"items"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListDismissedDocsResponse) GetJSON200() *struct {
+	Items []DismissedDoc `json:"items"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListDismissedDocsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListDismissedDocsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDismissedDocsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDismissedDocsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDismissedDocsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DismissDocResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DismissDocResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DismissDocResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DismissDocResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DismissDocResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DismissDocResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ResolveGithubUrlResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14861,6 +15240,58 @@ func (c *ClientWithResponses) RequestWaiverWithResponse(ctx context.Context, bun
 	return ParseRequestWaiverResponse(rsp)
 }
 
+// UndismissDocWithResponse Take the mark off a file, so it appears again (REQ-133).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /dismissed-docs (the `UndismissDoc` operationId).
+func (c *ClientWithResponses) UndismissDocWithResponse(ctx context.Context, params *UndismissDocParams, reqEditors ...RequestEditorFn) (*UndismissDocResponse, error) {
+	rsp, err := c.UndismissDoc(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUndismissDocResponse(rsp)
+}
+
+// ListDismissedDocsWithResponse The markdown files a person marked as not a spec (REQ-133).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /dismissed-docs (the `ListDismissedDocs` operationId).
+func (c *ClientWithResponses) ListDismissedDocsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDismissedDocsResponse, error) {
+	rsp, err := c.ListDismissedDocs(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDismissedDocsResponse(rsp)
+}
+
+// DismissDocWithBodyWithResponse Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+func (c *ClientWithResponses) DismissDocWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DismissDocResponse, error) {
+	rsp, err := c.DismissDocWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDismissDocResponse(rsp)
+}
+
+// DismissDocWithResponse Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
+func (c *ClientWithResponses) DismissDocWithResponse(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*DismissDocResponse, error) {
+	rsp, err := c.DismissDoc(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDismissDocResponse(rsp)
+}
+
 // ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -17669,6 +18100,99 @@ func ParseRequestWaiverResponse(rsp *http.Response) (*RequestWaiverResponse, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUndismissDocResponse parses an HTTP response from a UndismissDocWithResponse call
+func ParseUndismissDocResponse(rsp *http.Response) (*UndismissDocResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UndismissDocResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDismissedDocsResponse parses an HTTP response from a ListDismissedDocsWithResponse call
+func ParseListDismissedDocsResponse(rsp *http.Response) (*ListDismissedDocsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDismissedDocsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []DismissedDoc `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDismissDocResponse parses an HTTP response from a DismissDocWithResponse call
+func ParseDismissDocResponse(rsp *http.Response) (*DismissDocResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DismissDocResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

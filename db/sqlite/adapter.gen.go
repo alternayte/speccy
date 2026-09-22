@@ -72,6 +72,10 @@ func (a Adapter) DeleteContentReviewsBefore(ctx context.Context, arg pgdb.Delete
 	return a.q.DeleteContentReviewsBefore(ctx, DeleteContentReviewsBeforeParams(arg))
 }
 
+func (a Adapter) DeleteDismissedDoc(ctx context.Context, arg pgdb.DeleteDismissedDocParams) error {
+	return a.q.DeleteDismissedDoc(ctx, DeleteDismissedDocParams(arg))
+}
+
 func (a Adapter) DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error {
 	return a.q.DeleteGithubConnection(ctx, workspaceID)
 }
@@ -276,6 +280,10 @@ func (a Adapter) InsertClaim(ctx context.Context, arg pgdb.InsertClaimParams) er
 
 func (a Adapter) InsertContentReview(ctx context.Context, arg pgdb.InsertContentReviewParams) error {
 	return a.q.InsertContentReview(ctx, InsertContentReviewParams(arg))
+}
+
+func (a Adapter) InsertDismissedDoc(ctx context.Context, arg pgdb.InsertDismissedDocParams) error {
+	return a.q.InsertDismissedDoc(ctx, InsertDismissedDocParams(arg))
 }
 
 func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) error {
@@ -562,6 +570,18 @@ func (a Adapter) ListClaims(ctx context.Context, runID uuid.UUID) ([]pgdb.Claim,
 	out := make([]pgdb.Claim, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Claim(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.DismissedDoc, error) {
+	rows, err := a.q.ListDismissedDocs(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.DismissedDoc, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.DismissedDoc(r)
 	}
 	return out, nil
 }

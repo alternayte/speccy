@@ -165,6 +165,9 @@ var operations = map[string]access{
 	// REQ-133: adopting a source's docs and writing the repo's mapping change what the
 	// workspace reviews, so they are an admin's call. The list itself is not.
 	"listSkippedDocs":      member,
+	"listDismissedDocs":    member,
+	"dismissDoc":           member,
+	"undismissDoc":         member,
 	"adoptSkippedDocs":     adminOnly,
 	"publishSourceMapping": adminOnly,
 	"setSettings":          adminOnly,
