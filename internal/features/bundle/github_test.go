@@ -443,3 +443,55 @@ func TestDismissedDoc(t *testing.T) {
 		t.Fatalf("dismissed docs = %+v, %v; want the source file only", rows, err)
 	}
 }
+
+// A second source that covers a doc another source already owns must say so. It used to make
+// no bundle and report no problem, so a person accepted a type, Speccy answered "accepted",
+// and nothing appeared.
+func TestGitHubSource_OverlapSaysSo(t *testing.T) {
+	ctx := context.Background()
+	s := services()[0].open(t)
+	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+	gh.refs["main"] = gh.commit(map[string]string{
+		"docs/prd-payments.md": "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n",
+		"docs/reference.md":    "# Reference\n",
+	})
+	srv := httptest.NewServer(gh)
+	defer srv.Close()
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return &github.Client{API: srv.URL, Token: "t"}, nil
+	}
+	q := s.DB.Queries()
+
+	// The doc URL first: a one-doc source makes the bundle.
+	one := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
+		Path: "docs/prd-payments.md", IsFile: true, Profile: "prd", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+	if err := q.InsertGithubSource(ctx, one); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SyncSource(ctx, one.ID, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Then the folder that holds the same doc, where a person accepts a type for it.
+	folder := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
+		Path: "docs", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+	if err := q.InsertGithubSource(ctx, folder); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.SyncSource(ctx, folder.ID, false)
+	if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: folder.ID, Path: "docs/prd-payments.md", Profile: "prd"}); err != nil {
+		t.Fatal(err)
+	}
+	_ = s.SyncSource(ctx, folder.ID, true)
+
+	row, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: folder.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Error == "" {
+		t.Fatal("the accepted type made no bundle and the source said nothing; it must name the doc another source holds")
+	}
+	if !strings.Contains(row.Error, "docs/prd-payments.md") {
+		t.Errorf("the message must name the doc, got %q", row.Error)
+	}
+}
