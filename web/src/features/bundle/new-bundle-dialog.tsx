@@ -94,6 +94,15 @@ export function NewBundleDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <Label htmlFor="new-name">{hosted ? "Name" : "Folder name"}</Label>
           <Input id="new-name" value={folder} onChange={(e) => setName(e.target.value)} placeholder="payment-retries" />
         </div>
+        {/* Size lives in the doc's frontmatter, and the template writes size: feature. It is
+            the one field a person sets without knowing it exists, so the dialog says what it
+            does before they meet it. */}
+        <p className="text-xs text-ink-2">
+          The new doc starts at <code className="font-mono">size: feature</code>, for one change a team ships. Change it
+          in the frontmatter to <code className="font-mono">app</code> for a system with parts that call each other, or{" "}
+          <code className="font-mono">initiative</code> for work several systems share. Size decides which headings the
+          template requires and which checks run.
+        </p>
         {create.isError ? <ErrorState message={problemMessage(create.error)} /> : null}
         <div className="flex justify-end gap-2">
           <Button onClick={() => onOpenChange(false)}>Cancel</Button>

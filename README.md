@@ -49,75 +49,76 @@ Speccy keeps a version of each bundle every time a file changes, in the app or o
 
 To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
 
-| Bundles | Bundle |
-|---|---|
-| ![The bundles screen](docs/images/guide-bundles.png) | ![The bundle screen](docs/images/guide-editor.png) |
-| **Tour** | **Traceability** |
-| ![The tour](docs/images/guide-tour.gif) | ![The traceability matrix](docs/images/guide-trace.png) |
-| **Run report** | **Terminal UI** |
-| ![The run report](docs/images/guide-run-report.png) | ![The terminal UI](docs/images/tui-bundle.png) |
+| Bundles                                              | Bundle                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------- |
+| ![The bundles screen](docs/images/guide-bundles.png) | ![The bundle screen](docs/images/guide-editor.png)      |
+| **Tour**                                             | **Traceability**                                        |
+| ![The tour](docs/images/guide-tour.gif)              | ![The traceability matrix](docs/images/guide-trace.png) |
+| **Run report**                                       | **Terminal UI**                                         |
+| ![The run report](docs/images/guide-run-report.png)  | ![The terminal UI](docs/images/tui-bundle.png)          |
 
 ## Documentation
 
-| Document | What it holds |
-|---|---|
-| [docs/guide.md](docs/guide.md) | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder. |
-| [docs/adoption.md](docs/adoption.md) | Docs you already have: a file on disk, one doc in GitHub on any branch, a folder or a repo, and a repo your team reviews in. |
-| [docs/github.md](docs/github.md) | Specs in pull requests: adopt a repo, read the comment, decide with a reply, and read a repo back into Speccy from its URL. |
-| [docs/linked-docs.md](docs/linked-docs.md) | Two docs that must agree: links, trace IDs, the matrix, coverage, restatement, contradiction, and the stale verdict after an upstream edit. |
-| [docs/cli-and-tui.md](docs/cli-and-tui.md) | Every command, the terminal UI and its keys, connected mode, and the MCP server. |
-| [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing. |
-| [docs/decisions.md](docs/decisions.md) | Each design decision, its alternative, and its reason. |
+| Document                                       | What it holds                                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [docs/guide.md](docs/guide.md)                 | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder.   |
+| [docs/adoption.md](docs/adoption.md)           | Docs you already have: a file on disk, one doc in GitHub on any branch, a folder or a repo, and a repo your team reviews in.                     |
+| [docs/github.md](docs/github.md)               | Specs in pull requests: adopt a repo, read the comment, decide with a reply, and read a repo back into Speccy from its URL.                      |
+| [docs/linked-docs.md](docs/linked-docs.md)     | Two docs that must agree: links, trace IDs, the matrix, coverage, restatement, contradiction, and the stale verdict after an upstream edit.      |
+| [docs/profiles.md](docs/profiles.md)           | What a profile holds, what the template's required markers mean, how a doc's size changes what it must answer, and when to pick a PRD or an SDD. |
+| [docs/cli-and-tui.md](docs/cli-and-tui.md)     | Every command, the terminal UI and its keys, connected mode, and the MCP server.                                                                 |
+| [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing.                                                  |
+| [docs/decisions.md](docs/decisions.md)         | Each design decision, its alternative, and its reason.                                                                                           |
 
 ## Guarantees
 
 This table lists only the guarantees whose tests pass today.
 
-| Guarantee | Test |
-|---|---|
-| An open MUST finding gives Not Build Ready. | [`TestVerdict_OpenMustBlocks`](internal/engine/verdict/verdict_test.go) |
-| A valid waiver on the only MUST finding gives Build Ready. | [`TestVerdict_WaivedMustPasses`](internal/engine/verdict/verdict_test.go) |
-| An open blocking thread gives Not Build Ready. | [`TestVerdict_BlockingThreadBlocks`](internal/engine/verdict/verdict_test.go) |
-| A verdict for an old version reads as stale. | [`TestVerdict_OldVersionIsStale`](internal/engine/verdict/verdict_test.go) |
-| A waiver becomes invalid when its section changes. | [`TestWaiver_InvalidatedOnSectionEdit`](internal/app/collab_test.go) |
-| The waiver policy is enforced for each policy value. | [`TestWaiverPolicy_Table`](internal/features/waiver/waiver_test.go) |
-| The author cannot approve their own bundle. | [`TestApproval_AuthorCannotApprove`](internal/app/collab_test.go) |
-| A content change revokes approvals. | [`TestApproval_EditRevokes`](internal/app/collab_test.go) |
-| SHOULD findings never change the verdict. | [`TestVerdict_ShouldNeverBlocks`](internal/engine/verdict/verdict_test.go) |
-| The verdict function is pure: same input, same output. | [`TestVerdict_Deterministic`](internal/engine/verdict/verdict_test.go) |
-| Lint finishes a 10,000-word doc in under 1 second. | [`BenchmarkLint_10kWords`](internal/engine/lint/lint_test.go) |
-| A mapped file with no frontmatter is reviewed with the mapped profile; frontmatter `type` wins. | [`TestConfig_PathMapping`](internal/features/review/review_test.go) |
-| A relaxed check reports as INFO and never blocks; removing it restores its level. | [`TestAdoption_RelaxedCheck`](internal/features/review/review_test.go) |
-| Both store engines pass the same conformance suite. | [`TestStoreConformance`](internal/store/conformance/conformance_test.go) |
-| A concurrent append with a stale version is rejected. | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go) |
-| Projections update in the same transaction as the append. | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go) |
-| Invalid model JSON is retried once, then the step fails. | [`TestModel_InvalidJSONRetryOnce`](internal/model/model_test.go) |
-| Injected instructions in a doc do not change the verdict. | [`TestInjection_DocCannotChangeVerdict`](internal/features/review/pipeline_test.go) |
-| Injected instructions in an MCP result do not change the verdict. | [`TestInjection_MCPResultIsData`](internal/features/review/pipeline_test.go) |
-| An unverified claim is a SHOULD finding; a contradicted claim is MUST. | [`TestGrounding_Labels`](internal/features/review/pipeline_test.go) |
-| An unchanged section is not sent to a model again. | [`TestCache_UnchangedSectionReused`](internal/features/review/pipeline_test.go) |
-| Every run records the profile version it used. | [`TestRun_PinsProfileVersion`](internal/features/review/pipeline_test.go) |
-| A split in reader answers creates a divergence finding. | [`TestDivergence_SplitIsFinding`](internal/features/review/divergence_test.go) |
-| All `NOT SPECIFIED` on a MUST question creates a MUST gap finding. | [`TestDivergence_GapOnMust`](internal/features/review/divergence_test.go) |
-| An answer with an invented quote is treated as `NOT SPECIFIED`. | [`TestDivergence_InventedQuoteRejected`](internal/features/review/divergence_test.go) |
-| One model for all readers gives "low reader diversity" and does not block. | [`TestDivergence_LowDiversityFlagged`](internal/features/review/divergence_test.go) |
-| Readers never receive other readers' answers or the rubric. | [`TestDivergence_ReaderIsolation`](internal/features/review/divergence_test.go) |
-| An uncovered upstream REQ is a MUST finding. | [`TestCoherence_UncoveredReqIsMust`](internal/features/review/coherence_test.go) |
-| A standalone acknowledgement makes coherence not applicable. | [`TestCoherence_StandaloneAck`](internal/features/review/coherence_test.go) |
-| An upstream edit marks downstream verdicts stale. | [`TestCoherence_UpstreamEditStales`](internal/features/review/coherence_test.go) |
-| Restatement above the threshold is a SHOULD finding. | [`TestCoherence_RestatementShingles`](internal/features/review/coherence_test.go) |
-| A link rule creates a link only when both files exist. | [`TestConfig_LinkRules`](internal/features/review/coherence_test.go) |
-| Secrets are not stored in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go) |
-| Local mode refuses a non-loopback address. | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go) |
-| Each endpoint enforces its role table. | [`TestAuthz_EndpointRoleTable`](internal/http/authz_test.go) |
-| A guest cannot edit or ask the AI. | [`TestGuest_Restrictions`](internal/hostauth/hostauth_test.go) |
-| Anchors follow edits, or become detached. They never point at the wrong text. | [`TestAnchor_Reanchor`](internal/engine/anchor/reanchor_test.go) |
-| Speccy never changes a doc without an accept. | [`TestSuggestFix_RequiresAccept`](internal/features/review/fix_test.go) |
-| CLI exit codes match SDD §12.2. | [`TestCLI_ExitCodes`](cmd/speccy/review_test.go) |
-| `speccy review --summary` works with no server and no `speccy init`. | [`TestCLI_SummaryNoSetup`](cmd/speccy/review_test.go) |
-| In advisory mode, a verdict never fails the Action's job. | [`TestAction_AdvisoryNeverFails`](internal/action/action_test.go) |
-| Inline comments go only on changed lines, keep to the limit, and are not posted twice. | [`TestAction_InlineComments`](internal/action/action_test.go) |
-| Suggestion blocks are only for fixes that need no model. | [`TestAction_SuggestionsDeterministicOnly`](internal/action/action_test.go) |
+| Guarantee                                                                                       | Test                                                                                  |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| An open MUST finding gives Not Build Ready.                                                     | [`TestVerdict_OpenMustBlocks`](internal/engine/verdict/verdict_test.go)               |
+| A valid waiver on the only MUST finding gives Build Ready.                                      | [`TestVerdict_WaivedMustPasses`](internal/engine/verdict/verdict_test.go)             |
+| An open blocking thread gives Not Build Ready.                                                  | [`TestVerdict_BlockingThreadBlocks`](internal/engine/verdict/verdict_test.go)         |
+| A verdict for an old version reads as stale.                                                    | [`TestVerdict_OldVersionIsStale`](internal/engine/verdict/verdict_test.go)            |
+| A waiver becomes invalid when its section changes.                                              | [`TestWaiver_InvalidatedOnSectionEdit`](internal/app/collab_test.go)                  |
+| The waiver policy is enforced for each policy value.                                            | [`TestWaiverPolicy_Table`](internal/features/waiver/waiver_test.go)                   |
+| The author cannot approve their own bundle.                                                     | [`TestApproval_AuthorCannotApprove`](internal/app/collab_test.go)                     |
+| A content change revokes approvals.                                                             | [`TestApproval_EditRevokes`](internal/app/collab_test.go)                             |
+| SHOULD findings never change the verdict.                                                       | [`TestVerdict_ShouldNeverBlocks`](internal/engine/verdict/verdict_test.go)            |
+| The verdict function is pure: same input, same output.                                          | [`TestVerdict_Deterministic`](internal/engine/verdict/verdict_test.go)                |
+| Lint finishes a 10,000-word doc in under 1 second.                                              | [`BenchmarkLint_10kWords`](internal/engine/lint/lint_test.go)                         |
+| A mapped file with no frontmatter is reviewed with the mapped profile; frontmatter `type` wins. | [`TestConfig_PathMapping`](internal/features/review/review_test.go)                   |
+| A relaxed check reports as INFO and never blocks; removing it restores its level.               | [`TestAdoption_RelaxedCheck`](internal/features/review/review_test.go)                |
+| Both store engines pass the same conformance suite.                                             | [`TestStoreConformance`](internal/store/conformance/conformance_test.go)              |
+| A concurrent append with a stale version is rejected.                                           | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go)                   |
+| Projections update in the same transaction as the append.                                       | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go)                     |
+| Invalid model JSON is retried once, then the step fails.                                        | [`TestModel_InvalidJSONRetryOnce`](internal/model/model_test.go)                      |
+| Injected instructions in a doc do not change the verdict.                                       | [`TestInjection_DocCannotChangeVerdict`](internal/features/review/pipeline_test.go)   |
+| Injected instructions in an MCP result do not change the verdict.                               | [`TestInjection_MCPResultIsData`](internal/features/review/pipeline_test.go)          |
+| An unverified claim is a SHOULD finding; a contradicted claim is MUST.                          | [`TestGrounding_Labels`](internal/features/review/pipeline_test.go)                   |
+| An unchanged section is not sent to a model again.                                              | [`TestCache_UnchangedSectionReused`](internal/features/review/pipeline_test.go)       |
+| Every run records the profile version it used.                                                  | [`TestRun_PinsProfileVersion`](internal/features/review/pipeline_test.go)             |
+| A split in reader answers creates a divergence finding.                                         | [`TestDivergence_SplitIsFinding`](internal/features/review/divergence_test.go)        |
+| All `NOT SPECIFIED` on a MUST question creates a MUST gap finding.                              | [`TestDivergence_GapOnMust`](internal/features/review/divergence_test.go)             |
+| An answer with an invented quote is treated as `NOT SPECIFIED`.                                 | [`TestDivergence_InventedQuoteRejected`](internal/features/review/divergence_test.go) |
+| One model for all readers gives "low reader diversity" and does not block.                      | [`TestDivergence_LowDiversityFlagged`](internal/features/review/divergence_test.go)   |
+| Readers never receive other readers' answers or the rubric.                                     | [`TestDivergence_ReaderIsolation`](internal/features/review/divergence_test.go)       |
+| An uncovered upstream REQ is a MUST finding.                                                    | [`TestCoherence_UncoveredReqIsMust`](internal/features/review/coherence_test.go)      |
+| A standalone acknowledgement makes coherence not applicable.                                    | [`TestCoherence_StandaloneAck`](internal/features/review/coherence_test.go)           |
+| An upstream edit marks downstream verdicts stale.                                               | [`TestCoherence_UpstreamEditStales`](internal/features/review/coherence_test.go)      |
+| Restatement above the threshold is a SHOULD finding.                                            | [`TestCoherence_RestatementShingles`](internal/features/review/coherence_test.go)     |
+| A link rule creates a link only when both files exist.                                          | [`TestConfig_LinkRules`](internal/features/review/coherence_test.go)                  |
+| Secrets are not stored in plain text.                                                           | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go)       |
+| Local mode refuses a non-loopback address.                                                      | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go)                          |
+| Each endpoint enforces its role table.                                                          | [`TestAuthz_EndpointRoleTable`](internal/http/authz_test.go)                          |
+| A guest cannot edit or ask the AI.                                                              | [`TestGuest_Restrictions`](internal/hostauth/hostauth_test.go)                        |
+| Anchors follow edits, or become detached. They never point at the wrong text.                   | [`TestAnchor_Reanchor`](internal/engine/anchor/reanchor_test.go)                      |
+| Speccy never changes a doc without an accept.                                                   | [`TestSuggestFix_RequiresAccept`](internal/features/review/fix_test.go)               |
+| CLI exit codes match SDD §12.2.                                                                 | [`TestCLI_ExitCodes`](cmd/speccy/review_test.go)                                      |
+| `speccy review --summary` works with no server and no `speccy init`.                            | [`TestCLI_SummaryNoSetup`](cmd/speccy/review_test.go)                                 |
+| In advisory mode, a verdict never fails the Action's job.                                       | [`TestAction_AdvisoryNeverFails`](internal/action/action_test.go)                     |
+| Inline comments go only on changed lines, keep to the limit, and are not posted twice.          | [`TestAction_InlineComments`](internal/action/action_test.go)                         |
+| Suggestion blocks are only for fixes that need no model.                                        | [`TestAction_SuggestionsDeterministicOnly`](internal/action/action_test.go)           |
 
 ## How the verdict works
 
@@ -137,14 +138,14 @@ The **score** is passed checks divided by applicable checks. It is for tracking,
 
 ## Modes
 
-| Mode | Command | Status |
-|---|---|---|
-| Local | `speccy` | Edit, import, compare, and export bundles on 127.0.0.1. |
-| Hosted | `speccy serve --hosted` | Accounts from invite links, admin and member roles, private and shared bundles, guests, and API tokens. Needs Postgres. See [configuration](docs/configuration.md). |
-| Headless | `speccy review <path…>` | Review bundles in a terminal or in CI, and print text, JSON, or markdown. |
-| Verification | `speccy verify <path> --repo <owner/name> --sha <sha>` | Verify one build against the bundle: where each requirement is implemented and tested, and where the code contradicts it. Speccy reads the code and runs nothing. |
-| Terminal UI | `speccy tui` | Bundles, verdicts, findings, and the tour in the terminal. `e` opens a finding in `$EDITOR`. |
-| Agents | `speccy mcp` | An MCP server over stdio. Hosted mode also serves MCP at `/mcp` with an API token. |
+| Mode         | Command                                                | Status                                                                                                                                                              |
+| ------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local        | `speccy`                                               | Edit, import, compare, and export bundles on 127.0.0.1.                                                                                                             |
+| Hosted       | `speccy serve --hosted`                                | Accounts from invite links, admin and member roles, private and shared bundles, guests, and API tokens. Needs Postgres. See [configuration](docs/configuration.md). |
+| Headless     | `speccy review <path…>`                                | Review bundles in a terminal or in CI, and print text, JSON, or markdown.                                                                                           |
+| Verification | `speccy verify <path> --repo <owner/name> --sha <sha>` | Verify one build against the bundle: where each requirement is implemented and tested, and where the code contradicts it. Speccy reads the code and runs nothing.   |
+| Terminal UI  | `speccy tui`                                           | Bundles, verdicts, findings, and the tour in the terminal. `e` opens a finding in `$EDITOR`.                                                                        |
+| Agents       | `speccy mcp`                                           | An MCP server over stdio. Hosted mode also serves MCP at `/mcp` with an API token.                                                                                  |
 
 `speccy verify` exits with 1 when the run is Not Verified. `speccy review` exits with 0 for Build Ready, or for any verdict in advisory mode; 1 for Not Build Ready with `--enforcement blocking`; 2 for a usage or configuration error; and 3 when a review fails. With no model assigned, it runs lint only and says so.
 
@@ -161,14 +162,14 @@ A repo, a folder in one, or a single doc all work, as does `owner/name`. Speccy 
 Or run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
 
 ```yaml
-map:                      # single files, with assets in <name>.assets/
+map: # single files, with assets in <name>.assets/
   - glob: docs/**/prd-*.md
     profile: prd
   - glob: docs/**/sdd-*.md
     profile: sdd
-link_rules:               # a link exists only when both files exist
+link_rules: # a link exists only when both files exist
   - "docs/sdd-{name}.md implements docs/prd-{name}.md"
-adoption:                 # these checks report as INFO for now
+adoption: # these checks report as INFO for now
   relaxed: [links.has-upstream, lint.required-headings]
 ```
 
@@ -197,9 +198,9 @@ on:
   pull_request:
     paths: ["docs/**", ".speccy.yaml"]
 permissions:
-  contents: write        # commit a decision that a reply asked for
-  pull-requests: write   # the summary and inline comments
-  checks: write          # one check per bundle
+  contents: write # commit a decision that a reply asked for
+  pull-requests: write # the summary and inline comments
+  checks: write # one check per bundle
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -207,7 +208,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: alternayte/speccy@v0.11.0
         with:
-          models: all=anthropic:<model>             # leave out for lint checks only
+          models: all=anthropic:<model> # leave out for lint checks only
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 

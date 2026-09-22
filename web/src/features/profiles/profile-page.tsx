@@ -10,6 +10,7 @@ import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import { useMe } from "@/features/account/me";
 import { CodeEditor } from "@/features/editor/code-editor";
 import { SideBySide } from "@/features/diff/side-by-side";
+import { ProfileHelp } from "./profile-help";
 import { ThreadView } from "@/features/threads/threads-panel";
 import type { ProfileDetail } from "@/lib/api";
 import {
@@ -55,6 +56,7 @@ export function ProfilePage({ profileKey }: { profileKey: string }) {
                   {profile.data.origin}
                 </p>
               </div>
+              <ProfileHelp />
               {admin ? <DeleteProfile p={profile.data} /> : null}
             </header>
             <Editor p={profile.data} />

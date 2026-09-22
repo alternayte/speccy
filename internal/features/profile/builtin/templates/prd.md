@@ -1,6 +1,7 @@
 ---
 type: prd
 title: <Product or feature name>
+size: feature
 ---
 
 # <Product or feature name>
