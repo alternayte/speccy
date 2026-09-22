@@ -56,6 +56,10 @@ func (a Adapter) CountOpenBlockingThreads(ctx context.Context, bundleID uuid.Nul
 	return a.q.CountOpenBlockingThreads(ctx, bundleID)
 }
 
+func (a Adapter) DeleteAdoptedType(ctx context.Context, arg pgdb.DeleteAdoptedTypeParams) error {
+	return a.q.DeleteAdoptedType(ctx, DeleteAdoptedTypeParams(arg))
+}
+
 func (a Adapter) DeleteAssignment(ctx context.Context, arg pgdb.DeleteAssignmentParams) error {
 	return a.q.DeleteAssignment(ctx, DeleteAssignmentParams(arg))
 }
@@ -404,6 +408,18 @@ func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.Review
 func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRunFor(ctx, LatestRunForParams(arg))
 	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]pgdb.AdoptedType, error) {
+	rows, err := a.q.ListAdoptedTypes(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.AdoptedType, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.AdoptedType(r)
+	}
+	return out, nil
 }
 
 func (a Adapter) ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.ListAllRunsRow, error) {
@@ -885,6 +901,10 @@ func (a Adapter) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (pgdb.Re
 	return pgdb.ReviewRun(r), err
 }
 
+func (a Adapter) SetAdoptedType(ctx context.Context, arg pgdb.SetAdoptedTypeParams) error {
+	return a.q.SetAdoptedType(ctx, SetAdoptedTypeParams(arg))
+}
+
 func (a Adapter) SetBudgetLimit(ctx context.Context, arg pgdb.SetBudgetLimitParams) error {
 	return a.q.SetBudgetLimit(ctx, SetBudgetLimitParams(arg))
 }
@@ -907,6 +927,10 @@ func (a Adapter) SetBundleVisibility(ctx context.Context, arg pgdb.SetBundleVisi
 
 func (a Adapter) SetFindingSuggestion(ctx context.Context, arg pgdb.SetFindingSuggestionParams) error {
 	return a.q.SetFindingSuggestion(ctx, SetFindingSuggestionParams(arg))
+}
+
+func (a Adapter) SetGithubSourceSkipped(ctx context.Context, arg pgdb.SetGithubSourceSkippedParams) error {
+	return a.q.SetGithubSourceSkipped(ctx, SetGithubSourceSkippedParams(arg))
 }
 
 func (a Adapter) SetGithubSourceSynced(ctx context.Context, arg pgdb.SetGithubSourceSyncedParams) error {

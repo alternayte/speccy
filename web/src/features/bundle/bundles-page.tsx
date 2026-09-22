@@ -17,6 +17,7 @@ import { importBundle, putFileContent } from "@/lib/api";
 import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
 import { bundlesFromDrop, filesFromDrop, isZip, mainDocOf } from "./drop";
 import { GitHubDialog } from "./github-dialog";
+import { SourceDocs } from "./source-docs";
 import { ImportDialog } from "./import-dialog";
 import { NewBundleDialog } from "./new-bundle-dialog";
 import { relativeTime } from "./time";
@@ -188,6 +189,7 @@ export function BundlesPage() {
         </div>
 
         <SkippedDocs />
+        <SourceDocs />
 
         {bundles.data && bundles.data.problems.length > 0 ? (
           <section className="mt-6" aria-labelledby="problems">

@@ -25,6 +25,12 @@ func (a *API) sourceAPI(ctx context.Context, src pgdb.GithubSource) (api.GithubS
 		t := src.SyncedAt.Time.UTC()
 		out.SyncedAt = &t
 	}
+	adopted, err := a.Service.DB.Queries().ListAdoptedTypes(ctx, src.ID)
+	if err != nil {
+		return out, err
+	}
+	n := len(adopted)
+	out.Adopted = &n
 	bundles, err := a.Service.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: a.Service.Workspace, SourceKind: KindGitHub})
 	if err != nil {
 		return out, err
@@ -276,4 +282,100 @@ func (a *API) DiscardDraft(ctx context.Context, req api.DiscardDraftRequestObjec
 		return nil, err
 	}
 	return api.DiscardDraft200JSONResponse{Version: version.ToAPI(v), Changed: true}, nil
+}
+
+// skippedLimit is how many skipped docs the list holds. Above it, the source covers too much
+// of the repo, and the answer says so instead of holding a 2000-row screen.
+const skippedLimit = 200
+
+// ListSkippedDocs lists the markdown files under the source that the scan passed over, with a
+// guessed doc type each (REQ-133).
+func (a *API) ListSkippedDocs(ctx context.Context, req api.ListSkippedDocsRequestObject) (api.ListSkippedDocsResponseObject, error) {
+	src, err := a.Service.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: a.Service.Workspace, ID: req.SourceId})
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	_ = json.Unmarshal(src.Skipped, &paths)
+	sort.Strings(paths)
+	total := len(paths)
+	if len(paths) > skippedLimit {
+		paths = paths[:skippedLimit]
+	}
+	adopted, err := a.Service.DB.Queries().ListAdoptedTypes(ctx, src.ID)
+	if err != nil {
+		return nil, err
+	}
+	was := map[string]string{}
+	for _, t := range adopted {
+		was[t.Path] = t.Profile
+	}
+	c, err := a.Service.GitHub(ctx, src.ApiUrl)
+	if err != nil {
+		return nil, err
+	}
+	out := api.ListSkippedDocs200JSONResponse{Items: []api.SourceSkippedDoc{}, Total: total}
+	for _, p := range paths {
+		item := api.SourceSkippedDoc{Path: p, Adopted: was[p]}
+		if content, ok, err := c.FileAt(ctx, src.Repo, src.Branch, p); err == nil && ok {
+			if key, sure := profile.Guess(a.Profiles(), content); sure {
+				item.Guess = &key
+			}
+		}
+		out.Items = append(out.Items, item)
+	}
+	return out, nil
+}
+
+// AdoptSkippedDocs stores the doc type a person accepted for skipped docs, and syncs, so the
+// bundles appear. The repo takes no commit (REQ-133).
+func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequestObject) (api.AdoptSkippedDocsResponseObject, error) {
+	s := a.Service
+	src, err := s.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: req.SourceId})
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	_ = json.Unmarshal(src.Skipped, &paths)
+	known := map[string]bool{}
+	for _, p := range paths {
+		known[p] = true
+	}
+	for _, it := range req.Body.Items {
+		if _, ok := a.Profiles()[it.Profile]; !ok {
+			return nil, kernel.Invalid("no_profile", "There is no doc type %q.", it.Profile)
+		}
+		if !known[it.Path] {
+			return nil, kernel.Invalid("not_skipped", "%s is not a file the scan passed over.", it.Path)
+		}
+		if err := s.DB.Queries().SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.SyncSource(ctx, src.ID, true); err != nil {
+		return nil, err
+	}
+	row, err := s.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: req.SourceId})
+	if err != nil {
+		return nil, err
+	}
+	out, err := a.sourceAPI(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+	return api.AdoptSkippedDocs200JSONResponse(out), nil
+}
+
+// PublishSourceMapping opens a pull request that writes the accepted types into the repo's
+// .speccy.yaml, so the Action reads the same answer as the app (REQ-133).
+func (a *API) PublishSourceMapping(ctx context.Context, req api.PublishSourceMappingRequestObject) (api.PublishSourceMappingResponseObject, error) {
+	by := kernel.ActorFrom(ctx).Email
+	if by == "" {
+		by = kernel.ActorFrom(ctx).UserID
+	}
+	pr, err := a.Service.PublishMapping(ctx, req.SourceId, by)
+	if err != nil {
+		return nil, err
+	}
+	return api.PublishSourceMapping200JSONResponse{PrUrl: pr.URL, PrNumber: pr.Number}, nil
 }

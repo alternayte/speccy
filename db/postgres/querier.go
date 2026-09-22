@@ -22,6 +22,7 @@ type Querier interface {
 	// For insights: failing checks in the latest completed run of each bundle.
 	CountFindingsByCheck(ctx context.Context, arg CountFindingsByCheckParams) ([]CountFindingsByCheckRow, error)
 	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
+	DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypeParams) error
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
 	DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error
@@ -104,6 +105,7 @@ type Querier interface {
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
+	ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error)
 	// For insights: every finished run of the workspace, oldest first.
 	ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]ListAllRunsRow, error)
 	ListAnswers(ctx context.Context, runID uuid.UUID) ([]Answer, error)
@@ -154,12 +156,14 @@ type Querier interface {
 	PutCache(ctx context.Context, arg PutCacheParams) error
 	RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error)
 	RunningRunFor(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
+	SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) error
 	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
 	SetBundleSourceRef(ctx context.Context, arg SetBundleSourceRefParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
 	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
+	SetGithubSourceSkipped(ctx context.Context, arg SetGithubSourceSkippedParams) error
 	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
 	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error

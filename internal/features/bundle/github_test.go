@@ -299,3 +299,79 @@ func TestGitHubSource_OneDoc(t *testing.T) {
 		}
 	}
 }
+
+// TestGitHubSource_AdoptedType pins that a type accepted in Speccy makes a bundle with no
+// commit to the repo, and that the repo's own answer replaces it later (REQ-133).
+func TestGitHubSource_AdoptedType(t *testing.T) {
+	ctx := context.Background()
+	s := services()[0].open(t)
+	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+	gh.refs["main"] = gh.commit(map[string]string{
+		"docs/prd-payments.md": "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n",
+		"README.md":            "# The repo\n",
+	})
+	srv := httptest.NewServer(gh)
+	defer srv.Close()
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return &github.Client{API: srv.URL, Token: "t"}, nil
+	}
+	q := s.DB.Queries()
+	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
+		Path: "docs", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+	if err := q.InsertGithubSource(ctx, src); err != nil {
+		t.Fatal(err)
+	}
+	// The scan finds no bundle: the doc names no type and the repo maps nothing.
+	if err := s.SyncSource(ctx, src.ID, false); err == nil {
+		t.Fatal("a source with no typed doc synced without saying so")
+	}
+	row, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: src.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var skipped []string
+	_ = json.Unmarshal(row.Skipped, &skipped)
+	if len(skipped) != 1 || skipped[0] != "docs/prd-payments.md" {
+		t.Fatalf("skipped = %v, want the one doc under the source", skipped)
+	}
+	head := gh.refs["main"]
+
+	// Accepting the type makes the bundle, and the branch does not move.
+	if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: "docs/prd-payments.md", Profile: "prd"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SyncSource(ctx, src.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	if err != nil {
+		t.Fatalf("the accepted doc did not become a bundle: %v", err)
+	}
+	if b.ProfileKey != "prd" {
+		t.Errorf("bundle profile = %q, want prd", b.ProfileKey)
+	}
+	if gh.refs["main"] != head {
+		t.Error("the source branch moved: Speccy wrote to the repo")
+	}
+	// The row stands: the type Speccy holds must not read as the repo's own answer.
+	if rows, err := q.ListAdoptedTypes(ctx, src.ID); err != nil || len(rows) != 1 {
+		t.Fatalf("adopted types = %+v, %v; want the one the person accepted", rows, err)
+	}
+
+	// The repo names the type itself. It wins, the row goes, and the bundle keeps its ID.
+	gh.refs["main"] = gh.commit(map[string]string{
+		"docs/prd-payments.md": "---\ntype: prd\n---\n\n# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n",
+		"README.md":            "# The repo\n",
+	})
+	if err := s.SyncSource(ctx, src.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	again, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	if err != nil || again.ID != b.ID {
+		t.Fatalf("the bundle changed when the repo named the type: %v", err)
+	}
+	rows, err := q.ListAdoptedTypes(ctx, src.ID)
+	if err != nil || len(rows) != 0 {
+		t.Errorf("adopted types = %+v, want none once the repo names the type", rows)
+	}
+}

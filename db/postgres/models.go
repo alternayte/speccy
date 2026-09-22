@@ -12,6 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
+type AdoptedType struct {
+	SourceID uuid.UUID
+	Path     string
+	Profile  string
+}
+
 type Answer struct {
 	QuestionID       uuid.UUID
 	RunID            uuid.UUID
@@ -157,6 +163,7 @@ type GithubSource struct {
 	IsFile      bool
 	Profile     string
 	ApiUrl      string
+	Skipped     dbtype.JSON
 }
 
 type Handoff struct {

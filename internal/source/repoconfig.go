@@ -260,3 +260,53 @@ func findKey(m *yaml.Node, key string) *yaml.Node {
 	}
 	return nil
 }
+
+// AddMappings adds mappings to the repo's .speccy.yaml and returns the new file. was is the
+// file's current bytes, or nil when the repo has none. It edits the YAML in place, so the
+// comments and the other keys of the file stay as they are.
+func AddMappings(was []byte, add []Mapping) ([]byte, error) {
+	if len(add) == 0 {
+		return was, nil
+	}
+	var doc yaml.Node
+	if len(bytes.TrimSpace(was)) == 0 {
+		doc.Kind = yaml.DocumentNode
+		doc.Content = []*yaml.Node{{Kind: yaml.MappingNode}}
+	} else if err := yaml.Unmarshal(was, &doc); err != nil {
+		return nil, fmt.Errorf("%s does not parse: %w", RepoConfigFile, err)
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s is not a mapping", RepoConfigFile)
+	}
+	root := doc.Content[0]
+	var list *yaml.Node
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value == "map" {
+			list = root.Content[i+1]
+		}
+	}
+	if list == nil {
+		list = &yaml.Node{Kind: yaml.SequenceNode}
+		root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "map"}, list)
+	}
+	if list.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("map in %s is not a list", RepoConfigFile)
+	}
+	for _, m := range add {
+		entry := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{
+			{Kind: yaml.ScalarNode, Value: "glob"}, {Kind: yaml.ScalarNode, Value: m.Glob},
+			{Kind: yaml.ScalarNode, Value: "profile"}, {Kind: yaml.ScalarNode, Value: m.Profile},
+		}}
+		list.Content = append(list.Content, entry)
+	}
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
+		return nil, err
+	}
+	if err := enc.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}

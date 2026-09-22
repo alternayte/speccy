@@ -162,7 +162,12 @@ var operations = map[string]access{
 	"addGithubSource":        adminOnly,
 	"deleteGithubSource":     adminOnly,
 	"syncGithubSource":       adminOnly,
-	"setSettings":            adminOnly,
+	// REQ-133: adopting a source's docs and writing the repo's mapping change what the
+	// workspace reviews, so they are an admin's call. The list itself is not.
+	"listSkippedDocs":      member,
+	"adoptSkippedDocs":     adminOnly,
+	"publishSourceMapping": adminOnly,
+	"setSettings":          adminOnly,
 }
 
 // Authz enforces the role table for one workspace.

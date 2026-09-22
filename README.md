@@ -44,6 +44,7 @@ To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
 | Document | What it holds |
 |---|---|
 | [docs/guide.md](docs/guide.md) | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder. |
+| [docs/adoption.md](docs/adoption.md) | Docs you already have: a file on disk, one doc in GitHub on any branch, a folder or a repo, and a repo your team reviews in. |
 | [docs/github.md](docs/github.md) | Specs in pull requests: adopt a repo, read the comment, decide with a reply, and read a repo back into Speccy from its URL. |
 | [docs/linked-docs.md](docs/linked-docs.md) | Two docs that must agree: links, trace IDs, the matrix, coverage, restatement, contradiction, and the stale verdict after an upstream edit. |
 | [docs/cli-and-tui.md](docs/cli-and-tui.md) | Every command, the terminal UI and its keys, connected mode, and the MCP server. |

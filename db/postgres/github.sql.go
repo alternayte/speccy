@@ -14,6 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteAdoptedType = `-- name: DeleteAdoptedType :exec
+DELETE FROM adopted_type WHERE source_id = $1 AND path = $2
+`
+
+type DeleteAdoptedTypeParams struct {
+	SourceID uuid.UUID
+	Path     string
+}
+
+func (q *Queries) DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAdoptedType, arg.SourceID, arg.Path)
+	return err
+}
+
 const deleteGithubConnection = `-- name: DeleteGithubConnection :exec
 DELETE FROM github_connection WHERE workspace_id = $1
 `
@@ -56,7 +70,7 @@ func (q *Queries) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID
 }
 
 const getGithubSource = `-- name: GetGithubSource :one
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, is_file, profile, api_url FROM github_source WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, is_file, profile, api_url, skipped FROM github_source WHERE workspace_id = $1 AND id = $2
 `
 
 type GetGithubSourceParams struct {
@@ -81,6 +95,7 @@ func (q *Queries) GetGithubSource(ctx context.Context, arg GetGithubSourceParams
 		&i.IsFile,
 		&i.Profile,
 		&i.ApiUrl,
+		&i.Skipped,
 	)
 	return i, err
 }
@@ -120,8 +135,35 @@ func (q *Queries) InsertGithubSource(ctx context.Context, arg InsertGithubSource
 	return err
 }
 
+const listAdoptedTypes = `-- name: ListAdoptedTypes :many
+SELECT source_id, path, profile FROM adopted_type WHERE source_id = $1 ORDER BY path
+`
+
+func (q *Queries) ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error) {
+	rows, err := q.db.QueryContext(ctx, listAdoptedTypes, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AdoptedType
+	for rows.Next() {
+		var i AdoptedType
+		if err := rows.Scan(&i.SourceID, &i.Path, &i.Profile); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGithubSources = `-- name: ListGithubSources :many
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, is_file, profile, api_url FROM github_source WHERE workspace_id = $1 ORDER BY repo, branch, path
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, is_file, profile, api_url, skipped FROM github_source WHERE workspace_id = $1 ORDER BY repo, branch, path
 `
 
 func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error) {
@@ -147,6 +189,7 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 			&i.IsFile,
 			&i.Profile,
 			&i.ApiUrl,
+			&i.Skipped,
 		); err != nil {
 			return nil, err
 		}
@@ -161,6 +204,22 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 	return items, nil
 }
 
+const setAdoptedType = `-- name: SetAdoptedType :exec
+INSERT INTO adopted_type (source_id, path, profile) VALUES ($1, $2, $3)
+ON CONFLICT (source_id, path) DO UPDATE SET profile = excluded.profile
+`
+
+type SetAdoptedTypeParams struct {
+	SourceID uuid.UUID
+	Path     string
+	Profile  string
+}
+
+func (q *Queries) SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) error {
+	_, err := q.db.ExecContext(ctx, setAdoptedType, arg.SourceID, arg.Path, arg.Profile)
+	return err
+}
+
 const setBundleSourceRef = `-- name: SetBundleSourceRef :exec
 UPDATE bundle SET source_ref = $1, updated_at = $2 WHERE id = $3
 `
@@ -173,6 +232,20 @@ type SetBundleSourceRefParams struct {
 
 func (q *Queries) SetBundleSourceRef(ctx context.Context, arg SetBundleSourceRefParams) error {
 	_, err := q.db.ExecContext(ctx, setBundleSourceRef, arg.SourceRef, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const setGithubSourceSkipped = `-- name: SetGithubSourceSkipped :exec
+UPDATE github_source SET skipped = $1 WHERE id = $2
+`
+
+type SetGithubSourceSkippedParams struct {
+	Skipped dbtype.JSON
+	ID      uuid.UUID
+}
+
+func (q *Queries) SetGithubSourceSkipped(ctx context.Context, arg SetGithubSourceSkippedParams) error {
+	_, err := q.db.ExecContext(ctx, setGithubSourceSkipped, arg.Skipped, arg.ID)
 	return err
 }
 

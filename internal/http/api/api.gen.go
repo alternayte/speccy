@@ -1745,6 +1745,8 @@ type GithubResolved struct {
 
 // GithubSource defines model for GithubSource.
 type GithubSource struct {
+	// Adopted How many docs of this source have a type accepted in Speccy (REQ-133).
+	Adopted *int   `json:"adopted,omitempty"`
 	Branch  string `json:"branch"`
 	Bundles int    `json:"bundles"`
 	Error   string `json:"error"`
@@ -2329,6 +2331,18 @@ type SkippedDoc struct {
 	Profile *string `json:"profile,omitempty"`
 }
 
+// SourceSkippedDoc defines model for SourceSkippedDoc.
+type SourceSkippedDoc struct {
+	// Adopted The doc type a person already accepted for this path. Empty when none.
+	Adopted string `json:"adopted"`
+
+	// Guess The doc type Speccy reads from the headings. Absent when it is not sure.
+	Guess *string `json:"guess,omitempty"`
+
+	// Path The file's path in the repo.
+	Path string `json:"path"`
+}
+
 // StageTiming defines model for StageTiming.
 type StageTiming struct {
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
@@ -2786,6 +2800,14 @@ type AddGithubSourceJSONBody struct {
 	Url string `json:"url"`
 }
 
+// AdoptSkippedDocsJSONBody defines parameters for AdoptSkippedDocs.
+type AdoptSkippedDocsJSONBody struct {
+	Items []struct {
+		Path    string `json:"path"`
+		Profile string `json:"profile"`
+	} `json:"items"`
+}
+
 // CreateProfileJSONBody defines parameters for CreateProfile.
 type CreateProfileJSONBody struct {
 	Key      string `json:"key"`
@@ -2909,6 +2931,9 @@ type ResolveGithubUrlJSONRequestBody ResolveGithubUrlJSONBody
 
 // AddGithubSourceJSONRequestBody defines body for AddGithubSource for application/json ContentType.
 type AddGithubSourceJSONRequestBody AddGithubSourceJSONBody
+
+// AdoptSkippedDocsJSONRequestBody defines body for AdoptSkippedDocs for application/json ContentType.
+type AdoptSkippedDocsJSONRequestBody AdoptSkippedDocsJSONBody
 
 // ReportBuildJSONRequestBody defines body for ReportBuild for application/json ContentType.
 type ReportBuildJSONRequestBody = BuildReport
@@ -3152,6 +3177,15 @@ type ServerInterface interface {
 	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
 	// (DELETE /github/sources/{sourceId})
 	DeleteGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId)
+	// PublishSourceMapping Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+	// (POST /github/sources/{sourceId}/mapping)
+	PublishSourceMapping(w http.ResponseWriter, r *http.Request, sourceId SourceId)
+	// ListSkippedDocs The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+	// (GET /github/sources/{sourceId}/skipped)
+	ListSkippedDocs(w http.ResponseWriter, r *http.Request, sourceId SourceId)
+	// AdoptSkippedDocs Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+	// (POST /github/sources/{sourceId}/skipped)
+	AdoptSkippedDocs(w http.ResponseWriter, r *http.Request, sourceId SourceId)
 	// SyncGithubSource Read the source's branch now.
 	// (POST /github/sources/{sourceId}/sync)
 	SyncGithubSource(w http.ResponseWriter, r *http.Request, sourceId SourceId)
@@ -4986,6 +5020,84 @@ func (siw *ServerInterfaceWrapper) DeleteGithubSource(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// PublishSourceMapping operation middleware
+func (siw *ServerInterfaceWrapper) PublishSourceMapping(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId SourceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishSourceMapping(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSkippedDocs operation middleware
+func (siw *ServerInterfaceWrapper) ListSkippedDocs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId SourceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSkippedDocs(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdoptSkippedDocs operation middleware
+func (siw *ServerInterfaceWrapper) AdoptSkippedDocs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "sourceId" -------------
+	var sourceId SourceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sourceId", r.PathValue("sourceId"), &sourceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sourceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdoptSkippedDocs(w, r, sourceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SyncGithubSource operation middleware
 func (siw *ServerInterfaceWrapper) SyncGithubSource(w http.ResponseWriter, r *http.Request) {
 
@@ -6053,6 +6165,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources", wrapper.AddGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/resolve", wrapper.ResolveGithubUrl)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/github/sources/{sourceId}", wrapper.DeleteGithubSource)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/github/sources/{sourceId}/skipped", wrapper.ListSkippedDocs)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/skipped", wrapper.AdoptSkippedDocs)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/mapping", wrapper.PublishSourceMapping)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/sync", wrapper.SyncGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/publish", wrapper.PublishBundle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/draft/discard", wrapper.DiscardDraft)
@@ -8636,6 +8751,132 @@ func (response DeleteGithubSourcedefaultApplicationProblemPlusJSONResponse) Visi
 	return err
 }
 
+type PublishSourceMappingRequestObject struct {
+	SourceId SourceId `json:"sourceId"`
+}
+
+type PublishSourceMappingResponseObject interface {
+	VisitPublishSourceMappingResponse(w http.ResponseWriter) error
+}
+
+type PublishSourceMapping200JSONResponse struct {
+	PrNumber int    `json:"pr_number"`
+	PrUrl    string `json:"pr_url"`
+}
+
+func (response PublishSourceMapping200JSONResponse) VisitPublishSourceMappingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishSourceMappingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PublishSourceMappingdefaultApplicationProblemPlusJSONResponse) VisitPublishSourceMappingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSkippedDocsRequestObject struct {
+	SourceId SourceId `json:"sourceId"`
+}
+
+type ListSkippedDocsResponseObject interface {
+	VisitListSkippedDocsResponse(w http.ResponseWriter) error
+}
+
+type ListSkippedDocs200JSONResponse struct {
+	Items []SourceSkippedDoc `json:"items"`
+
+	// Total How many files the scan passed over. More than the list holds means the source covers too much.
+	Total int `json:"total"`
+}
+
+func (response ListSkippedDocs200JSONResponse) VisitListSkippedDocsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListSkippedDocsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListSkippedDocsdefaultApplicationProblemPlusJSONResponse) VisitListSkippedDocsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptSkippedDocsRequestObject struct {
+	SourceId SourceId `json:"sourceId"`
+	Body     *AdoptSkippedDocsJSONRequestBody
+}
+
+type AdoptSkippedDocsResponseObject interface {
+	VisitAdoptSkippedDocsResponse(w http.ResponseWriter) error
+}
+
+type AdoptSkippedDocs200JSONResponse GithubSource
+
+func (response AdoptSkippedDocs200JSONResponse) VisitAdoptSkippedDocsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptSkippedDocsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AdoptSkippedDocsdefaultApplicationProblemPlusJSONResponse) VisitAdoptSkippedDocsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SyncGithubSourceRequestObject struct {
 	SourceId SourceId `json:"sourceId"`
 }
@@ -10360,6 +10601,15 @@ type StrictServerInterface interface {
 	// DeleteGithubSource Stop reading a source. Its bundles are archived; their reviews and threads stay.
 	// (DELETE /github/sources/{sourceId})
 	DeleteGithubSource(ctx context.Context, request DeleteGithubSourceRequestObject) (DeleteGithubSourceResponseObject, error)
+	// PublishSourceMapping Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+	// (POST /github/sources/{sourceId}/mapping)
+	PublishSourceMapping(ctx context.Context, request PublishSourceMappingRequestObject) (PublishSourceMappingResponseObject, error)
+	// ListSkippedDocs The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+	// (GET /github/sources/{sourceId}/skipped)
+	ListSkippedDocs(ctx context.Context, request ListSkippedDocsRequestObject) (ListSkippedDocsResponseObject, error)
+	// AdoptSkippedDocs Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+	// (POST /github/sources/{sourceId}/skipped)
+	AdoptSkippedDocs(ctx context.Context, request AdoptSkippedDocsRequestObject) (AdoptSkippedDocsResponseObject, error)
 	// SyncGithubSource Read the source's branch now.
 	// (POST /github/sources/{sourceId}/sync)
 	SyncGithubSource(ctx context.Context, request SyncGithubSourceRequestObject) (SyncGithubSourceResponseObject, error)
@@ -12352,6 +12602,91 @@ func (sh *strictHandler) DeleteGithubSource(w http.ResponseWriter, r *http.Reque
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteGithubSourceResponseObject); ok {
 		if err := validResponse.VisitDeleteGithubSourceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishSourceMapping operation middleware
+func (sh *strictHandler) PublishSourceMapping(w http.ResponseWriter, r *http.Request, sourceId SourceId) {
+	var request PublishSourceMappingRequestObject
+
+	request.SourceId = sourceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishSourceMapping(ctx, request.(PublishSourceMappingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishSourceMapping")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishSourceMappingResponseObject); ok {
+		if err := validResponse.VisitPublishSourceMappingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSkippedDocs operation middleware
+func (sh *strictHandler) ListSkippedDocs(w http.ResponseWriter, r *http.Request, sourceId SourceId) {
+	var request ListSkippedDocsRequestObject
+
+	request.SourceId = sourceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSkippedDocs(ctx, request.(ListSkippedDocsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSkippedDocs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSkippedDocsResponseObject); ok {
+		if err := validResponse.VisitListSkippedDocsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdoptSkippedDocs operation middleware
+func (sh *strictHandler) AdoptSkippedDocs(w http.ResponseWriter, r *http.Request, sourceId SourceId) {
+	var request AdoptSkippedDocsRequestObject
+
+	request.SourceId = sourceId
+
+	var body AdoptSkippedDocsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdoptSkippedDocs(ctx, request.(AdoptSkippedDocsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdoptSkippedDocs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdoptSkippedDocsResponseObject); ok {
+		if err := validResponse.VisitAdoptSkippedDocsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
