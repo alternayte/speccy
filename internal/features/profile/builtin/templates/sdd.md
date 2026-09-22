@@ -1,6 +1,7 @@
 ---
 type: sdd
 title: <System or feature name>
+size: feature
 links:
   - kind: implements
     target: <PRD bundle>
