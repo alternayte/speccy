@@ -1,16 +1,33 @@
 # Speccy
 
-Speccy reviews markdown spec bundles and returns one verdict: Build Ready or Not Build Ready.
+**Speccy reviews your specs and answers one question: could someone build this without coming back to ask what you meant?**
+
+The answer is a verdict — Build Ready or Not Build Ready — and it is computed, not guessed. Models find problems. Speccy decides.
 
 ![The bundle screen: the verdict bar, the doc with its findings marked, and the findings rail.](docs/images/guide-editor.png)
 
-Speccy is at release 0.11.0. In local mode you can create, edit, import, compare, and export bundles. Lint and the linked-doc checks run on every save. **Run review** adds the AI rubric checks, fact checks, the divergence test, and a check for conflicts with linked docs. The overlay marks the text of each finding, and the **Tour** lists the points that need a human decision. **Traceability** shows which upstream IDs each downstream doc covers. Hosted mode serves a team with accounts, roles, and share links. Teams discuss the doc in threads, ask the AI, waive checks under a policy, and approve Build Ready docs. After the build, `speccy verify` reads the repo at one commit and says where each requirement was implemented and tested, and where the code contradicts it. `speccy review` reviews bundles in a terminal or in CI, `speccy tui` is the terminal UI, and `speccy mcp` lets coding agents review and fix docs.
+## What it does
+
+- **Finds the ambiguity, not only the missing sections.** Three independent readers answer the same questions from your doc. Where they disagree, the doc is ambiguous. Where none of them finds an answer, it has a gap.
+- **Checks the writing** with fixed rules in under a second: placeholders, missing sections, broken links, duplicate IDs, filler phrases, long sentences.
+- **Checks the facts.** Every claim about the outside world needs a source, or it is marked unverified.
+- **Keeps two docs honest.** A PRD and the SDD that implements it must cover each other, must not contradict each other, and must not repeat each other.
+- **Verifies the build afterwards.** `speccy verify` reads the repo and says where each requirement was implemented and tested, and where the code contradicts it.
+- **Never lets a model decide.** The verdict is a pure function of the findings, the waivers, the links and the version. Doc text and search results reach a model as data, never as instructions.
+- **One binary.** The app, the CLI, the terminal UI and the MCP server. No account, no server, no telemetry.
 
 ## Install
 
-Speccy is one binary. It holds the app, the CLI, the terminal UI, and the MCP server, so you need nothing else to run it.
+```sh
+curl -fsSL https://raw.githubusercontent.com/alternayte/speccy/main/install.sh | sh
+```
 
-Download it from the [releases page](https://github.com/alternayte/speccy/releases), or take the archive for your machine:
+The script picks the release for your machine, **checks it against the published checksum**, and puts `speccy` on your PATH. `SPECCY_VERSION` pins a version and `SPECCY_BIN_DIR` chooses where it goes.
+
+<details>
+<summary>By hand, or on Windows</summary>
+
+Download an archive from the [releases page](https://github.com/alternayte/speccy/releases), check it, and put the binary on your PATH:
 
 ```sh
 VERSION=0.11.0
@@ -25,171 +42,56 @@ tar xzf speccy_${VERSION}_${OS}_${ARCH}.tar.gz
 sudo mv speccy /usr/local/bin/
 ```
 
-Check the checksum before you run the binary. On Windows, download the `.zip`, compare it with `Get-FileHash`, and put `speccy.exe` on your `PATH`.
+On Windows, take the `.zip`, compare it with `Get-FileHash`, and put `speccy.exe` on your `PATH`.
 
-## Quick start
+</details>
+
+## Start
 
 ```sh
 cd <the folder with your specs>
 speccy
 ```
 
-`speccy` starts local mode on the current folder and opens your browser. It needs no account and no server, and it binds to 127.0.0.1 only. Add `--dir <folder>` to serve another folder, and `--no-open` to stop the browser from opening.
-
-A bundle is a folder with one markdown file that has a `type` field in its frontmatter:
+That opens the app on 127.0.0.1. No account, no server. A bundle is a folder with one markdown file that names a type:
 
 ```markdown
 ---
 type: sdd
 title: Payment retries
+size: feature
 ---
 ```
 
-Speccy keeps a version of each bundle every time a file changes, in the app or on disk. It stores its state in `.speccy/state/`. Do not commit that folder.
-
-To work on Speccy, run `just dev` and open http://127.0.0.1:5173.
+Speccy keeps a version every time a file changes, in the app or on disk, in `.speccy/state/`. Do not commit that folder.
 
 | Bundles                                              | Bundle                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------- |
 | ![The bundles screen](docs/images/guide-bundles.png) | ![The bundle screen](docs/images/guide-editor.png)      |
 | **Tour**                                             | **Traceability**                                        |
 | ![The tour](docs/images/guide-tour.gif)              | ![The traceability matrix](docs/images/guide-trace.png) |
-| **Run report**                                       | **Terminal UI**                                         |
-| ![The run report](docs/images/guide-run-report.png)  | ![The terminal UI](docs/images/tui-bundle.png)          |
 
-## Documentation
+## Specs you already have
 
-| Document                                       | What it holds                                                                                                                                    |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [docs/guide.md](docs/guide.md)                 | One doc end to end: start Speccy, make a bundle, write, review, take the tour, send it to a reviewer, reach Build Ready, hand it to a builder.   |
-| [docs/adoption.md](docs/adoption.md)           | Docs you already have: a file on disk, one doc in GitHub on any branch, a folder or a repo, and a repo your team reviews in.                     |
-| [docs/github.md](docs/github.md)               | Specs in pull requests: adopt a repo, read the comment, decide with a reply, and read a repo back into Speccy from its URL.                      |
-| [docs/linked-docs.md](docs/linked-docs.md)     | Two docs that must agree: links, trace IDs, the matrix, coverage, restatement, contradiction, and the stale verdict after an upstream edit.      |
-| [docs/profiles.md](docs/profiles.md)           | What a profile holds, what the template's required markers mean, how a doc's size changes what it must answer, and when to pick a PRD or an SDD. |
-| [docs/cli-and-tui.md](docs/cli-and-tui.md)     | Every command, the terminal UI and its keys, connected mode, and the MCP server.                                                                 |
-| [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing.                                                  |
-| [docs/decisions.md](docs/decisions.md)         | Each design decision, its alternative, and its reason.                                                                                           |
-
-## Guarantees
-
-This table lists only the guarantees whose tests pass today.
-
-| Guarantee                                                                                       | Test                                                                                  |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| An open MUST finding gives Not Build Ready.                                                     | [`TestVerdict_OpenMustBlocks`](internal/engine/verdict/verdict_test.go)               |
-| A valid waiver on the only MUST finding gives Build Ready.                                      | [`TestVerdict_WaivedMustPasses`](internal/engine/verdict/verdict_test.go)             |
-| An open blocking thread gives Not Build Ready.                                                  | [`TestVerdict_BlockingThreadBlocks`](internal/engine/verdict/verdict_test.go)         |
-| A verdict for an old version reads as stale.                                                    | [`TestVerdict_OldVersionIsStale`](internal/engine/verdict/verdict_test.go)            |
-| A waiver becomes invalid when its section changes.                                              | [`TestWaiver_InvalidatedOnSectionEdit`](internal/app/collab_test.go)                  |
-| The waiver policy is enforced for each policy value.                                            | [`TestWaiverPolicy_Table`](internal/features/waiver/waiver_test.go)                   |
-| The author cannot approve their own bundle.                                                     | [`TestApproval_AuthorCannotApprove`](internal/app/collab_test.go)                     |
-| A content change revokes approvals.                                                             | [`TestApproval_EditRevokes`](internal/app/collab_test.go)                             |
-| SHOULD findings never change the verdict.                                                       | [`TestVerdict_ShouldNeverBlocks`](internal/engine/verdict/verdict_test.go)            |
-| The verdict function is pure: same input, same output.                                          | [`TestVerdict_Deterministic`](internal/engine/verdict/verdict_test.go)                |
-| Lint finishes a 10,000-word doc in under 1 second.                                              | [`BenchmarkLint_10kWords`](internal/engine/lint/lint_test.go)                         |
-| A mapped file with no frontmatter is reviewed with the mapped profile; frontmatter `type` wins. | [`TestConfig_PathMapping`](internal/features/review/review_test.go)                   |
-| A relaxed check reports as INFO and never blocks; removing it restores its level.               | [`TestAdoption_RelaxedCheck`](internal/features/review/review_test.go)                |
-| Both store engines pass the same conformance suite.                                             | [`TestStoreConformance`](internal/store/conformance/conformance_test.go)              |
-| A concurrent append with a stale version is rejected.                                           | [`TestEventStore_ConcurrentAppendRejected`](internal/es/es_test.go)                   |
-| Projections update in the same transaction as the append.                                       | [`TestEventStore_InlineProjectionAtomic`](internal/es/es_test.go)                     |
-| Invalid model JSON is retried once, then the step fails.                                        | [`TestModel_InvalidJSONRetryOnce`](internal/model/model_test.go)                      |
-| Injected instructions in a doc do not change the verdict.                                       | [`TestInjection_DocCannotChangeVerdict`](internal/features/review/pipeline_test.go)   |
-| Injected instructions in an MCP result do not change the verdict.                               | [`TestInjection_MCPResultIsData`](internal/features/review/pipeline_test.go)          |
-| An unverified claim is a SHOULD finding; a contradicted claim is MUST.                          | [`TestGrounding_Labels`](internal/features/review/pipeline_test.go)                   |
-| An unchanged section is not sent to a model again.                                              | [`TestCache_UnchangedSectionReused`](internal/features/review/pipeline_test.go)       |
-| Every run records the profile version it used.                                                  | [`TestRun_PinsProfileVersion`](internal/features/review/pipeline_test.go)             |
-| A split in reader answers creates a divergence finding.                                         | [`TestDivergence_SplitIsFinding`](internal/features/review/divergence_test.go)        |
-| All `NOT SPECIFIED` on a MUST question creates a MUST gap finding.                              | [`TestDivergence_GapOnMust`](internal/features/review/divergence_test.go)             |
-| An answer with an invented quote is treated as `NOT SPECIFIED`.                                 | [`TestDivergence_InventedQuoteRejected`](internal/features/review/divergence_test.go) |
-| One model for all readers gives "low reader diversity" and does not block.                      | [`TestDivergence_LowDiversityFlagged`](internal/features/review/divergence_test.go)   |
-| Readers never receive other readers' answers or the rubric.                                     | [`TestDivergence_ReaderIsolation`](internal/features/review/divergence_test.go)       |
-| An uncovered upstream REQ is a MUST finding.                                                    | [`TestCoherence_UncoveredReqIsMust`](internal/features/review/coherence_test.go)      |
-| A standalone acknowledgement makes coherence not applicable.                                    | [`TestCoherence_StandaloneAck`](internal/features/review/coherence_test.go)           |
-| An upstream edit marks downstream verdicts stale.                                               | [`TestCoherence_UpstreamEditStales`](internal/features/review/coherence_test.go)      |
-| Restatement above the threshold is a SHOULD finding.                                            | [`TestCoherence_RestatementShingles`](internal/features/review/coherence_test.go)     |
-| A link rule creates a link only when both files exist.                                          | [`TestConfig_LinkRules`](internal/features/review/coherence_test.go)                  |
-| Secrets are not stored in plain text.                                                           | [`TestSecrets_EncryptedAndHashedAtRest`](internal/features/admin/admin_test.go)       |
-| Local mode refuses a non-loopback address.                                                      | [`TestLocalMode_LoopbackOnly`](internal/http/server_test.go)                          |
-| Each endpoint enforces its role table.                                                          | [`TestAuthz_EndpointRoleTable`](internal/http/authz_test.go)                          |
-| A guest cannot edit or ask the AI.                                                              | [`TestGuest_Restrictions`](internal/hostauth/hostauth_test.go)                        |
-| Anchors follow edits, or become detached. They never point at the wrong text.                   | [`TestAnchor_Reanchor`](internal/engine/anchor/reanchor_test.go)                      |
-| Speccy never changes a doc without an accept.                                                   | [`TestSuggestFix_RequiresAccept`](internal/features/review/fix_test.go)               |
-| CLI exit codes match SDD §12.2.                                                                 | [`TestCLI_ExitCodes`](cmd/speccy/review_test.go)                                      |
-| `speccy review --summary` works with no server and no `speccy init`.                            | [`TestCLI_SummaryNoSetup`](cmd/speccy/review_test.go)                                 |
-| In advisory mode, a verdict never fails the Action's job.                                       | [`TestAction_AdvisoryNeverFails`](internal/action/action_test.go)                     |
-| Inline comments go only on changed lines, keep to the limit, and are not posted twice.          | [`TestAction_InlineComments`](internal/action/action_test.go)                         |
-| Suggestion blocks are only for fixes that need no model.                                        | [`TestAction_SuggestionsDeterministicOnly`](internal/action/action_test.go)           |
-
-## How the verdict works
-
-A review has six stages: lint, rubric, grounding, divergence, coherence, and the verdict.
-
-- **Lint** checks the writing with fixed rules: placeholders, missing required sections, broken links, duplicate IDs, filler phrases, vague words, long sentences, and more. It runs on every save and takes well under a second.
-- **Rubric** asks the reviewer model each yes-or-no check of the doc type, with quotes as evidence.
-- **Grounding** finds the doc's factual claims and checks each against a source: the model's web search, or an MCP search connection. A claim with no source is unverified. Start a sentence with "Assumption:" to state something you cannot source.
-- **Divergence** asks the reviewer for 10 to 20 build questions. Three readers answer each question from the doc alone. Each answer must quote the doc; Speccy checks each quote. A judge groups the answers by meaning. When the readers give different answers, the doc is ambiguous. When no reader finds an answer, the doc has a gap.
-- **Coherence** compares linked docs. Each upstream requirement must be referenced downstream, or acknowledged in the frontmatter. A paragraph that repeats the upstream doc gets "link, do not repeat". The reviewer looks for statements that conflict between the docs. When a linked doc changes, the verdict becomes stale.
-
-A model never sets the verdict. Speccy computes it from the checks. Doc text and search results go to the model as marked data, never as instructions.
-
-Each check has a level: MUST, SHOULD, or INFO. The doc is **Build Ready** only when no MUST finding is open and any required upstream link exists. SHOULD and INFO findings never change the verdict. A verdict for an old version is **stale**.
-
-The **score** is passed checks divided by applicable checks. It is for tracking, not a gate.
-
-## Modes
-
-| Mode         | Command                                                | Status                                                                                                                                                              |
-| ------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Local        | `speccy`                                               | Edit, import, compare, and export bundles on 127.0.0.1.                                                                                                             |
-| Hosted       | `speccy serve --hosted`                                | Accounts from invite links, admin and member roles, private and shared bundles, guests, and API tokens. Needs Postgres. See [configuration](docs/configuration.md). |
-| Headless     | `speccy review <path…>`                                | Review bundles in a terminal or in CI, and print text, JSON, or markdown.                                                                                           |
-| Verification | `speccy verify <path> --repo <owner/name> --sha <sha>` | Verify one build against the bundle: where each requirement is implemented and tested, and where the code contradicts it. Speccy reads the code and runs nothing.   |
-| Terminal UI  | `speccy tui`                                           | Bundles, verdicts, findings, and the tour in the terminal. `e` opens a finding in `$EDITOR`.                                                                        |
-| Agents       | `speccy mcp`                                           | An MCP server over stdio. Hosted mode also serves MCP at `/mcp` with an API token.                                                                                  |
-
-`speccy verify` exits with 1 when the run is Not Verified. `speccy review` exits with 0 for Build Ready, or for any verdict in advisory mode; 1 for Not Build Ready with `--enforcement blocking`; 2 for a usage or configuration error; and 3 when a review fails. With no model assigned, it runs lint only and says so.
-
-## Try it on your existing specs
-
-Point Speccy at a repo on GitHub, with no clone: **From GitHub** on the bundles screen, or
+Point Speccy at a repo on GitHub, with no clone:
 
 ```sh
 speccy add https://github.com/acme/specs/blob/main/docs/prd-payments.md
 ```
 
-A repo, a folder in one, or a single doc all work, as does `owner/name`. Speccy shows what the address names before it reads anything. Local mode uses the token of your `gh` login, so run `gh auth login` first; with no `gh`, paste a fine-grained token in Admin → GitHub. Speccy reads through the GitHub API, writes no file into your folder, and never changes the branch: an edit becomes a pull request.
+A repo, a folder in one, or a single doc all work, as does `owner/name`. Speccy reads through the GitHub API, writes no file into your folder, and never changes the branch: an edit becomes a pull request. Local mode uses your `gh` login.
 
-Or run `speccy --dir <your repo>`. Speccy finds every folder with a main doc. To review docs that have no frontmatter, add a `.speccy.yaml` at the root:
+For docs with no frontmatter, `speccy init --github` adopts a whole repo in one command: it guesses a type for each spec, writes the mappings into `.speccy.yaml`, puts the checks that fail today into adoption mode so the first verdict is not a wall of red, and writes the workflow below. [docs/adoption.md](docs/adoption.md) has the whole path.
 
-```yaml
-map: # single files, with assets in <name>.assets/
-  - glob: docs/**/prd-*.md
-    profile: prd
-  - glob: docs/**/sdd-*.md
-    profile: sdd
-link_rules: # a link exists only when both files exist
-  - "docs/sdd-{name}.md implements docs/prd-{name}.md"
-adoption: # these checks report as INFO for now
-  relaxed: [links.has-upstream, lint.required-headings]
-```
-
-A relaxed check stays relaxed until a maintainer takes it out of the list. When one of them passes on every mapped doc, the summary comment of the next pull request says so and offers the reply that removes it:
-
-```text
-/speccy enforce links.has-upstream
-```
-
-Or review them all in one command. It needs no server and no setup:
+## In a terminal, and in CI
 
 ```sh
 speccy review docs/ --summary
 ```
 
-It prints one line per bundle, with the verdict, the score, and the top three failing checks, then the checks that fail most often. Add `--format md` for a pull request comment, or `--format json` for a script. `speccy init` writes a commented `.speccy.yaml` and adds `.speccy/state/` to `.gitignore`. `speccy init --github` adopts a whole repo in one command: it guesses a profile for each spec, writes the mappings, puts the checks that fail today in adoption mode, and writes the workflow below.
+One line per bundle: the verdict, the score, and the top three failing checks. `--format md` for a pull request comment, `--format json` for a script. It needs no server and no setup, and with no model assigned it runs the deterministic checks and says so.
 
-## GitHub Action
-
-The Action reviews the bundles that a pull request changes. It posts one summary comment and updates it on each push. It posts MUST findings on the lines that the pull request changed, and resolves its own comments when their findings are gone. Where the fix is certain, such as a trace ID or `MUST` in capitals, the comment has a suggestion that you commit with one click. Each bundle gets a check named `speccy: <bundle>`.
+The **GitHub Action** reviews the bundles a pull request changes, posts one summary comment, comments on the changed lines, and sets a check per bundle:
 
 ```yaml
 # .github/workflows/speccy.yml
@@ -198,9 +100,9 @@ on:
   pull_request:
     paths: ["docs/**", ".speccy.yaml"]
 permissions:
-  contents: write # commit a decision that a reply asked for
-  pull-requests: write # the summary and inline comments
-  checks: write # one check per bundle
+  contents: write
+  pull-requests: write
+  checks: write
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -208,44 +110,97 @@ jobs:
       - uses: actions/checkout@v4
       - uses: alternayte/speccy@v0.11.0
         with:
-          models: all=anthropic:<model> # leave out for lint checks only
+          models: all=anthropic:<model> # leave out for the deterministic checks only
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-The Action is advisory by default: a Not Build Ready verdict shows in the comment and the check, and the job still passes. Set `enforcement: blocking`, or `enforcement: blocking` in `.speccy.yaml`, to fail the job. The HTML report of each bundle is an artifact of the run.
+It is advisory by default: the verdict shows and the job passes. `enforcement: blocking` fails it. Reply to a comment with `/speccy waive <reason>` and the next run commits the decision to your branch. [docs/github.md](docs/github.md) has every reply and the whole flow.
 
-**Decide in the pull request.** Reply to a Speccy comment with `/speccy waive <reason>` or `/speccy ack <ID> <reason>`. The next run writes the entry into the doc's sidecar, commits it to the branch, and resolves the comment. Speccy approves nothing of its own: your branch protection reviews that commit like any other.
+## Coding agents
 
-**Adoption mode.** `speccy init --github` puts the checks that fail on your repo today in `adoption.relaxed`, so the first verdict names the checks your team opted into. `/speccy enforce <slug>` turns one back on when it passes everywhere.
+`speccy mcp` is an MCP server over stdio. An agent can review a doc, read the verdict, take the build packet of a Build Ready bundle, report what it learned while building, and verify what it built:
 
-[docs/github.md](docs/github.md) has the whole flow: the comment, every reply, forks, the two verdicts of an unmerged waiver, and reading a repo back into Speccy from its URL.
+```sh
+speccy verify docs/specs/pay --repo acme/pay --sha $(git rev-parse HEAD)
+```
 
-In connected mode (`mode: connected` and `server:` in `.speccy.yaml`, and a `token:`), the Speccy server reviews the files with its own models and its linked docs. The server changes no bundle. It keeps each review for 90 days, and the summary comment links each bundle to its report on the server. Members of the workspace can open the report.
+Speccy reads the code. It runs no code and no tests, so a cited test is a citation, never a pass.
+
+## Run it for a team
+
+Hosted mode adds accounts, roles, share links, threads and approvals. It needs Postgres.
+
+```sh
+docker run -p 8080:8080 \
+  -e SPECCY_DATABASE_URL=postgres://user:pass@host:5432/speccy \
+  -e SPECCY_MASTER_KEY="$(openssl rand -base64 32)" \
+  -e SPECCY_BASE_URL=https://speccy.example.com \
+  ghcr.io/alternayte/speccy:0.11.0
+```
+
+The image runs hosted mode as a non-root user. Local mode is not a container job: it listens on loopback only, by design, because it has no sign-in. [docs/configuration.md](docs/configuration.md) has the environment, the accounts and the sharing.
 
 ## Models
 
-Open **Admin** to add a backend and assign it to the review roles. A backend is one of:
+Open **Admin** to add a backend and assign it to the review roles:
 
-- An API key for Anthropic, OpenAI, OpenRouter, or DeepSeek. Speccy encrypts it with a key in `.speccy/state/key`.
-- An agent CLI you already use, on your subscription: `claude`, `cursor-agent`, `opencode`, or `pi`, or your own command. Speccy runs it in a temporary folder that holds only the bundle.
+- An API key for Anthropic, OpenAI, OpenRouter or DeepSeek. Speccy encrypts it with a key in `.speccy/state/key`.
+- An agent CLI you already pay for: `claude`, `cursor-agent`, `opencode` or `pi`, or your own command. Speccy runs it in a temporary folder holding only the bundle.
 
-Use **Test** to check a backend and model with one short call. Set a monthly token budget to cap spend; when it is spent, AI stages stop and lint still runs.
+Set a monthly token budget to cap spend. When it is spent, the AI stages stop and the deterministic checks still run.
 
-## Configuration
+## How the verdict works
 
-See [docs/configuration.md](docs/configuration.md) for the flags of local mode, and the environment, accounts, roles, and sharing of hosted mode.
+A review has six stages: lint, rubric, grounding, divergence, coherence, and the verdict.
 
-## Build from source
+- **Lint** — fixed rules, no model, well under a second on a 10,000-word doc.
+- **Rubric** — the reviewer model answers each yes-or-no check of the doc type, with quotes as evidence.
+- **Grounding** — each factual claim is checked against a source. A claim with no source is unverified. Start a sentence with "Assumption:" to state something you cannot source.
+- **Divergence** — 10 to 20 build questions; three readers answer each from the doc alone. Every answer must quote the doc, and Speccy checks each quote against the text. A judge groups the answers by meaning.
+- **Coherence** — linked docs must cover each other, must not contradict, and must not repeat. When a linked doc changes, the verdict goes stale.
+- **Verdict** — a pure function with no I/O.
+
+Each check carries a level. The doc is **Build Ready** only when no MUST finding is open and any required upstream link exists. SHOULD and INFO never change the verdict. A verdict for an old version is **stale**. The score is passed checks over applicable checks: for tracking, not a gate.
+
+## Commands
+
+| Command                                                | What it does                                           |
+| ------------------------------------------------------ | ------------------------------------------------------ |
+| `speccy`                                               | The app on 127.0.0.1, on the current folder.           |
+| `speccy review <path…>`                                | Review in a terminal or in CI. Text, JSON or markdown. |
+| `speccy verify <path> --repo <owner/name> --sha <sha>` | Verify one build against the bundle.                   |
+| `speccy add <url>`                                     | Read a repo, a folder or a doc from GitHub.            |
+| `speccy tui`                                           | The terminal UI. `e` opens a finding in `$EDITOR`.     |
+| `speccy mcp`                                           | An MCP server over stdio.                              |
+| `speccy serve --hosted`                                | Hosted mode, for a team.                               |
+
+`speccy review` exits 0 for Build Ready or for any verdict in advisory mode, 1 for Not Build Ready with `--enforcement blocking`, 2 for a usage error, and 3 when a review fails. `speccy verify` exits 1 when the run is Not Verified.
+
+## Documentation
+
+| Document                                       | What it holds                                                                                                               |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| [docs/guide.md](docs/guide.md)                 | One doc end to end: make a bundle, write, review, take the tour, reach Build Ready, hand it to a builder, verify the build. |
+| [docs/adoption.md](docs/adoption.md)           | Docs you already have: a file on disk, one doc in GitHub, a folder, a repo, and a repo your team reviews in.                |
+| [docs/github.md](docs/github.md)               | Specs in pull requests: adopt a repo, read the comment, decide with a reply.                                                |
+| [docs/profiles.md](docs/profiles.md)           | What a profile holds, what the template's required markers mean, and how a doc's size changes what it must answer.          |
+| [docs/linked-docs.md](docs/linked-docs.md)     | Two docs that must agree: links, trace IDs, the matrix, coverage, contradiction, and the stale verdict.                     |
+| [docs/cli-and-tui.md](docs/cli-and-tui.md)     | Every command, the terminal UI and its keys, connected mode, and the MCP server.                                            |
+| [docs/configuration.md](docs/configuration.md) | Local mode flags, `.speccy.yaml`, the GitHub Action, hosted mode, accounts, roles, and sharing.                             |
+| [docs/guarantees.md](docs/guarantees.md)       | Each guarantee Speccy makes, and the test that proves it.                                                                   |
+| [docs/decisions.md](docs/decisions.md)         | Each design decision, its alternative, and its reason.                                                                      |
+
+## Contributing
 
 You need Go, Node 24 or later, and `just`. `just test-pg` and `just verify` also need Docker.
 
 ```sh
 git clone https://github.com/alternayte/speccy && cd speccy
-just build
-./bin/speccy
+just dev      # the Go server and Vite together, on http://127.0.0.1:5173
+just verify   # the gate a pull request must pass
 ```
 
-`just dev` runs the Go server and Vite together. `just verify` is the gate a pull request must pass.
+`just build` writes `bin/speccy`.
 
 ## Licence
 
