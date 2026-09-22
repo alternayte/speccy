@@ -30,3 +30,16 @@ WHERE id = sqlc.arg(id);
 
 -- name: SetBundleSourceRef :exec
 UPDATE bundle SET source_ref = sqlc.arg(source_ref), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
+
+-- name: ListAdoptedTypes :many
+SELECT * FROM adopted_type WHERE source_id = sqlc.arg(source_id) ORDER BY path;
+
+-- name: SetAdoptedType :exec
+INSERT INTO adopted_type (source_id, path, profile) VALUES (sqlc.arg(source_id), sqlc.arg(path), sqlc.arg(profile))
+ON CONFLICT (source_id, path) DO UPDATE SET profile = excluded.profile;
+
+-- name: DeleteAdoptedType :exec
+DELETE FROM adopted_type WHERE source_id = sqlc.arg(source_id) AND path = sqlc.arg(path);
+
+-- name: SetGithubSourceSkipped :exec
+UPDATE github_source SET skipped = sqlc.arg(skipped) WHERE id = sqlc.arg(id);

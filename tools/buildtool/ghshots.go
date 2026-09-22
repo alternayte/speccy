@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -158,8 +160,43 @@ func cmdDocsShotsGitHub() error {
 	if err := d.png("github-commit", pr.URL+"/commits", nil); err != nil {
 		return err
 	}
+	if err := adoptionShot(d, bin, work); err != nil {
+		return err
+	}
 	fmt.Printf("docs-shots-github: %d pictures in %s\n", d.count, out)
 	return nil
+}
+
+// adoptionShot captures docs/adoption.md's picture: the docs of a GitHub source that name no
+// type, with the guess Speccy reads from the headings. It runs the real app against the
+// scratch repo, so the list is the product's own.
+func adoptionShot(d *shots, bin, work string) error {
+	dir := filepath.Join(work, "adopt")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	s, err := start(bin, dir, nil, "serve", "--dir", dir)
+	if err != nil {
+		return err
+	}
+	defer s.stop()
+	body := fmt.Sprintf(`{"url":"https://github.com/%s"}`, ghScratchRepo)
+	res, err := http.Post(s.base+"/api/v1/github/sources", "application/json", strings.NewReader(body))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		out, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("the source was not made: %s", strings.TrimSpace(string(out)))
+	}
+	if _, err := d.ab("set", "viewport", fmt.Sprint(shotWidth), "640"); err != nil {
+		return err
+	}
+	return d.png("adopt-source", s.base+"/", func() error {
+		_, err := d.ab("eval", "(function(){var h=document.querySelectorAll('h2');for(var i=0;i<h.length;i++){if(h[i].textContent.indexOf('name no type')>=0){h[i].scrollIntoView({block:'start'});return 'ok'}}return 'no section'})()")
+		return err
+	})
 }
 
 // upABit scrolls back over the sticky header, so the comment's own header is in the picture.
@@ -245,10 +282,14 @@ func scratchFiles(root string) (map[string]string, error) {
 	cfg := "# Written by speccy init --github.\nmap:\n  - glob: \"docs/prd-*.md\"\n    profile: prd\n" +
 		"  - glob: \"docs/sdd-*.md\"\n    profile: sdd\nlink_rules:\n  - \"docs/sdd-{name}.md implements docs/prd-{name}.md\"\n" +
 		"adoption:\n  relaxed:\n    - lint.passive-voice\n"
+	// notes/ sits outside the mapping, so its docs name no type and no mapping covers them.
+	// They are what the adoption picture shows.
 	return map[string]string{
 		"docs/prd-payments.md": strings.Replace(string(prd), "type: prd\n", "", 1),
 		"docs/sdd-payments.md": strings.Replace(string(sdd), "target: payments-prd", "target: docs/prd-payments", 1),
 		".speccy.yaml":         cfg,
+		"notes/audit-trail.md": "# Audit trail\n\n## Context\n\nEvery refund writes a row.\n\n## Decisions\n\n- **DEC-001:** The audit log is append-only.\n\n## Interfaces\n\nThe writer takes a refund ID and returns nothing.\n",
+		"notes/meeting.md":     "# Notes from Tuesday\n\nWe talked about refunds.\n",
 	}, nil
 }
 

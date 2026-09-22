@@ -642,6 +642,30 @@ type ClientInterface interface {
 	// Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
 	DeleteGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PublishSourceMapping Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+	//
+	// Corresponds with POST /github/sources/{sourceId}/mapping (the `PublishSourceMapping` operationId).
+	PublishSourceMapping(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListSkippedDocs The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+	//
+	// Corresponds with GET /github/sources/{sourceId}/skipped (the `ListSkippedDocs` operationId).
+	ListSkippedDocs(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptSkippedDocsWithBody Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+	AdoptSkippedDocsWithBody(ctx context.Context, sourceId SourceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptSkippedDocs Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+	AdoptSkippedDocs(ctx context.Context, sourceId SourceId, body AdoptSkippedDocsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SyncGithubSource Read the source's branch now.
 	//
 	// Corresponds with POST /github/sources/{sourceId}/sync (the `SyncGithubSource` operationId).
@@ -2399,6 +2423,70 @@ func (c *Client) AddGithubSource(ctx context.Context, body AddGithubSourceJSONRe
 // Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
 func (c *Client) DeleteGithubSource(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteGithubSourceRequest(c.Server, sourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishSourceMapping Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+//
+// Corresponds with POST /github/sources/{sourceId}/mapping (the `PublishSourceMapping` operationId).
+func (c *Client) PublishSourceMapping(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishSourceMappingRequest(c.Server, sourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListSkippedDocs The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+//
+// Corresponds with GET /github/sources/{sourceId}/skipped (the `ListSkippedDocs` operationId).
+func (c *Client) ListSkippedDocs(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListSkippedDocsRequest(c.Server, sourceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptSkippedDocsWithBody Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+func (c *Client) AdoptSkippedDocsWithBody(ctx context.Context, sourceId SourceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptSkippedDocsRequestWithBody(c.Server, sourceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptSkippedDocs Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+func (c *Client) AdoptSkippedDocs(ctx context.Context, sourceId SourceId, body AdoptSkippedDocsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptSkippedDocsRequest(c.Server, sourceId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5989,6 +6077,121 @@ func NewDeleteGithubSourceRequest(server string, sourceId SourceId) (*http.Reque
 	return req, nil
 }
 
+// NewPublishSourceMappingRequest constructs an http.Request for the PublishSourceMapping method
+func NewPublishSourceMappingRequest(server string, sourceId SourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "sourceId", sourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources/%s/mapping", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListSkippedDocsRequest constructs an http.Request for the ListSkippedDocs method
+func NewListSkippedDocsRequest(server string, sourceId SourceId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "sourceId", sourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources/%s/skipped", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAdoptSkippedDocsRequest calls the generic AdoptSkippedDocs builder with application/json body
+func NewAdoptSkippedDocsRequest(server string, sourceId SourceId, body AdoptSkippedDocsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAdoptSkippedDocsRequestWithBody(server, sourceId, "application/json", bodyReader)
+}
+
+// NewAdoptSkippedDocsRequestWithBody constructs an http.Request for the AdoptSkippedDocs method, with any body, and a specified content type
+func NewAdoptSkippedDocsRequestWithBody(server string, sourceId SourceId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "sourceId", sourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github/sources/%s/skipped", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewSyncGithubSourceRequest constructs an http.Request for the SyncGithubSource method
 func NewSyncGithubSourceRequest(server string, sourceId SourceId) (*http.Request, error) {
 	var err error
@@ -8071,6 +8274,34 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with DELETE /github/sources/{sourceId} (the `DeleteGithubSource` operationId).
 	DeleteGithubSourceWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*DeleteGithubSourceResponse, error)
+
+	// PublishSourceMappingWithResponse Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/sources/{sourceId}/mapping (the `PublishSourceMapping` operationId).
+	PublishSourceMappingWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*PublishSourceMappingResponse, error)
+
+	// ListSkippedDocsWithResponse The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /github/sources/{sourceId}/skipped (the `ListSkippedDocs` operationId).
+	ListSkippedDocsWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*ListSkippedDocsResponse, error)
+
+	// AdoptSkippedDocsWithBodyWithResponse Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+	AdoptSkippedDocsWithBodyWithResponse(ctx context.Context, sourceId SourceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptSkippedDocsResponse, error)
+
+	// AdoptSkippedDocsWithResponse Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+	AdoptSkippedDocsWithResponse(ctx context.Context, sourceId SourceId, body AdoptSkippedDocsJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptSkippedDocsResponse, error)
 
 	// SyncGithubSourceWithResponse Read the source's branch now.
 	//
@@ -11558,6 +11789,166 @@ func (r DeleteGithubSourceResponse) ContentType() string {
 	return ""
 }
 
+type PublishSourceMappingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		PrNumber int    `json:"pr_number"`
+		PrUrl    string `json:"pr_url"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PublishSourceMappingResponse) GetJSON200() *struct {
+	PrNumber int    `json:"pr_number"`
+	PrUrl    string `json:"pr_url"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PublishSourceMappingResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PublishSourceMappingResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PublishSourceMappingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PublishSourceMappingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PublishSourceMappingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListSkippedDocsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []SourceSkippedDoc `json:"items"`
+
+		// Total How many files the scan passed over. More than the list holds means the source covers too much.
+		Total int `json:"total"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListSkippedDocsResponse) GetJSON200() *struct {
+	Items []SourceSkippedDoc `json:"items"`
+
+	// Total How many files the scan passed over. More than the list holds means the source covers too much.
+	Total int `json:"total"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListSkippedDocsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListSkippedDocsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListSkippedDocsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListSkippedDocsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListSkippedDocsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AdoptSkippedDocsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubSource
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AdoptSkippedDocsResponse) GetJSON200() *GithubSource {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AdoptSkippedDocsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AdoptSkippedDocsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AdoptSkippedDocsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AdoptSkippedDocsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AdoptSkippedDocsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type SyncGithubSourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14548,6 +14939,58 @@ func (c *ClientWithResponses) DeleteGithubSourceWithResponse(ctx context.Context
 	return ParseDeleteGithubSourceResponse(rsp)
 }
 
+// PublishSourceMappingWithResponse Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/sources/{sourceId}/mapping (the `PublishSourceMapping` operationId).
+func (c *ClientWithResponses) PublishSourceMappingWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*PublishSourceMappingResponse, error) {
+	rsp, err := c.PublishSourceMapping(ctx, sourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishSourceMappingResponse(rsp)
+}
+
+// ListSkippedDocsWithResponse The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /github/sources/{sourceId}/skipped (the `ListSkippedDocs` operationId).
+func (c *ClientWithResponses) ListSkippedDocsWithResponse(ctx context.Context, sourceId SourceId, reqEditors ...RequestEditorFn) (*ListSkippedDocsResponse, error) {
+	rsp, err := c.ListSkippedDocs(ctx, sourceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListSkippedDocsResponse(rsp)
+}
+
+// AdoptSkippedDocsWithBodyWithResponse Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+func (c *ClientWithResponses) AdoptSkippedDocsWithBodyWithResponse(ctx context.Context, sourceId SourceId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptSkippedDocsResponse, error) {
+	rsp, err := c.AdoptSkippedDocsWithBody(ctx, sourceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptSkippedDocsResponse(rsp)
+}
+
+// AdoptSkippedDocsWithResponse Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github/sources/{sourceId}/skipped (the `AdoptSkippedDocs` operationId).
+func (c *ClientWithResponses) AdoptSkippedDocsWithResponse(ctx context.Context, sourceId SourceId, body AdoptSkippedDocsJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptSkippedDocsResponse, error) {
+	rsp, err := c.AdoptSkippedDocs(ctx, sourceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptSkippedDocsResponse(rsp)
+}
+
 // SyncGithubSourceWithResponse Read the source's branch now.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -17356,6 +17799,113 @@ func ParseDeleteGithubSourceResponse(rsp *http.Response) (*DeleteGithubSourceRes
 	switch {
 	case rsp.StatusCode == 204:
 		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePublishSourceMappingResponse parses an HTTP response from a PublishSourceMappingWithResponse call
+func ParsePublishSourceMappingResponse(rsp *http.Response) (*PublishSourceMappingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PublishSourceMappingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			PrNumber int    `json:"pr_number"`
+			PrUrl    string `json:"pr_url"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListSkippedDocsResponse parses an HTTP response from a ListSkippedDocsWithResponse call
+func ParseListSkippedDocsResponse(rsp *http.Response) (*ListSkippedDocsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListSkippedDocsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []SourceSkippedDoc `json:"items"`
+
+			// Total How many files the scan passed over. More than the list holds means the source covers too much.
+			Total int `json:"total"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAdoptSkippedDocsResponse parses an HTTP response from a AdoptSkippedDocsWithResponse call
+func ParseAdoptSkippedDocsResponse(rsp *http.Response) (*AdoptSkippedDocsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AdoptSkippedDocsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubSource
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

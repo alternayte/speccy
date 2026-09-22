@@ -138,6 +138,7 @@ With no model key the Action runs the lint checks only, and the comment says wha
 
 ## Where next
 
+- [adoption.md](adoption.md) — every way in for docs you already have, including a source you never commit to.
 - [linked-docs.md](linked-docs.md) — the checks that read two docs against each other.
 - [configuration.md](configuration.md) — `.speccy.yaml` in full, and hosted mode.
 - [cli-and-tui.md](cli-and-tui.md) — every command, including `speccy review --summary` for a repo-wide table.

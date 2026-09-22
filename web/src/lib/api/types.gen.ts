@@ -712,6 +712,25 @@ export type GithubSource = {
     synced_at?: string;
     error: string;
     bundles: number;
+    /**
+     * How many docs of this source have a type accepted in Speccy (REQ-133).
+     */
+    adopted?: number;
+};
+
+export type SourceSkippedDoc = {
+    /**
+     * The file's path in the repo.
+     */
+    path: string;
+    /**
+     * The doc type Speccy reads from the headings. Absent when it is not sure.
+     */
+    guess?: string;
+    /**
+     * The doc type a person already accepted for this path. Empty when none.
+     */
+    adopted: string;
 };
 
 export type GithubResolved = {
@@ -4093,6 +4112,101 @@ export type DeleteGithubSourceResponses = {
 };
 
 export type DeleteGithubSourceResponse = DeleteGithubSourceResponses[keyof DeleteGithubSourceResponses];
+
+export type ListSkippedDocsData = {
+    body?: never;
+    path: {
+        sourceId: string;
+    };
+    query?: never;
+    url: '/github/sources/{sourceId}/skipped';
+};
+
+export type ListSkippedDocsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListSkippedDocsError = ListSkippedDocsErrors[keyof ListSkippedDocsErrors];
+
+export type ListSkippedDocsResponses = {
+    /**
+     * The skipped docs, in path order, at most 200.
+     */
+    200: {
+        items: Array<SourceSkippedDoc>;
+        /**
+         * How many files the scan passed over. More than the list holds means the source covers too much.
+         */
+        total: number;
+    };
+};
+
+export type ListSkippedDocsResponse = ListSkippedDocsResponses[keyof ListSkippedDocsResponses];
+
+export type AdoptSkippedDocsData = {
+    body: {
+        items: Array<{
+            path: string;
+            profile: string;
+        }>;
+    };
+    path: {
+        sourceId: string;
+    };
+    query?: never;
+    url: '/github/sources/{sourceId}/skipped';
+};
+
+export type AdoptSkippedDocsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AdoptSkippedDocsError = AdoptSkippedDocsErrors[keyof AdoptSkippedDocsErrors];
+
+export type AdoptSkippedDocsResponses = {
+    /**
+     * The source, after the sync that makes the bundles.
+     */
+    200: GithubSource;
+};
+
+export type AdoptSkippedDocsResponse = AdoptSkippedDocsResponses[keyof AdoptSkippedDocsResponses];
+
+export type PublishSourceMappingData = {
+    body?: never;
+    path: {
+        sourceId: string;
+    };
+    query?: never;
+    url: '/github/sources/{sourceId}/mapping';
+};
+
+export type PublishSourceMappingErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PublishSourceMappingError = PublishSourceMappingErrors[keyof PublishSourceMappingErrors];
+
+export type PublishSourceMappingResponses = {
+    /**
+     * The pull request.
+     */
+    200: {
+        pr_url: string;
+        pr_number: number;
+    };
+};
+
+export type PublishSourceMappingResponse = PublishSourceMappingResponses[keyof PublishSourceMappingResponses];
 
 export type SyncGithubSourceData = {
     body?: never;

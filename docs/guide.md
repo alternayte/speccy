@@ -34,6 +34,8 @@ size: feature
 
 Three ways to start one:
 
+A doc you wrote before Speccy takes a different way in. [adoption.md](adoption.md) covers all of them; the short version:
+
 - **New bundle** writes the profile's template.
 - Drag a folder or a file from Finder or Explorer onto the bundles screen. Speccy makes one bundle per folder, and a single-file bundle per loose markdown file.
 - `speccy init --github` in a repo that holds specs already. It maps the docs it recognises, relaxes the checks that fail today, and writes the Action's workflow. One pull request adopts the repo, and the first review names the checks your team opted into. See [configuration.md](configuration.md).

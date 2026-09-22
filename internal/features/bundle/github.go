@@ -187,12 +187,38 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 		// type in the doc, or a mapping in the repo, still wins (REQ-130).
 		cfg = mapOneDoc(cfg, src)
 	}
+	// REQ-133: the types a person accepted in the app, for the docs the repo names none for.
+	// The repo wins, so a path the repo now maps drops its row. repoCfg is the repo's own
+	// answer, without the mappings Speccy adds, so a doc does not look mapped to itself.
+	repoCfg := cfg
+	adopted, err := s.DB.Queries().ListAdoptedTypes(ctx, src.ID)
+	if err != nil {
+		return err
+	}
+	for _, a := range adopted {
+		if key, ok := cfg.MappedProfile(a.Path); ok && key != "" {
+			if err := s.DB.Queries().DeleteAdoptedType(ctx, pgdb.DeleteAdoptedTypeParams{SourceID: src.ID, Path: a.Path}); err != nil {
+				return err
+			}
+			continue
+		}
+		cfg.Map = append(cfg.Map, source.Mapping{Glob: a.Path, Profile: a.Profile})
+	}
 	scan, err := local.FromFS(tfs).Scan(cfg)
 	if err != nil {
 		return fail(err)
 	}
 	if err := s.applyGitHubScan(ctx, src, commit, cfg, scan, tfs); err != nil {
 		return fail(err)
+	}
+	// The files the scan passed over, so the app lists them with no second read of the tree.
+	skippedJSON, _ := json.Marshal(nonNilPaths(SkippedUnder(src, scan)))
+	if err := q.SetGithubSourceSkipped(ctx, pgdb.SetGithubSourceSkippedParams{ID: src.ID, Skipped: dbtype.JSON(skippedJSON)}); err != nil {
+		return err
+	}
+	// A doc that gained its own type in the repo no longer needs the row in Speccy.
+	if err := s.dropAdoptedWithType(ctx, src, repoCfg, tfs); err != nil {
+		return err
 	}
 	// A repo is other people's tree: Speccy writes no type into it. It says which files need
 	// one, instead of finding nothing in silence.
@@ -504,6 +530,57 @@ func (s *Service) DiscardDraft(ctx context.Context, id uuid.UUID, by string) (pg
 	return v, s.afterChange(ctx)
 }
 
+// nonNilPaths keeps the JSON an array, never null.
+func nonNilPaths(in []string) []string {
+	if in == nil {
+		return []string{}
+	}
+	return in
+}
+
+// dropAdoptedWithType removes the accepted type of a doc that the repo now types itself, by
+// the doc's own frontmatter or by a mapping in the repo's .speccy.yaml. It reads the file, not
+// the scan: the scan's type comes from the mapping Speccy adds for the accepted type.
+func (s *Service) dropAdoptedWithType(ctx context.Context, src pgdb.GithubSource, repoCfg source.RepoConfig, tfs fs.FS) error {
+	q := s.DB.Queries()
+	adopted, err := q.ListAdoptedTypes(ctx, src.ID)
+	if err != nil {
+		return err
+	}
+	for _, a := range adopted {
+		byRepo := false
+		if key, ok := repoCfg.MappedProfile(a.Path); ok && key != "" {
+			byRepo = true
+		}
+		if !byRepo {
+			raw, err := fs.ReadFile(tfs, a.Path)
+			if err != nil {
+				continue
+			}
+			fm, _, err := source.ReadFrontmatter(raw)
+			byRepo = err == nil && fm.Type != ""
+		}
+		if !byRepo {
+			continue
+		}
+		if err := q.DeleteAdoptedType(ctx, pgdb.DeleteAdoptedTypeParams{SourceID: src.ID, Path: a.Path}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SkippedUnder returns the markdown files under the source that the scan passed over.
+func SkippedUnder(src pgdb.GithubSource, scan *local.Scan) []string {
+	var out []string
+	for _, p := range scan.Skipped {
+		if underSource(src, p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // noBundleHere reports the markdown files under a source's path that name no type, when the
 // source has no bundle at all.
 func noBundleHere(src pgdb.GithubSource, scan *local.Scan) error {
@@ -526,4 +603,98 @@ func noBundleHere(src pgdb.GithubSource, scan *local.Scan) error {
 	}
 	return fmt.Errorf("no file under %s names a type, so this source has no bundle. Add \"type: <key>\" to the frontmatter of %s in the repo",
 		src.Path, strings.Join(skipped, ", "))
+}
+
+// PublishMapping opens a pull request that writes the accepted types into the repo's
+// .speccy.yaml (REQ-133). It writes one mapping for each folder whose accepted docs share a
+// type, and one for each other doc. It changes no doc and writes no workflow.
+func (s *Service) PublishMapping(ctx context.Context, id uuid.UUID, by string) (github.PullRequest, error) {
+	q := s.DB.Queries()
+	src, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: id})
+	if err != nil {
+		return github.PullRequest{}, err
+	}
+	adopted, err := q.ListAdoptedTypes(ctx, src.ID)
+	if err != nil {
+		return github.PullRequest{}, err
+	}
+	if len(adopted) == 0 {
+		return github.PullRequest{}, kernel.Invalid("nothing_adopted", "No doc of this source has a type accepted in Speccy, so there is nothing to write.")
+	}
+	c, err := s.github(ctx, src.ApiUrl)
+	if err != nil {
+		return github.PullRequest{}, err
+	}
+	cfg := source.RepoConfig{}
+	raw, ok, err := c.FileAt(ctx, src.Repo, src.Branch, source.RepoConfigFile)
+	if err != nil {
+		return github.PullRequest{}, err
+	}
+	if ok {
+		if cfg, err = source.ParseRepoConfig(raw); err != nil {
+			return github.PullRequest{}, kernel.Invalid("bad_repo_config", "%s in the repo is not valid: %s.", source.RepoConfigFile, err.Error())
+		}
+	}
+	var add []source.Mapping
+	for _, m := range mappingsFor(adopted) {
+		if key, has := cfg.MappedProfile(m.Glob); has && key == m.Profile {
+			continue
+		}
+		add = append(add, m)
+	}
+	if len(add) == 0 {
+		return github.PullRequest{}, kernel.Invalid("already_mapped", "The repo already maps every doc this source adopted.")
+	}
+	next, err := source.AddMappings(raw, add)
+	if err != nil {
+		return github.PullRequest{}, err
+	}
+	branch := fmt.Sprintf("speccy/mapping-%s", time.Now().UTC().Format("20060102150405"))
+	title := fmt.Sprintf("Map %d doc%s for Speccy", len(adopted), plural(len(adopted)))
+	body := fmt.Sprintf("Opened from Speccy by %s.\n\nIt adds mappings to `%s`, so the Speccy Action reads the same doc types as the app. It changes no doc.",
+		by, source.RepoConfigFile)
+	pr, err := c.Publish(ctx, src.Repo, src.Branch, src.HeadCommit, branch, title, title, body,
+		[]github.Change{{Path: source.RepoConfigFile, Content: next}})
+	if err != nil {
+		return pr, kernel.Invalid("publish_failed", "The pull request was not opened: %s.", strings.TrimSuffix(err.Error(), "."))
+	}
+	return pr, nil
+}
+
+// mappingsFor turns the accepted types into mappings: one glob per folder whose accepted docs
+// share a type, and one per doc otherwise.
+func mappingsFor(adopted []pgdb.AdoptedType) []source.Mapping {
+	byDir := map[string]map[string]bool{}
+	for _, a := range adopted {
+		dir := path.Dir(a.Path)
+		if byDir[dir] == nil {
+			byDir[dir] = map[string]bool{}
+		}
+		byDir[dir][a.Profile] = true
+	}
+	var out []source.Mapping
+	seen := map[string]bool{}
+	for _, a := range adopted {
+		dir := path.Dir(a.Path)
+		if len(byDir[dir]) == 1 && dir != "." {
+			glob := path.Join(dir, "*.md")
+			if !seen[glob] {
+				seen[glob] = true
+				out = append(out, source.Mapping{Glob: glob, Profile: a.Profile})
+			}
+			continue
+		}
+		if !seen[a.Path] {
+			seen[a.Path] = true
+			out = append(out, source.Mapping{Glob: a.Path, Profile: a.Profile})
+		}
+	}
+	return out
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }

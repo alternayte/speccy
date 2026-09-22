@@ -1917,6 +1917,83 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /github/sources/{sourceId}/skipped:
+    parameters:
+      - $ref: "#/components/parameters/SourceId"
+    get:
+      operationId: listSkippedDocs
+      summary: The markdown files under the source that the scan passed over, with a guessed doc type each (REQ-133).
+      responses:
+        "200":
+          description: The skipped docs, in path order, at most 200.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SourceSkippedDoc"
+                  total:
+                    type: integer
+                    description: How many files the scan passed over. More than the list holds means the source covers too much.
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: adoptSkippedDocs
+      summary: Accept a doc type for skipped docs of the source, held in Speccy (REQ-133). The repo takes no commit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [path, profile]
+                    properties:
+                      path:
+                        type: string
+                      profile:
+                        type: string
+      responses:
+        "200":
+          description: The source, after the sync that makes the bundles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubSource"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /github/sources/{sourceId}/mapping:
+    parameters:
+      - $ref: "#/components/parameters/SourceId"
+    post:
+      operationId: publishSourceMapping
+      summary: Open a pull request that writes the accepted types into the repo's .speccy.yaml (REQ-133).
+      responses:
+        "200":
+          description: The pull request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [pr_url, pr_number]
+                properties:
+                  pr_url:
+                    type: string
+                  pr_number:
+                    type: integer
+        default:
+          $ref: "#/components/responses/Problem"
+
   /github/sources/{sourceId}/sync:
     parameters:
       - $ref: "#/components/parameters/SourceId"
@@ -3276,6 +3353,23 @@ components:
           type: string
         bundles:
           type: integer
+        adopted:
+          type: integer
+          description: How many docs of this source have a type accepted in Speccy (REQ-133).
+
+    SourceSkippedDoc:
+      type: object
+      required: [path, adopted]
+      properties:
+        path:
+          type: string
+          description: The file's path in the repo.
+        guess:
+          type: string
+          description: The doc type Speccy reads from the headings. Absent when it is not sure.
+        adopted:
+          type: string
+          description: The doc type a person already accepted for this path. Empty when none.
 
     GithubResolved:
       type: object

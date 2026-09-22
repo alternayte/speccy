@@ -66,3 +66,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - External link: a link from a bundle to an artifact outside Speccy: an issue, a page, a repo path, or a commit. Avoid: reference, integration, external reference.
 - Drift: a code target changed after the doc version that a review run read. Avoid: stale, out of date, divergence.
 - Unchecked: an external link state meaning no credential and no MCP connection can read the target. Avoid: unknown, unreachable, skipped.
+- Skipped doc: a markdown file in a source that the scan passed over, because it names no type and no mapping covers it. Avoid: unmapped file, orphan doc, candidate.
+- Adopted type: the doc type a person accepted in Speccy for one path in a source. The repo replaces it when it names its own. Avoid: override, profile override, guess.
