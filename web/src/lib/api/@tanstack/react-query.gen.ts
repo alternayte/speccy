@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { acceptFix, addGithubSource, addTraceIds, adoptFrontmatter, adoptSkipped, adoptSkippedDocs, approveBundle, approveWaiver, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createProfile, createResetLink, createShareLink, deleteBackend, deleteFile, deleteGithubConnection, deleteGithubSource, deleteMcpConnection, diffVersions, discardDraft, dismissDoc, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getBundleStatus, getContentReviewReport, getFileContent, getGithubConnection, getInbox, getInsights, getMe, getMeta, getProfile, getRun, getRunReport, getSettings, getShare, getThread, getTour, getTrace, getVerification, guessProfile, importBundle, joinShare, listAssumptions, listBackends, listBundles, listBundleThreads, listClaims, listDismissedDocs, listFiles, listFindings, listGithubSources, listHandoffs, listInvites, listMcpConnections, listMcpTools, listPeople, listPresets, listProfiles, listProfileThreads, listQuestions, listRoles, listRuns, listSkipped, listSkippedDocs, listVerifications, listVersions, listWaivers, markDecision, markInboxSeen, openBundleThread, openProfileThread, type Options, postMessage, publishBundle, publishSourceMapping, putFileContent, rejectWaiver, renameFile, renderMarkdown, reportBuild, requestReview, requestVerificationWaiver, requestWaiver, resolveGithubUrl, reviewContent, revokeInvite, revokeShareLink, runVerification, setBudget, setGithubConnection, setMaintainers, setSettings, setThreadBlocking, setThreadStatus, setVisibility, startRun, suggestFix, summarizeDiff, syncGithubSource, takeHandoff, testBackend, unassignRole, undismissDoc, updateBackend, updateMcpConnection, updateProfile } from '../sdk.gen';
-import type { AcceptFixData, AcceptFixError, AcceptFixResponse, AddGithubSourceData, AddGithubSourceError, AddGithubSourceResponse, AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, AdoptFrontmatterData, AdoptFrontmatterError, AdoptFrontmatterResponse, AdoptSkippedData, AdoptSkippedDocsData, AdoptSkippedDocsError, AdoptSkippedDocsResponse, AdoptSkippedError, AdoptSkippedResponse, ApproveBundleData, ApproveBundleError, ApproveBundleResponse, ApproveWaiverData, ApproveWaiverError, ApproveWaiverResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateProfileData, CreateProfileError, CreateProfileResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteGithubConnectionData, DeleteGithubConnectionError, DeleteGithubConnectionResponse, DeleteGithubSourceData, DeleteGithubSourceError, DeleteGithubSourceResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, DiscardDraftData, DiscardDraftError, DiscardDraftResponse, DismissDocData, DismissDocError, DismissDocResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetBundleStatusData, GetBundleStatusError, GetBundleStatusResponse, GetContentReviewReportData, GetContentReviewReportError, GetContentReviewReportResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetGithubConnectionData, GetGithubConnectionError, GetGithubConnectionResponse, GetInboxData, GetInboxError, GetInboxResponse, GetInsightsData, GetInsightsError, GetInsightsResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetProfileData, GetProfileError, GetProfileResponse, GetRunData, GetRunError, GetRunReportData, GetRunReportError, GetRunReportResponse, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetThreadData, GetThreadError, GetThreadResponse, GetTourData, GetTourError, GetTourResponse, GetTraceData, GetTraceError, GetTraceResponse, GetVerificationData, GetVerificationError, GetVerificationResponse, GuessProfileData, GuessProfileError, GuessProfileResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListBundleThreadsData, ListBundleThreadsError, ListBundleThreadsResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListDismissedDocsData, ListDismissedDocsError, ListDismissedDocsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListGithubSourcesData, ListGithubSourcesError, ListGithubSourcesResponse, ListHandoffsData, ListHandoffsError, ListHandoffsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPeopleData, ListPeopleError, ListPeopleResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListProfileThreadsData, ListProfileThreadsError, ListProfileThreadsResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListSkippedData, ListSkippedDocsData, ListSkippedDocsError, ListSkippedDocsResponse, ListSkippedError, ListSkippedResponse, ListVerificationsData, ListVerificationsError, ListVerificationsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, ListWaiversData, ListWaiversError, ListWaiversResponse, MarkDecisionData, MarkDecisionError, MarkDecisionResponse, MarkInboxSeenData, MarkInboxSeenError, MarkInboxSeenResponse, OpenBundleThreadData, OpenBundleThreadError, OpenBundleThreadResponse, OpenProfileThreadData, OpenProfileThreadError, OpenProfileThreadResponse, PostMessageData, PostMessageError, PostMessageResponse, PublishBundleData, PublishBundleError, PublishBundleResponse, PublishSourceMappingData, PublishSourceMappingError, PublishSourceMappingResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RejectWaiverData, RejectWaiverError, RejectWaiverResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, ReportBuildData, ReportBuildError, ReportBuildResponse, RequestReviewData, RequestReviewError, RequestReviewResponse, RequestVerificationWaiverData, RequestVerificationWaiverError, RequestVerificationWaiverResponse, RequestWaiverData, RequestWaiverError, RequestWaiverResponse, ResolveGithubUrlData, ResolveGithubUrlError, ResolveGithubUrlResponse, ReviewContentData, ReviewContentError, ReviewContentResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, RunVerificationData, RunVerificationError, RunVerificationResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetGithubConnectionData, SetGithubConnectionError, SetGithubConnectionResponse, SetMaintainersData, SetMaintainersError, SetMaintainersResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetThreadBlockingData, SetThreadBlockingError, SetThreadBlockingResponse, SetThreadStatusData, SetThreadStatusError, SetThreadStatusResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, SuggestFixData, SuggestFixError, SuggestFixResponse, SummarizeDiffData, SummarizeDiffError, SummarizeDiffResponse, SyncGithubSourceData, SyncGithubSourceError, SyncGithubSourceResponse, TakeHandoffData, TakeHandoffError, TakeHandoffResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UndismissDocData, UndismissDocError, UndismissDocResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse } from '../types.gen';
+import { acceptFix, addGithubSource, addTraceIds, adoptFrontmatter, adoptSkipped, adoptSkippedDocs, approveBundle, approveWaiver, assignRole, createBackend, createBundle, createInvite, createMcpConnection, createProfile, createResetLink, createShareLink, deleteBackend, deleteBundle, deleteBundlePlan, deleteFile, deleteGithubConnection, deleteGithubSource, deleteMcpConnection, deleteProfile, diffProfileVersions, diffVersions, discardDraft, dismissDoc, estimateRun, exportBundle, getBudget, getBundle, getBundleAccess, getBundleStatus, getContentReviewReport, getFileContent, getGithubConnection, getInbox, getInsights, getMe, getMeta, getProfile, getRun, getRunReport, getSettings, getShare, getThread, getTour, getTrace, getVerification, guessProfile, importBundle, joinShare, listAssumptions, listBackends, listBundles, listBundleThreads, listClaims, listDismissedDocs, listFiles, listFindings, listGithubSources, listHandoffs, listInvites, listMcpConnections, listMcpTools, listPeople, listPresets, listProfiles, listProfileThreads, listQuestions, listRoles, listRuns, listSkipped, listSkippedDocs, listVerifications, listVersions, listWaivers, markDecision, markInboxSeen, openBundleThread, openProfileThread, type Options, postMessage, publishBundle, publishSourceMapping, putFileContent, rejectWaiver, renameFile, renderMarkdown, reportBuild, requestReview, requestVerificationWaiver, requestWaiver, resolveGithubUrl, reviewContent, revokeInvite, revokeShareLink, rollbackProfile, runVerification, setBudget, setGithubConnection, setMaintainers, setSettings, setThreadBlocking, setThreadStatus, setVisibility, startRun, suggestFix, summarizeDiff, syncGithubSource, takeHandoff, testBackend, unassignRole, undismissDoc, updateBackend, updateMcpConnection, updateProfile } from '../sdk.gen';
+import type { AcceptFixData, AcceptFixError, AcceptFixResponse, AddGithubSourceData, AddGithubSourceError, AddGithubSourceResponse, AddTraceIdsData, AddTraceIdsError, AddTraceIdsResponse, AdoptFrontmatterData, AdoptFrontmatterError, AdoptFrontmatterResponse, AdoptSkippedData, AdoptSkippedDocsData, AdoptSkippedDocsError, AdoptSkippedDocsResponse, AdoptSkippedError, AdoptSkippedResponse, ApproveBundleData, ApproveBundleError, ApproveBundleResponse, ApproveWaiverData, ApproveWaiverError, ApproveWaiverResponse, AssignRoleData, AssignRoleError, AssignRoleResponse, CreateBackendData, CreateBackendError, CreateBackendResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateInviteData, CreateInviteError, CreateInviteResponse, CreateMcpConnectionData, CreateMcpConnectionError, CreateMcpConnectionResponse, CreateProfileData, CreateProfileError, CreateProfileResponse, CreateResetLinkData, CreateResetLinkError, CreateResetLinkResponse, CreateShareLinkData, CreateShareLinkError, CreateShareLinkResponse, DeleteBackendData, DeleteBackendError, DeleteBackendResponse, DeleteBundleData, DeleteBundleError, DeleteBundlePlanData, DeleteBundlePlanError, DeleteBundlePlanResponse, DeleteBundleResponse, DeleteFileData, DeleteFileError, DeleteFileResponse, DeleteGithubConnectionData, DeleteGithubConnectionError, DeleteGithubConnectionResponse, DeleteGithubSourceData, DeleteGithubSourceError, DeleteGithubSourceResponse, DeleteMcpConnectionData, DeleteMcpConnectionError, DeleteMcpConnectionResponse, DeleteProfileData, DeleteProfileError, DeleteProfileResponse, DiffProfileVersionsData, DiffProfileVersionsError, DiffProfileVersionsResponse, DiffVersionsData, DiffVersionsError, DiffVersionsResponse, DiscardDraftData, DiscardDraftError, DiscardDraftResponse, DismissDocData, DismissDocError, DismissDocResponse, EstimateRunData, EstimateRunError, EstimateRunResponse, ExportBundleData, ExportBundleError, ExportBundleResponse, GetBudgetData, GetBudgetError, GetBudgetResponse, GetBundleAccessData, GetBundleAccessError, GetBundleAccessResponse, GetBundleData, GetBundleError, GetBundleResponse, GetBundleStatusData, GetBundleStatusError, GetBundleStatusResponse, GetContentReviewReportData, GetContentReviewReportError, GetContentReviewReportResponse, GetFileContentData, GetFileContentError, GetFileContentResponse, GetGithubConnectionData, GetGithubConnectionError, GetGithubConnectionResponse, GetInboxData, GetInboxError, GetInboxResponse, GetInsightsData, GetInsightsError, GetInsightsResponse, GetMeData, GetMeError, GetMeResponse, GetMetaData, GetMetaError, GetMetaResponse, GetProfileData, GetProfileError, GetProfileResponse, GetRunData, GetRunError, GetRunReportData, GetRunReportError, GetRunReportResponse, GetRunResponse, GetSettingsData, GetSettingsError, GetSettingsResponse, GetShareData, GetShareError, GetShareResponse, GetThreadData, GetThreadError, GetThreadResponse, GetTourData, GetTourError, GetTourResponse, GetTraceData, GetTraceError, GetTraceResponse, GetVerificationData, GetVerificationError, GetVerificationResponse, GuessProfileData, GuessProfileError, GuessProfileResponse, ImportBundleData, ImportBundleError, ImportBundleResponse, JoinShareData, JoinShareError, JoinShareResponse, ListAssumptionsData, ListAssumptionsError, ListAssumptionsResponse, ListBackendsData, ListBackendsError, ListBackendsResponse, ListBundlesData, ListBundlesError, ListBundlesResponse, ListBundleThreadsData, ListBundleThreadsError, ListBundleThreadsResponse, ListClaimsData, ListClaimsError, ListClaimsResponse, ListDismissedDocsData, ListDismissedDocsError, ListDismissedDocsResponse, ListFilesData, ListFilesError, ListFilesResponse, ListFindingsData, ListFindingsError, ListFindingsResponse, ListGithubSourcesData, ListGithubSourcesError, ListGithubSourcesResponse, ListHandoffsData, ListHandoffsError, ListHandoffsResponse, ListInvitesData, ListInvitesError, ListInvitesResponse, ListMcpConnectionsData, ListMcpConnectionsError, ListMcpConnectionsResponse, ListMcpToolsData, ListMcpToolsError, ListMcpToolsResponse, ListPeopleData, ListPeopleError, ListPeopleResponse, ListPresetsData, ListPresetsError, ListPresetsResponse, ListProfilesData, ListProfilesError, ListProfilesResponse, ListProfileThreadsData, ListProfileThreadsError, ListProfileThreadsResponse, ListQuestionsData, ListQuestionsError, ListQuestionsResponse, ListRolesData, ListRolesError, ListRolesResponse, ListRunsData, ListRunsError, ListRunsResponse, ListSkippedData, ListSkippedDocsData, ListSkippedDocsError, ListSkippedDocsResponse, ListSkippedError, ListSkippedResponse, ListVerificationsData, ListVerificationsError, ListVerificationsResponse, ListVersionsData, ListVersionsError, ListVersionsResponse, ListWaiversData, ListWaiversError, ListWaiversResponse, MarkDecisionData, MarkDecisionError, MarkDecisionResponse, MarkInboxSeenData, MarkInboxSeenError, MarkInboxSeenResponse, OpenBundleThreadData, OpenBundleThreadError, OpenBundleThreadResponse, OpenProfileThreadData, OpenProfileThreadError, OpenProfileThreadResponse, PostMessageData, PostMessageError, PostMessageResponse, PublishBundleData, PublishBundleError, PublishBundleResponse, PublishSourceMappingData, PublishSourceMappingError, PublishSourceMappingResponse, PutFileContentData, PutFileContentError, PutFileContentResponse, RejectWaiverData, RejectWaiverError, RejectWaiverResponse, RenameFileData, RenameFileError, RenameFileResponse, RenderMarkdownData, RenderMarkdownError, RenderMarkdownResponse, ReportBuildData, ReportBuildError, ReportBuildResponse, RequestReviewData, RequestReviewError, RequestReviewResponse, RequestVerificationWaiverData, RequestVerificationWaiverError, RequestVerificationWaiverResponse, RequestWaiverData, RequestWaiverError, RequestWaiverResponse, ResolveGithubUrlData, ResolveGithubUrlError, ResolveGithubUrlResponse, ReviewContentData, ReviewContentError, ReviewContentResponse, RevokeInviteData, RevokeInviteError, RevokeInviteResponse, RevokeShareLinkData, RevokeShareLinkError, RevokeShareLinkResponse, RollbackProfileData, RollbackProfileError, RollbackProfileResponse, RunVerificationData, RunVerificationError, RunVerificationResponse, SetBudgetData, SetBudgetError, SetBudgetResponse, SetGithubConnectionData, SetGithubConnectionError, SetGithubConnectionResponse, SetMaintainersData, SetMaintainersError, SetMaintainersResponse, SetSettingsData, SetSettingsError, SetSettingsResponse, SetThreadBlockingData, SetThreadBlockingError, SetThreadBlockingResponse, SetThreadStatusData, SetThreadStatusError, SetThreadStatusResponse, SetVisibilityData, SetVisibilityError, SetVisibilityResponse, StartRunData, StartRunError, StartRunResponse, SuggestFixData, SuggestFixError, SuggestFixResponse, SummarizeDiffData, SummarizeDiffError, SummarizeDiffResponse, SyncGithubSourceData, SyncGithubSourceError, SyncGithubSourceResponse, TakeHandoffData, TakeHandoffError, TakeHandoffResponse, TestBackendData, TestBackendError, TestBackendResponse, UnassignRoleData, UnassignRoleError, UnassignRoleResponse, UndismissDocData, UndismissDocError, UndismissDocResponse, UpdateBackendData, UpdateBackendError, UpdateBackendResponse, UpdateMcpConnectionData, UpdateMcpConnectionError, UpdateMcpConnectionResponse, UpdateProfileData, UpdateProfileError, UpdateProfileResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -196,6 +196,24 @@ export const requestVerificationWaiverMutation = (options?: Partial<Options<Requ
     };
     return mutationOptions;
 };
+
+export const deleteBundlePlanQueryKey = (options: Options<DeleteBundlePlanData>) => createQueryKey('deleteBundlePlan', options);
+
+/**
+ * What the Delete control offers for this bundle, by the kind of source that makes it.
+ */
+export const deleteBundlePlanOptions = (options: Options<DeleteBundlePlanData>) => queryOptions<DeleteBundlePlanResponse, DeleteBundlePlanError, DeleteBundlePlanResponse, ReturnType<typeof deleteBundlePlanQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await deleteBundlePlan({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: deleteBundlePlanQueryKey(options)
+});
 
 export const listVerificationsQueryKey = (options: Options<ListVerificationsData>) => createQueryKey('listVerifications', options);
 
@@ -528,6 +546,23 @@ export const importBundleMutation = (options?: Partial<Options<ImportBundleData>
     const mutationOptions: UseMutationOptions<ImportBundleResponse, ImportBundleError, Options<ImportBundleData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await importBundle({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+ */
+export const deleteBundleMutation = (options?: Partial<Options<DeleteBundleData>>): UseMutationOptions<DeleteBundleResponse, DeleteBundleError, Options<DeleteBundleData>> => {
+    const mutationOptions: UseMutationOptions<DeleteBundleResponse, DeleteBundleError, Options<DeleteBundleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteBundle({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1479,6 +1514,23 @@ export const getInsightsOptions = (options?: Options<GetInsightsData>) => queryO
     queryKey: getInsightsQueryKey(options)
 });
 
+/**
+ * Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+ */
+export const deleteProfileMutation = (options?: Partial<Options<DeleteProfileData>>): UseMutationOptions<DeleteProfileResponse, DeleteProfileError, Options<DeleteProfileData>> => {
+    const mutationOptions: UseMutationOptions<DeleteProfileResponse, DeleteProfileError, Options<DeleteProfileData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteProfile({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const getProfileQueryKey = (options: Options<GetProfileData>) => createQueryKey('getProfile', options);
 
 /**
@@ -1521,6 +1573,41 @@ export const setMaintainersMutation = (options?: Partial<Options<SetMaintainersD
     const mutationOptions: UseMutationOptions<SetMaintainersResponse, SetMaintainersError, Options<SetMaintainersData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await setMaintainers({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const diffProfileVersionsQueryKey = (options: Options<DiffProfileVersionsData>) => createQueryKey('diffProfileVersions', options);
+
+/**
+ * The YAML diff and the template diff between two versions of a profile.
+ */
+export const diffProfileVersionsOptions = (options: Options<DiffProfileVersionsData>) => queryOptions<DiffProfileVersionsResponse, DiffProfileVersionsError, DiffProfileVersionsResponse, ReturnType<typeof diffProfileVersionsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await diffProfileVersions({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: diffProfileVersionsQueryKey(options)
+});
+
+/**
+ * Write a new version whose text equals an earlier one. No number changes meaning.
+ */
+export const rollbackProfileMutation = (options?: Partial<Options<RollbackProfileData>>): UseMutationOptions<RollbackProfileResponse, RollbackProfileError, Options<RollbackProfileData>> => {
+    const mutationOptions: UseMutationOptions<RollbackProfileResponse, RollbackProfileError, Options<RollbackProfileData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await rollbackProfile({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

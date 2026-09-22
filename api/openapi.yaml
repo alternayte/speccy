@@ -191,6 +191,22 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/delete-plan:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: deleteBundlePlan
+      summary: What the Delete control offers for this bundle, by the kind of source that makes it.
+      responses:
+        "200":
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletePlan"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/verifications:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -531,6 +547,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteBundle
+      summary: Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          description: The bundle's slug, typed to confirm.
+          schema: { type: string }
+      responses:
+        "204":
+          description: The bundle is gone.
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1616,6 +1646,14 @@ paths:
                 $ref: "#/components/schemas/ProfileDetail"
         default:
           $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteProfile
+      summary: Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+      responses:
+        "204":
+          description: The profile is gone.
+        default:
+          $ref: "#/components/responses/Problem"
 
   /profiles/{key}/maintainers:
     parameters:
@@ -1638,6 +1676,55 @@ paths:
       responses:
         "200":
           description: The profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDetail"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles/{key}/diff:
+    parameters:
+      - $ref: "#/components/parameters/ProfileKey"
+      - name: from_version
+        in: query
+        required: true
+        schema: { type: integer }
+      - name: to_version
+        in: query
+        required: true
+        schema: { type: integer }
+    get:
+      operationId: diffProfileVersions
+      summary: The YAML diff and the template diff between two versions of a profile.
+      responses:
+        "200":
+          description: The diff.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileDiff"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /profiles/{key}/rollback:
+    parameters:
+      - $ref: "#/components/parameters/ProfileKey"
+    post:
+      operationId: rollbackProfile
+      summary: Write a new version whose text equals an earlier one. No number changes meaning.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version: { type: integer }
+      responses:
+        "200":
+          description: The profile, at its new version.
           content:
             application/json:
               schema:
@@ -2764,6 +2851,45 @@ components:
           type: integer
         cache_hits:
           type: integer
+
+    ProfileDiff:
+      type: object
+      required: [from, to, yaml, template]
+      properties:
+        from: { type: integer }
+        to: { type: integer }
+        yaml:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineOp"
+        template:
+          type: array
+          items:
+            $ref: "#/components/schemas/LineOp"
+
+    DeletePlan:
+      type: object
+      required: [kind, slug, message]
+      properties:
+        kind:
+          type: string
+          enum: [db, github, local]
+        slug:
+          type: string
+        message:
+          type: string
+          description: What the person must do to be rid of this bundle.
+        source_id:
+          type: string
+          format: uuid
+        source_repo:
+          type: string
+        source_bundles:
+          type: integer
+          description: How many bundles the source holds, which go with it.
+        dir:
+          type: string
+          description: The folder on disk that makes a local bundle.
 
     VerificationRequest:
       type: object

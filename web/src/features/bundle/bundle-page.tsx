@@ -29,6 +29,7 @@ import { FindingsPanel, waiverCovers } from "./findings-panel";
 import type { BundleSearch } from "./search";
 import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VersionsPanel } from "./versions-panel";
+import { DeleteBundleDialog } from "./delete-dialog";
 import { HandoffsPanel } from "./handoffs-panel";
 import { VerificationsPanel } from "./verifications-panel";
 import { ReviewerPage } from "@/features/review/reviewer-page";
@@ -62,6 +63,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<RailTab>("findings");
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
+  const [deleting, setDeleting] = useState(false);
   // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
   const [selectedFinding, setSelectedFinding] = useState<string>();
   // newThread is the anchor of a thread the user is starting (REQ-087).
@@ -229,6 +231,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         busy={!!run.active}
         onNext={() => doNext(b.next_action)}
         onFiles={() => setPanel(panel === "files" ? null : "files")}
+        onDelete={guest ? undefined : () => setDeleting(true)}
         onRunReview={() => runReview.current?.()}
         onRequestReview={hosted ? () => askReview.current?.() : undefined}
         onExport={(format) =>
@@ -261,6 +264,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           </>
         }
       />
+
+      <DeleteBundleDialog bundleId={bundleId} open={deleting} onOpenChange={setDeleting} />
 
       <div className="no-print">{run.active ? <RunProgress events={run.events} /> : null}</div>
 

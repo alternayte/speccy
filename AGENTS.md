@@ -78,3 +78,4 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Source policy: the profile section that says which domains the grounding stage accepts, their tier and their freshness period. Avoid: allowlist, trusted sources, grounding config.
 - Unproven: the verification outcome where a code target holds and the judge neither affirmed the requirement nor found a contradiction. Avoid: inconclusive, unknown, partial.
 - Claim class: the class a claim takes from the heading path of the section it is anchored in, which selects the grounding source policy. Avoid: claim type, category, tag.
+- Start from: the profile whose YAML and template prefill the form of a new profile. Avoid: clone, duplicate, template, copy.

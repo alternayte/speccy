@@ -109,7 +109,11 @@ var operations = map[string]access{
 	"openProfileThread":  member,
 	"updateProfile":      profileEdit,
 	"createProfile":      adminOnly,
-	"setMaintainers":     adminOnly,
+	"deleteProfile":      adminOnly,
+	// A rollback is an edit of the profile, so it takes the same gate.
+	"rollbackProfile":     profileEdit,
+	"diffProfileVersions": member,
+	"setMaintainers":      adminOnly,
 
 	"adoptFrontmatter": bundleEdit,
 	// A handoff reads the bundle and records who took it (REQ-136).
@@ -118,7 +122,10 @@ var operations = map[string]access{
 	// A verification run reads the bundle and the code, and opens a blocking thread when a
 	// MUST outcome blocks. It changes no verdict itself.
 	"listVerifications": bundleRead,
-	"runVerification":   bundleAI,
+	// An author of the bundle or an admin deletes it; the handler checks which.
+	"deleteBundlePlan": bundleRead,
+	"deleteBundle":     bundleEdit,
+	"runVerification":  bundleAI,
 	// A verification waiver follows the waiver policy, exactly as a check waiver does.
 	"requestVerificationWaiver": bundleAI,
 	// A run names no bundle in its path, so the path gives no bundle to scope on.

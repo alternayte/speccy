@@ -275,3 +275,44 @@ func TestVerifyRunGoesStaleWithANewVersion(t *testing.T) {
 		})
 	}
 }
+
+// Deleting a bundle removes everything that hangs off it. A row left behind would go on
+// answering queries and counting in Insights for a doc that is gone.
+func TestDeleteBundleRemovesEverything(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			fakeModels(t, env)
+			tracePrefixes(t, env)
+			env.edit(t, specDoc)
+			repo := t.TempDir()
+			write(t, repo, "gateway.go", "package gateway\n\n// REQ-001 lives here.\nfunc Reject() bool { return true }\n")
+			runVerify(t, env, repo) // a run, outcomes and a blocking thread to delete with it
+			id := env.b.ID
+
+			if _, err := env.app.API.DeleteBundle(as("author"), api.DeleteBundleRequestObject{
+				BundleId: id, Params: api.DeleteBundleParams{Slug: "wrong"}}); err == nil {
+				t.Fatal("a wrong slug must not delete a bundle")
+			}
+			if _, err := env.app.API.DeleteBundle(as("author"), api.DeleteBundleRequestObject{
+				BundleId: id, Params: api.DeleteBundleParams{Slug: env.b.Slug}}); err != nil {
+				t.Fatal(err)
+			}
+
+			ctx := context.Background()
+			q := env.app.Bundles.DB.Queries()
+			if _, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: env.app.Workspace, ID: id}); err == nil {
+				t.Error("the bundle row is still there")
+			}
+			if n, err := q.CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: id, Valid: true}); err != nil || n != 0 {
+				t.Errorf("blocking threads = %d (%v), want none", n, err)
+			}
+			if rows, err := q.ListVerificationRuns(ctx, id); err != nil || len(rows) != 0 {
+				t.Errorf("verification runs = %d (%v), want none", len(rows), err)
+			}
+			if rows, err := q.ListBundleWaivers(ctx, id); err != nil || len(rows) != 0 {
+				t.Errorf("waivers = %d (%v), want none", len(rows), err)
+			}
+		})
+	}
+}

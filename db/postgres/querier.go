@@ -16,23 +16,57 @@ type Querier interface {
 	BundleByShareToken(ctx context.Context, arg BundleByShareTokenParams) (Bundle, error)
 	// The oldest queued job, or a running job whose lock expired (its worker died).
 	ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
+	// The bundle points at a version, and the version points at the bundle. The head goes first,
+	// so neither foreign key holds the other up.
+	ClearBundleHead(ctx context.Context, id uuid.UUID) error
 	CountAssignmentsForBackend(ctx context.Context, arg CountAssignmentsForBackendParams) (int64, error)
 	// REQ-086: a guest's posts in the last hour.
 	CountAuthorMessagesSince(ctx context.Context, arg CountAuthorMessagesSinceParams) (int64, error)
+	CountBundlesUsingProfile(ctx context.Context, arg CountBundlesUsingProfileParams) (int64, error)
 	// For insights: failing checks in the latest completed run of each bundle.
 	CountFindingsByCheck(ctx context.Context, arg CountFindingsByCheckParams) ([]CountFindingsByCheckRow, error)
 	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
 	DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypeParams) error
+	DeleteAnswersOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error
+	DeleteBundleReviewers(ctx context.Context, bundleID uuid.UUID) error
+	DeleteBundleRow(ctx context.Context, arg DeleteBundleRowParams) error
+	DeleteBundleStatusView(ctx context.Context, bundleID uuid.UUID) error
+	DeleteClaimsOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error
 	DeleteDismissedDoc(ctx context.Context, arg DeleteDismissedDocParams) error
+	DeleteEventsOfStream(ctx context.Context, streamID uuid.UUID) error
+	DeleteFindingsOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
+	DeleteHandoffsOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error
+	DeleteLinkStatesOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
+	DeleteLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
+	DeleteOrphanBlobs(ctx context.Context) error
 	DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error
+	DeleteProfileMaintainersOf(ctx context.Context, profileID uuid.UUID) error
+	DeleteProfileRow(ctx context.Context, arg DeleteProfileRowParams) error
+	DeleteProfileVersionsOf(ctx context.Context, profileID uuid.UUID) error
+	DeleteQuestionResultsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteQuestionsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteReviewRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteRunLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteStream(ctx context.Context, streamID uuid.UUID) error
+	DeleteThreadMessagesOfBundle(ctx context.Context, bundleID uuid.NullUUID) error
+	DeleteThreadsOfBundle(ctx context.Context, bundleID uuid.NullUUID) error
+	DeleteVerdictsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	// Deleting a bundle removes everything that hangs off it. The order is children first,
+	// because the foreign keys do not cascade.
+	DeleteVerificationOutcomesOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteVerificationRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteVersionFilesOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteVersionsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
@@ -126,6 +160,7 @@ type Querier interface {
 	ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]WaiverView, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
+	ListBundlesUsingProfile(ctx context.Context, arg ListBundlesUsingProfileParams) ([]ListBundlesUsingProfileRow, error)
 	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
 	ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) ([]DismissedDoc, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
@@ -185,6 +220,7 @@ type Querier interface {
 	SpendResetLink(ctx context.Context, arg SpendResetLinkParams) (ResetLink, error)
 	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
+	ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error)
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
 	// The head moves only from the version the change was based on.
@@ -197,6 +233,7 @@ type Querier interface {
 	UpsertGithubConnection(ctx context.Context, arg UpsertGithubConnectionParams) error
 	UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error
 	UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewParams) error
+	WaiverIDsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]uuid.UUID, error)
 }
 
 var _ Querier = (*Queries)(nil)

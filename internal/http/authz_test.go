@@ -233,7 +233,10 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding, "{sourceId}", uuid.NewString(), "{reviewId}", uuid.NewString(), "{handoffId}", uuid.NewString(),
 	).Replace(op.path)
 	query := "?path=SPEC.md&base_version=" + env.bundle.CurrentVersionID.UUID.String() +
-		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String()
+		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String() +
+		// A slug that never matches: the probe reaches the role check and stops before it
+		// deletes the bundle every other case needs.
+		"&slug=not-the-slug&from_version=1&to_version=1"
 	var body *bytes.Reader
 	switch op.method {
 	case "POST", "PUT":

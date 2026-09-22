@@ -386,6 +386,27 @@ func (e ContentReviewRequestStages) Valid() bool {
 	}
 }
 
+// Defines values for DeletePlanKind.
+const (
+	DeletePlanKindDb     DeletePlanKind = "db"
+	DeletePlanKindGithub DeletePlanKind = "github"
+	DeletePlanKindLocal  DeletePlanKind = "local"
+)
+
+// Valid indicates whether the value is a known member of the DeletePlanKind enum.
+func (e DeletePlanKind) Valid() bool {
+	switch e {
+	case DeletePlanKindDb:
+		return true
+	case DeletePlanKindGithub:
+		return true
+	case DeletePlanKindLocal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingLayer.
 const (
 	FindingLayerAmbiguous    FindingLayer = "ambiguous"
@@ -1784,6 +1805,25 @@ type CreateBundleRequest struct {
 	Title   *string `json:"title,omitempty"`
 }
 
+// DeletePlan defines model for DeletePlan.
+type DeletePlan struct {
+	// Dir The folder on disk that makes a local bundle.
+	Dir  *string        `json:"dir,omitempty"`
+	Kind DeletePlanKind `json:"kind"`
+
+	// Message What the person must do to be rid of this bundle.
+	Message string `json:"message"`
+	Slug    string `json:"slug"`
+
+	// SourceBundles How many bundles the source holds, which go with it.
+	SourceBundles *int                `json:"source_bundles,omitempty"`
+	SourceId      *openapi_types.UUID `json:"source_id,omitempty"`
+	SourceRepo    *string             `json:"source_repo,omitempty"`
+}
+
+// DeletePlanKind defines model for DeletePlan.Kind.
+type DeletePlanKind string
+
 // Diff defines model for Diff.
 type Diff struct {
 	Files []FileDiff `json:"files"`
@@ -2275,6 +2315,14 @@ type ProfileDetail struct {
 		Version   int64     `json:"version"`
 	} `json:"versions"`
 	Yaml string `json:"yaml"`
+}
+
+// ProfileDiff defines model for ProfileDiff.
+type ProfileDiff struct {
+	From     int      `json:"from"`
+	Template []LineOp `json:"template"`
+	To       int      `json:"to"`
+	Yaml     []LineOp `json:"yaml"`
 }
 
 // ProfileInput defines model for ProfileInput.
@@ -2983,6 +3031,12 @@ type ListBundlesParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// DeleteBundleParams defines parameters for DeleteBundle.
+type DeleteBundleParams struct {
+	// Slug The bundle's slug, typed to confirm.
+	Slug string `form:"slug" json:"slug"`
+}
+
 // DiffVersionsParams defines parameters for DiffVersions.
 type DiffVersionsParams struct {
 	From openapi_types.UUID `form:"from" json:"from"`
@@ -3144,9 +3198,20 @@ type GuessProfileJSONBody struct {
 	Text string `json:"text"`
 }
 
+// DiffProfileVersionsParams defines parameters for DiffProfileVersions.
+type DiffProfileVersionsParams struct {
+	FromVersion int `form:"from_version" json:"from_version"`
+	ToVersion   int `form:"to_version" json:"to_version"`
+}
+
 // SetMaintainersJSONBody defines parameters for SetMaintainers.
 type SetMaintainersJSONBody struct {
 	UserIds []string `json:"user_ids"`
+}
+
+// RollbackProfileJSONBody defines parameters for RollbackProfile.
+type RollbackProfileJSONBody struct {
+	Version int `json:"version"`
 }
 
 // JoinShareJSONBody defines parameters for JoinShare.
@@ -3283,6 +3348,9 @@ type UpdateProfileJSONRequestBody = ProfileInput
 // SetMaintainersJSONRequestBody defines body for SetMaintainers for application/json ContentType.
 type SetMaintainersJSONRequestBody SetMaintainersJSONBody
 
+// RollbackProfileJSONRequestBody defines body for RollbackProfile for application/json ContentType.
+type RollbackProfileJSONRequestBody RollbackProfileJSONBody
+
 // OpenProfileThreadJSONRequestBody defines body for OpenProfileThread for application/json ContentType.
 type OpenProfileThreadJSONRequestBody = OpenThread
 
@@ -3399,6 +3467,9 @@ type ServerInterface interface {
 	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
 	// (POST /bundles/import)
 	ImportBundle(w http.ResponseWriter, r *http.Request)
+	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+	// (DELETE /bundles/{bundleId})
+	DeleteBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteBundleParams)
 	// GetBundle Get one bundle.
 	// (GET /bundles/{bundleId})
 	GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -3414,6 +3485,9 @@ type ServerInterface interface {
 	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
 	// (GET /bundles/{bundleId}/assumptions)
 	ListAssumptions(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
+	// (GET /bundles/{bundleId}/delete-plan)
+	DeleteBundlePlan(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /bundles/{bundleId}/diff)
 	DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams)
@@ -3570,15 +3644,24 @@ type ServerInterface interface {
 	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
 	// (POST /profiles/guess)
 	GuessProfile(w http.ResponseWriter, r *http.Request)
+	// DeleteProfile Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+	// (DELETE /profiles/{key})
+	DeleteProfile(w http.ResponseWriter, r *http.Request, key ProfileKey)
 	// GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 	// (GET /profiles/{key})
 	GetProfile(w http.ResponseWriter, r *http.Request, key ProfileKey)
 	// UpdateProfile Save a profile as a new version (REQ-012, REQ-013). Maintainers of the profile and admins.
 	// (PUT /profiles/{key})
 	UpdateProfile(w http.ResponseWriter, r *http.Request, key ProfileKey)
+	// DiffProfileVersions The YAML diff and the template diff between two versions of a profile.
+	// (GET /profiles/{key}/diff)
+	DiffProfileVersions(w http.ResponseWriter, r *http.Request, key ProfileKey, params DiffProfileVersionsParams)
 	// SetMaintainers Set the maintainers of a profile. Admins only.
 	// (PUT /profiles/{key}/maintainers)
 	SetMaintainers(w http.ResponseWriter, r *http.Request, key ProfileKey)
+	// RollbackProfile Write a new version whose text equals an earlier one. No number changes meaning.
+	// (POST /profiles/{key}/rollback)
+	RollbackProfile(w http.ResponseWriter, r *http.Request, key ProfileKey)
 	// ListProfileThreads The suggestions for a profile, as threads on its checks (REQ-015).
 	// (GET /profiles/{key}/threads)
 	ListProfileThreads(w http.ResponseWriter, r *http.Request, key ProfileKey)
@@ -4197,6 +4280,48 @@ func (siw *ServerInterfaceWrapper) ImportBundle(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteBundle operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteBundleParams
+
+	// ------------- Required query parameter "slug" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "slug", r.URL.Query(), &params.Slug, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "slug"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slug", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteBundle(w, r, bundleId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetBundle operation middleware
 func (siw *ServerInterfaceWrapper) GetBundle(w http.ResponseWriter, r *http.Request) {
 
@@ -4318,6 +4443,32 @@ func (siw *ServerInterfaceWrapper) ListAssumptions(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAssumptions(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteBundlePlan operation middleware
+func (siw *ServerInterfaceWrapper) DeleteBundlePlan(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteBundlePlan(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5782,6 +5933,32 @@ func (siw *ServerInterfaceWrapper) GuessProfile(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteProfile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key ProfileKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteProfile(w, r, key)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetProfile operation middleware
 func (siw *ServerInterfaceWrapper) GetProfile(w http.ResponseWriter, r *http.Request) {
 
@@ -5834,6 +6011,61 @@ func (siw *ServerInterfaceWrapper) UpdateProfile(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// DiffProfileVersions operation middleware
+func (siw *ServerInterfaceWrapper) DiffProfileVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key ProfileKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DiffProfileVersionsParams
+
+	// ------------- Required query parameter "from_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from_version", r.URL.Query(), &params.FromVersion, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from_version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to_version", r.URL.Query(), &params.ToVersion, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to_version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiffProfileVersions(w, r, key, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SetMaintainers operation middleware
 func (siw *ServerInterfaceWrapper) SetMaintainers(w http.ResponseWriter, r *http.Request) {
 
@@ -5851,6 +6083,32 @@ func (siw *ServerInterfaceWrapper) SetMaintainers(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetMaintainers(w, r, key)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RollbackProfile operation middleware
+func (siw *ServerInterfaceWrapper) RollbackProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "key" -------------
+	var key ProfileKey
+
+	err = runtime.BindStyledParameterWithOptions("simple", "key", r.PathValue("key"), &key, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "key", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RollbackProfile(w, r, key)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6609,6 +6867,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.ListHandoffs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.TakeHandoff)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verification-waivers", wrapper.RequestVerificationWaiver)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/delete-plan", wrapper.DeleteBundlePlan)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/verifications", wrapper.ListVerifications)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verifications", wrapper.RunVerification)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}", wrapper.GetVerification)
@@ -6625,6 +6884,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles", wrapper.ListBundles)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles", wrapper.CreateBundle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import", wrapper.ImportBundle)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.DeleteBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.GetBundle)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.DeleteFile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.ListFiles)
@@ -6678,9 +6938,12 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/inbox", wrapper.GetInbox)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/inbox/seen", wrapper.MarkInboxSeen)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/insights", wrapper.GetInsights)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/profiles/{key}", wrapper.DeleteProfile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles/{key}", wrapper.GetProfile)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/profiles/{key}", wrapper.UpdateProfile)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/profiles/{key}/maintainers", wrapper.SetMaintainers)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles/{key}/diff", wrapper.DiffProfileVersions)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/{key}/rollback", wrapper.RollbackProfile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles/{key}/threads", wrapper.ListProfileThreads)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/{key}/threads", wrapper.OpenProfileThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles", wrapper.ListProfiles)
@@ -7787,6 +8050,40 @@ func (response ImportBundledefaultApplicationProblemPlusJSONResponse) VisitImpor
 	return err
 }
 
+type DeleteBundleRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Params   DeleteBundleParams
+}
+
+type DeleteBundleResponseObject interface {
+	VisitDeleteBundleResponse(w http.ResponseWriter) error
+}
+
+type DeleteBundle204Response struct {
+}
+
+func (response DeleteBundle204Response) VisitDeleteBundleResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteBundledefaultApplicationProblemPlusJSONResponse) VisitDeleteBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetBundleRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 }
@@ -7973,6 +8270,45 @@ type ListAssumptionsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListAssumptionsdefaultApplicationProblemPlusJSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteBundlePlanRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type DeleteBundlePlanResponseObject interface {
+	VisitDeleteBundlePlanResponse(w http.ResponseWriter) error
+}
+
+type DeleteBundlePlan200JSONResponse DeletePlan
+
+func (response DeleteBundlePlan200JSONResponse) VisitDeleteBundlePlanResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteBundlePlandefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteBundlePlandefaultApplicationProblemPlusJSONResponse) VisitDeleteBundlePlanResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -10062,6 +10398,39 @@ func (response GuessProfiledefaultApplicationProblemPlusJSONResponse) VisitGuess
 	return err
 }
 
+type DeleteProfileRequestObject struct {
+	Key ProfileKey `json:"key"`
+}
+
+type DeleteProfileResponseObject interface {
+	VisitDeleteProfileResponse(w http.ResponseWriter) error
+}
+
+type DeleteProfile204Response struct {
+}
+
+func (response DeleteProfile204Response) VisitDeleteProfileResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteProfiledefaultApplicationProblemPlusJSONResponse) VisitDeleteProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetProfileRequestObject struct {
 	Key ProfileKey `json:"key"`
 }
@@ -10141,6 +10510,46 @@ func (response UpdateProfiledefaultApplicationProblemPlusJSONResponse) VisitUpda
 	return err
 }
 
+type DiffProfileVersionsRequestObject struct {
+	Key    ProfileKey `json:"key"`
+	Params DiffProfileVersionsParams
+}
+
+type DiffProfileVersionsResponseObject interface {
+	VisitDiffProfileVersionsResponse(w http.ResponseWriter) error
+}
+
+type DiffProfileVersions200JSONResponse ProfileDiff
+
+func (response DiffProfileVersions200JSONResponse) VisitDiffProfileVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiffProfileVersionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DiffProfileVersionsdefaultApplicationProblemPlusJSONResponse) VisitDiffProfileVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetMaintainersRequestObject struct {
 	Key  ProfileKey `json:"key"`
 	Body *SetMaintainersJSONRequestBody
@@ -10170,6 +10579,46 @@ type SetMaintainersdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response SetMaintainersdefaultApplicationProblemPlusJSONResponse) VisitSetMaintainersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RollbackProfileRequestObject struct {
+	Key  ProfileKey `json:"key"`
+	Body *RollbackProfileJSONRequestBody
+}
+
+type RollbackProfileResponseObject interface {
+	VisitRollbackProfileResponse(w http.ResponseWriter) error
+}
+
+type RollbackProfile200JSONResponse ProfileDetail
+
+func (response RollbackProfile200JSONResponse) VisitRollbackProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RollbackProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RollbackProfiledefaultApplicationProblemPlusJSONResponse) VisitRollbackProfileResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -11293,6 +11742,9 @@ type StrictServerInterface interface {
 	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
 	// (POST /bundles/import)
 	ImportBundle(ctx context.Context, request ImportBundleRequestObject) (ImportBundleResponseObject, error)
+	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+	// (DELETE /bundles/{bundleId})
+	DeleteBundle(ctx context.Context, request DeleteBundleRequestObject) (DeleteBundleResponseObject, error)
 	// GetBundle Get one bundle.
 	// (GET /bundles/{bundleId})
 	GetBundle(ctx context.Context, request GetBundleRequestObject) (GetBundleResponseObject, error)
@@ -11308,6 +11760,9 @@ type StrictServerInterface interface {
 	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
 	// (GET /bundles/{bundleId}/assumptions)
 	ListAssumptions(ctx context.Context, request ListAssumptionsRequestObject) (ListAssumptionsResponseObject, error)
+	// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
+	// (GET /bundles/{bundleId}/delete-plan)
+	DeleteBundlePlan(ctx context.Context, request DeleteBundlePlanRequestObject) (DeleteBundlePlanResponseObject, error)
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /bundles/{bundleId}/diff)
 	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
@@ -11464,15 +11919,24 @@ type StrictServerInterface interface {
 	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
 	// (POST /profiles/guess)
 	GuessProfile(ctx context.Context, request GuessProfileRequestObject) (GuessProfileResponseObject, error)
+	// DeleteProfile Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+	// (DELETE /profiles/{key})
+	DeleteProfile(ctx context.Context, request DeleteProfileRequestObject) (DeleteProfileResponseObject, error)
 	// GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 	// (GET /profiles/{key})
 	GetProfile(ctx context.Context, request GetProfileRequestObject) (GetProfileResponseObject, error)
 	// UpdateProfile Save a profile as a new version (REQ-012, REQ-013). Maintainers of the profile and admins.
 	// (PUT /profiles/{key})
 	UpdateProfile(ctx context.Context, request UpdateProfileRequestObject) (UpdateProfileResponseObject, error)
+	// DiffProfileVersions The YAML diff and the template diff between two versions of a profile.
+	// (GET /profiles/{key}/diff)
+	DiffProfileVersions(ctx context.Context, request DiffProfileVersionsRequestObject) (DiffProfileVersionsResponseObject, error)
 	// SetMaintainers Set the maintainers of a profile. Admins only.
 	// (PUT /profiles/{key}/maintainers)
 	SetMaintainers(ctx context.Context, request SetMaintainersRequestObject) (SetMaintainersResponseObject, error)
+	// RollbackProfile Write a new version whose text equals an earlier one. No number changes meaning.
+	// (POST /profiles/{key}/rollback)
+	RollbackProfile(ctx context.Context, request RollbackProfileRequestObject) (RollbackProfileResponseObject, error)
 	// ListProfileThreads The suggestions for a profile, as threads on its checks (REQ-015).
 	// (GET /profiles/{key}/threads)
 	ListProfileThreads(ctx context.Context, request ListProfileThreadsRequestObject) (ListProfileThreadsResponseObject, error)
@@ -12372,6 +12836,33 @@ func (sh *strictHandler) ImportBundle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DeleteBundle operation middleware
+func (sh *strictHandler) DeleteBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteBundleParams) {
+	var request DeleteBundleRequestObject
+
+	request.BundleId = bundleId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteBundle(ctx, request.(DeleteBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteBundleResponseObject); ok {
+		if err := validResponse.VisitDeleteBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetBundle operation middleware
 func (sh *strictHandler) GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
 	var request GetBundleRequestObject
@@ -12495,6 +12986,32 @@ func (sh *strictHandler) ListAssumptions(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAssumptionsResponseObject); ok {
 		if err := validResponse.VisitListAssumptionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteBundlePlan operation middleware
+func (sh *strictHandler) DeleteBundlePlan(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request DeleteBundlePlanRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteBundlePlan(ctx, request.(DeleteBundlePlanRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteBundlePlan")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteBundlePlanResponseObject); ok {
+		if err := validResponse.VisitDeleteBundlePlanResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -13980,6 +14497,32 @@ func (sh *strictHandler) GuessProfile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DeleteProfile operation middleware
+func (sh *strictHandler) DeleteProfile(w http.ResponseWriter, r *http.Request, key ProfileKey) {
+	var request DeleteProfileRequestObject
+
+	request.Key = key
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteProfile(ctx, request.(DeleteProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteProfileResponseObject); ok {
+		if err := validResponse.VisitDeleteProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetProfile operation middleware
 func (sh *strictHandler) GetProfile(w http.ResponseWriter, r *http.Request, key ProfileKey) {
 	var request GetProfileRequestObject
@@ -14039,6 +14582,33 @@ func (sh *strictHandler) UpdateProfile(w http.ResponseWriter, r *http.Request, k
 	}
 }
 
+// DiffProfileVersions operation middleware
+func (sh *strictHandler) DiffProfileVersions(w http.ResponseWriter, r *http.Request, key ProfileKey, params DiffProfileVersionsParams) {
+	var request DiffProfileVersionsRequestObject
+
+	request.Key = key
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiffProfileVersions(ctx, request.(DiffProfileVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiffProfileVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiffProfileVersionsResponseObject); ok {
+		if err := validResponse.VisitDiffProfileVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SetMaintainers operation middleware
 func (sh *strictHandler) SetMaintainers(w http.ResponseWriter, r *http.Request, key ProfileKey) {
 	var request SetMaintainersRequestObject
@@ -14065,6 +14635,39 @@ func (sh *strictHandler) SetMaintainers(w http.ResponseWriter, r *http.Request, 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetMaintainersResponseObject); ok {
 		if err := validResponse.VisitSetMaintainersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RollbackProfile operation middleware
+func (sh *strictHandler) RollbackProfile(w http.ResponseWriter, r *http.Request, key ProfileKey) {
+	var request RollbackProfileRequestObject
+
+	request.Key = key
+
+	var body RollbackProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RollbackProfile(ctx, request.(RollbackProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RollbackProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RollbackProfileResponseObject); ok {
+		if err := validResponse.VisitRollbackProfileResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

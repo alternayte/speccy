@@ -106,6 +106,12 @@ func (r *Registry) loadHosted(ctx context.Context) (map[string]Versioned, []stri
 // Save validates a profile and stores it as a new version (REQ-012, REQ-013). In local mode it
 // writes .speccy/profiles/<key>.yaml and its template file.
 func (r *Registry) Save(ctx context.Context, key string, src, template []byte, by string) (Versioned, error) {
+	return r.SaveAs(ctx, key, src, template, by, "")
+}
+
+// SaveAs saves a profile and names the origin of the version it writes. A rollback uses it, so
+// the history says which version the new one repeats.
+func (r *Registry) SaveAs(ctx context.Context, key string, src, template []byte, by, origin string) (Versioned, error) {
 	l, err := Parse(key, src, func(string) ([]byte, error) { return template, nil })
 	if err != nil {
 		var ve *ValidationError
@@ -119,6 +125,9 @@ func (r *Registry) Save(ctx context.Context, key string, src, template []byte, b
 	}
 	if r.Hosted {
 		l.Origin = "edited by " + by
+		if origin != "" {
+			l.Origin = origin
+		}
 		if _, err := Record(ctx, r.DB, r.Workspace, map[string]Loaded{key: l}, by); err != nil {
 			return Versioned{}, err
 		}
@@ -327,4 +336,26 @@ func actorID(ctx context.Context) string {
 		return id
 	}
 	return "local"
+}
+
+// removeFiles takes a profile's YAML and its template out of the profiles folder. Local mode
+// keeps profiles on disk, so a delete that left the file behind would bring it back on the
+// next reload. It does nothing in hosted mode, where the store holds them.
+func (r *Registry) removeFiles(key string) error {
+	if r.Hosted || r.Dir == "" {
+		return nil
+	}
+	l, ok := r.Current()[key]
+	if ok && l.Profile.Template != "" {
+		tp := filepath.Clean(filepath.FromSlash(l.Profile.Template))
+		if !filepath.IsAbs(tp) && !strings.HasPrefix(tp, "..") {
+			if err := os.Remove(filepath.Join(r.Dir, tp)); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+	}
+	if err := os.Remove(filepath.Join(r.Dir, key+".yaml")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

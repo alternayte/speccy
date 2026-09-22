@@ -32,12 +32,20 @@ func (a Adapter) ClaimJob(ctx context.Context, arg pgdb.ClaimJobParams) (pgdb.Jo
 	return pgdb.Job(r), err
 }
 
+func (a Adapter) ClearBundleHead(ctx context.Context, id uuid.UUID) error {
+	return a.q.ClearBundleHead(ctx, id)
+}
+
 func (a Adapter) CountAssignmentsForBackend(ctx context.Context, arg pgdb.CountAssignmentsForBackendParams) (int64, error) {
 	return a.q.CountAssignmentsForBackend(ctx, CountAssignmentsForBackendParams(arg))
 }
 
 func (a Adapter) CountAuthorMessagesSince(ctx context.Context, arg pgdb.CountAuthorMessagesSinceParams) (int64, error) {
 	return a.q.CountAuthorMessagesSince(ctx, CountAuthorMessagesSinceParams(arg))
+}
+
+func (a Adapter) CountBundlesUsingProfile(ctx context.Context, arg pgdb.CountBundlesUsingProfileParams) (int64, error) {
+	return a.q.CountBundlesUsingProfile(ctx, CountBundlesUsingProfileParams(arg))
 }
 
 func (a Adapter) CountFindingsByCheck(ctx context.Context, arg pgdb.CountFindingsByCheckParams) ([]pgdb.CountFindingsByCheckRow, error) {
@@ -60,12 +68,36 @@ func (a Adapter) DeleteAdoptedType(ctx context.Context, arg pgdb.DeleteAdoptedTy
 	return a.q.DeleteAdoptedType(ctx, DeleteAdoptedTypeParams(arg))
 }
 
+func (a Adapter) DeleteAnswersOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteAnswersOfBundle(ctx, bundleID)
+}
+
 func (a Adapter) DeleteAssignment(ctx context.Context, arg pgdb.DeleteAssignmentParams) error {
 	return a.q.DeleteAssignment(ctx, DeleteAssignmentParams(arg))
 }
 
 func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams) (int64, error) {
 	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
+}
+
+func (a Adapter) DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteBundleAuthors(ctx, bundleID)
+}
+
+func (a Adapter) DeleteBundleReviewers(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteBundleReviewers(ctx, bundleID)
+}
+
+func (a Adapter) DeleteBundleRow(ctx context.Context, arg pgdb.DeleteBundleRowParams) error {
+	return a.q.DeleteBundleRow(ctx, DeleteBundleRowParams(arg))
+}
+
+func (a Adapter) DeleteBundleStatusView(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteBundleStatusView(ctx, bundleID)
+}
+
+func (a Adapter) DeleteClaimsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteClaimsOfBundle(ctx, bundleID)
 }
 
 func (a Adapter) DeleteContentReviewsBefore(ctx context.Context, arg pgdb.DeleteContentReviewsBeforeParams) error {
@@ -76,6 +108,14 @@ func (a Adapter) DeleteDismissedDoc(ctx context.Context, arg pgdb.DeleteDismisse
 	return a.q.DeleteDismissedDoc(ctx, DeleteDismissedDocParams(arg))
 }
 
+func (a Adapter) DeleteEventsOfStream(ctx context.Context, streamID uuid.UUID) error {
+	return a.q.DeleteEventsOfStream(ctx, streamID)
+}
+
+func (a Adapter) DeleteFindingsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteFindingsOfBundle(ctx, bundleID)
+}
+
 func (a Adapter) DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error {
 	return a.q.DeleteGithubConnection(ctx, workspaceID)
 }
@@ -84,20 +124,100 @@ func (a Adapter) DeleteGithubSource(ctx context.Context, arg pgdb.DeleteGithubSo
 	return a.q.DeleteGithubSource(ctx, DeleteGithubSourceParams(arg))
 }
 
+func (a Adapter) DeleteHandoffsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteHandoffsOfBundle(ctx, bundleID)
+}
+
 func (a Adapter) DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error {
 	return a.q.DeleteLinkStates(ctx, bundleID)
+}
+
+func (a Adapter) DeleteLinkStatesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteLinkStatesOfBundle(ctx, bundleID)
 }
 
 func (a Adapter) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
 	return a.q.DeleteLinksFrom(ctx, fromBundleID)
 }
 
+func (a Adapter) DeleteLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteLinksOfBundle(ctx, bundleID)
+}
+
 func (a Adapter) DeleteMCPConnection(ctx context.Context, arg pgdb.DeleteMCPConnectionParams) error {
 	return a.q.DeleteMCPConnection(ctx, DeleteMCPConnectionParams(arg))
 }
 
+func (a Adapter) DeleteOrphanBlobs(ctx context.Context) error {
+	return a.q.DeleteOrphanBlobs(ctx)
+}
+
 func (a Adapter) DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error {
 	return a.q.DeleteProfileMaintainers(ctx, profileID)
+}
+
+func (a Adapter) DeleteProfileMaintainersOf(ctx context.Context, profileID uuid.UUID) error {
+	return a.q.DeleteProfileMaintainersOf(ctx, profileID)
+}
+
+func (a Adapter) DeleteProfileRow(ctx context.Context, arg pgdb.DeleteProfileRowParams) error {
+	return a.q.DeleteProfileRow(ctx, DeleteProfileRowParams(arg))
+}
+
+func (a Adapter) DeleteProfileVersionsOf(ctx context.Context, profileID uuid.UUID) error {
+	return a.q.DeleteProfileVersionsOf(ctx, profileID)
+}
+
+func (a Adapter) DeleteQuestionResultsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteQuestionResultsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteQuestionsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteQuestionsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteReviewRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteReviewRunsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteRunLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteRunLinksOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteStream(ctx context.Context, streamID uuid.UUID) error {
+	return a.q.DeleteStream(ctx, streamID)
+}
+
+func (a Adapter) DeleteThreadMessagesOfBundle(ctx context.Context, bundleID uuid.NullUUID) error {
+	return a.q.DeleteThreadMessagesOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteThreadsOfBundle(ctx context.Context, bundleID uuid.NullUUID) error {
+	return a.q.DeleteThreadsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteVerdictsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteVerdictsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteVerificationOutcomesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteVerificationOutcomesOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteVerificationRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteVerificationRunsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteVersionFilesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteVersionFilesOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteVersionsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteVersionsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteWaiversOfBundle(ctx, bundleID)
 }
 
 func (a Adapter) FinishJob(ctx context.Context, arg pgdb.FinishJobParams) error {
@@ -579,6 +699,18 @@ func (a Adapter) ListBundlesBySource(ctx context.Context, arg pgdb.ListBundlesBy
 	return out, nil
 }
 
+func (a Adapter) ListBundlesUsingProfile(ctx context.Context, arg pgdb.ListBundlesUsingProfileParams) ([]pgdb.ListBundlesUsingProfileRow, error) {
+	rows, err := a.q.ListBundlesUsingProfile(ctx, ListBundlesUsingProfileParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ListBundlesUsingProfileRow, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ListBundlesUsingProfileRow(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListClaims(ctx context.Context, runID uuid.UUID) ([]pgdb.Claim, error) {
 	rows, err := a.q.ListClaims(ctx, runID)
 	if err != nil {
@@ -1056,6 +1188,10 @@ func (a Adapter) StartRunExecution(ctx context.Context, arg pgdb.StartRunExecuti
 	return a.q.StartRunExecution(ctx, StartRunExecutionParams(arg))
 }
 
+func (a Adapter) ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error) {
+	return a.q.ThreadIDsOfBundle(ctx, bundleID)
+}
+
 func (a Adapter) UnspendInvite(ctx context.Context, id uuid.UUID) error {
 	return a.q.UnspendInvite(ctx, id)
 }
@@ -1098,4 +1234,8 @@ func (a Adapter) UpsertThreadView(ctx context.Context, arg pgdb.UpsertThreadView
 
 func (a Adapter) UpsertWaiverView(ctx context.Context, arg pgdb.UpsertWaiverViewParams) error {
 	return a.q.UpsertWaiverView(ctx, UpsertWaiverViewParams(arg))
+}
+
+func (a Adapter) WaiverIDsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]uuid.UUID, error) {
+	return a.q.WaiverIDsOfBundle(ctx, bundleID)
 }
