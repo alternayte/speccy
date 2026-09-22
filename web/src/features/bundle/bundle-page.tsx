@@ -300,7 +300,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
 
         <Divider
           label="Width of the file explorer"
-          className={assets ? "hidden lg:block" : "hidden"}
+          // The explorer is a column whenever it is open, so it can be resized. A bundle with
+          // no assets still opens it from Files, and that column needs the handle too.
+          className={assets || panel === "files" ? "hidden lg:block" : "hidden"}
           {...explorer.props}
         />
 

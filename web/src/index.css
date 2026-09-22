@@ -26,6 +26,9 @@
   --tracking-tight: -0.011em;
   --tracking-caps: 0.06em;
   --measure: 72ch;
+  /* The editor preview reads next to the source, so it takes the pane it is given. A doc in
+     a repo viewer is this wide, and a reader compares the two. */
+  --measure-wide: 96ch;
 
   /* Space: a 4px unit. The frame is dense (Linear); the page breathes (Stripe docs). */
   --space-1: 4px;
@@ -187,6 +190,11 @@ body {
   font-size: var(--text-doc);
   line-height: var(--leading-doc);
   color: var(--ink);
+}
+/* In the editor the preview fills its pane: the pane is already the narrow half of a split,
+   and a column of 72ch inside it wastes the screen a person gave to the doc. */
+.doc-wide {
+  max-width: var(--measure-wide);
 }
 .doc > * + * {
   margin-top: var(--space-4);

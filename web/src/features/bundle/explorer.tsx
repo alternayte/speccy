@@ -171,7 +171,9 @@ export function Explorer({
           >
             <ChevronRight aria-hidden className={clsx("size-3.5 transition-transform", isOpen && "rotate-90")} />
             <Folder aria-hidden className="size-3.5" />
-            <span className="truncate">{n.name}</span>
+            <span title={n.path || n.name} className="truncate">
+              {n.name}
+            </span>
           </button>
           {isOpen ? <ul>{n.children.map((c) => row(c, depth + 1))}</ul> : null}
         </li>
@@ -191,7 +193,9 @@ export function Explorer({
           style={{ paddingLeft: `calc(var(--space-2) + ${depth} * var(--space-4) + var(--space-5))` }}
         >
           <FileText aria-hidden className="size-3.5 shrink-0" />
-          <span className="truncate">{n.name}</span>
+          <span title={n.path || n.name} className="truncate">
+            {n.name}
+          </span>
           {n.path === main ? <Star aria-label="Main doc" className="size-3 shrink-0 fill-accent text-accent" /> : null}
           {copied === n.path ? <span className="ml-auto text-2xs text-accent">Copied</span> : null}
         </button>
