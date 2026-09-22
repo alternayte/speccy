@@ -186,7 +186,7 @@ export const Preview = forwardRef<
   return (
     <div ref={ref} onScroll={onScroll} className="print-only-doc h-full overflow-y-auto bg-surface">
       {findings && mine.length > 0 ? <OverlayLegend on={on} toggle={toggle} counts={layerCounts(mine)} /> : null}
-      <div className="mx-auto max-w-[calc(var(--measure)+var(--space-16))] px-6 py-10 sm:px-8">
+      <div className="mx-auto max-w-[calc(var(--measure-wide)+var(--space-16))] px-6 py-10 sm:px-8">
         {error ? <ErrorState message={error} /> : null}
         {html === null && !error ? <p className="text-sm text-ink-3">Rendering</p> : null}
         {html !== null ? (
@@ -195,7 +195,7 @@ export const Preview = forwardRef<
             {/* The server escapes doc text and drops raw HTML (SDD §14.3). */}
             <article
               ref={setArticle}
-              className={clsx("doc", onChange && "cursor-text")}
+              className={clsx("doc doc-wide", onChange && "cursor-text")}
               onClick={click}
               dangerouslySetInnerHTML={{ __html: html }}
             />

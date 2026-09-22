@@ -29,7 +29,7 @@ export function ProfilePage({ profileKey }: { profileKey: string }) {
   const profile = useQuery(getProfileOptions({ path: { key: profileKey } }));
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-[1100px] space-y-8 px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-[1600px] space-y-8 px-4 py-8 sm:px-6">
         <Link to="/profiles" className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink">
           <ArrowLeft aria-hidden className="size-3.5" /> Profiles
         </Link>
@@ -100,8 +100,10 @@ function Editor({ p }: { p: ProfileDetail }) {
           </pre>
         </div>
       ) : null}
+      {/* The editors are the work, so they take the screen: a pane that scrolls inside a page
+          that scrolls makes a person move two things to read one. */}
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="h-[480px] overflow-hidden rounded-md border border-line">
+        <div className="h-[calc(100vh-22rem)] min-h-[420px] overflow-hidden rounded-md border border-line">
           <CodeEditor
             docKey={`${p.key}.yaml@${p.version}`}
             initial={p.yaml}
@@ -111,7 +113,7 @@ function Editor({ p }: { p: ProfileDetail }) {
             onSave={doSave}
           />
         </div>
-        <div className="h-[480px] overflow-hidden rounded-md border border-line">
+        <div className="h-[calc(100vh-22rem)] min-h-[420px] overflow-hidden rounded-md border border-line">
           <CodeEditor
             docKey={`${p.key}.md@${p.version}`}
             initial={p.template}
