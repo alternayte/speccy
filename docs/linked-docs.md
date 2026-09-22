@@ -120,7 +120,55 @@ A verdict is about one version of one doc, read against the versions of its link
 
 A lint verdict costs nothing, so Speccy lints again at once. A full verdict holds its model results and goes stale instead, with the reason `upstream_changed`. Run the review again to replace it.
 
-## 8. The checks
+## 8. Link to an issue, a page, or the code
+
+A doc also links to things outside Speccy. The target carries a scheme that says which system holds it:
+
+```yaml
+links:
+  - kind: implemented-by
+    target: github:acme/payments#internal/pay
+  - kind: references
+    target: jira:PAY-412
+  - kind: references
+    target: https://company.atlassian.net/wiki/spaces/ENG/pages/4210
+```
+
+`implemented-by` names the code that builds this doc. A short key becomes a URL through a pattern in `.speccy.yaml`:
+
+```yaml
+link_patterns:
+  jira: https://company.atlassian.net/browse/{key}
+```
+
+A full URL needs no pattern. A target that Speccy cannot parse fails lint, and the finding names what to write instead.
+
+### What Speccy reads
+
+Speccy stores no tracker password and calls no vendor API of its own.
+
+**Code.** Speccy reads the newest commit that touched the path, with the credential it already holds: the machine's `gh` login in local mode, the source's token in hosted mode. A repo that credential cannot read stays unchecked.
+
+**An issue or a page.** An admin adds an MCP connection in Admin → MCP, lists the hosts it reads, and marks the tool that reads one page. Speccy matches a link to a connection by host. No model chooses the connection or the tool, so a doc cannot steer Speccy into another system.
+
+### The four states
+
+The traceability screen holds one table of these links.
+
+| State | Means | What you do |
+|---|---|---|
+| Aligned | Speccy read the target, and it agrees with the doc. | Nothing. |
+| Drifted | The code changed after this version of the doc. | Read the commit. Update the doc, or waive the drift with a reason. |
+| Conflicting | The issue or the page states something the doc contradicts. | Decide which of the two is right, and change that one. |
+| Unchecked | No credential and no connection reads that target. | Add the MCP connection for the host, or leave it: an unchecked link is not a failure. |
+
+Drift and conflict are SHOULD checks. Neither blocks Build Ready: the code moving is news about the doc, not a defect in it. A new version of the doc clears a drift, because the version is the record of a person reading it.
+
+### In the build packet
+
+The packet lists each external link with its kind and URL, and the commit of a code target. `HANDOFF.md` carries the same lines, so a coding agent knows which path to change and which issue to read. Speccy fetches no issue content into the packet.
+
+## 9. The checks
 
 | Check | Level | What it means | What you do |
 |---|---|---|---|
@@ -129,6 +177,9 @@ A lint verdict costs nothing, so Speccy lints again at once. A full verdict hold
 | `trace.coverage` | MUST | An upstream ID is not referenced in this doc, and not acknowledged. | Reference the ID, or acknowledge it in the sidecar under `trace:`. |
 | `coherence.restatement` | SHOULD | A paragraph repeats an upstream paragraph. | Replace it with a reference to the ID, and keep what this doc adds. |
 | `coherence.contradiction` | MUST | Two linked docs state things that conflict. | Decide which doc is right, and change that one. |
+| `links.external-target` | MUST | An external link target has no scheme, no pattern, or a malformed repo path. | Write it as `github:owner/repo#path`, as a scheme with a pattern, or as a full URL. |
+| `links.code-drift` | SHOULD | The code a doc points at changed after this version. | Read the commit, then update the doc or waive the drift. |
+| `coherence.external` | SHOULD | The doc states something a linked issue or page contradicts. | Decide which of the two is right, and change that one. |
 
 A stale verdict is not a finding. It is the verdict of a version that no longer stands, and only a new run replaces it.
 
