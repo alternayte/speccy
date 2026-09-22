@@ -347,6 +347,11 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/import (the `ImportBundle` operationId).
 	ImportBundleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+	//
+	// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
+	DeleteBundle(ctx context.Context, bundleId BundleId, params *DeleteBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetBundle Get one bundle.
 	//
 	// Corresponds with GET /bundles/{bundleId} (the `GetBundle` operationId).
@@ -371,6 +376,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
 	ListAssumptions(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
+	//
+	// Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
+	DeleteBundlePlan(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	//
@@ -805,6 +815,11 @@ type ClientInterface interface {
 	// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
 	GuessProfile(ctx context.Context, body GuessProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteProfile Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+	//
+	// Corresponds with DELETE /profiles/{key} (the `DeleteProfile` operationId).
+	DeleteProfile(ctx context.Context, key ProfileKey, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 	//
 	// Corresponds with GET /profiles/{key} (the `GetProfile` operationId).
@@ -824,6 +839,11 @@ type ClientInterface interface {
 	// Corresponds with PUT /profiles/{key} (the `UpdateProfile` operationId).
 	UpdateProfile(ctx context.Context, key ProfileKey, body UpdateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DiffProfileVersions The YAML diff and the template diff between two versions of a profile.
+	//
+	// Corresponds with GET /profiles/{key}/diff (the `DiffProfileVersions` operationId).
+	DiffProfileVersions(ctx context.Context, key ProfileKey, params *DiffProfileVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SetMaintainersWithBody Set the maintainers of a profile. Admins only.
 	//
 	// Takes any type of body and a specified content type.
@@ -837,6 +857,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /profiles/{key}/maintainers (the `SetMaintainers` operationId).
 	SetMaintainers(ctx context.Context, key ProfileKey, body SetMaintainersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RollbackProfileWithBody Write a new version whose text equals an earlier one. No number changes meaning.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+	RollbackProfileWithBody(ctx context.Context, key ProfileKey, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RollbackProfile Write a new version whose text equals an earlier one. No number changes meaning.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+	RollbackProfile(ctx context.Context, key ProfileKey, body RollbackProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListProfileThreads The suggestions for a profile, as threads on its checks (REQ-015).
 	//
@@ -1710,6 +1744,21 @@ func (c *Client) ImportBundleWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
+// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+//
+// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
+func (c *Client) DeleteBundle(ctx context.Context, bundleId BundleId, params *DeleteBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteBundleRequest(c.Server, bundleId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetBundle Get one bundle.
 //
 // Corresponds with GET /bundles/{bundleId} (the `GetBundle` operationId).
@@ -1775,6 +1824,21 @@ func (c *Client) ApproveBundle(ctx context.Context, bundleId BundleId, reqEditor
 // Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
 func (c *Client) ListAssumptions(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAssumptionsRequest(c.Server, bundleId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
+//
+// Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
+func (c *Client) DeleteBundlePlan(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteBundlePlanRequest(c.Server, bundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -2928,6 +2992,21 @@ func (c *Client) GuessProfile(ctx context.Context, body GuessProfileJSONRequestB
 	return c.Client.Do(req)
 }
 
+// DeleteProfile Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+//
+// Corresponds with DELETE /profiles/{key} (the `DeleteProfile` operationId).
+func (c *Client) DeleteProfile(ctx context.Context, key ProfileKey, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteProfileRequest(c.Server, key)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetProfile A profile with its YAML, template, versions, and maintainers (REQ-013).
 //
 // Corresponds with GET /profiles/{key} (the `GetProfile` operationId).
@@ -2977,6 +3056,21 @@ func (c *Client) UpdateProfile(ctx context.Context, key ProfileKey, body UpdateP
 	return c.Client.Do(req)
 }
 
+// DiffProfileVersions The YAML diff and the template diff between two versions of a profile.
+//
+// Corresponds with GET /profiles/{key}/diff (the `DiffProfileVersions` operationId).
+func (c *Client) DiffProfileVersions(ctx context.Context, key ProfileKey, params *DiffProfileVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiffProfileVersionsRequest(c.Server, key, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // SetMaintainersWithBody Set the maintainers of a profile. Admins only.
 //
 // Takes any type of body and a specified content type.
@@ -3001,6 +3095,40 @@ func (c *Client) SetMaintainersWithBody(ctx context.Context, key ProfileKey, con
 // Corresponds with PUT /profiles/{key}/maintainers (the `SetMaintainers` operationId).
 func (c *Client) SetMaintainers(ctx context.Context, key ProfileKey, body SetMaintainersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetMaintainersRequest(c.Server, key, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RollbackProfileWithBody Write a new version whose text equals an earlier one. No number changes meaning.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+func (c *Client) RollbackProfileWithBody(ctx context.Context, key ProfileKey, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRollbackProfileRequestWithBody(c.Server, key, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RollbackProfile Write a new version whose text equals an earlier one. No number changes meaning.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+func (c *Client) RollbackProfile(ctx context.Context, key ProfileKey, body RollbackProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRollbackProfileRequest(c.Server, key, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4592,6 +4720,63 @@ func NewImportBundleRequestWithBody(server string, contentType string, body io.R
 	return req, nil
 }
 
+// NewDeleteBundleRequest constructs an http.Request for the DeleteBundle method
+func NewDeleteBundleRequest(server string, bundleId BundleId, params *DeleteBundleParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "slug", params.Slug, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetBundleRequest constructs an http.Request for the GetBundle method
 func NewGetBundleRequest(server string, bundleId BundleId) (*http.Request, error) {
 	var err error
@@ -4745,6 +4930,40 @@ func NewListAssumptionsRequest(server string, bundleId BundleId) (*http.Request,
 	}
 
 	operationPath := fmt.Sprintf("/bundles/%s/assumptions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteBundlePlanRequest constructs an http.Request for the DeleteBundlePlan method
+func NewDeleteBundlePlanRequest(server string, bundleId BundleId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/delete-plan", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -7023,6 +7242,40 @@ func NewGuessProfileRequestWithBody(server string, contentType string, body io.R
 	return req, nil
 }
 
+// NewDeleteProfileRequest constructs an http.Request for the DeleteProfile method
+func NewDeleteProfileRequest(server string, key ProfileKey) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "key", key, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/profiles/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetProfileRequest constructs an http.Request for the GetProfile method
 func NewGetProfileRequest(server string, key ProfileKey) (*http.Request, error) {
 	var err error
@@ -7104,6 +7357,71 @@ func NewUpdateProfileRequestWithBody(server string, key ProfileKey, contentType 
 	return req, nil
 }
 
+// NewDiffProfileVersionsRequest constructs an http.Request for the DiffProfileVersions method
+func NewDiffProfileVersionsRequest(server string, key ProfileKey, params *DiffProfileVersionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "key", key, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/profiles/%s/diff", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from_version", params.FromVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to_version", params.ToVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSetMaintainersRequest calls the generic SetMaintainers builder with application/json body
 func NewSetMaintainersRequest(server string, key ProfileKey, body SetMaintainersJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -7142,6 +7460,53 @@ func NewSetMaintainersRequestWithBody(server string, key ProfileKey, contentType
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRollbackProfileRequest calls the generic RollbackProfile builder with application/json body
+func NewRollbackProfileRequest(server string, key ProfileKey, body RollbackProfileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRollbackProfileRequestWithBody(server, key, "application/json", bodyReader)
+}
+
+// NewRollbackProfileRequestWithBody constructs an http.Request for the RollbackProfile method, with any body, and a specified content type
+func NewRollbackProfileRequestWithBody(server string, key ProfileKey, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "key", key, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/profiles/%s/rollback", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -8447,6 +8812,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/import (the `ImportBundle` operationId).
 	ImportBundleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportBundleResponse, error)
 
+	// DeleteBundleWithResponse Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
+	DeleteBundleWithResponse(ctx context.Context, bundleId BundleId, params *DeleteBundleParams, reqEditors ...RequestEditorFn) (*DeleteBundleResponse, error)
+
 	// GetBundleWithResponse Get one bundle.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -8481,6 +8853,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
 	ListAssumptionsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListAssumptionsResponse, error)
+
+	// DeleteBundlePlanWithResponse What the Delete control offers for this bundle, by the kind of source that makes it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
+	DeleteBundlePlanWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DeleteBundlePlanResponse, error)
 
 	// DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	//
@@ -8979,6 +9358,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /profiles/guess (the `GuessProfile` operationId).
 	GuessProfileWithResponse(ctx context.Context, body GuessProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*GuessProfileResponse, error)
 
+	// DeleteProfileWithResponse Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /profiles/{key} (the `DeleteProfile` operationId).
+	DeleteProfileWithResponse(ctx context.Context, key ProfileKey, reqEditors ...RequestEditorFn) (*DeleteProfileResponse, error)
+
 	// GetProfileWithResponse A profile with its YAML, template, versions, and maintainers (REQ-013).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -9000,6 +9386,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /profiles/{key} (the `UpdateProfile` operationId).
 	UpdateProfileWithResponse(ctx context.Context, key ProfileKey, body UpdateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateProfileResponse, error)
 
+	// DiffProfileVersionsWithResponse The YAML diff and the template diff between two versions of a profile.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /profiles/{key}/diff (the `DiffProfileVersions` operationId).
+	DiffProfileVersionsWithResponse(ctx context.Context, key ProfileKey, params *DiffProfileVersionsParams, reqEditors ...RequestEditorFn) (*DiffProfileVersionsResponse, error)
+
 	// SetMaintainersWithBodyWithResponse Set the maintainers of a profile. Admins only.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9013,6 +9406,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /profiles/{key}/maintainers (the `SetMaintainers` operationId).
 	SetMaintainersWithResponse(ctx context.Context, key ProfileKey, body SetMaintainersJSONRequestBody, reqEditors ...RequestEditorFn) (*SetMaintainersResponse, error)
+
+	// RollbackProfileWithBodyWithResponse Write a new version whose text equals an earlier one. No number changes meaning.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+	RollbackProfileWithBodyWithResponse(ctx context.Context, key ProfileKey, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RollbackProfileResponse, error)
+
+	// RollbackProfileWithResponse Write a new version whose text equals an earlier one. No number changes meaning.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+	RollbackProfileWithResponse(ctx context.Context, key ProfileKey, body RollbackProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*RollbackProfileResponse, error)
 
 	// ListProfileThreadsWithResponse The suggestions for a profile, as threads on its checks (REQ-015).
 	//
@@ -10591,6 +10998,47 @@ func (r ImportBundleResponse) ContentType() string {
 	return ""
 }
 
+type DeleteBundleResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteBundleResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteBundleResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteBundleResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteBundleResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteBundleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetBundleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -10829,6 +11277,54 @@ func (r ListAssumptionsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListAssumptionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteBundlePlanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *DeletePlan
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteBundlePlanResponse) GetJSON200() *DeletePlan {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteBundlePlanResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteBundlePlanResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteBundlePlanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteBundlePlanResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteBundlePlanResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13341,6 +13837,47 @@ func (r GuessProfileResponse) ContentType() string {
 	return ""
 }
 
+type DeleteProfileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteProfileResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteProfileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteProfileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteProfileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteProfileResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13437,6 +13974,54 @@ func (r UpdateProfileResponse) ContentType() string {
 	return ""
 }
 
+type DiffProfileVersionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProfileDiff
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DiffProfileVersionsResponse) GetJSON200() *ProfileDiff {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DiffProfileVersionsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DiffProfileVersionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DiffProfileVersionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DiffProfileVersionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DiffProfileVersionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type SetMaintainersResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13479,6 +14064,54 @@ func (r SetMaintainersResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetMaintainersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RollbackProfileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ProfileDetail
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RollbackProfileResponse) GetJSON200() *ProfileDetail {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RollbackProfileResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RollbackProfileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RollbackProfileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RollbackProfileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RollbackProfileResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15213,6 +15846,19 @@ func (c *ClientWithResponses) ImportBundleWithBodyWithResponse(ctx context.Conte
 	return ParseImportBundleResponse(rsp)
 }
 
+// DeleteBundleWithResponse Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
+func (c *ClientWithResponses) DeleteBundleWithResponse(ctx context.Context, bundleId BundleId, params *DeleteBundleParams, reqEditors ...RequestEditorFn) (*DeleteBundleResponse, error) {
+	rsp, err := c.DeleteBundle(ctx, bundleId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteBundleResponse(rsp)
+}
+
 // GetBundleWithResponse Get one bundle.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -15276,6 +15922,19 @@ func (c *ClientWithResponses) ListAssumptionsWithResponse(ctx context.Context, b
 		return nil, err
 	}
 	return ParseListAssumptionsResponse(rsp)
+}
+
+// DeleteBundlePlanWithResponse What the Delete control offers for this bundle, by the kind of source that makes it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
+func (c *ClientWithResponses) DeleteBundlePlanWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DeleteBundlePlanResponse, error) {
+	rsp, err := c.DeleteBundlePlan(ctx, bundleId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteBundlePlanResponse(rsp)
 }
 
 // DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
@@ -16201,6 +16860,19 @@ func (c *ClientWithResponses) GuessProfileWithResponse(ctx context.Context, body
 	return ParseGuessProfileResponse(rsp)
 }
 
+// DeleteProfileWithResponse Delete a profile. Admins only. Refused for a built-in, and while a bundle names its key.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /profiles/{key} (the `DeleteProfile` operationId).
+func (c *ClientWithResponses) DeleteProfileWithResponse(ctx context.Context, key ProfileKey, reqEditors ...RequestEditorFn) (*DeleteProfileResponse, error) {
+	rsp, err := c.DeleteProfile(ctx, key, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteProfileResponse(rsp)
+}
+
 // GetProfileWithResponse A profile with its YAML, template, versions, and maintainers (REQ-013).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16240,6 +16912,19 @@ func (c *ClientWithResponses) UpdateProfileWithResponse(ctx context.Context, key
 	return ParseUpdateProfileResponse(rsp)
 }
 
+// DiffProfileVersionsWithResponse The YAML diff and the template diff between two versions of a profile.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /profiles/{key}/diff (the `DiffProfileVersions` operationId).
+func (c *ClientWithResponses) DiffProfileVersionsWithResponse(ctx context.Context, key ProfileKey, params *DiffProfileVersionsParams, reqEditors ...RequestEditorFn) (*DiffProfileVersionsResponse, error) {
+	rsp, err := c.DiffProfileVersions(ctx, key, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiffProfileVersionsResponse(rsp)
+}
+
 // SetMaintainersWithBodyWithResponse Set the maintainers of a profile. Admins only.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -16264,6 +16949,32 @@ func (c *ClientWithResponses) SetMaintainersWithResponse(ctx context.Context, ke
 		return nil, err
 	}
 	return ParseSetMaintainersResponse(rsp)
+}
+
+// RollbackProfileWithBodyWithResponse Write a new version whose text equals an earlier one. No number changes meaning.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+func (c *ClientWithResponses) RollbackProfileWithBodyWithResponse(ctx context.Context, key ProfileKey, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RollbackProfileResponse, error) {
+	rsp, err := c.RollbackProfileWithBody(ctx, key, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRollbackProfileResponse(rsp)
+}
+
+// RollbackProfileWithResponse Write a new version whose text equals an earlier one. No number changes meaning.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /profiles/{key}/rollback (the `RollbackProfile` operationId).
+func (c *ClientWithResponses) RollbackProfileWithResponse(ctx context.Context, key ProfileKey, body RollbackProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*RollbackProfileResponse, error) {
+	rsp, err := c.RollbackProfile(ctx, key, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRollbackProfileResponse(rsp)
 }
 
 // ListProfileThreadsWithResponse The suggestions for a profile, as threads on its checks (REQ-015).
@@ -17636,6 +18347,35 @@ func ParseImportBundleResponse(rsp *http.Response) (*ImportBundleResponse, error
 	return response, nil
 }
 
+// ParseDeleteBundleResponse parses an HTTP response from a DeleteBundleWithResponse call
+func ParseDeleteBundleResponse(rsp *http.Response) (*DeleteBundleResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteBundleResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetBundleResponse parses an HTTP response from a GetBundleWithResponse call
 func ParseGetBundleResponse(rsp *http.Response) (*GetBundleResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -17786,6 +18526,39 @@ func ParseListAssumptionsResponse(rsp *http.Response) (*ListAssumptionsResponse,
 		var dest struct {
 			Items []Anchor `json:"items"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteBundlePlanResponse parses an HTTP response from a DeleteBundlePlanWithResponse call
+func ParseDeleteBundlePlanResponse(rsp *http.Response) (*DeleteBundlePlanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteBundlePlanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeletePlan
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -19515,6 +20288,35 @@ func ParseGuessProfileResponse(rsp *http.Response) (*GuessProfileResponse, error
 	return response, nil
 }
 
+// ParseDeleteProfileResponse parses an HTTP response from a DeleteProfileWithResponse call
+func ParseDeleteProfileResponse(rsp *http.Response) (*DeleteProfileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteProfileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetProfileResponse parses an HTTP response from a GetProfileWithResponse call
 func ParseGetProfileResponse(rsp *http.Response) (*GetProfileResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19581,6 +20383,39 @@ func ParseUpdateProfileResponse(rsp *http.Response) (*UpdateProfileResponse, err
 	return response, nil
 }
 
+// ParseDiffProfileVersionsResponse parses an HTTP response from a DiffProfileVersionsWithResponse call
+func ParseDiffProfileVersionsResponse(rsp *http.Response) (*DiffProfileVersionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DiffProfileVersionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProfileDiff
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseSetMaintainersResponse parses an HTTP response from a SetMaintainersWithResponse call
 func ParseSetMaintainersResponse(rsp *http.Response) (*SetMaintainersResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19590,6 +20425,39 @@ func ParseSetMaintainersResponse(rsp *http.Response) (*SetMaintainersResponse, e
 	}
 
 	response := &SetMaintainersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProfileDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRollbackProfileResponse parses an HTTP response from a RollbackProfileWithResponse call
+func ParseRollbackProfileResponse(rsp *http.Response) (*RollbackProfileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RollbackProfileResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

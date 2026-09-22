@@ -265,6 +265,32 @@ export type RunEvent = {
     cache_hits?: number;
 };
 
+export type ProfileDiff = {
+    from: number;
+    to: number;
+    yaml: Array<LineOp>;
+    template: Array<LineOp>;
+};
+
+export type DeletePlan = {
+    kind: 'db' | 'github' | 'local';
+    slug: string;
+    /**
+     * What the person must do to be rid of this bundle.
+     */
+    message: string;
+    source_id?: string;
+    source_repo?: string;
+    /**
+     * How many bundles the source holds, which go with it.
+     */
+    source_bundles?: number;
+    /**
+     * The folder on disk that makes a local bundle.
+     */
+    dir?: string;
+};
+
 /**
  * The code target of one verification run: a GitHub repo and a commit, or a folder on disk.
  */
@@ -1283,6 +1309,10 @@ export type ProfileDetail = {
         version: number;
         created_by: string;
         created_at: string;
+        /**
+         * Where the version came from. A rollback says which version it repeats.
+         */
+        origin: string;
     }>;
     maintainers: Array<string>;
     can_edit: boolean;
@@ -1830,6 +1860,33 @@ export type RequestVerificationWaiverResponses = {
 
 export type RequestVerificationWaiverResponse = RequestVerificationWaiverResponses[keyof RequestVerificationWaiverResponses];
 
+export type DeleteBundlePlanData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/delete-plan';
+};
+
+export type DeleteBundlePlanErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteBundlePlanError = DeleteBundlePlanErrors[keyof DeleteBundlePlanErrors];
+
+export type DeleteBundlePlanResponses = {
+    /**
+     * The plan.
+     */
+    200: DeletePlan;
+};
+
+export type DeleteBundlePlanResponse = DeleteBundlePlanResponses[keyof DeleteBundlePlanResponses];
+
 export type ListVerificationsData = {
     body?: never;
     path: {
@@ -2266,6 +2323,38 @@ export type ImportBundleResponses = {
 };
 
 export type ImportBundleResponse = ImportBundleResponses[keyof ImportBundleResponses];
+
+export type DeleteBundleData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query: {
+        /**
+         * The bundle's slug, typed to confirm.
+         */
+        slug: string;
+    };
+    url: '/bundles/{bundleId}';
+};
+
+export type DeleteBundleErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteBundleError = DeleteBundleErrors[keyof DeleteBundleErrors];
+
+export type DeleteBundleResponses = {
+    /**
+     * The bundle is gone.
+     */
+    204: void;
+};
+
+export type DeleteBundleResponse = DeleteBundleResponses[keyof DeleteBundleResponses];
 
 export type GetBundleData = {
     body?: never;
@@ -3777,6 +3866,33 @@ export type GetInsightsResponses = {
 
 export type GetInsightsResponse = GetInsightsResponses[keyof GetInsightsResponses];
 
+export type DeleteProfileData = {
+    body?: never;
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}';
+};
+
+export type DeleteProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteProfileError = DeleteProfileErrors[keyof DeleteProfileErrors];
+
+export type DeleteProfileResponses = {
+    /**
+     * The profile is gone.
+     */
+    204: void;
+};
+
+export type DeleteProfileResponse = DeleteProfileResponses[keyof DeleteProfileResponses];
+
 export type GetProfileData = {
     body?: never;
     path: {
@@ -3859,6 +3975,65 @@ export type SetMaintainersResponses = {
 };
 
 export type SetMaintainersResponse = SetMaintainersResponses[keyof SetMaintainersResponses];
+
+export type DiffProfileVersionsData = {
+    body?: never;
+    path: {
+        key: string;
+    };
+    query: {
+        from_version: number;
+        to_version: number;
+    };
+    url: '/profiles/{key}/diff';
+};
+
+export type DiffProfileVersionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DiffProfileVersionsError = DiffProfileVersionsErrors[keyof DiffProfileVersionsErrors];
+
+export type DiffProfileVersionsResponses = {
+    /**
+     * The diff.
+     */
+    200: ProfileDiff;
+};
+
+export type DiffProfileVersionsResponse = DiffProfileVersionsResponses[keyof DiffProfileVersionsResponses];
+
+export type RollbackProfileData = {
+    body: {
+        version: number;
+    };
+    path: {
+        key: string;
+    };
+    query?: never;
+    url: '/profiles/{key}/rollback';
+};
+
+export type RollbackProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RollbackProfileError = RollbackProfileErrors[keyof RollbackProfileErrors];
+
+export type RollbackProfileResponses = {
+    /**
+     * The profile, at its new version.
+     */
+    200: ProfileDetail;
+};
+
+export type RollbackProfileResponse = RollbackProfileResponses[keyof RollbackProfileResponses];
 
 export type ListProfileThreadsData = {
     body?: never;

@@ -33,6 +33,28 @@ type Registry struct {
 	mu       sync.RWMutex
 	current  map[string]Versioned
 	problems []string
+	// origins holds the origin of the next version to record for a key, so a rollback says
+	// which version it repeats in local mode too.
+	origins map[string]string
+}
+
+// noteOrigin sets the origin of the next version this registry records for key. A rollback
+// uses it, so the history says which version the new one repeats in both modes.
+func (r *Registry) noteOrigin(key, origin string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.origins == nil {
+		r.origins = map[string]string{}
+	}
+	r.origins[key] = origin
+}
+
+func (r *Registry) takeOrigin(key string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	o := r.origins[key]
+	delete(r.origins, key)
+	return o
 }
 
 // Reload loads the profiles again and records new versions.
@@ -47,6 +69,12 @@ func (r *Registry) Reload(ctx context.Context) error {
 		if loadErr != nil {
 			for _, e := range unwrapAll(loadErr) {
 				problems = append(problems, e.Error())
+			}
+		}
+		for key, l := range loaded {
+			if o := r.takeOrigin(key); o != "" {
+				l.Origin = o
+				loaded[key] = l
 			}
 		}
 		versions, err = Record(ctx, r.DB, r.Workspace, loaded, "local")
@@ -106,6 +134,12 @@ func (r *Registry) loadHosted(ctx context.Context) (map[string]Versioned, []stri
 // Save validates a profile and stores it as a new version (REQ-012, REQ-013). In local mode it
 // writes .speccy/profiles/<key>.yaml and its template file.
 func (r *Registry) Save(ctx context.Context, key string, src, template []byte, by string) (Versioned, error) {
+	return r.SaveAs(ctx, key, src, template, by, "")
+}
+
+// SaveAs saves a profile and names the origin of the version it writes. A rollback uses it, so
+// the history says which version the new one repeats.
+func (r *Registry) SaveAs(ctx context.Context, key string, src, template []byte, by, origin string) (Versioned, error) {
 	l, err := Parse(key, src, func(string) ([]byte, error) { return template, nil })
 	if err != nil {
 		var ve *ValidationError
@@ -119,12 +153,18 @@ func (r *Registry) Save(ctx context.Context, key string, src, template []byte, b
 	}
 	if r.Hosted {
 		l.Origin = "edited by " + by
+		if origin != "" {
+			l.Origin = origin
+		}
 		if _, err := Record(ctx, r.DB, r.Workspace, map[string]Loaded{key: l}, by); err != nil {
 			return Versioned{}, err
 		}
 	} else {
 		if r.Dir == "" {
 			return Versioned{}, kernel.Invalid("no_profiles_dir", "This server has no profiles folder.")
+		}
+		if origin != "" {
+			r.noteOrigin(key, origin)
 		}
 		tp := filepath.Clean(filepath.FromSlash(l.Profile.Template))
 		if filepath.IsAbs(tp) || strings.HasPrefix(tp, "..") {
@@ -242,13 +282,16 @@ func (a *API) detail(ctx context.Context, key string) (api.ProfileDetail, error)
 		out.Versions = append(out.Versions, struct {
 			CreatedAt time.Time `json:"created_at"`
 			CreatedBy string    `json:"created_by"`
+			Origin    string    `json:"origin"`
 			Version   int64     `json:"version"`
-		}{CreatedAt: pv.CreatedAt.UTC(), CreatedBy: kernel.PersonByID(ctx, a.People, pv.CreatedBy).Label(), Version: pv.Version})
+		}{CreatedAt: pv.CreatedAt.UTC(), CreatedBy: kernel.PersonByID(ctx, a.People, pv.CreatedBy).Label(),
+			Origin: pv.Origin, Version: pv.Version})
 	}
 	if out.Versions == nil {
 		out.Versions = []struct {
 			CreatedAt time.Time `json:"created_at"`
 			CreatedBy string    `json:"created_by"`
+			Origin    string    `json:"origin"`
 			Version   int64     `json:"version"`
 		}{}
 	}
@@ -327,4 +370,26 @@ func actorID(ctx context.Context) string {
 		return id
 	}
 	return "local"
+}
+
+// removeFiles takes a profile's YAML and its template out of the profiles folder. Local mode
+// keeps profiles on disk, so a delete that left the file behind would bring it back on the
+// next reload. It does nothing in hosted mode, where the store holds them.
+func (r *Registry) removeFiles(key string) error {
+	if r.Hosted || r.Dir == "" {
+		return nil
+	}
+	l, ok := r.Current()[key]
+	if ok && l.Profile.Template != "" {
+		tp := filepath.Clean(filepath.FromSlash(l.Profile.Template))
+		if !filepath.IsAbs(tp) && !strings.HasPrefix(tp, "..") {
+			if err := os.Remove(filepath.Join(r.Dir, tp)); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+	}
+	if err := os.Remove(filepath.Join(r.Dir, key+".yaml")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

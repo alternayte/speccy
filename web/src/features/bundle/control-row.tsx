@@ -12,6 +12,7 @@ import {
   PackageCheck,
   Play,
   Printer,
+  Trash2,
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export function ControlRow({
   onNext,
   busy,
   onFiles,
+  onDelete,
   onRunReview,
   onRequestReview,
   onExport,
@@ -49,6 +51,8 @@ export function ControlRow({
   // busy is true while a review runs: the next action waits for it.
   busy: boolean;
   onFiles: () => void;
+  // onDelete opens the delete dialog. It is absent for a person who may not delete.
+  onDelete?: () => void;
   onRunReview: () => void;
   // onRequestReview asks for the reviews the profile needs. Hosted mode only.
   onRequestReview?: () => void;
@@ -142,6 +146,11 @@ export function ControlRow({
         <MenuItem icon={<Download className="size-3.5" />} onSelect={() => onExport("zip")}>
           Bundle as .zip
         </MenuItem>
+        {onDelete ? (
+          <MenuItem icon={<Trash2 className="size-3.5" />} onSelect={onDelete}>
+            Delete
+          </MenuItem>
+        ) : null}
       </Menu>
     </div>
   );
