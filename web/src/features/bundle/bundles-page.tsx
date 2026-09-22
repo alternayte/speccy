@@ -8,9 +8,12 @@ import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import { useNavigate } from "@tanstack/react-router";
 import {
   adoptSkippedMutation,
+  dismissDocMutation,
+  listDismissedDocsOptions,
   listBundlesOptions,
   listProfilesOptions,
   listSkippedOptions,
+  undismissDocMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle, putFileContent } from "@/lib/api";
@@ -234,7 +237,12 @@ function SkippedDocs() {
   const navigate = useNavigate();
   const skipped = useQuery(listSkippedOptions());
   const profiles = useQuery(listProfilesOptions());
+  const dismissed = useQuery(listDismissedDocsOptions());
   const [picked, setPicked] = useState<Record<string, string>>({});
+  const [showDismissed, setShowDismissed] = useState(false);
+  const dismiss = useMutation({ ...dismissDocMutation(), onSuccess: () => qc.invalidateQueries() });
+  const undismiss = useMutation({ ...undismissDocMutation(), onSuccess: () => qc.invalidateQueries() });
+  const marked = (dismissed.data?.items ?? []).filter((d) => !d.source_id);
   const adopt = useMutation({
     ...adoptSkippedMutation(),
     onSuccess: async (b) => {
@@ -243,52 +251,89 @@ function SkippedDocs() {
     },
   });
   const items = skipped.data?.items ?? [];
-  if (items.length === 0) return null;
+  if (items.length === 0 && marked.length === 0) return null;
   return (
     <section className="mt-6" aria-labelledby="skipped">
       <h2 id="skipped" className="text-sm font-semibold text-ink">
         Markdown files that are not bundles yet
       </h2>
-      <p className="mt-1 text-sm text-ink-2">
-        These files name no type. Adopt one to write the type into it and review it.
-      </p>
+      {items.length > 0 ? (
+        <p className="mt-1 text-sm text-ink-2">
+          These files name no type. Adopt one to write the type into it and review it.
+        </p>
+      ) : null}
       {adopt.isError ? (
         <div className="mt-2">
           <ErrorState message={problemMessage(adopt.error)} />
         </div>
       ) : null}
-      <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
-        {items.map((it) => {
-          const key = picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? "";
-          return (
-            <li
-              key={it.path}
-              className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0"
-            >
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{it.path}</span>
-              <select
-                aria-label={`Doc type for ${it.path}`}
-                value={key}
-                onChange={(e) => setPicked({ ...picked, [it.path]: e.target.value })}
-                className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+      {items.length > 0 ? (
+        <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
+          {items.map((it) => {
+            const key = picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? "";
+            return (
+              <li
+                key={it.path}
+                className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0"
               >
-                {(profiles.data?.items ?? []).map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-              <Button
-                size="sm"
-                disabled={!key || adopt.isPending}
-                onClick={() => adopt.mutate({ body: { path: it.path, profile: key } })}
-              >
-                Adopt
-              </Button>
-            </li>
-          );
-        })}
-      </ul>
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{it.path}</span>
+                <select
+                  aria-label={`Doc type for ${it.path}`}
+                  value={key}
+                  onChange={(e) => setPicked({ ...picked, [it.path]: e.target.value })}
+                  className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+                >
+                  {(profiles.data?.items ?? []).map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={dismiss.isPending}
+                  onClick={() => dismiss.mutate({ body: { path: it.path } })}
+                >
+                  Not a spec
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!key || adopt.isPending}
+                  onClick={() => adopt.mutate({ body: { path: it.path, profile: key } })}
+                >
+                  Adopt
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {marked.length > 0 ? (
+        <div className="mt-2 text-xs text-ink-3">
+          {marked.length} file{marked.length === 1 ? "" : "s"} marked not a spec.{" "}
+          <button type="button" onClick={() => setShowDismissed((v) => !v)} className="text-accent">
+            {showDismissed ? "hide" : "show"}
+          </button>
+          {showDismissed ? (
+            <ul className="mt-1 space-y-1">
+              {marked.map((d) => (
+                <li key={d.path} className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 truncate font-mono text-xs text-ink-2">{d.path}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={undismiss.isPending}
+                    onClick={() => undismiss.mutate({ query: { path: d.path } })}
+                  >
+                    Undo
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -21,7 +21,14 @@ func (a *API) ListSkipped(ctx context.Context, _ api.ListSkippedRequestObject) (
 	if root == nil {
 		return out, nil
 	}
+	gone, err := a.dismissed(ctx)
+	if err != nil {
+		return nil, err
+	}
 	for _, p := range a.Service.SkippedDocs() {
+		if gone[localSource][p] {
+			continue // the person marked it as not a spec (REQ-133)
+		}
 		item := api.SkippedDoc{Path: p}
 		content, err := os.ReadFile(filepath.Join(root.Dir(), filepath.FromSlash(p)))
 		if err == nil {
@@ -57,6 +64,11 @@ func (a *API) AdoptSkipped(ctx context.Context, req api.AdoptSkippedRequestObjec
 	file := filepath.Join(root.Dir(), filepath.FromSlash(want))
 	content, err := os.ReadFile(file)
 	if err != nil {
+		return nil, err
+	}
+	// Adopting contradicts the mark, so the newer act wins (REQ-133).
+	if err := a.Service.DB.Queries().DeleteDismissedDoc(ctx, pgdb.DeleteDismissedDocParams{
+		WorkspaceID: a.Service.Workspace, Path: want}); err != nil {
 		return nil, err
 	}
 	if err := os.WriteFile(file, source.AddTypeLine(content, req.Body.Profile), 0o644); err != nil {

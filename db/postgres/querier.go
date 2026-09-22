@@ -26,6 +26,7 @@ type Querier interface {
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
 	DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error
+	DeleteDismissedDoc(ctx context.Context, arg DeleteDismissedDocParams) error
 	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
 	DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error
@@ -71,6 +72,7 @@ type Querier interface {
 	InsertBundleReviewer(ctx context.Context, arg InsertBundleReviewerParams) error
 	InsertClaim(ctx context.Context, arg InsertClaimParams) error
 	InsertContentReview(ctx context.Context, arg InsertContentReviewParams) error
+	InsertDismissedDoc(ctx context.Context, arg InsertDismissedDocParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
 	InsertGithubSource(ctx context.Context, arg InsertGithubSourceParams) error
@@ -121,6 +123,7 @@ type Querier interface {
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
 	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
+	ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) ([]DismissedDoc, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)

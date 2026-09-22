@@ -1917,6 +1917,59 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /dismissed-docs:
+    get:
+      operationId: listDismissedDocs
+      summary: The markdown files a person marked as not a spec (REQ-133).
+      responses:
+        "200":
+          description: The dismissed docs, in path order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DismissedDoc"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: dismissDoc
+      summary: Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DismissedDoc"
+      responses:
+        "204":
+          description: Marked.
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: undismissDoc
+      summary: Take the mark off a file, so it appears again (REQ-133).
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: The mark is gone.
+        default:
+          $ref: "#/components/responses/Problem"
+
   /github/sources/{sourceId}/skipped:
     parameters:
       - $ref: "#/components/parameters/SourceId"
@@ -3356,6 +3409,18 @@ components:
         adopted:
           type: integer
           description: How many docs of this source have a type accepted in Speccy (REQ-133).
+
+    DismissedDoc:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          description: The file's path, in the repo for a source, or in the served folder.
+        source_id:
+          type: string
+          format: uuid
+          description: The source the file belongs to. Absent for a file of the served folder.
 
     SourceSkippedDoc:
       type: object

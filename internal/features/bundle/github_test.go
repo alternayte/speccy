@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -396,5 +398,48 @@ func TestMappingsFor(t *testing.T) {
 	got = mappingsFor(adopted, []string{"notes/audit-trail.md", "notes/meeting.md"})
 	if len(got) != 2 {
 		t.Fatalf("mappings = %+v, want one per doc", got)
+	}
+}
+
+// TestDismissedDoc pins that a file marked as not a spec leaves the skipped list, and that
+// accepting a type for it clears the mark (REQ-133).
+func TestDismissedDoc(t *testing.T) {
+	ctx := context.Background()
+	s := services()[0].open(t)
+	q := s.DB.Queries()
+	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
+		Path: "docs", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+	if err := q.InsertGithubSource(ctx, src); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.InsertDismissedDoc(ctx, pgdb.InsertDismissedDocParams{WorkspaceID: s.Workspace,
+		SourceID: uuid.NullUUID{UUID: src.ID, Valid: true}, Path: "docs/meeting.md", DismissedBy: "user-1",
+		CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	// A second mark of the same file is not an error, and makes no second row.
+	if err := q.InsertDismissedDoc(ctx, pgdb.InsertDismissedDocParams{WorkspaceID: s.Workspace,
+		SourceID: uuid.NullUUID{UUID: src.ID, Valid: true}, Path: "docs/meeting.md", DismissedBy: "user-1",
+		CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := q.ListDismissedDocs(ctx, s.Workspace)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("dismissed docs = %+v, %v; want one", rows, err)
+	}
+	// A file of the served folder carries no source, and lives beside it.
+	if err := q.InsertDismissedDoc(ctx, pgdb.InsertDismissedDocParams{WorkspaceID: s.Workspace,
+		Path: "notes.md", DismissedBy: "user-1", CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err = q.ListDismissedDocs(ctx, s.Workspace); err != nil || len(rows) != 2 {
+		t.Fatalf("dismissed docs = %+v, %v; want the source file and the local file", rows, err)
+	}
+	// Taking the mark off the local file leaves the source's mark alone.
+	if err := q.DeleteDismissedDoc(ctx, pgdb.DeleteDismissedDocParams{WorkspaceID: s.Workspace, Path: "notes.md"}); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err = q.ListDismissedDocs(ctx, s.Workspace); err != nil || len(rows) != 1 || rows[0].Path != "docs/meeting.md" {
+		t.Fatalf("dismissed docs = %+v, %v; want the source file only", rows, err)
 	}
 }

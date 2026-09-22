@@ -718,6 +718,17 @@ export type GithubSource = {
     adopted?: number;
 };
 
+export type DismissedDoc = {
+    /**
+     * The file's path, in the repo for a source, or in the served folder.
+     */
+    path: string;
+    /**
+     * The source the file belongs to. Absent for a file of the served folder.
+     */
+    source_id?: string;
+};
+
 export type SourceSkippedDoc = {
     /**
      * The file's path in the repo.
@@ -4112,6 +4123,86 @@ export type DeleteGithubSourceResponses = {
 };
 
 export type DeleteGithubSourceResponse = DeleteGithubSourceResponses[keyof DeleteGithubSourceResponses];
+
+export type UndismissDocData = {
+    body?: never;
+    path?: never;
+    query: {
+        path: string;
+        source_id?: string;
+    };
+    url: '/dismissed-docs';
+};
+
+export type UndismissDocErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UndismissDocError = UndismissDocErrors[keyof UndismissDocErrors];
+
+export type UndismissDocResponses = {
+    /**
+     * The mark is gone.
+     */
+    204: void;
+};
+
+export type UndismissDocResponse = UndismissDocResponses[keyof UndismissDocResponses];
+
+export type ListDismissedDocsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/dismissed-docs';
+};
+
+export type ListDismissedDocsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListDismissedDocsError = ListDismissedDocsErrors[keyof ListDismissedDocsErrors];
+
+export type ListDismissedDocsResponses = {
+    /**
+     * The dismissed docs, in path order.
+     */
+    200: {
+        items: Array<DismissedDoc>;
+    };
+};
+
+export type ListDismissedDocsResponse = ListDismissedDocsResponses[keyof ListDismissedDocsResponses];
+
+export type DismissDocData = {
+    body: DismissedDoc;
+    path?: never;
+    query?: never;
+    url: '/dismissed-docs';
+};
+
+export type DismissDocErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DismissDocError = DismissDocErrors[keyof DismissDocErrors];
+
+export type DismissDocResponses = {
+    /**
+     * Marked.
+     */
+    204: void;
+};
+
+export type DismissDocResponse = DismissDocResponses[keyof DismissDocResponses];
 
 export type ListSkippedDocsData = {
     body?: never;

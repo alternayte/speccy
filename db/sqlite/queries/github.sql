@@ -43,3 +43,16 @@ DELETE FROM adopted_type WHERE source_id = sqlc.arg(source_id) AND path = sqlc.a
 
 -- name: SetGithubSourceSkipped :exec
 UPDATE github_source SET skipped = sqlc.arg(skipped) WHERE id = sqlc.arg(id);
+
+-- name: ListDismissedDocs :many
+SELECT * FROM dismissed_doc WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY path;
+
+-- name: InsertDismissedDoc :exec
+INSERT INTO dismissed_doc (workspace_id, source_id, path, dismissed_by, created_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(source_id), sqlc.arg(path), sqlc.arg(dismissed_by), sqlc.arg(created_at))
+ON CONFLICT DO NOTHING;
+
+-- name: DeleteDismissedDoc :exec
+DELETE FROM dismissed_doc WHERE workspace_id = sqlc.arg(workspace_id)
+  AND coalesce(source_id, '00000000-0000-0000-0000-000000000000') = coalesce(sqlc.narg(source_id), '00000000-0000-0000-0000-000000000000')
+  AND path = sqlc.arg(path);

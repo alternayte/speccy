@@ -29,6 +29,12 @@ The bundles screen lists the markdown files in the served folder that name no ty
 
 A drag of a folder or a file onto the bundles screen does the same, and a drop whose type Speccy cannot guess opens that dialog with the file in it.
 
+### A file that is not a spec
+
+Most folders hold markdown that is not a spec: a readme, a changelog, notes from a meeting. **Not a spec** takes that file out of the list. The section then keeps one line with the count, and **show** lists what you marked, each with **Undo**.
+
+The mark lives in Speccy, for your workspace. The file takes no change, and neither does the repo. Accepting a type later clears the mark. A team that wants the rule for everyone writes a glob in `.speccy.yaml` instead.
+
 ## 3. One doc in GitHub
 
 Paste the doc's URL. A branch URL works, so a spec that is still in a pull request reviews the same as one on the default branch:
@@ -47,7 +53,7 @@ Paste the folder's URL the same way. Speccy reads the tree and lists every markd
 
 ![The docs of a GitHub source that name no type, each with a guess and a type picker](images/adopt-source.png)
 
-Accept the ones you want. Each becomes a bundle at once, with a review and a verdict, and your repo still takes no commit. Above 200 files the list says how many more there are: narrow the source to a folder.
+Accept the ones you want. Each becomes a bundle at once, with a review and a verdict, and your repo still takes no commit. **Not a spec** takes a row out of the list, with the same count and **Undo** as the list on disk. Above 200 files the list says how many more there are: narrow the source to a folder.
 
 **The repo always wins.** The day a doc gains `type:` in its frontmatter, or `.speccy.yaml` gains a mapping that covers it, the repo's answer takes over and Speccy drops the type it held. The bundle keeps its ID, its threads and its waivers, so nothing moves under you.
 
