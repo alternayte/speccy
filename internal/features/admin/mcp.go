@@ -115,7 +115,7 @@ func validateMCP(in api.MCPConnectionInput) (mcpTarget, []string, error) {
 		}
 	}
 	if len(mcpHosts(in)) > 0 && (in.FetchTool == nil || !slices.Contains(allow, *in.FetchTool)) {
-		return t, nil, kernel.Invalid("bad_mcp", "A connection with hosts needs its fetch tool on the allowlist.")
+		return t, nil, kernel.Invalid("bad_mcp", "A connection with hosts needs one allowed tool marked \"reads a page\". Mark one, or clear the hosts.")
 	}
 	return t, allow, nil
 }

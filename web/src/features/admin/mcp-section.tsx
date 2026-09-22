@@ -150,7 +150,8 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
               className="space-y-2"
             >
               <p className="text-xs text-ink-2">
-                Allow read-only tools only. Speccy refuses a tool that the server marks as one that changes data.
+                Allow read-only tools only. Speccy refuses a tool that the server marks as one that changes data. Allow
+                a tool before you give it a job: search, or reads a page.
               </p>
               <ul className="space-y-1">
                 {tools.data.items.map((t) => (
