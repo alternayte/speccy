@@ -370,3 +370,22 @@ func (c *Client) User(ctx context.Context) (string, error) {
 	err := c.do(ctx, "GET", "/user", nil, &u)
 	return u.Login, err
 }
+
+// Compare returns the paths the commits between base and head changed. GitHub cuts a very
+// large comparison; truncated says so.
+func (c *Client) Compare(ctx context.Context, repo, base, head string) (paths []string, truncated bool, err error) {
+	var out struct {
+		Files []struct {
+			Filename string `json:"filename"`
+		} `json:"files"`
+		TotalCommits int `json:"total_commits"`
+	}
+	if err := c.do(ctx, "GET", repoPath(repo)+"/compare/"+url.PathEscape(base)+"..."+url.PathEscape(head), nil, &out); err != nil {
+		return nil, false, err
+	}
+	for _, f := range out.Files {
+		paths = append(paths, f.Filename)
+	}
+	// The compare endpoint returns at most 300 files.
+	return paths, len(out.Files) >= 300, nil
+}

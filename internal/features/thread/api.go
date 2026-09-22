@@ -387,12 +387,22 @@ func (a *API) textAnchor(ctx context.Context, bundleID uuid.UUID, raw map[string
 // handoff feature calls it, so the report reuses the thread aggregate, its anchor, its
 // blocking flag, and its place in the rail.
 func (a *API) OpenFromBuild(ctx context.Context, bundleID uuid.UUID, handoffID uuid.UUID, version int64, in api.OpenThread) (api.ThreadDetail, error) {
+	return a.openFrom(ctx, bundleID, &handoffID, version, in)
+}
+
+// OpenFromVerification opens the thread a verification run's outcome becomes. The run carries
+// a handoff only when the caller named one, so handoffID may be nil.
+func (a *API) OpenFromVerification(ctx context.Context, bundleID uuid.UUID, handoffID *uuid.UUID, version int64, in api.OpenThread) (api.ThreadDetail, error) {
+	return a.openFrom(ctx, bundleID, handoffID, version, in)
+}
+
+func (a *API) openFrom(ctx context.Context, bundleID uuid.UUID, handoffID *uuid.UUID, version int64, in api.OpenThread) (api.ThreadDetail, error) {
 	by := AuthorOf(ctx, a.People)
 	anchor, _ := json.Marshal(in.Anchor)
 	c := Open{
 		ID: kernel.NewID(), BundleID: &bundleID, AnchorKind: string(in.AnchorKind), Anchor: anchor,
 		AddressedTo: string(in.AddressedTo), Blocking: in.Blocking != nil && *in.Blocking, By: by, Body: in.Body,
-		MessageID: kernel.NewID(), At: time.Now().UTC(), HandoffID: &handoffID, HandoffVersion: version,
+		MessageID: kernel.NewID(), At: time.Now().UTC(), HandoffID: handoffID, HandoffVersion: version,
 	}
 	if in.Title != nil {
 		c.Title = *in.Title

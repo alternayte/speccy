@@ -150,6 +150,48 @@ A profile sets the template, the checks, the limits, and the policies of one doc
 
 Any member suggests a change to a profile under **Profiles → Suggestions**.
 
+#### The source policy
+
+`grounding.sources` says which sources the grounding stage accepts. Speccy applies it after
+the model returns a URL, so no rule depends on a model obeying it.
+
+```yaml
+grounding:
+  sources:
+    allow: [docs.example.com, "*.example.org"]   # only these hosts, when the list exists
+    forbid: [answers.example.net]                # Speccy never requests these
+    domains:
+      - { pattern: docs.example.com, tier: primary }
+    freshness: { primary: 180, secondary: 30 }   # days; 0 is no limit
+    require_primary: [security]                  # these claim classes need a primary source
+    classes:
+      - { pattern: "Security/**", class: security }
+    unclassified: warn                           # allow, warn, or require-classification
+```
+
+A claim takes the class of the section it is anchored in, by its heading path. A `*` segment
+matches one heading, and a trailing `**` matches the rest of the path. The most specific
+pattern wins. Two equally specific patterns that both match one section are a fault, and the
+profile does not load. No model assigns or changes a class.
+
+A source whose every hop passes the policy keeps its tier. A source the policy refuses is
+dropped, and the claim says why. A claim whose sources are all dropped is `unverified`.
+
+#### The requirement grammar
+
+`lint.requirement-grammar` parses each trace ID definition into a trigger and a response, in
+the EARS shapes. It is off until a profile names a level:
+
+```yaml
+lint:
+  overrides:
+    lint.requirement-grammar: { level: SHOULD }
+```
+
+A definition parses as `The <actor> MUST <response>`, or with a leading `When`, `While`,
+`Where` or `If` and a comma before the actor. A definition that does not parse keeps its own
+level; only the grammar finding appears.
+
 ### API tokens
 
 A person makes an API token under **Account**. The CLI, CI, and MCP clients send it as `Authorization: Bearer <token>`. A token has the role of the person, and it stops when the person loses the role.
@@ -174,6 +216,11 @@ An admin sets these under **Admin → Workspace settings**.
 | Largest file | 10 MB | 1 to 50 MB |
 | Largest bundle | 50 MB | the file limit to 500 MB |
 | Invite links expire after | 7 days | 1 to 90 days |
+| Read the metadata of each grounding source | On | On or off |
+
+The source resolver reads a source's redirect chain, its status and its dates. It reads no
+response body, so no retrieved text reaches a model through it. With it off, a profile rule
+that needs a redirect chain or a retrieval date drops the source instead of passing it.
 
 ### Rate limits
 

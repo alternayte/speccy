@@ -172,6 +172,38 @@ The agent sends back a build report. A blocked report says it cannot build a sec
 
 For one profile, the false-ready rate is the share of Build Ready handoffs that came back blocked. **Insights** shows it.
 
-## 12. Keep the verdict in CI
+## 12. Verify the build against the spec
+
+After the build, Speccy verifies it. `speccy verify docs/specs/pay --repo acme/pay --sha <sha>` reads the repo at
+that commit, finds where each requirement is implemented and tested, and gives each trace ID one outcome:
+
+| Outcome | What it means |
+|---|---|
+| implemented | A code target holds, a test target holds, and the judge found the requirement in the code. |
+| untested | The judge found the requirement in the code, and no test cites it. |
+| unproven | A code target holds, and the judge neither found the requirement nor found a contradiction. |
+| missing | No target holds. |
+| breached | Two judges agreed that the cited code contradicts the requirement. |
+
+A target is a file path and a verbatim anchor quote that appears in that file exactly once. Speccy finds the
+targets itself, from the literal occurrences of the trace ID in the repo. A builder can send a claim instead, and
+the claim replaces what Speccy would find for that requirement.
+
+**Speccy reads the code. It runs no code and no tests.** A cited test is a citation, never a pass.
+
+The run carries its own verdict, Verified or Not Verified. It computes no Build Ready verdict. A missing or a
+breached MUST opens a blocking thread on the bundle, and the rule you already know makes the bundle Not Build
+Ready until a person answers it. An approved verification waiver excuses one trace ID in one repo, and it ends
+when that requirement's section changes. It never goes in the sidecar, because the sidecar travels with the doc
+into every build of it.
+
+**History** lists the runs. **Traceability** shows the code column and the test column. For one profile, the
+breach rate is the share of verified trace IDs that came back breached or missing, next to the false-ready rate.
+
+`speccy action --verify` runs the gate on a pull request. It posts one summary comment with the table, and an
+inline comment on each breached target the pull request changed. The MCP tool `verify_build` does the same, so the
+agent that took the packet closes the loop itself.
+
+## 13. Keep the verdict in CI
 
 `speccy review docs/specs/*` gives the same verdict in a terminal. The GitHub Action posts the findings on the pull request, and a reply there settles one. [github.md](github.md) follows a repo end to end. See also [cli-and-tui.md](cli-and-tui.md) and [configuration.md](configuration.md).

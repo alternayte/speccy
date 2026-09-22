@@ -69,3 +69,12 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Skipped doc: a markdown file in a source that the scan passed over, because it names no type and no mapping covers it. Avoid: unmapped file, orphan doc, candidate.
 - Adopted type: the doc type a person accepted in Speccy for one path in a source. The repo replaces it when it names its own. Avoid: override, profile override, guess.
 - Dismissed doc: a markdown file a person marked as not a spec, so Speccy stops offering to adopt it. Avoid: ignored file, hidden file, excluded.
+- Verification run: one execution of the post-build gate on one bundle version against one code repo at one SHA. Avoid: conformance run, build check, second gate.
+- Code target: a repo path plus a verbatim anchor quote that locates where one trace ID is implemented. A test target is the same, anchored on the test declaration line. Avoid: code link, symbol, reference, coverage entry.
+- Anchor quote: the verbatim string that locates a target in a file. It must match exactly once. Avoid: snippet, marker, locator.
+- Builder claim: the optional statement a builder submits naming the SHA, the code targets and the test targets for one trace ID. Avoid: mapping, attestation, evidence.
+- Breached: the verification outcome where the cited code contradicts the requirement text. Avoid: diverged, broken, non-conformant.
+- Requirement grammar: the optional profile check that parses a definition into a trigger and a response in the EARS shapes. Avoid: EARS check, requirement format, structured requirement.
+- Source policy: the profile section that says which domains the grounding stage accepts, their tier and their freshness period. Avoid: allowlist, trusted sources, grounding config.
+- Unproven: the verification outcome where a code target holds and the judge neither affirmed the requirement nor found a contradiction. Avoid: inconclusive, unknown, partial.
+- Claim class: the class a claim takes from the heading path of the section it is anchored in, which selects the grounding source policy. Avoid: claim type, category, tag.

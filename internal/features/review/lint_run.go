@@ -22,6 +22,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/engine/sourcepolicy"
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/es"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -67,6 +68,12 @@ type Service struct {
 	Search  func(ctx context.Context) (Searcher, error)
 	// Fetch returns the MCP connection that reads a host, or nil when none does (DEC-021).
 	Fetch func(ctx context.Context, host string) (Fetcher, error)
+	// Resolve reads the metadata of a grounding source: the redirect chain, the status and the
+	// dates. It never returns a body. Nil, or an admin who turned it off, leaves a source with
+	// no chain and no retrieval date.
+	Resolve SourceResolver
+	// ResolveSources reports whether the admin left the source resolver on. Nil means on.
+	ResolveSources func(context.Context) bool
 	// Progress receives stage events for live views (REQ-026).
 	Progress *Broker
 	// Parallel returns the bound on the model calls of one run (REQ-105). Nil means 4.
@@ -115,8 +122,15 @@ type pendingClaim struct {
 	text    string
 	label   string
 	reason  string
-	sources []string
+	class   string
+	sources []sourcepolicy.Source
 	anchor  anchor.Anchor
+}
+
+// SourceResolver reads the metadata of one grounding source under the profile's source
+// policy. It checks the policy before every request, including every redirect hop.
+type SourceResolver interface {
+	Resolve(ctx context.Context, p sourcepolicy.Policy, url string) sourcepolicy.Source
 }
 
 // evaluation collects the results of a run's stages.
@@ -361,10 +375,14 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			}
 		}
 		for _, c := range ev.claims {
-			sources, _ := json.Marshal(nonNil(c.sources))
+			sources, _ := json.Marshal(nonNilSources(c.sources))
 			an, _ := json.Marshal(c.anchor)
+			class := c.class
+			if class == "" {
+				class = sourcepolicy.Unclassified
+			}
 			if err := q.InsertClaim(ctx, pgdb.InsertClaimParams{ID: kernel.NewID(), RunID: run.ID, Text: c.text, Label: c.label,
-				Reason: c.reason, Sources: sources, Anchor: an}); err != nil {
+				Reason: c.reason, Class: class, Sources: sources, Anchor: an}); err != nil {
 				return err
 			}
 		}
@@ -610,6 +628,13 @@ func finishRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished 
 		TokensIn: r.TokensIn, TokensOut: r.TokensOut, CostEstimate: r.CostEstimate, CacheHits: r.CacheHits,
 		FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})
+}
+
+func nonNilSources(xs []sourcepolicy.Source) []sourcepolicy.Source {
+	if xs == nil {
+		return []sourcepolicy.Source{}
+	}
+	return xs
 }
 
 func nonNil(xs []string) []string {

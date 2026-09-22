@@ -93,6 +93,7 @@ type Claim struct {
 	Reason  string
 	Sources dbtype.JSON
 	Anchor  dbtype.JSON
+	Class   string
 }
 
 type ContentReview struct {
@@ -406,6 +407,38 @@ type Verdict struct {
 	BlockingFindingIds dbtype.JSON
 }
 
+type VerificationOutcome struct {
+	ID         uuid.UUID
+	RunID      uuid.UUID
+	TraceID    string
+	Outcome    string
+	Level      string
+	Blocks     bool
+	Waived     bool
+	Provenance string
+	Note       string
+	Targets    dbtype.JSON
+	Judgement  dbtype.JSON
+}
+
+type VerificationRun struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	BundleID    uuid.UUID
+	VersionID   uuid.UUID
+	HandoffID   uuid.NullUUID
+	Repo        string
+	Sha         string
+	BaseSha     string
+	Digest      string
+	Verdict     string
+	Counts      dbtype.JSON
+	Notes       dbtype.JSON
+	Stale       bool
+	StartedBy   string
+	CreatedAt   time.Time
+}
+
 type Version struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
@@ -437,6 +470,9 @@ type WaiverView struct {
 	DecidedBy   string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	Scope       string
+	TraceID     string
+	Repo        string
 }
 
 type Workspace struct {

@@ -159,6 +159,93 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/verification-waivers:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: requestVerificationWaiver
+      summary: Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trace_id, repo, reason]
+              properties:
+                trace_id:
+                  type: string
+                repo:
+                  type: string
+                  description: The code repo, or the folder, this excuse applies to.
+                reason:
+                  type: string
+                  minLength: 20
+      responses:
+        "200":
+          description: The waiver.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Waiver"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/verifications:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: listVerifications
+      summary: The verification runs of a bundle, newest first.
+      responses:
+        "200":
+          description: The verification runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: runVerification
+      summary: Verify one build of this bundle against a code repo at one commit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationRequest"
+      responses:
+        "200":
+          description: The verification run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verification"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /verifications/{runId}:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getVerification
+      summary: One verification run with the outcome of each trace ID.
+      responses:
+        "200":
+          description: The verification run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Verification"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/adopt:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -2420,6 +2507,9 @@ components:
           minimum: 1
           maximum: 90
           description: REQ-081. Default 7.
+        resolve_sources:
+          type: boolean
+          description: Read the metadata of each grounding source. Default true. With it off, a source carries no redirect chain and no retrieval date.
         parallel_calls:
           type: integer
           minimum: 1
@@ -2675,9 +2765,202 @@ components:
         cache_hits:
           type: integer
 
+    VerificationRequest:
+      type: object
+      description: "The code target of one verification run: a GitHub repo and a commit, or a folder on disk."
+      properties:
+        repo:
+          type: string
+          description: The repo, as owner/name.
+        sha:
+          type: string
+          description: The commit the run reads.
+        path:
+          type: string
+          description: A folder on disk. Local mode only. A folder run has no base commit.
+        handoff_id:
+          type: string
+          format: uuid
+          description: The handoff a builder took, when the caller names one.
+        claims:
+          type: array
+          description: The builder's claims. A claim replaces the derived targets of its trace ID.
+          items:
+            $ref: "#/components/schemas/VerificationClaim"
+
+    VerificationClaim:
+      type: object
+      required: [trace_id, targets]
+      properties:
+        trace_id:
+          type: string
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationTarget"
+
+    VerificationTarget:
+      type: object
+      required: [kind, path, quote]
+      properties:
+        kind:
+          type: string
+          enum: [code, test]
+        path:
+          type: string
+          description: The file, relative to the repo root.
+        quote:
+          type: string
+          description: The verbatim anchor. It must appear in the file exactly once.
+        line:
+          type: integer
+          description: The line Speccy found the quote at.
+        holds:
+          type: boolean
+        fault:
+          type: string
+          description: Why the target does not hold.
+        provenance:
+          type: string
+          enum: [claim, literal, mapper]
+
+    VerificationOutcome:
+      type: object
+      required: [trace_id, outcome, level, blocks, waived, provenance, targets]
+      properties:
+        trace_id:
+          type: string
+        outcome:
+          type: string
+          enum: [implemented, untested, unproven, missing, breached]
+          description: A test target is a citation, not a pass. Speccy runs no tests.
+        level:
+          type: string
+          enum: [MUST, SHOULD, INFO]
+        blocks:
+          type: boolean
+          description: The outcome opened a blocking thread.
+        waived:
+          type: boolean
+        provenance:
+          type: string
+          enum: [claim, literal, mapper]
+        note:
+          type: string
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationTarget"
+        requirement_quote:
+          type: string
+        code_quote:
+          type: string
+        reason:
+          type: string
+
+    VerificationCounts:
+      type: object
+      required: [implemented, untested, unproven, missing, breached, waived, blocking, skipped]
+      properties:
+        implemented: { type: integer }
+        untested: { type: integer }
+        unproven: { type: integer }
+        missing: { type: integer }
+        breached: { type: integer }
+        waived: { type: integer }
+        blocking: { type: integer }
+        skipped:
+          type: integer
+          description: Trace IDs outside the profile's verify prefixes, which the gate did not verify.
+
+    Verification:
+      type: object
+      required: [id, bundle_id, verdict, repo, sha, counts, notes, stale, created_at, outcomes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+        handoff_id:
+          type: string
+          format: uuid
+        verdict:
+          type: string
+          enum: [verified, not_verified]
+          description: The run's own verdict. It is not the bundle's Build Ready verdict.
+        repo: { type: string }
+        sha: { type: string }
+        base_sha:
+          type: string
+          description: The commit the ranking compared against. Empty when the run had no base.
+        digest:
+          type: string
+          description: The content digest of a folder run.
+        counts:
+          $ref: "#/components/schemas/VerificationCounts"
+        notes:
+          type: array
+          items: { type: string }
+          description: The limits the scan hit.
+        stale:
+          type: boolean
+          description: The bundle got a new version after this run.
+        started_by: { type: string }
+        created_at:
+          type: string
+          format: date-time
+        outcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationOutcome"
+
+    VerificationList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Verification"
+
+    ClaimSource:
+      type: object
+      description: One source of a claim, with what the metadata resolver learned about it.
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: The address the search returned.
+        final_url:
+          type: string
+          description: The address that answered, after the redirects. Empty when the resolver did not run.
+        chain:
+          type: array
+          description: Every address Speccy requested, in order.
+          items:
+            type: string
+        status:
+          type: integer
+        retrieved_at:
+          type: string
+          format: date-time
+        modified:
+          type: string
+          format: date-time
+        tier:
+          type: string
+          enum: [primary, secondary]
+        dropped:
+          type: boolean
+          description: The source policy refused the source.
+        reason:
+          type: string
+
     Claim:
       type: object
-      required: [id, text, label, reason, sources, anchor]
+      required: [id, text, label, reason, sources, anchor, class]
       properties:
         id:
           type: string
@@ -2689,10 +2972,13 @@ components:
           enum: [verified, contradicted, unverified]
         reason:
           type: string
+        class:
+          type: string
+          description: The claim class the profile gave the section, or unclassified.
         sources:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/ClaimSource"
         anchor:
           $ref: "#/components/schemas/Anchor"
 
@@ -3919,7 +4205,7 @@ components:
 
     ProfileInsights:
       type: object
-      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate, false_ready_rate, blocked_sections]
+      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate, false_ready_rate, breach_rate, blocked_sections]
       properties:
         key:
           type: string
@@ -3951,6 +4237,9 @@ components:
                 type: string
               count:
                 type: integer
+        breach_rate:
+          type: number
+          description: The share of verified trace IDs of this profile that came back breached or missing. 0 with no verification runs.
         false_ready_rate:
           type: number
           description: The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.

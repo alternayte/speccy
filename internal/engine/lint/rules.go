@@ -12,6 +12,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
 
+	"github.com/alternayte/speccy/internal/engine/ears"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/kernel"
 )
@@ -590,4 +591,17 @@ func assetNudges(d *doc, cfg Config, emit emitter) {
 		}
 		return ast.WalkContinue, nil
 	})
+}
+
+// requirementGrammar parses each trace ID definition into a trigger and a response, in the
+// EARS shapes (Appendix B). A definition that does not parse gets a finding, and the review
+// judges it by its raw text instead.
+func requirementGrammar(d *doc, cfg Config, emit emitter) {
+	for _, def := range Definitions(d.src, cfg.Prefixes) {
+		if _, ok := ears.Parse(def.Text); ok {
+			continue
+		}
+		emit(RequirementGrammar, def.Start-d.offset, def.End-d.offset,
+			fmt.Sprintf("%s does not state a trigger and a response, so a check cannot verify it.", def.ID), ears.Fix)
+	}
 }

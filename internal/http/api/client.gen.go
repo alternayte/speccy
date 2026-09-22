@@ -566,6 +566,39 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
 	AddTraceIds(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RequestVerificationWaiverWithBody Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiverWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiver(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListVerifications The verification runs of a bundle, newest first.
+	//
+	// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
+	ListVerifications(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RunVerificationWithBody Verify one build of this bundle against a code repo at one commit.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+	RunVerificationWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RunVerification Verify one build of this bundle against a code repo at one commit.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+	RunVerification(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListVersions List the versions of a bundle, newest first.
 	//
 	// Corresponds with GET /bundles/{bundleId}/versions (the `ListVersions` operationId).
@@ -995,6 +1028,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /threads/{threadId}/status (the `SetThreadStatus` operationId).
 	SetThreadStatus(ctx context.Context, threadId ThreadId, body SetThreadStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetVerification One verification run with the outcome of each trace ID.
+	//
+	// Corresponds with GET /verifications/{runId} (the `GetVerification` operationId).
+	GetVerification(ctx context.Context, runId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	//
@@ -2261,6 +2299,89 @@ func (c *Client) AddTraceIds(ctx context.Context, bundleId BundleId, params *Add
 	return c.Client.Do(req)
 }
 
+// RequestVerificationWaiverWithBody Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *Client) RequestVerificationWaiverWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestVerificationWaiverRequestWithBody(c.Server, bundleId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *Client) RequestVerificationWaiver(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestVerificationWaiverRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListVerifications The verification runs of a bundle, newest first.
+//
+// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
+func (c *Client) ListVerifications(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListVerificationsRequest(c.Server, bundleId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RunVerificationWithBody Verify one build of this bundle against a code repo at one commit.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+func (c *Client) RunVerificationWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRunVerificationRequestWithBody(c.Server, bundleId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RunVerification Verify one build of this bundle against a code repo at one commit.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+func (c *Client) RunVerification(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRunVerificationRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListVersions List the versions of a bundle, newest first.
 //
 // Corresponds with GET /bundles/{bundleId}/versions (the `ListVersions` operationId).
@@ -3381,6 +3502,21 @@ func (c *Client) SetThreadStatusWithBody(ctx context.Context, threadId ThreadId,
 // Corresponds with PUT /threads/{threadId}/status (the `SetThreadStatus` operationId).
 func (c *Client) SetThreadStatus(ctx context.Context, threadId ThreadId, body SetThreadStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetThreadStatusRequest(c.Server, threadId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetVerification One verification run with the outcome of each trace ID.
+//
+// Corresponds with GET /verifications/{runId} (the `GetVerification` operationId).
+func (c *Client) GetVerification(ctx context.Context, runId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetVerificationRequest(c.Server, runId)
 	if err != nil {
 		return nil, err
 	}
@@ -5823,6 +5959,134 @@ func NewAddTraceIdsRequestWithBody(server string, bundleId BundleId, params *Add
 	return req, nil
 }
 
+// NewRequestVerificationWaiverRequest calls the generic RequestVerificationWaiver builder with application/json body
+func NewRequestVerificationWaiverRequest(server string, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRequestVerificationWaiverRequestWithBody(server, bundleId, "application/json", bodyReader)
+}
+
+// NewRequestVerificationWaiverRequestWithBody constructs an http.Request for the RequestVerificationWaiver method, with any body, and a specified content type
+func NewRequestVerificationWaiverRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/verification-waivers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListVerificationsRequest constructs an http.Request for the ListVerifications method
+func NewListVerificationsRequest(server string, bundleId BundleId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/verifications", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRunVerificationRequest calls the generic RunVerification builder with application/json body
+func NewRunVerificationRequest(server string, bundleId BundleId, body RunVerificationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRunVerificationRequestWithBody(server, bundleId, "application/json", bodyReader)
+}
+
+// NewRunVerificationRequestWithBody constructs an http.Request for the RunVerification method, with any body, and a specified content type
+func NewRunVerificationRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/verifications", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListVersionsRequest constructs an http.Request for the ListVersions method
 func NewListVersionsRequest(server string, bundleId BundleId, params *ListVersionsParams) (*http.Request, error) {
 	var err error
@@ -7738,6 +8002,40 @@ func NewSetThreadStatusRequestWithBody(server string, threadId ThreadId, content
 	return req, nil
 }
 
+// NewGetVerificationRequest constructs an http.Request for the GetVerification method
+func NewGetVerificationRequest(server string, runId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/verifications/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewApproveWaiverRequest constructs an http.Request for the ApproveWaiver method
 func NewApproveWaiverRequest(server string, waiverId WaiverId) (*http.Request, error) {
 	var err error
@@ -8408,6 +8706,41 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
 	AddTraceIdsWithResponse(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error)
 
+	// RequestVerificationWaiverWithBodyWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiverWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error)
+
+	// RequestVerificationWaiverWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error)
+
+	// ListVerificationsWithResponse The verification runs of a bundle, newest first.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
+	ListVerificationsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListVerificationsResponse, error)
+
+	// RunVerificationWithBodyWithResponse Verify one build of this bundle against a code repo at one commit.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+	RunVerificationWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error)
+
+	// RunVerificationWithResponse Verify one build of this bundle against a code repo at one commit.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+	RunVerificationWithResponse(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error)
+
 	// ListVersionsWithResponse List the versions of a bundle, newest first.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -8897,6 +9230,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /threads/{threadId}/status (the `SetThreadStatus` operationId).
 	SetThreadStatusWithResponse(ctx context.Context, threadId ThreadId, body SetThreadStatusJSONRequestBody, reqEditors ...RequestEditorFn) (*SetThreadStatusResponse, error)
+
+	// GetVerificationWithResponse One verification run with the outcome of each trace ID.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /verifications/{runId} (the `GetVerification` operationId).
+	GetVerificationWithResponse(ctx context.Context, runId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetVerificationResponse, error)
 
 	// ApproveWaiverWithResponse Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	//
@@ -11649,6 +11989,150 @@ func (r AddTraceIdsResponse) ContentType() string {
 	return ""
 }
 
+type RequestVerificationWaiverResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Waiver
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RequestVerificationWaiverResponse) GetJSON200() *Waiver {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RequestVerificationWaiverResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RequestVerificationWaiverResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RequestVerificationWaiverResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RequestVerificationWaiverResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RequestVerificationWaiverResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListVerificationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *VerificationList
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListVerificationsResponse) GetJSON200() *VerificationList {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListVerificationsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListVerificationsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListVerificationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListVerificationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListVerificationsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RunVerificationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Verification
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RunVerificationResponse) GetJSON200() *Verification {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RunVerificationResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RunVerificationResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RunVerificationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RunVerificationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RunVerificationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListVersionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -14059,6 +14543,54 @@ func (r SetThreadStatusResponse) ContentType() string {
 	return ""
 }
 
+type GetVerificationResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Verification
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetVerificationResponse) GetJSON200() *Verification {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetVerificationResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetVerificationResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetVerificationResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetVerificationResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetVerificationResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ApproveWaiverResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15162,6 +15694,71 @@ func (c *ClientWithResponses) AddTraceIdsWithResponse(ctx context.Context, bundl
 	return ParseAddTraceIdsResponse(rsp)
 }
 
+// RequestVerificationWaiverWithBodyWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *ClientWithResponses) RequestVerificationWaiverWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error) {
+	rsp, err := c.RequestVerificationWaiverWithBody(ctx, bundleId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestVerificationWaiverResponse(rsp)
+}
+
+// RequestVerificationWaiverWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *ClientWithResponses) RequestVerificationWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error) {
+	rsp, err := c.RequestVerificationWaiver(ctx, bundleId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestVerificationWaiverResponse(rsp)
+}
+
+// ListVerificationsWithResponse The verification runs of a bundle, newest first.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
+func (c *ClientWithResponses) ListVerificationsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListVerificationsResponse, error) {
+	rsp, err := c.ListVerifications(ctx, bundleId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListVerificationsResponse(rsp)
+}
+
+// RunVerificationWithBodyWithResponse Verify one build of this bundle against a code repo at one commit.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+func (c *ClientWithResponses) RunVerificationWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error) {
+	rsp, err := c.RunVerificationWithBody(ctx, bundleId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRunVerificationResponse(rsp)
+}
+
+// RunVerificationWithResponse Verify one build of this bundle against a code repo at one commit.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
+func (c *ClientWithResponses) RunVerificationWithResponse(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error) {
+	rsp, err := c.RunVerification(ctx, bundleId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRunVerificationResponse(rsp)
+}
+
 // ListVersionsWithResponse List the versions of a bundle, newest first.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16070,6 +16667,19 @@ func (c *ClientWithResponses) SetThreadStatusWithResponse(ctx context.Context, t
 		return nil, err
 	}
 	return ParseSetThreadStatusResponse(rsp)
+}
+
+// GetVerificationWithResponse One verification run with the outcome of each trace ID.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /verifications/{runId} (the `GetVerification` operationId).
+func (c *ClientWithResponses) GetVerificationWithResponse(ctx context.Context, runId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetVerificationResponse, error) {
+	rsp, err := c.GetVerification(ctx, runId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetVerificationResponse(rsp)
 }
 
 // ApproveWaiverWithResponse Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
@@ -17979,6 +18589,105 @@ func ParseAddTraceIdsResponse(rsp *http.Response) (*AddTraceIdsResponse, error) 
 	return response, nil
 }
 
+// ParseRequestVerificationWaiverResponse parses an HTTP response from a RequestVerificationWaiverWithResponse call
+func ParseRequestVerificationWaiverResponse(rsp *http.Response) (*RequestVerificationWaiverResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RequestVerificationWaiverResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Waiver
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListVerificationsResponse parses an HTTP response from a ListVerificationsWithResponse call
+func ParseListVerificationsResponse(rsp *http.Response) (*ListVerificationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListVerificationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest VerificationList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRunVerificationResponse parses an HTTP response from a RunVerificationWithResponse call
+func ParseRunVerificationResponse(rsp *http.Response) (*RunVerificationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RunVerificationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Verification
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListVersionsResponse parses an HTTP response from a ListVersionsWithResponse call
 func ParseListVersionsResponse(rsp *http.Response) (*ListVersionsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19608,6 +20317,39 @@ func ParseSetThreadStatusResponse(rsp *http.Response) (*SetThreadStatusResponse,
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ThreadDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetVerificationResponse parses an HTTP response from a GetVerificationWithResponse call
+func ParseGetVerificationResponse(rsp *http.Response) (*GetVerificationResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetVerificationResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Verification
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

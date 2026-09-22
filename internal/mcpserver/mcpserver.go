@@ -43,6 +43,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its main doc, its assets, the main doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
+	add(s, t, "verify_build", "Verify one build against the bundle. Name the repo and the commit you built, or a folder. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
 	return s
@@ -308,6 +309,65 @@ func (tools) handoffBundle(ctx context.Context, c *api.ClientWithResponses, in h
 		body.Acknowledged = &in.Acknowledged
 	}
 	res, err := c.TakeHandoffWithResponse(ctx, b.Id, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type verifyArg struct {
+	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Repo   string `json:"repo,omitempty" jsonschema:"the repo you built, as owner/name"`
+	SHA    string `json:"sha,omitempty" jsonschema:"the commit you built"`
+	Path   string `json:"path,omitempty" jsonschema:"a folder on disk, instead of a repo and a commit"`
+	// Handoff ties the run to the packet the builder took.
+	Handoff string `json:"handoff,omitempty" jsonschema:"the handoff ID from the build packet"`
+	Claims  []struct {
+		TraceID string `json:"trace_id" jsonschema:"the requirement this claim covers"`
+		Targets []struct {
+			Kind  string `json:"kind" jsonschema:"code or test"`
+			Path  string `json:"path" jsonschema:"the file, relative to the repo root"`
+			Quote string `json:"quote" jsonschema:"a verbatim line from that file, which appears in it exactly once"`
+		} `json:"targets"`
+	} `json:"claims,omitempty" jsonschema:"where each requirement lives, when you know. A claim replaces what Speccy would find for that requirement, and every target in it must hold."`
+}
+
+// verifyBuild runs the post-build verification gate.
+func (tools) verifyBuild(ctx context.Context, c *api.ClientWithResponses, in verifyArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	body := api.RunVerificationJSONRequestBody{}
+	if in.Repo != "" {
+		body.Repo, body.Sha = &in.Repo, &in.SHA
+	}
+	if in.Path != "" {
+		body.Path = &in.Path
+	}
+	if in.Handoff != "" {
+		id, err := uuid.Parse(in.Handoff)
+		if err != nil {
+			return nil, fmt.Errorf("handoff must be the ID from the build packet: %w", err)
+		}
+		body.HandoffId = &id
+	}
+	if len(in.Claims) > 0 {
+		claims := make([]api.VerificationClaim, 0, len(in.Claims))
+		for _, cl := range in.Claims {
+			out := api.VerificationClaim{TraceId: cl.TraceID}
+			for _, t := range cl.Targets {
+				out.Targets = append(out.Targets, api.VerificationTarget{
+					Kind: api.VerificationTargetKind(t.Kind), Path: t.Path, Quote: t.Quote})
+			}
+			claims = append(claims, out)
+		}
+		body.Claims = &claims
+	}
+	res, err := c.RunVerificationWithResponse(ctx, b.Id, body)
 	if err != nil {
 		return nil, err
 	}

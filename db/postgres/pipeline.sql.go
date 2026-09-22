@@ -246,8 +246,8 @@ func (q *Queries) InsertAnswer(ctx context.Context, arg InsertAnswerParams) erro
 }
 
 const insertClaim = `-- name: InsertClaim :exec
-INSERT INTO claim (id, run_id, text, label, reason, sources, anchor)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO claim (id, run_id, text, label, reason, class, sources, anchor)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 `
 
 type InsertClaimParams struct {
@@ -256,6 +256,7 @@ type InsertClaimParams struct {
 	Text    string
 	Label   string
 	Reason  string
+	Class   string
 	Sources dbtype.JSON
 	Anchor  dbtype.JSON
 }
@@ -267,6 +268,7 @@ func (q *Queries) InsertClaim(ctx context.Context, arg InsertClaimParams) error 
 		arg.Text,
 		arg.Label,
 		arg.Reason,
+		arg.Class,
 		arg.Sources,
 		arg.Anchor,
 	)
@@ -507,7 +509,7 @@ func (q *Queries) ListAnswers(ctx context.Context, runID uuid.UUID) ([]Answer, e
 }
 
 const listClaims = `-- name: ListClaims :many
-SELECT id, run_id, text, label, reason, sources, anchor FROM claim WHERE run_id = $1 ORDER BY id
+SELECT id, run_id, text, label, reason, sources, anchor, class FROM claim WHERE run_id = $1 ORDER BY id
 `
 
 func (q *Queries) ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error) {
@@ -527,6 +529,7 @@ func (q *Queries) ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, err
 			&i.Reason,
 			&i.Sources,
 			&i.Anchor,
+			&i.Class,
 		); err != nil {
 			return nil, err
 		}

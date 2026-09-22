@@ -1,0 +1,106 @@
+# Spec contract gate
+
+## What it does
+Speccy verifies one build of a bundle against the bundle itself. A verification run takes a code repo and a commit SHA, finds where each verifiable trace ID was implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. The run has its own verdict. It computes no Build Ready verdict and changes no verdict rule. A missing or breached trace ID at MUST level opens a blocking thread, and the existing rule then makes the bundle Not Build Ready until a person answers the thread. Two supporting changes serve the gate: a profile can switch on a requirement grammar, and a profile can say which sources the grounding stage accepts.
+
+## Decisions
+- The unit of verification is the trace ID — the outcome, the waiver, the matrix row and the blocking thread all need a stable ID, and only a trace ID has one.
+- The profile gains `trace.verify`, the list of prefixes the gate verifies, and it defaults to the requirement prefixes — a decision ID and a goal ID name no code, and reporting them missing makes the whole table noise.
+- Speccy leaves a trace ID outside `trace.verify` out of the run, and the run report gives the count it skipped — a silent omission looks like full coverage.
+- A bundle with no verifiable trace ID refuses the run, and the problem says to accept the suggested IDs — REQ-052 already inserts them in one action.
+- A code target is a repo path plus a verbatim anchor quote, and the check is a string search of the file at the SHA — a symbol name needs a parser for each language, and a line range breaks on the next edit.
+- A quote that matches zero times or more than once fails the target — the anchor must name one place.
+- Speccy stores the byte offset it found, and re-finds by quote on the next run — the link to the line survives an edit above it.
+- A test target has the same shape, and its quote is the test declaration line — the gate adds no new class of unverifiable input.
+- A builder claim is optional. It names the SHA, the code targets and the test targets for one trace ID — a builder who knows the answer must not be forced to let a model guess it.
+- Without a claim, Speccy derives candidates deterministically first: it searches the whole tree at the SHA for literal occurrences of the trace ID in comments, test names and commit messages — a requirement is often satisfied by code that predates the build, and a diff-scoped search reports that code as missing.
+- A commit range only ranks the candidates, and never limits them. Speccy takes the base from the previous verification run of the same bundle and repo, and uses no range when there is none — a handoff row holds no code SHA, so the gate must not claim one.
+- For a trace ID with no literal occurrence, an AI mapper proposes targets from the scanned file set, and Speccy drops a proposal whose quote is not in the file — a model can add a candidate, and never a fact.
+- The scan skips a binary file, a file over the profile's size cap, and a path in the profile's exclude list, which holds the vendor and dependency directories by default. The mapper sees at most the profile's file cap, highest ranked first — a whole-tree scan of a large repo must not cost an unbounded number of tokens.
+- The run report names each limit the scan hit — a truncated scan that looks complete produces a false missing.
+- A builder claim replaces the derived set for that trace ID, and Speccy never merges the two — one trace ID has one provenance.
+- Every target in a builder claim must hold. One derived candidate holding is enough — the builder stated a complete set, and Speccy guessed a possible one.
+- The run names its own code target, not the handoff — the builder often does not know the repo when it takes the packet.
+- With GitHub, Speccy reads the tree at the SHA through the credential it already holds, and reads the commit range when it has a base.
+- With a local folder, Speccy reads the files and records a content digest — Speccy does not run git on the user's machine (DEC-018).
+- Speccy never runs the code and never runs the tests — a runner needs sandboxing, secrets and repo write access, none of which the review pipeline needs.
+- A test target is a citation, not a pass. Speccy says "test cited" everywhere it reports one, and never says "tested" or "covered" — Speccy cannot see a skipped test, a failing test or a disabled suite.
+- The judge must affirm: it finds the requirement's response in the cited code and quotes both. Absence of a conflict is not evidence — a rule that passes on silence passes on an empty file.
+- Each outcome comes from the verified evidence. Implemented means a code target holds, a test target holds, and the judge affirmed. Untested means a code target holds and the judge affirmed, with no test target. Unproven means a code target holds and the judge neither affirmed nor found a contradiction. Missing means no target holds. Breached means the judge found the cited code contradicts the requirement.
+- Unproven is a SHOULD finding and does not block — nothing contradicted the requirement, so a judge's silence must not stop a build.
+- Insights counts unproven on its own — a profile with many unproven requirements writes requirements that no code can evidence.
+- The run verdict is a pure function of the outcome counts, in the shape of §8.6 — the deterministic verdict rule is the trust model.
+- The run computes no Build Ready verdict and changes no clause of the Build Ready rule. It opens a blocking thread on a MUST missing or a MUST breach, and the existing rule turns that thread into Not Build Ready — the gate gets one lever, and it is a lever that already exists and is already tested.
+- A breached outcome at MUST level needs a second, independently prompted judge, which sees the requirement text and the verified quotes and nothing else — this is the only outcome a model alone can turn red.
+- Speccy prefers a different model fingerprint for the second judge when the admin configured one — two runs of one model agree with themselves.
+- Two breached verdicts block. A disagreement becomes a SHOULD finding named "possible breach" and does not block.
+- Both judges must quote the requirement and the code, and Speccy checks both quotes against the sources — the same rule the divergence readers obey.
+- A verification waiver names the trace ID, the code repo and the requirement's section hash, and it lives on the verification side, not in the sidecar — the sidecar travels with the doc into every build, and this fact belongs to one build.
+- The waiver keeps the rest of the mechanism: a reason of 20 characters, the profile's waiver policy, no self-approval, and an end when the section hash changes.
+- The run verdict shows the waiver count, in the shape of REQ-075.
+- A new bundle version makes every verification run stale with the reason "spec changed" — this is the rule REQ-056 already applies downstream.
+- A commit in the code repo does not make a run stale — the run is a statement about one SHA, and it stays true about that SHA.
+- A stale run keeps its outcomes for the history, and the next run starts from the new version's trace IDs.
+- A profile may switch on a requirement grammar check that parses a definition into a trigger and a response in the EARS shapes. It ships at SHOULD and off by default — a forced grammar turns each adopted repo into a wall of findings.
+- When a definition parses, the judge gets the trigger and the response as separate fields, and must find each one in the cited code or test — the grammar earns its place by making the judge sharper.
+- A breached outcome on a definition that does not parse is capped at SHOULD — the doc never promised a testable shape.
+- The profile gains a grounding source policy: an allowed domain list, a forbidden domain list, a tier of primary or secondary for each domain pattern, a freshness period for each tier, and a list of claim classes that need a primary source.
+- Speccy applies the policy after the model returns a URL, and drops a source that fails it — no policy may depend on a model obeying it.
+- Speccy drops a forbidden domain before the fetch — Speccy never retrieves it.
+- Speccy applies the policy to every redirect hop, and stops before a hop to a forbidden host — a host check on the first URL is defeated by one redirect.
+- The policy applies to the final URL, and Speccy stores the whole hop chain on the source — the domain that answered is the domain that decides the tier.
+- A source carries the date Speccy retrieved it. A source that carries no date fails every freshness period — a search tool that returns a URL and no date gives Speccy nothing to compare.
+- The profile maps a heading path pattern to a claim class, and a claim takes the class of the section it is anchored in. No model assigns or changes a class — the class selects the policy, so a model must not choose the rule it is judged by.
+- The most specific matching pattern wins. Two patterns of equal specificity on one claim are a profile error, and the profile fails to load — a tie resolved by order is a rule nobody can read off the file.
+- A claim that matches no pattern is `unclassified`. The profile says allow, warn or require-classification for it — an unwritten mapping must not silently switch the evidence rule off.
+- The claim class selects the grounding policy and nothing else. The existing finding level and verdict rules decide whether a failed policy blocks — the gate adds no second path to a verdict.
+- A claim whose sources are all dropped becomes unverified, and the finding names the policy reason. The three labels do not change — a fourth label needs a fourth verdict branch for a state that is already "you have no source I accept".
+- `speccy verify <bundle> --repo <owner/name> --sha <sha>` or `--path <folder>` runs the gate and prints the trace ID table, with `--summary` as `speccy review` has it.
+- The MCP tool `verify_build` takes the same arguments and returns the same result — the agent that took the packet closes the loop itself.
+- The Action gains a verify mode. On a pull request it posts one summary comment with the trace ID table, and an inline comment on each breached target.
+- A breached target outside the pull request diff goes in the summary comment instead, which is what `internal/action/action.go` already does with a finding off the changed lines — GitHub refuses a comment on an unchanged line, and the finding must not vanish.
+- The History rail tab lists the verification runs under the handoff they belong to.
+- The traceability matrix gains a code column and a test column for each trace ID — one view answers where a requirement is and what tests it.
+- Insights gains a breach rate for each profile beside the false-ready rate: the share of verified trace IDs that came back breached or missing — a profile whose requirements are built wrong has a weak rubric.
+- The requirement grammar check changes no requirement's own level. It caps a breached outcome only — a doc that does not use the grammar keeps every MUST it wrote.
+
+## Out
+- No build runner, no sandbox, no test execution, no coverage reading.
+- No claim that a cited test passes.
+- No outcome for a trace ID outside `trace.verify`.
+- No model input to a claim class.
+- No new verdict path: the gate blocks through a thread or not at all.
+- No verification of the build questions or their agreed answers.
+- No second verdict on the bundle, and no change to the Build Ready rule.
+- No staleness from a commit in the code repo.
+- No symbol names and no line ranges in a target.
+- No write to the code repo, and no suggested code change.
+- No required requirement grammar, and no new doc format.
+- No fourth grounding label.
+- No verification waiver in the sidecar.
+
+## How I know it works
+- `speccy verify <bundle> --repo owner/name --sha <sha>` on a bundle whose trace IDs appear in code comments and test names prints one row for each trace ID, each with the file and the anchor quote it matched, and a verdict of Verified.
+- The same command on a repo where one MUST requirement has no target prints that trace ID as missing, prints Not Verified, and opens a blocking thread anchored to that requirement. The bundle's verdict becomes Not Build Ready.
+- A requirement satisfied only by code that predates the run's base commit still reports implemented, because the scan covers the whole tree.
+- A builder claim submitted for that trace ID replaces the derived targets, and the row names the claim as its source. A claim with three code targets fails when one of them does not hold.
+- A code target that holds, with a judge that affirms nothing and contradicts nothing, reports unproven as a SHOULD finding, and the verdict does not block.
+- A row with a test target says "test cited" and never says tested or covered.
+- A run on a bundle holding DEC- and G- IDs reports rows only for the prefixes in `trace.verify`, and the run report gives the skipped count.
+- A run on a repo with a vendor directory and a large generated file skips them, and the run report names each limit the scan hit.
+- A target whose anchor quote appears twice in the file fails, and the row says the anchor is not unique.
+- A run against a repo where the code contradicts a MUST requirement prints breached only when both judges agree, with a quote from the requirement and a quote from the code. When the judges disagree, the row is a SHOULD finding named "possible breach", and the verdict stays Verified.
+- An approved verification waiver on a missing MUST returns the verdict to "Verified (1 waiver)". An edit to that requirement's section ends the waiver, and the next run blocks again.
+- A new bundle version marks every earlier verification run stale with the reason "spec changed". A new commit in the code repo marks nothing stale.
+- `speccy verify <bundle> --path ./repo` runs with no base commit, and the run report says the candidates carry no ranking.
+- `speccy verify` on a bundle with no trace ID writes nothing and prints a problem that names the suggested IDs action.
+- A profile with the requirement grammar on reports a SHOULD finding for a definition that does not parse, and the verification row for that definition shows its trigger and its response when it does parse.
+- A profile that forbids a domain produces a claim labelled unverified, with the policy reason in the finding, and the run made no request to that host.
+- A profile that needs a primary source for a claim class labels a claim with only secondary sources unverified.
+- An allowed host that redirects to a forbidden host produces an unverified claim, and Speccy made no request to the forbidden host.
+- A source with no retrieval date fails a freshness period, and the finding says the date is missing.
+- A claim in a section that matches no heading path pattern is unclassified, and the profile's allow, warn or require-classification setting decides what happens.
+- A profile with two equally specific patterns on one section fails to load, and the error names both patterns.
+- The Action in verify mode posts the trace ID table on a pull request, with an inline comment on each breached target.
+- The traceability matrix shows the code column and the test column, and Insights shows the breach rate for each profile.
+- `just verify` passes.

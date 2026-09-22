@@ -23,7 +23,12 @@ type Settings struct {
 	MaxBundleMB   int `json:"max_bundle_mb"`
 	InviteTTLDays int `json:"invite_ttl_days"`
 	ParallelCalls int `json:"parallel_calls"`
+	// ResolveSources turns the grounding source resolver on or off. Nil is on.
+	ResolveSources *bool `json:"resolve_sources,omitempty"`
 }
+
+// ResolveSourcesOn reports whether the metadata resolver runs.
+func (s Settings) ResolveSourcesOn() bool { return s.ResolveSources == nil || *s.ResolveSources }
 
 // DefaultSettings are the SDD defaults.
 var DefaultSettings = Settings{MaxFileMB: 10, MaxBundleMB: 50, InviteTTLDays: 7, ParallelCalls: 4}
@@ -65,7 +70,9 @@ func (s Settings) Limits() source.Limits {
 func (s Settings) InviteTTL() time.Duration { return time.Duration(s.InviteTTLDays) * 24 * time.Hour }
 
 func settingsAPI(s Settings) api.Settings {
-	return api.Settings{MaxFileMb: s.MaxFileMB, MaxBundleMb: s.MaxBundleMB, InviteTtlDays: s.InviteTTLDays, ParallelCalls: s.ParallelCalls}
+	on := s.ResolveSourcesOn()
+	return api.Settings{MaxFileMb: s.MaxFileMB, MaxBundleMb: s.MaxBundleMB, InviteTtlDays: s.InviteTTLDays,
+		ParallelCalls: s.ParallelCalls, ResolveSources: &on}
 }
 
 // GetSettings returns the workspace settings.
@@ -80,7 +87,8 @@ func (a *API) GetSettings(ctx context.Context, _ api.GetSettingsRequestObject) (
 // SetSettings changes the workspace settings.
 func (a *API) SetSettings(ctx context.Context, req api.SetSettingsRequestObject) (api.SetSettingsResponseObject, error) {
 	b := req.Body
-	s := Settings{MaxFileMB: b.MaxFileMb, MaxBundleMB: b.MaxBundleMb, InviteTTLDays: b.InviteTtlDays, ParallelCalls: b.ParallelCalls}
+	s := Settings{MaxFileMB: b.MaxFileMb, MaxBundleMB: b.MaxBundleMb, InviteTTLDays: b.InviteTtlDays,
+		ParallelCalls: b.ParallelCalls, ResolveSources: b.ResolveSources}
 	switch {
 	case s.MaxFileMB < 1 || int64(s.MaxFileMB)<<20 > source.CeilingFileBytes:
 		return nil, kernel.Invalid("bad_setting", "The file limit must be 1 to %d MB.", source.CeilingFileBytes>>20)

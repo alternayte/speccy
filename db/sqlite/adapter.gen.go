@@ -226,6 +226,11 @@ func (a Adapter) GetVerdict(ctx context.Context, runID uuid.UUID) (pgdb.Verdict,
 	return pgdb.Verdict(r), err
 }
 
+func (a Adapter) GetVerificationRun(ctx context.Context, arg pgdb.GetVerificationRunParams) (pgdb.VerificationRun, error) {
+	r, err := a.q.GetVerificationRun(ctx, GetVerificationRunParams(arg))
+	return pgdb.VerificationRun(r), err
+}
+
 func (a Adapter) GetVersion(ctx context.Context, arg pgdb.GetVersionParams) (pgdb.Version, error) {
 	r, err := a.q.GetVersion(ctx, GetVersionParams(arg))
 	return pgdb.Version(r), err
@@ -370,6 +375,14 @@ func (a Adapter) InsertVerdict(ctx context.Context, arg pgdb.InsertVerdictParams
 	return a.q.InsertVerdict(ctx, InsertVerdictParams(arg))
 }
 
+func (a Adapter) InsertVerificationOutcome(ctx context.Context, arg pgdb.InsertVerificationOutcomeParams) error {
+	return a.q.InsertVerificationOutcome(ctx, InsertVerificationOutcomeParams(arg))
+}
+
+func (a Adapter) InsertVerificationRun(ctx context.Context, arg pgdb.InsertVerificationRunParams) error {
+	return a.q.InsertVerificationRun(ctx, InsertVerificationRunParams(arg))
+}
+
 func (a Adapter) InsertVersion(ctx context.Context, arg pgdb.InsertVersionParams) error {
 	return a.q.InsertVersion(ctx, InsertVersionParams(arg))
 }
@@ -416,6 +429,10 @@ func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.Review
 func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRunFor(ctx, LatestRunForParams(arg))
 	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) LatestVerificationSHA(ctx context.Context, arg pgdb.LatestVerificationSHAParams) (string, error) {
+	return a.q.LatestVerificationSHA(ctx, LatestVerificationSHAParams(arg))
 }
 
 func (a Adapter) ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]pgdb.AdoptedType, error) {
@@ -846,6 +863,42 @@ func (a Adapter) ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]
 	return out, nil
 }
 
+func (a Adapter) ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) ([]pgdb.VerificationOutcome, error) {
+	rows, err := a.q.ListVerificationOutcomes(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.VerificationOutcome, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.VerificationOutcome(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) ([]pgdb.VerificationRun, error) {
+	rows, err := a.q.ListVerificationRuns(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.VerificationRun, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.VerificationRun(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListVerificationWaivers(ctx context.Context, arg pgdb.ListVerificationWaiversParams) ([]pgdb.WaiverView, error) {
+	rows, err := a.q.ListVerificationWaivers(ctx, ListVerificationWaiversParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.WaiverView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.WaiverView(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]pgdb.ListVersionFilesRow, error) {
 	rows, err := a.q.ListVersionFiles(ctx, versionID)
 	if err != nil {
@@ -878,6 +931,18 @@ func (a Adapter) ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UUI
 	out := make([]pgdb.Handoff, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Handoff(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.VerificationRun, error) {
+	rows, err := a.q.ListWorkspaceVerificationRuns(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.VerificationRun, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.VerificationRun(r)
 	}
 	return out, nil
 }
@@ -981,6 +1046,10 @@ func (a Adapter) SpendInvite(ctx context.Context, arg pgdb.SpendInviteParams) (p
 func (a Adapter) SpendResetLink(ctx context.Context, arg pgdb.SpendResetLinkParams) (pgdb.ResetLink, error) {
 	r, err := a.q.SpendResetLink(ctx, SpendResetLinkParams(arg))
 	return pgdb.ResetLink(r), err
+}
+
+func (a Adapter) StaleVerificationRuns(ctx context.Context, arg pgdb.StaleVerificationRunsParams) error {
+	return a.q.StaleVerificationRuns(ctx, StaleVerificationRunsParams(arg))
 }
 
 func (a Adapter) StartRunExecution(ctx context.Context, arg pgdb.StartRunExecutionParams) error {

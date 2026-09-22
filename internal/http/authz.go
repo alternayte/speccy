@@ -115,6 +115,14 @@ var operations = map[string]access{
 	// A handoff reads the bundle and records who took it (REQ-136).
 	"listHandoffs": bundleRead,
 	"takeHandoff":  bundleAI,
+	// A verification run reads the bundle and the code, and opens a blocking thread when a
+	// MUST outcome blocks. It changes no verdict itself.
+	"listVerifications": bundleRead,
+	"runVerification":   bundleAI,
+	// A verification waiver follows the waiver policy, exactly as a check waiver does.
+	"requestVerificationWaiver": bundleAI,
+	// A run names no bundle in its path, so the path gives no bundle to scope on.
+	"getVerification": member,
 	// A build report names a handoff, not a bundle, so the path gives no bundle to scope on.
 	// A workspace member may report; a guest may not (REQ-137).
 	"reportBuild":    member,

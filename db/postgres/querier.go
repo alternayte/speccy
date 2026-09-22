@@ -59,6 +59,7 @@ type Querier interface {
 	GetThreadView(ctx context.Context, arg GetThreadViewParams) (ThreadView, error)
 	GetUserState(ctx context.Context, userID string) (UserState, error)
 	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
+	GetVerificationRun(ctx context.Context, arg GetVerificationRunParams) (VerificationRun, error)
 	GetVersion(ctx context.Context, arg GetVersionParams) (Version, error)
 	GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error)
 	GetWaiverView(ctx context.Context, arg GetWaiverViewParams) (WaiverView, error)
@@ -94,6 +95,8 @@ type Querier interface {
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
 	InsertThreadMessage(ctx context.Context, arg InsertThreadMessageParams) error
 	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
+	InsertVerificationOutcome(ctx context.Context, arg InsertVerificationOutcomeParams) error
+	InsertVerificationRun(ctx context.Context, arg InsertVerificationRunParams) error
 	InsertVersion(ctx context.Context, arg InsertVersionParams) error
 	InsertVersionFile(ctx context.Context, arg InsertVersionFileParams) error
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error
@@ -107,6 +110,7 @@ type Querier interface {
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
+	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)
 	ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error)
 	// For insights: every finished run of the workspace, oldest first.
 	ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]ListAllRunsRow, error)
@@ -149,9 +153,13 @@ type Querier interface {
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
 	ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error)
 	ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]ThreadMessageView, error)
+	ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) ([]VerificationOutcome, error)
+	ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) ([]VerificationRun, error)
+	ListVerificationWaivers(ctx context.Context, arg ListVerificationWaiversParams) ([]WaiverView, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
 	ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UUID) ([]Handoff, error)
+	ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error)
 	ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error)
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
 	PeekInvite(ctx context.Context, arg PeekInviteParams) (Invite, error)
@@ -175,6 +183,7 @@ type Querier interface {
 	// One conditional update spends an invite, so two parallel acceptances use it once.
 	SpendInvite(ctx context.Context, arg SpendInviteParams) (Invite, error)
 	SpendResetLink(ctx context.Context, arg SpendResetLinkParams) (ResetLink, error)
+	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error

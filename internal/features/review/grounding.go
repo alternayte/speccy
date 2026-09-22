@@ -11,6 +11,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/engine/sourcepolicy"
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
@@ -136,11 +137,21 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 		return err
 	}
 
+	pol := in.profile.Profile.Grounding.Sources
+	resolverOn := s.resolverOn(ctx)
+	if pol.Active() && !resolverOn {
+		rc.note(ResolverOffNote)
+	}
+	now := time.Now().UTC()
 	for i, c := range claims {
 		l := labels[i]
 		an := anchor.New(in.bundle.MainDoc, in.main, in.doc, c.start, c.end)
-		ev.claims = append(ev.claims, pendingClaim{text: c.text, label: l.Label, reason: l.Reason, sources: l.Sources, anchor: an})
-		evidence := map[string]any{"claim": c.text, "reason": l.Reason, "sources": nonNil(l.Sources), "search": mode}
+		class, sources, policyReason := s.applyPolicy(ctx, rc, pol, resolverOn, l, an, now)
+		if policyReason != "" {
+			l.Label, l.Reason = "unverified", policyReason
+		}
+		ev.claims = append(ev.claims, pendingClaim{text: c.text, label: l.Label, reason: l.Reason, class: class, sources: sources, anchor: an})
+		evidence := map[string]any{"claim": c.text, "reason": l.Reason, "sources": sourceURLs(sources), "search": mode, "class": class}
 		switch l.Label {
 		case "verified":
 			ev.items = append(ev.items, verdict.Item{Slug: GroundingUnverified, Category: verdict.Evidence, Level: kernel.Should, Passed: true, Applicable: true})
@@ -157,6 +168,80 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 		}
 	}
 	return nil
+}
+
+// ResolverOffNote is the run report note when a profile has a source policy and the admin
+// turned the metadata resolver off.
+const ResolverOffNote = "The source resolver is off, so Speccy reads no redirect chain and no retrieval date. A rule that needs either one drops the source instead of passing it."
+
+// resolverOn reports whether the admin left the metadata resolver on. It is on by default.
+func (s *Service) resolverOn(ctx context.Context) bool {
+	if s.Resolve == nil {
+		return false
+	}
+	if s.ResolveSources == nil {
+		return true
+	}
+	return s.ResolveSources(ctx)
+}
+
+// applyPolicy gives the claim its class, resolves and judges its sources, and returns the
+// reason the claim becomes unverified when the policy leaves it with no source.
+func (s *Service) applyPolicy(ctx context.Context, rc *runCtx, pol sourcepolicy.Policy, resolverOn bool,
+	l claimLabel, an anchor.Anchor, now time.Time) (string, []sourcepolicy.Source, string) {
+
+	class := sourcepolicy.Unclassified
+	if len(pol.Classes) > 0 {
+		class = pol.ClassOf(strings.Join(an.HeadingPath, "/"))
+	}
+	sources := make([]sourcepolicy.Source, 0, len(l.Sources))
+	for _, raw := range l.Sources {
+		var src sourcepolicy.Source
+		if resolverOn {
+			src = s.Resolve.Resolve(ctx, pol, raw)
+		} else {
+			src = sourcepolicy.Source{URL: raw}
+		}
+		if !src.Dropped {
+			src = pol.Evaluate(src, class, resolverOn, now)
+		}
+		sources = append(sources, src)
+	}
+	if !pol.Active() {
+		return class, sources, ""
+	}
+	if class == sourcepolicy.Unclassified {
+		switch pol.Unclassified {
+		case sourcepolicy.UnclassifiedRequire:
+			for i := range sources {
+				sources[i].Dropped = true
+				sources[i].Reason = "The profile needs every claim to carry a class, and this section matches no class rule."
+			}
+		case sourcepolicy.UnclassifiedWarn:
+			rc.note("A claim under " + strings.Join(an.HeadingPath, " / ") + " matches no class rule, so no evidence rule applies to it.")
+		}
+	}
+	kept, reasons := sourcepolicy.Kept(sources)
+	if len(l.Sources) > 0 && len(kept) == 0 {
+		return class, sources, "The source policy refused every source. " + strings.Join(reasons, " ")
+	}
+	return class, sources, ""
+}
+
+// sourceURLs returns the addresses of the sources the policy kept, for a finding's evidence.
+func sourceURLs(sources []sourcepolicy.Source) []string {
+	out := []string{}
+	for _, s := range sources {
+		if s.Dropped {
+			continue
+		}
+		if s.FinalURL != "" {
+			out = append(out, s.FinalURL)
+			continue
+		}
+		out = append(out, s.URL)
+	}
+	return out
 }
 
 // extractClaims asks the reviewer for the claims of each section with enough text. Each

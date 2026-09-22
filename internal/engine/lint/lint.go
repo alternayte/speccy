@@ -29,26 +29,33 @@ const (
 	ProseLimit       = "lint.prose-limit"
 	AssetNudge       = "lint.asset-nudge"
 	PassiveVoice     = "lint.passive-voice"
+	// RequirementGrammar parses a definition into a trigger and a response, in the EARS
+	// shapes. It is off until a profile names a level, because forcing a grammar on a doc
+	// that never used one turns an adopted repo into a wall of findings.
+	RequirementGrammar = "lint.requirement-grammar"
 )
 
-// Rules lists every rule with its default level.
+// Rules lists every rule with its default level. A rule marked Off runs only when the
+// profile gives it a level.
 var Rules = []struct {
 	Slug  string
 	Level kernel.Level
+	Off   bool
 }{
-	{Placeholder, kernel.Must},
-	{RequiredHeadings, kernel.Must},
-	{BrokenLink, kernel.Must},
-	{DuplicateID, kernel.Must},
-	{DanglingRef, kernel.Should},
-	{SlopPhrase, kernel.Should},
-	{SentenceLength, kernel.Should},
-	{Weasel, kernel.Should},
-	{UndefinedAcronym, kernel.Should},
-	{RFC2119Case, kernel.Should},
-	{ProseLimit, kernel.Should},
-	{AssetNudge, kernel.Should},
-	{PassiveVoice, kernel.Info},
+	{RequirementGrammar, kernel.Should, true},
+	{Placeholder, kernel.Must, false},
+	{RequiredHeadings, kernel.Must, false},
+	{BrokenLink, kernel.Must, false},
+	{DuplicateID, kernel.Must, false},
+	{DanglingRef, kernel.Should, false},
+	{SlopPhrase, kernel.Should, false},
+	{SentenceLength, kernel.Should, false},
+	{Weasel, kernel.Should, false},
+	{UndefinedAcronym, kernel.Should, false},
+	{RFC2119Case, kernel.Should, false},
+	{ProseLimit, kernel.Should, false},
+	{AssetNudge, kernel.Should, false},
+	{PassiveVoice, kernel.Info, false},
 }
 
 // Heading is a heading that the profile template requires, and the smallest doc size that
@@ -135,7 +142,11 @@ func Run(src []byte, cfg Config) Result {
 	levels := map[string]kernel.Level{}
 	for _, r := range Rules {
 		lvl := r.Level
-		if o, ok := cfg.Levels[r.Slug]; ok {
+		o, named := cfg.Levels[r.Slug]
+		if r.Off && !named {
+			continue
+		}
+		if named {
 			if o == "off" {
 				continue
 			}
@@ -160,7 +171,7 @@ func Run(src []byte, cfg Config) Result {
 	}
 	for _, rule := range []func(*doc, Config, emitter){
 		placeholders, requiredHeadings, brokenLinks, traceIDs, phrases, sentences,
-		acronyms, rfc2119, proseLimits, assetNudges,
+		acronyms, rfc2119, proseLimits, assetNudges, requirementGrammar,
 	} {
 		rule(d, cfg, emit)
 	}

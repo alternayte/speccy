@@ -208,3 +208,34 @@ func TestRequiredHeadings_Size(t *testing.T) {
 		}
 	}
 }
+
+// The requirement grammar rule is off until a profile names a level, and it reports a
+// definition that states no trigger and no response.
+func TestRequirementGrammarIsOffUntilTheProfileNamesIt(t *testing.T) {
+	src := []byte("# Requirements\n\n- **REQ-001:** The parser MUST reject an unknown field.\n- **REQ-002:** The review pipeline.\n")
+	cfg := Config{Path: "doc.md", Prefixes: []string{"REQ"}}
+	if got := findingsFor(Run(src, cfg), RequirementGrammar); len(got) != 0 {
+		t.Fatalf("the rule runs with no profile level: %v", got)
+	}
+	cfg.Levels = map[string]string{RequirementGrammar: "SHOULD"}
+	got := findingsFor(Run(src, cfg), RequirementGrammar)
+	if len(got) != 1 {
+		t.Fatalf("got %d findings, want 1: %v", len(got), got)
+	}
+	if !strings.Contains(got[0].Message, "REQ-002") {
+		t.Errorf("the finding names the definition that does not parse: %q", got[0].Message)
+	}
+	if got[0].Level != kernel.Should {
+		t.Errorf("Level = %q, want SHOULD", got[0].Level)
+	}
+}
+
+func findingsFor(r Result, slug string) []Finding {
+	var out []Finding
+	for _, f := range r.Findings {
+		if f.Slug == slug {
+			out = append(out, f)
+		}
+	}
+	return out
+}

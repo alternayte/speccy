@@ -94,17 +94,26 @@ function ClaimRow({ claim: c, onOpen }: { claim: Claim; onOpen: (a: Anchor) => v
       </button>
       {c.sources.length ? (
         <ul className="mt-1 space-y-0.5">
-          {c.sources.map((s) => (
-            <li key={s} className="truncate text-xs">
-              {/^https?:\/\//.test(s) ? (
-                <a href={s} target="_blank" rel="noreferrer noopener" className="text-accent underline">
-                  {s}
-                </a>
-              ) : (
-                <span className="text-ink-2">{s}</span>
-              )}
-            </li>
-          ))}
+          {c.sources.map((s) => {
+            const url = s.final_url || s.url;
+            return (
+              <li key={s.url} className="truncate text-xs">
+                {/^https?:\/\//.test(url) ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className={clsx("underline", s.dropped ? "text-ink-2 line-through" : "text-accent")}
+                  >
+                    {url}
+                  </a>
+                ) : (
+                  <span className="text-ink-2">{url}</span>
+                )}
+                {s.dropped && s.reason ? <span className="ml-1 text-ink-2">{s.reason}</span> : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </li>
