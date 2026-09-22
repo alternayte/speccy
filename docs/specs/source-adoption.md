@@ -9,7 +9,7 @@ A source that reads a folder or a whole repo lists the markdown files the scan p
 - The bundle keeps its ID, its threads and its waivers when the repo takes over — the doc is the same doc, whoever names its type.
 - The list holds every passed-over markdown file in path order, with the guess when `profile.Guess` is sure and "No guess" otherwise, and a type picker on each row — a hidden file is a dead end, and the guess ranks the list without deciding it.
 - Above 200 files the list says how many more there are, and asks the person to narrow the source to a folder — a monorepo must not turn the screen into a scroll.
-- The pull request writes `map:` entries only: one per folder when the accepted docs in it share a type, else one per file — a reviewer weighs one decision, and a team that only wants the app's verdict never needs the Action.
+- The pull request writes `map:` entries only: one per folder when every passed-over doc there was accepted with the same type, else one per file — a folder glob would otherwise take in a doc the person left alone, and a reviewer weighs one decision.
 - The web carries this. The TUI stays a review surface — the TUI targets 80 by 24, and a second copy of the flow drifts from the first.
 
 ## Out

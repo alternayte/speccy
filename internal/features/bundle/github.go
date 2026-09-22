@@ -636,7 +636,9 @@ func (s *Service) PublishMapping(ctx context.Context, id uuid.UUID, by string) (
 		}
 	}
 	var add []source.Mapping
-	for _, m := range mappingsFor(adopted) {
+	var skipped []string
+	_ = json.Unmarshal(src.Skipped, &skipped)
+	for _, m := range mappingsFor(adopted, skipped) {
 		if key, has := cfg.MappedProfile(m.Glob); has && key == m.Profile {
 			continue
 		}
@@ -661,22 +663,33 @@ func (s *Service) PublishMapping(ctx context.Context, id uuid.UUID, by string) (
 	return pr, nil
 }
 
-// mappingsFor turns the accepted types into mappings: one glob per folder whose accepted docs
-// share a type, and one per doc otherwise.
-func mappingsFor(adopted []pgdb.AdoptedType) []source.Mapping {
+// mappingsFor turns the accepted types into mappings: one glob per folder when every doc the
+// scan passed over there was accepted with the same type, and one per doc otherwise. A folder
+// glob would otherwise take in a doc the person left alone. skipped is every passed-over doc
+// of the source.
+func mappingsFor(adopted []pgdb.AdoptedType, skipped []string) []source.Mapping {
 	byDir := map[string]map[string]bool{}
+	accepted := map[string]bool{}
 	for _, a := range adopted {
 		dir := path.Dir(a.Path)
 		if byDir[dir] == nil {
 			byDir[dir] = map[string]bool{}
 		}
 		byDir[dir][a.Profile] = true
+		accepted[a.Path] = true
+	}
+	// left counts the docs of a folder that the person did not accept.
+	left := map[string]int{}
+	for _, p := range skipped {
+		if !accepted[p] {
+			left[path.Dir(p)]++
+		}
 	}
 	var out []source.Mapping
 	seen := map[string]bool{}
 	for _, a := range adopted {
 		dir := path.Dir(a.Path)
-		if len(byDir[dir]) == 1 && dir != "." {
+		if len(byDir[dir]) == 1 && dir != "." && left[dir] == 0 {
 			glob := path.Join(dir, "*.md")
 			if !seen[glob] {
 				seen[glob] = true

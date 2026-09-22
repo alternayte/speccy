@@ -375,3 +375,26 @@ func TestGitHubSource_AdoptedType(t *testing.T) {
 		t.Errorf("adopted types = %+v, want none once the repo names the type", rows)
 	}
 }
+
+// TestMappingsFor pins that a folder glob is written only when every doc the scan passed over
+// in that folder was accepted. A glob must not take in a doc the person left alone.
+func TestMappingsFor(t *testing.T) {
+	adopted := []pgdb.AdoptedType{{Path: "notes/audit-trail.md", Profile: "sdd"}}
+	// meeting.md was passed over and not accepted, so the mapping names the one doc.
+	got := mappingsFor(adopted, []string{"notes/audit-trail.md", "notes/meeting.md"})
+	if len(got) != 1 || got[0].Glob != "notes/audit-trail.md" || got[0].Profile != "sdd" {
+		t.Fatalf("mappings = %+v, want the one doc", got)
+	}
+	// With every doc of the folder accepted, one glob covers it.
+	adopted = append(adopted, pgdb.AdoptedType{Path: "notes/meeting.md", Profile: "sdd"})
+	got = mappingsFor(adopted, []string{"notes/audit-trail.md", "notes/meeting.md"})
+	if len(got) != 1 || got[0].Glob != "notes/*.md" {
+		t.Fatalf("mappings = %+v, want one folder glob", got)
+	}
+	// Two types in one folder: one mapping each.
+	adopted[1].Profile = "prd"
+	got = mappingsFor(adopted, []string{"notes/audit-trail.md", "notes/meeting.md"})
+	if len(got) != 2 {
+		t.Fatalf("mappings = %+v, want one per doc", got)
+	}
+}
