@@ -10,6 +10,7 @@ import { type Finding, getFileContent, putFileContent } from "@/lib/api";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { CodeEditor } from "./code-editor";
 import { ControlBar, type Target } from "./control-bar";
+import { flashRange } from "./flash";
 import { Preview } from "./preview";
 import { ScrollLink } from "./scroll-sync";
 
@@ -219,10 +220,9 @@ export function EditorPane({
       if (view) {
         const from = Math.min(byteToIndex(text, focus.start), view.state.doc.length);
         const to = Math.min(byteToIndex(text, focus.end), view.state.doc.length);
-        view.dispatch({
-          selection: { anchor: from, head: to },
-          effects: EditorView.scrollIntoView(from, { y: "center" }),
-        });
+        // The wash, not the selection alone: the selection paints in the accent's soft tone,
+        // which on the editor's surface is too faint to notice.
+        flashRange(view, from, to);
         view.focus();
       }
       const preview = previewRef.current;

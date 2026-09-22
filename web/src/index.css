@@ -443,3 +443,40 @@ body {
     transition: none;
   }
 }
+
+/* The same wash in the code view: a selection alone paints in the accent's soft tone, which on
+   the editor's surface is too faint to notice. */
+@keyframes cm-flash {
+  from {
+    background-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  to {
+    background-color: transparent;
+    color: inherit;
+  }
+}
+@keyframes cm-flash-line {
+  from {
+    background-color: var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.cm-flash {
+  border-radius: var(--radius-sm);
+  animation: cm-flash 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cm-flash-line {
+  animation: cm-flash-line 1.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-flash {
+    animation: none;
+    outline: 2px solid var(--accent);
+  }
+  .cm-flash-line {
+    animation: none;
+  }
+}
