@@ -115,10 +115,11 @@ func (s *Service) SyncGitHub(ctx context.Context) error {
 	return nil
 }
 
-// WatchGitHub syncs the GitHub sources every interval until ctx ends, in local mode and in
-// hosted mode. The token has no webhooks (DEC-019), so Speccy polls. A source that has no
-// bundles yet, or whose last sync failed, is tried again like any other.
+// WatchGitHub syncs the GitHub sources once at start, then every interval until ctx ends, in
+// local mode and in hosted mode (#68). The token has no webhooks (DEC-019), so Speccy polls. A
+// source that has no bundles yet, or whose last sync failed, is tried again like any other.
 func (s *Service) WatchGitHub(ctx context.Context, interval time.Duration) {
+	_ = s.SyncGitHub(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -140,14 +141,15 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err != nil {
 		return err
 	}
-	c, err := s.github(ctx, src.ApiUrl)
-	if err != nil {
-		return err
-	}
+	// Every failure is stored on the source, so the app shows it and not the log alone (#68).
 	fail := func(err error) error {
 		_ = q.SetGithubSourceSynced(ctx, pgdb.SetGithubSourceSyncedParams{ID: src.ID, HeadCommit: src.HeadCommit,
 			SyncedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}, Error: sentence(err.Error())})
 		return err
+	}
+	c, err := s.github(ctx, src.ApiUrl)
+	if err != nil {
+		return fail(err)
 	}
 	commit, tree, err := c.Head(ctx, src.Repo, src.Branch)
 	if err != nil {

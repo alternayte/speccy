@@ -19,7 +19,7 @@ import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle } from "@/lib/api";
 import type { Bundle, ConfirmedLink, Profile } from "@/lib/api";
 import { useLinkOffer } from "./adopt-link";
-import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
+import { listBundlesQueryKey, listGithubSourcesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { type DroppedBundle, bundlesFromDrop, filesFromDrop, isMarkdown, isZip } from "./drop";
 import { GitHubDialog } from "./github-dialog";
 import { SourceDocs } from "./source-docs";
@@ -200,6 +200,7 @@ export function BundlesPage() {
           )}
         </div>
 
+        <SourceErrors />
         <SkippedDocs />
         <SourceDocs />
 
@@ -383,4 +384,35 @@ function LocalSkippedRow({
 function rowAction(b: Bundle): string {
   const worst = b.docs.find((d) => d.next_action && d.verdict?.result === "not_build_ready");
   return (worst ?? b.docs.find((d) => d.next_action))?.next_action?.sentence ?? "";
+}
+
+// SourceErrors shows the GitHub sources whose last sync failed, so a person sees why their
+// bundles did not appear or did not change (#68).
+function SourceErrors() {
+  const sources = useQuery(listGithubSourcesOptions());
+  const failed = (sources.data?.items ?? []).filter((s) => s.error);
+  if (failed.length === 0) return null;
+  return (
+    <section className="mt-6" aria-labelledby="source-errors">
+      <h2 id="source-errors" className="text-sm font-semibold text-ink">
+        GitHub sources that did not sync
+      </h2>
+      <ul className="mt-2 space-y-2">
+        {failed.map((s) => (
+          <li key={s.id} className="flex gap-2 rounded-md border border-bad/30 bg-bad-soft px-3 py-2">
+            <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-bad" />
+            <span className="min-w-0 text-sm">
+              <span className="font-mono text-xs text-ink-2">
+                {s.repo} {s.branch} {s.path === "." ? "/" : s.path}
+              </span>
+              <span className="block text-ink">{s.error}</span>
+              <Link to="/admin" className="text-xs text-accent hover:underline">
+                Sync or remove it in Admin
+              </Link>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

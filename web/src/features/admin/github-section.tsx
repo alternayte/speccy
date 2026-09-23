@@ -17,12 +17,14 @@ import {
 import { relativeTime as timeAgo } from "@/features/bundle/time";
 import { problemMessage } from "@/lib/problem";
 import { GitHubDialog } from "@/features/bundle/github-dialog";
+import { useMe } from "@/features/account/me";
 import { Section } from "./admin-page";
 
 // GitHubSection sets the workspace token (DEC-019) and the repos Speccy reads bundles from
-// (REQ-123). Hosted mode only.
+// (REQ-123). In local mode a token here replaces the gh login.
 export function GitHubSection() {
   const qc = useQueryClient();
+  const local = useMe().data?.mode === "local";
   const conn = useQuery(getGithubConnectionOptions());
   const sources = useQuery(listGithubSourcesOptions());
   const refresh = () => {
@@ -60,7 +62,9 @@ export function GitHubSection() {
           <p className="text-sm text-ink-2">
             {configured
               ? `A token ending in ${conn.data?.token_last4} is set${login ? `, for ${login}` : ""}.`
-              : "No token is set."}{" "}
+              : local
+                ? "No token is set, so Speccy reads GitHub with your gh login."
+                : "No token is set."}{" "}
             Use a fine-grained personal access token with read and write access to Contents and Pull requests on the
             repos Speccy reads.
           </p>
@@ -161,11 +165,11 @@ export function GitHubSection() {
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-3 border-t border-line p-4">
-          <Button variant="primary" disabled={!configured} onClick={() => setAdding(true)}>
+          <Button variant="primary" disabled={!configured && !local} onClick={() => setAdding(true)}>
             Add a source
           </Button>
           <p className="text-xs text-ink-3">
-            {configured
+            {configured || local
               ? "Paste a repo, a folder, or a doc address. Speccy shows what it found before it reads it."
               : "Set a token first."}
           </p>
