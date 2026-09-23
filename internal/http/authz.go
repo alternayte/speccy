@@ -43,14 +43,16 @@ var operations = map[string]access{
 
 	"renderMarkdown": reader,
 
-	"listBundles":  member,
-	"createBundle": member,
-	"importBundle": member,
-	"listProfiles": member,
+	"listBundles":   member,
+	"createBundle":  member,
+	"importBundle":  member,
+	"previewImport": member,
+	"listProfiles":  member,
 	// The files the local scan passed over, and the type that makes one a bundle (REQ-001).
 	"listSkipped":  member,
 	"adoptSkipped": member,
 	"guessProfile": member,
+	"suggestLinks": member,
 	// A content review calls the models; guests do not ask the AI (REQ-086).
 	"reviewContent": member,
 	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.
@@ -116,6 +118,7 @@ var operations = map[string]access{
 	"setMaintainers":      adminOnly,
 
 	"adoptFrontmatter": bundleEdit,
+	"setBundleProfile": bundleEdit,
 	// A handoff reads the bundle and records who took it (REQ-136).
 	"listHandoffs": bundleRead,
 	"takeHandoff":  bundleAI,

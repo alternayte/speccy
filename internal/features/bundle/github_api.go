@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -353,6 +354,16 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 		}
 		if err := s.DB.Queries().SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
 			return nil, err
+		}
+		// A confirmed link stays in Speccy, as the type does: the repo takes no commit.
+		if l := it.Link; l != nil {
+			if !checkLinkKind(l.Kind) {
+				return nil, kernel.Invalid("bad_link", "There is no link kind %q.", l.Kind)
+			}
+			if err := s.DB.Queries().SetAdoptedLink(ctx, pgdb.SetAdoptedLinkParams{SourceID: src.ID, Path: it.Path,
+				Kind: l.Kind, Target: path.Clean(l.Target)}); err != nil {
+				return nil, err
+			}
 		}
 		// Accepting a type contradicts the mark, so the newer act wins (REQ-133).
 		if err := s.DB.Queries().DeleteDismissedDoc(ctx, pgdb.DeleteDismissedDocParams{WorkspaceID: s.Workspace,

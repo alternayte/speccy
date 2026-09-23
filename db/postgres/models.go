@@ -12,6 +12,13 @@ import (
 	"github.com/google/uuid"
 )
 
+type AdoptedLink struct {
+	SourceID uuid.UUID
+	Path     string
+	Kind     string
+	Target   string
+}
+
 type AdoptedType struct {
 	SourceID uuid.UUID
 	Path     string

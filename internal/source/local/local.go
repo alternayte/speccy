@@ -108,7 +108,8 @@ func skipDir(name string) bool {
 
 // Scan finds every bundle under the root. A folder is a bundle when exactly one markdown file
 // directly in it has a frontmatter type (REQ-001 form a); cfg.Bundles can limit the folders.
-// A markdown file that a cfg.Map glob selects is a single-file bundle (form b, REQ-130).
+// A folder with two or more such files gives a single-file bundle for each one. A markdown
+// file that a cfg.Map glob selects is a single-file bundle too (form b, REQ-130).
 func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 	s := &Scan{bundleDirs: map[string]bool{}, excluded: map[string]bool{}, bySlug: map[string]int{}}
 	var dirs []string
@@ -146,6 +147,10 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		s.excluded[source.AssetsDir(m)] = true
 	}
 
+	// A folder with two or more spec docs gives one single-file bundle per doc: a PRD and an
+	// SDD side by side each get their own profile and review. They are found before any folder
+	// loads, so no folder bundle takes them as assets.
+	var singles []string
 	for _, dir := range dirs {
 		if s.excluded[dir] {
 			continue
@@ -155,13 +160,16 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		if len(mains) == 0 || !cfg.BundleFolderAllowed(dir) {
 			continue
 		}
-		s.bundleDirs[dir] = true
 		if len(mains) > 1 {
-			s.Problems = append(s.Problems, Problem{
-				Path:    dir,
-				Message: "This folder has more than one main doc: " + strings.Join(mains, ", ") + ". Remove the type field from all but one.",
-			})
+			for _, m := range mains {
+				rel := path.Join(dir, m)
+				singles = append(singles, rel)
+				s.excluded[rel] = true
+				s.excluded[source.AssetsDir(rel)] = true
+			}
+			continue
 		}
+		s.bundleDirs[dir] = true
 	}
 	for _, dir := range dirs {
 		if !s.bundleDirs[dir] {
@@ -179,7 +187,7 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		}
 		s.Bundles = append(s.Bundles, Bundle{Slug: dir, Dir: dir, Main: main, Files: files})
 	}
-	for _, m := range mapped {
+	for _, m := range append(mapped, singles...) {
 		b, problems, err := r.loadSingle(m, cfg)
 		s.Problems = append(s.Problems, problems...)
 		if err != nil {

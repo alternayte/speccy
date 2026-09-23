@@ -1,21 +1,30 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
+import type { ImportDoc, SuggestedLink } from "@/lib/api";
 import {
-  guessProfileMutation,
   importBundleMutation,
   listBundlesQueryKey,
   listProfilesOptions,
+  previewImportMutation,
+  suggestLinksMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
+import type { DroppedBundle } from "./drop";
 
 type Mode = "file" | "text";
 
+// The upload the dialog works on: one file, the files of a dropped folder, or pasted text.
+type Upload = { file: File } | { files: File[] } | { text: string };
+
+// ImportDialog lists every markdown file of an import with a profile picker, prefilled with the
+// type the file names or the profile its headings fit. Each file given a profile becomes its own
+// bundle. The links Speccy offers between them are prechecked, and never made without a person.
 export function ImportDialog({
   open,
   onOpenChange,
@@ -23,94 +32,113 @@ export function ImportDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  // dropped is a file a drop could not place, so the dialog opens with it in hand.
-  dropped?: File | null;
+  // dropped is a folder or a file a drop could not import alone, so the dialog opens with it.
+  dropped?: DroppedBundle | null;
 }) {
   const [mode, setMode] = useState<Mode>("file");
-  const [file, setFile] = useState<File | null>(null);
-  const profiles = useQuery({ ...listProfilesOptions(), enabled: open });
-  // profile is the doc type Speccy writes into a file that names none.
-  const [profileKey, setProfileKey] = useState("");
-  const [guessed, setGuessed] = useState<string>();
-  const guess = useMutation({
-    ...guessProfileMutation(),
-    onSuccess: (g) => {
-      setGuessed(g.profile);
-      if (g.profile) setProfileKey(g.profile);
-    },
-  });
-  const ask = guess.mutate;
-  const look = useCallback(
-    (text: string) => {
-      if (!text.trim()) return;
-      ask({ body: { text } });
-    },
-    [ask],
-  );
-  useEffect(() => {
-    if (!open) return;
-    if (dropped) {
-      setMode("file");
-      setFile(dropped);
-      void dropped.text().then(look);
-    }
-  }, [open, dropped, look]);
+  const [upload, setUpload] = useState<Upload | null>(null);
   const [text, setText] = useState("---\ntype: prd\ntitle: \n---\n\n# \n");
   const [name, setName] = useState("");
+  const profiles = useQuery({ ...listProfilesOptions(), enabled: open });
+  const [docs, setDocs] = useState<ImportDoc[]>([]);
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const [links, setLinks] = useState<SuggestedLink[]>([]);
+  const [unchecked, setUnchecked] = useState<Record<string, boolean>>({});
+  const preview = useMutation({
+    ...previewImportMutation(),
+    onSuccess: (p) => {
+      setDocs(p.docs);
+      setPicked(Object.fromEntries(p.docs.map((d) => [d.path, d.type ?? d.guess ?? ""])));
+      setLinks(p.links);
+      setUnchecked({});
+    },
+  });
+  const suggest = useMutation({ ...suggestLinksMutation(), onSuccess: (s) => setLinks(s.items) });
   const qc = useQueryClient();
   const navigate = useNavigate();
   const importing = useMutation({
     ...importBundleMutation(),
-    onSuccess: (b) => {
+    onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: listBundlesQueryKey() });
       onOpenChange(false);
-      navigate({ to: "/bundles/$bundleId", params: { bundleId: b.id } });
+      const first = res.items[0];
+      if (res.items.length === 1 && first) navigate({ to: "/bundles/$bundleId", params: { bundleId: first.id } });
     },
   });
 
+  const look = (u: Upload) => {
+    setUpload(u);
+    setDocs([]);
+    setLinks([]);
+    importing.reset();
+    preview.mutate({ body: body(u) });
+  };
+  useEffect(() => {
+    if (!open || !dropped) return;
+    setMode("file");
+    setName(dropped.name);
+    look({ files: dropped.files.map((d) => new File([d.file], d.path, { type: d.file.type })) });
+    // look is stable in effect: it only starts a preview.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, dropped]);
+
+  const pick = (path: string, key: string) => {
+    const next = { ...picked, [path]: key };
+    setPicked(next);
+    suggest.mutate({ body: { docs: Object.entries(next).map(([p, profile]) => ({ path: p, profile })) } });
+  };
+  const linkKey = (l: SuggestedLink) => `${l.from}>${l.to}`;
+  const specs = docs.filter((d) => picked[d.path]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!upload) return;
     importing.mutate({
       body: {
+        ...body(upload),
         ...(name ? { name } : {}),
-        ...(mode === "file" && file ? { file } : {}),
-        ...(mode === "text" ? { text } : {}),
-        ...(profileKey ? { profile: profileKey } : {}),
+        docs: JSON.stringify(docs.map((d) => ({ path: d.path, profile: picked[d.path] ?? "" }))),
+        links: JSON.stringify(links.filter((l) => !unchecked[linkKey(l)])),
       },
     });
   };
-  const ready = mode === "file" ? file !== null : text.trim() !== "";
 
   return (
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) importing.reset();
+        if (!o) {
+          importing.reset();
+          setUpload(null);
+          setDocs([]);
+        }
         onOpenChange(o);
       }}
-      title="Import a bundle"
-      description="Speccy writes the bundle to a new folder. Commit the folder yourself."
+      title="Import"
+      description="Each markdown file you give a doc type becomes its own bundle."
     >
       <form onSubmit={submit} className="space-y-4">
-        <div role="tablist" aria-label="Import from" className="inline-flex rounded-md border border-line p-0.5">
-          {(["file", "text"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={mode === m}
-              onClick={() => setMode(m)}
-              className={clsx(
-                "rounded-sm px-3 py-1 text-xs font-medium",
-                mode === m ? "bg-sunken text-ink" : "text-ink-2 hover:text-ink",
-              )}
-            >
-              {m === "file" ? "A .md or .zip file" : "Pasted text"}
-            </button>
-          ))}
-        </div>
+        {!dropped ? (
+          <div role="tablist" aria-label="Import from" className="inline-flex rounded-md border border-line p-0.5">
+            {(["file", "text"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                className={clsx(
+                  "rounded-sm px-3 py-1 text-xs font-medium",
+                  mode === m ? "bg-sunken text-ink" : "text-ink-2 hover:text-ink",
+                )}
+              >
+                {m === "file" ? "A .md or .zip file" : "Pasted text"}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-        {mode === "file" ? (
+        {dropped ? null : mode === "file" ? (
           <div>
             <Label htmlFor="import-file">File</Label>
             <input
@@ -118,17 +146,11 @@ export function ImportDialog({
               type="file"
               accept=".md,.markdown,.zip"
               onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                setFile(f);
-                setGuessed(undefined);
-                setProfileKey("");
-                if (f && /\.(md|markdown)$/i.test(f.name)) void f.text().then(look);
+                const f = e.target.files?.[0];
+                if (f) look({ file: f });
               }}
               className="block w-full text-sm text-ink-2 file:mr-3 file:rounded-md file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-sm file:text-ink"
             />
-            <p className="mt-1 text-xs text-ink-3">
-              A file that names no <code>type</code> gets the one you pick below.
-            </p>
           </div>
         ) : (
           <div>
@@ -138,34 +160,70 @@ export function ImportDialog({
               rows={9}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onBlur={(e) => look(e.target.value)}
+              onBlur={(e) => e.target.value.trim() && look({ text: e.target.value })}
             />
           </div>
         )}
 
-        <div>
-          <Label htmlFor="import-type">Doc type</Label>
-          <select
-            id="import-type"
-            value={profileKey}
-            onChange={(e) => setProfileKey(e.target.value)}
-            className="mt-1 block h-8 w-full rounded-md border border-line-strong bg-surface px-2 text-sm text-ink"
-          >
-            <option value="">The type in the file</option>
-            {(profiles.data?.items ?? []).map((p) => (
-              <option key={p.key} value={p.key}>
-                {p.name}
-              </option>
+        {preview.isPending ? <p className="text-xs text-ink-3">Reading the files</p> : null}
+        {preview.isError ? <ErrorState message={problemMessage(preview.error)} /> : null}
+
+        {docs.length > 0 ? (
+          <fieldset>
+            <legend className="text-sm font-medium text-ink">Doc types</legend>
+            <ul className="mt-1.5 divide-y divide-line rounded-md border border-line">
+              {docs.map((d) => (
+                <li key={d.path} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                  <span
+                    title={d.path}
+                    className="w-full min-w-0 truncate font-mono text-xs text-ink sm:w-auto sm:flex-1"
+                  >
+                    {d.path}
+                  </span>
+                  <select
+                    aria-label={`Doc type for ${d.path}`}
+                    value={picked[d.path] ?? ""}
+                    onChange={(e) => pick(d.path, e.target.value)}
+                    className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+                  >
+                    <option value="">Not a spec</option>
+                    {(profiles.data?.items ?? []).map((p) => (
+                      <option key={p.key} value={p.key}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="w-full text-2xs text-ink-3">
+                    {d.type
+                      ? `The file names ${d.type}.`
+                      : d.guess
+                        ? `Speccy guessed ${d.guess} from the headings, and writes the type line into the file.`
+                        : "No profile fits its headings. Pick one, or leave it out."}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+        ) : null}
+
+        {links.length > 0 ? (
+          <fieldset>
+            <legend className="text-sm font-medium text-ink">Links</legend>
+            {links.map((l) => (
+              <label key={linkKey(l)} className="mt-1.5 flex items-center gap-2 text-sm text-ink-2">
+                <input
+                  type="checkbox"
+                  checked={!unchecked[linkKey(l)]}
+                  onChange={(e) => setUnchecked({ ...unchecked, [linkKey(l)]: !e.target.checked })}
+                />
+                <span>
+                  <code>{l.from}</code> {l.kind} <code>{l.to}</code>
+                </span>
+              </label>
             ))}
-          </select>
-          <p className="mt-1 text-xs text-ink-3">
-            {profileKey
-              ? guessed === profileKey
-                ? `Speccy guessed ${profileKey.toUpperCase()} from the headings. It adds the type line to the top of the file.`
-                : `Speccy adds the ${profileKey.toUpperCase()} type line to the top of the file.`
-              : "Speccy reads the type from the file's frontmatter."}
-          </p>
-        </div>
+            <p className="mt-1 text-2xs text-ink-3">Speccy writes the link into the frontmatter of the first doc.</p>
+          </fieldset>
+        ) : null}
 
         <div>
           <Label htmlFor="import-name">Folder name (optional)</Label>
@@ -181,11 +239,17 @@ export function ImportDialog({
 
         <div className="flex justify-end gap-2">
           <Button onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={!ready || importing.isPending}>
-            {importing.isPending ? "Importing" : "Import"}
+          <Button type="submit" variant="primary" disabled={specs.length === 0 || importing.isPending}>
+            {importing.isPending ? "Importing" : specs.length > 1 ? `Import ${specs.length} bundles` : "Import"}
           </Button>
         </div>
       </form>
     </Dialog>
   );
+}
+
+function body(u: Upload) {
+  if ("file" in u) return { file: u.file };
+  if ("files" in u) return { files: u.files };
+  return { text: u.text };
 }

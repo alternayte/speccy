@@ -2,6 +2,8 @@ package bundle
 
 import (
 	"context"
+	"encoding/json"
+	"path"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -98,4 +100,59 @@ func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequ
 		return nil, err
 	}
 	return api.AdoptFrontmatter200JSONResponse{Version: version.ToAPI(v), Changed: changed}, nil
+}
+
+// SetBundleProfile changes the profile of the bundle's main doc. A doc Speccy owns takes the
+// type in its frontmatter, as a new version. A doc in a repo source takes an adopted type, so
+// the repo gets no commit; a repo doc that names its own type is changed in the repo.
+func (a *API) SetBundleProfile(ctx context.Context, req api.SetBundleProfileRequestObject) (api.SetBundleProfileResponseObject, error) {
+	s := a.Service
+	q := s.DB.Queries()
+	b, err := version.Bundle(ctx, q, s.Workspace, req.BundleId)
+	if err != nil {
+		return nil, err
+	}
+	key := req.Body.Profile
+	if _, ok := a.Profiles()[key]; !ok {
+		return nil, kernel.Invalid("no_profile", "There is no doc type %q.", key)
+	}
+	if key == b.ProfileKey {
+		return nil, kernel.Invalid("same_profile", "The doc already uses the %s profile.", key)
+	}
+	main, err := mainDocContent(ctx, q, b)
+	if err != nil {
+		return nil, err
+	}
+	if b.SourceKind == KindGitHub {
+		fm, _, _ := source.ReadFrontmatter(main)
+		if fm.Type != "" {
+			return nil, kernel.Invalid("repo_names_type", "The doc names type %s in the repo, and the repo wins. Change the type field in the repo.", fm.Type)
+		}
+		var ref githubRef
+		_ = json.Unmarshal(b.SourceRef, &ref)
+		if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: ref.Source, Path: path.Join(ref.Dir, b.MainDoc), Profile: key}); err != nil {
+			return nil, err
+		}
+		if err := s.SyncSource(ctx, ref.Source, true); err != nil {
+			return nil, err
+		}
+	} else {
+		next, err := source.SetKeys(main, [][2]string{{"type", key}})
+		if err != nil {
+			return nil, kernel.Invalid("bad_frontmatter", "%s", err.Error())
+		}
+		if _, _, err := s.Change(ctx, b.ID, b.CurrentVersionID.UUID,
+			source.Op{Kind: source.OpWrite, Path: b.MainDoc, Content: next},
+			kernel.ActorFrom(ctx).UserID, "Changed the doc type to "+key); err != nil {
+			return nil, err
+		}
+	}
+	if b, err = version.Bundle(ctx, q, s.Workspace, b.ID); err != nil {
+		return nil, err
+	}
+	out, err := toAPI(ctx, q, b)
+	if err != nil {
+		return nil, err
+	}
+	return api.SetBundleProfile200JSONResponse(out), nil
 }

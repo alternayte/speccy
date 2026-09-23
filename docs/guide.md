@@ -22,7 +22,7 @@ The bundles screen lists every bundle in the folder, with its verdict.
 
 ## 2. Make a bundle
 
-A bundle is a folder with one main doc and its assets. The main doc is the one markdown file whose frontmatter has a `type`:
+A bundle is one spec doc and its assets. A spec doc is a markdown file whose frontmatter has a `type`:
 
 ```markdown
 ---
@@ -37,7 +37,8 @@ Three ways to start one:
 A doc you wrote before Speccy takes a different way in. [adoption.md](adoption.md) covers all of them; the short version:
 
 - **New bundle** writes the profile's template.
-- Drag a folder or a file from Finder or Explorer onto the bundles screen. Speccy makes one bundle per folder, and a single-file bundle per loose markdown file.
+- Drag a folder or a file from Finder or Explorer onto the bundles screen. A folder with one markdown file becomes one bundle. A folder with a PRD and an SDD opens the import dialog: give each file a doc type, and each becomes its own bundle. Speccy offers the link from the SDD to the PRD, and writes it once you confirm.
+- A folder on disk with two docs that name a `type` gives one bundle per doc, in the same way.
 - `speccy init --github` in a repo that holds specs already. It maps the docs it recognises, relaxes the checks that fail today, and writes the Action's workflow. One pull request adopts the repo, and the first review names the checks your team opted into. See [configuration.md](configuration.md).
 - **From GitHub** on the bundles screen, or `speccy add <url>`. Paste the address of a repo, a folder in one, or a single doc. Speccy shows the repo, the branch, the doc and the doc type before it reads anything. It reads through the GitHub API and writes no file into your folder. Local mode uses the token of your `gh` login; run `gh auth login` first, or paste a token in Admin → GitHub.
 

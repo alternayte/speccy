@@ -172,6 +172,7 @@ func (e BundleLinkKind) Valid() bool {
 
 // Defines values for BundleLinkOrigin.
 const (
+	Adopted     BundleLinkOrigin = "adopted"
 	Frontmatter BundleLinkOrigin = "frontmatter"
 	Rule        BundleLinkOrigin = "rule"
 )
@@ -179,6 +180,8 @@ const (
 // Valid indicates whether the value is a known member of the BundleLinkOrigin enum.
 func (e BundleLinkOrigin) Valid() bool {
 	switch e {
+	case Adopted:
+		return true
 	case Frontmatter:
 		return true
 	case Rule:
@@ -1775,6 +1778,12 @@ type ClaimSource struct {
 // ClaimSourceTier defines model for ClaimSource.Tier.
 type ClaimSourceTier string
 
+// ConfirmedLink A link a person confirmed. target is the root-relative path of the doc it links to.
+type ConfirmedLink struct {
+	Kind   string `json:"kind"`
+	Target string `json:"target"`
+}
+
 // ContentFile defines model for ContentFile.
 type ContentFile struct {
 	// Content The file text, or base64 when encoding is base64.
@@ -1899,6 +1908,14 @@ type DismissedDoc struct {
 
 	// SourceId The source the file belongs to. Absent for a file of the served folder.
 	SourceId *openapi_types.UUID `json:"source_id,omitempty"`
+}
+
+// DocChoice defines model for DocChoice.
+type DocChoice struct {
+	Path string `json:"path"`
+
+	// Profile The doc type. Empty means not a spec.
+	Profile string `json:"profile"`
 }
 
 // FileDiff defines model for FileDiff.
@@ -2056,10 +2073,36 @@ type IdSuggestion struct {
 	Text   string `json:"text"`
 }
 
+// ImportDoc defines model for ImportDoc.
+type ImportDoc struct {
+	// Guess The profile whose headings fit the file best. Absent when none fits.
+	Guess *string `json:"guess,omitempty"`
+	Path  string  `json:"path"`
+	Title string  `json:"title"`
+
+	// Type The type the file names in its frontmatter.
+	Type *string `json:"type,omitempty"`
+}
+
+// ImportPreview defines model for ImportPreview.
+type ImportPreview struct {
+	Docs  []ImportDoc     `json:"docs"`
+	Links []SuggestedLink `json:"links"`
+}
+
 // ImportRequest defines model for ImportRequest.
 type ImportRequest struct {
+	// Docs JSON: an array of {path, profile}. The profile of each markdown file; an empty profile is not a spec.
+	Docs *string `json:"docs,omitempty"`
+
 	// File A .md file or a .zip file.
 	File *openapi_types.File `json:"file,omitempty"`
+
+	// Files The files of a dropped folder. Each part's file name is its path in the folder.
+	Files *[]openapi_types.File `json:"files,omitempty"`
+
+	// Links JSON: an array of {from, to, kind}, the links a person confirmed. Speccy writes each into the from doc.
+	Links *string `json:"links,omitempty"`
 
 	// Name The bundle folder name. The default comes from the file name or the doc title.
 	Name *string `json:"name,omitempty"`
@@ -2128,6 +2171,18 @@ type LineOp struct {
 
 // LineOpOp defines model for LineOp.Op.
 type LineOpOp string
+
+// LinkSuggestRequest defines model for LinkSuggestRequest.
+type LinkSuggestRequest struct {
+	Docs     []DocChoice         `json:"docs"`
+	Local    *bool               `json:"local,omitempty"`
+	SourceId *openapi_types.UUID `json:"source_id,omitempty"`
+}
+
+// LinkSuggestions defines model for LinkSuggestions.
+type LinkSuggestions struct {
+	Items []SuggestedLink `json:"items"`
+}
 
 // MCPConnection defines model for MCPConnection.
 type MCPConnection struct {
@@ -2662,6 +2717,16 @@ type StartRunRequest struct {
 // StartRunRequestStages defines model for StartRunRequest.Stages.
 type StartRunRequestStages string
 
+// SuggestedLink defines model for SuggestedLink.
+type SuggestedLink struct {
+	// From The path of the doc that links.
+	From string `json:"from"`
+	Kind string `json:"kind"`
+
+	// To The path of the doc it links to.
+	To string `json:"to"`
+}
+
 // Thread defines model for Thread.
 type Thread struct {
 	AddressedTo ThreadAddressedTo `json:"addressed_to"`
@@ -3194,6 +3259,11 @@ type TakeHandoffJSONBody struct {
 	Label *string `json:"label,omitempty"`
 }
 
+// SetBundleProfileJSONBody defines parameters for SetBundleProfile.
+type SetBundleProfileJSONBody struct {
+	Profile string `json:"profile"`
+}
+
 // PublishBundleJSONBody defines parameters for PublishBundle.
 type PublishBundleJSONBody struct {
 	// Message The commit message and pull request title.
@@ -3277,8 +3347,10 @@ type AddGithubSourceJSONBody struct {
 // AdoptSkippedDocsJSONBody defines parameters for AdoptSkippedDocs.
 type AdoptSkippedDocsJSONBody struct {
 	Items []struct {
-		Path    string `json:"path"`
-		Profile string `json:"profile"`
+		// Link A link a person confirmed. target is the root-relative path of the doc it links to.
+		Link    *ConfirmedLink `json:"link,omitempty"`
+		Path    string         `json:"path"`
+		Profile string         `json:"profile"`
 	} `json:"items"`
 }
 
@@ -3317,8 +3389,10 @@ type JoinShareJSONBody struct {
 
 // AdoptSkippedJSONBody defines parameters for AdoptSkipped.
 type AdoptSkippedJSONBody struct {
-	Path    string `json:"path"`
-	Profile string `json:"profile"`
+	// Link A link a person confirmed. target is the root-relative path of the doc it links to.
+	Link    *ConfirmedLink `json:"link,omitempty"`
+	Path    string         `json:"path"`
+	Profile string         `json:"profile"`
 }
 
 // SetThreadBlockingJSONBody defines parameters for SetThreadBlocking.
@@ -3381,11 +3455,17 @@ type CreateBundleJSONRequestBody = CreateBundleRequest
 // ImportBundleMultipartRequestBody defines body for ImportBundle for multipart/form-data ContentType.
 type ImportBundleMultipartRequestBody = ImportRequest
 
+// PreviewImportMultipartRequestBody defines body for PreviewImport for multipart/form-data ContentType.
+type PreviewImportMultipartRequestBody = ImportRequest
+
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
 
 // TakeHandoffJSONRequestBody defines body for TakeHandoff for application/json ContentType.
 type TakeHandoffJSONRequestBody TakeHandoffJSONBody
+
+// SetBundleProfileJSONRequestBody defines body for SetBundleProfile for application/json ContentType.
+type SetBundleProfileJSONRequestBody SetBundleProfileJSONBody
 
 // PublishBundleJSONRequestBody defines body for PublishBundle for application/json ContentType.
 type PublishBundleJSONRequestBody PublishBundleJSONBody
@@ -3434,6 +3514,9 @@ type AdoptSkippedDocsJSONRequestBody AdoptSkippedDocsJSONBody
 
 // ReportBuildJSONRequestBody defines body for ReportBuild for application/json ContentType.
 type ReportBuildJSONRequestBody = BuildReport
+
+// SuggestLinksJSONRequestBody defines body for SuggestLinks for application/json ContentType.
+type SuggestLinksJSONRequestBody = LinkSuggestRequest
 
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
@@ -3566,6 +3649,9 @@ type ServerInterface interface {
 	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
 	// (POST /bundles/import)
 	ImportBundle(w http.ResponseWriter, r *http.Request)
+	// PreviewImport List the markdown files of an import, with the profile of each and the links Speccy offers.
+	// (POST /bundles/import/preview)
+	PreviewImport(w http.ResponseWriter, r *http.Request)
 	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 	// (DELETE /bundles/{bundleId})
 	DeleteBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteBundleParams)
@@ -3620,6 +3706,9 @@ type ServerInterface interface {
 	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
 	// (POST /bundles/{bundleId}/handoff)
 	TakeHandoff(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// SetBundleProfile Change the profile of the bundle's main doc.
+	// (PUT /bundles/{bundleId}/profile)
+	SetBundleProfile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /bundles/{bundleId}/publish)
 	PublishBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
@@ -3731,6 +3820,9 @@ type ServerInterface interface {
 	// GetInsights The metrics of SDD §8.9, per profile (REQ-092). Maintainers and admins.
 	// (GET /insights)
 	GetInsights(w http.ResponseWriter, r *http.Request)
+	// SuggestLinks The links Speccy offers between docs in one folder, for a person to confirm.
+	// (POST /links/suggest)
+	SuggestLinks(w http.ResponseWriter, r *http.Request)
 	// GetMe Who the caller is (SDD §3). Anonymous callers get signed_in false.
 	// (GET /me)
 	GetMe(w http.ResponseWriter, r *http.Request)
@@ -4379,6 +4471,20 @@ func (siw *ServerInterfaceWrapper) ImportBundle(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ImportBundle(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreviewImport operation middleware
+func (siw *ServerInterfaceWrapper) PreviewImport(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreviewImport(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5053,6 +5159,32 @@ func (siw *ServerInterfaceWrapper) TakeHandoff(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TakeHandoff(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetBundleProfile operation middleware
+func (siw *ServerInterfaceWrapper) SetBundleProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetBundleProfile(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6000,6 +6132,20 @@ func (siw *ServerInterfaceWrapper) GetInsights(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetInsights(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SuggestLinks operation middleware
+func (siw *ServerInterfaceWrapper) SuggestLinks(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SuggestLinks(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7061,6 +7207,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}/events", wrapper.VerificationEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}", wrapper.GetVerification)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/adopt", wrapper.AdoptFrontmatter)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/profile", wrapper.SetBundleProfile)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/visibility", wrapper.SetVisibility)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.RevokeShareLink)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.CreateShareLink)
@@ -7073,6 +7220,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles", wrapper.ListBundles)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles", wrapper.CreateBundle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import", wrapper.ImportBundle)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import/preview", wrapper.PreviewImport)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.DeleteBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.GetBundle)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.DeleteFile)
@@ -7108,6 +7256,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/skipped", wrapper.ListSkipped)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/skipped", wrapper.AdoptSkipped)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/links/suggest", wrapper.SuggestLinks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/guess", wrapper.GuessProfile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.ListBundleThreads)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.OpenBundleThread)
@@ -8208,7 +8357,7 @@ type ImportBundleResponseObject interface {
 	VisitImportBundleResponse(w http.ResponseWriter) error
 }
 
-type ImportBundle201JSONResponse Bundle
+type ImportBundle201JSONResponse BundleList
 
 func (response ImportBundle201JSONResponse) VisitImportBundleResponse(w http.ResponseWriter) error {
 
@@ -8228,6 +8377,45 @@ type ImportBundledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ImportBundledefaultApplicationProblemPlusJSONResponse) VisitImportBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewImportRequestObject struct {
+	Body *multipart.Reader
+}
+
+type PreviewImportResponseObject interface {
+	VisitPreviewImportResponse(w http.ResponseWriter) error
+}
+
+type PreviewImport200JSONResponse ImportPreview
+
+func (response PreviewImport200JSONResponse) VisitPreviewImportResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PreviewImportdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PreviewImportdefaultApplicationProblemPlusJSONResponse) VisitPreviewImportResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -8969,6 +9157,46 @@ type TakeHandoffdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response TakeHandoffdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBundleProfileRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *SetBundleProfileJSONRequestBody
+}
+
+type SetBundleProfileResponseObject interface {
+	VisitSetBundleProfileResponse(w http.ResponseWriter) error
+}
+
+type SetBundleProfile200JSONResponse Bundle
+
+func (response SetBundleProfile200JSONResponse) VisitSetBundleProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBundleProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetBundleProfiledefaultApplicationProblemPlusJSONResponse) VisitSetBundleProfileResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -10421,6 +10649,45 @@ type GetInsightsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetInsightsdefaultApplicationProblemPlusJSONResponse) VisitGetInsightsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuggestLinksRequestObject struct {
+	Body *SuggestLinksJSONRequestBody
+}
+
+type SuggestLinksResponseObject interface {
+	VisitSuggestLinksResponse(w http.ResponseWriter) error
+}
+
+type SuggestLinks200JSONResponse LinkSuggestions
+
+func (response SuggestLinks200JSONResponse) VisitSuggestLinksResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuggestLinksdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SuggestLinksdefaultApplicationProblemPlusJSONResponse) VisitSuggestLinksResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12078,6 +12345,9 @@ type StrictServerInterface interface {
 	// ImportBundle Import a bundle from a .md file, a .zip file, or pasted markdown.
 	// (POST /bundles/import)
 	ImportBundle(ctx context.Context, request ImportBundleRequestObject) (ImportBundleResponseObject, error)
+	// PreviewImport List the markdown files of an import, with the profile of each and the links Speccy offers.
+	// (POST /bundles/import/preview)
+	PreviewImport(ctx context.Context, request PreviewImportRequestObject) (PreviewImportResponseObject, error)
 	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 	// (DELETE /bundles/{bundleId})
 	DeleteBundle(ctx context.Context, request DeleteBundleRequestObject) (DeleteBundleResponseObject, error)
@@ -12132,6 +12402,9 @@ type StrictServerInterface interface {
 	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
 	// (POST /bundles/{bundleId}/handoff)
 	TakeHandoff(ctx context.Context, request TakeHandoffRequestObject) (TakeHandoffResponseObject, error)
+	// SetBundleProfile Change the profile of the bundle's main doc.
+	// (PUT /bundles/{bundleId}/profile)
+	SetBundleProfile(ctx context.Context, request SetBundleProfileRequestObject) (SetBundleProfileResponseObject, error)
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /bundles/{bundleId}/publish)
 	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
@@ -12243,6 +12516,9 @@ type StrictServerInterface interface {
 	// GetInsights The metrics of SDD §8.9, per profile (REQ-092). Maintainers and admins.
 	// (GET /insights)
 	GetInsights(ctx context.Context, request GetInsightsRequestObject) (GetInsightsResponseObject, error)
+	// SuggestLinks The links Speccy offers between docs in one folder, for a person to confirm.
+	// (POST /links/suggest)
+	SuggestLinks(ctx context.Context, request SuggestLinksRequestObject) (SuggestLinksResponseObject, error)
 	// GetMe Who the caller is (SDD §3). Anonymous callers get signed_in false.
 	// (GET /me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
@@ -13181,6 +13457,37 @@ func (sh *strictHandler) ImportBundle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// PreviewImport operation middleware
+func (sh *strictHandler) PreviewImport(w http.ResponseWriter, r *http.Request) {
+	var request PreviewImportRequestObject
+
+	if reader, err := r.MultipartReader(); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode multipart body: %w", err))
+		return
+	} else {
+		request.Body = reader
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreviewImport(ctx, request.(PreviewImportRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreviewImport")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreviewImportResponseObject); ok {
+		if err := validResponse.VisitPreviewImportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeleteBundle operation middleware
 func (sh *strictHandler) DeleteBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteBundleParams) {
 	var request DeleteBundleRequestObject
@@ -13669,6 +13976,39 @@ func (sh *strictHandler) TakeHandoff(w http.ResponseWriter, r *http.Request, bun
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(TakeHandoffResponseObject); ok {
 		if err := validResponse.VisitTakeHandoffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetBundleProfile operation middleware
+func (sh *strictHandler) SetBundleProfile(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request SetBundleProfileRequestObject
+
+	request.BundleId = bundleId
+
+	var body SetBundleProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetBundleProfile(ctx, request.(SetBundleProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetBundleProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetBundleProfileResponseObject); ok {
+		if err := validResponse.VisitSetBundleProfileResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -14736,6 +15076,37 @@ func (sh *strictHandler) GetInsights(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetInsightsResponseObject); ok {
 		if err := validResponse.VisitGetInsightsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SuggestLinks operation middleware
+func (sh *strictHandler) SuggestLinks(w http.ResponseWriter, r *http.Request) {
+	var request SuggestLinksRequestObject
+
+	var body SuggestLinksJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SuggestLinks(ctx, request.(SuggestLinksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SuggestLinks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SuggestLinksResponseObject); ok {
+		if err := validResponse.VisitSuggestLinksResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

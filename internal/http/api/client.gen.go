@@ -347,6 +347,13 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/import (the `ImportBundle` operationId).
 	ImportBundleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PreviewImportWithBody List the markdown files of an import, with the profile of each and the links Speccy offers.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /bundles/import/preview (the `PreviewImport` operationId).
+	PreviewImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 	//
 	// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
@@ -456,6 +463,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
 	TakeHandoff(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetBundleProfileWithBody Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfileWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetBundleProfile Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfile(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	//
@@ -785,6 +810,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /insights (the `GetInsights` operationId).
 	GetInsights(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SuggestLinksWithBody The links Speccy offers between docs in one folder, for a person to confirm.
+	//
+	// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+	SuggestLinksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SuggestLinks The links Speccy offers between docs in one folder, for a person to confirm.
+	//
+	// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+	SuggestLinks(ctx context.Context, body SuggestLinksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetMe Who the caller is (SDD §3). Anonymous callers get signed_in false.
 	//
@@ -1768,6 +1811,23 @@ func (c *Client) ImportBundleWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
+// PreviewImportWithBody List the markdown files of an import, with the profile of each and the links Speccy offers.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /bundles/import/preview (the `PreviewImport` operationId).
+func (c *Client) PreviewImportWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewImportRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 //
 // Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
@@ -2068,6 +2128,44 @@ func (c *Client) TakeHandoffWithBody(ctx context.Context, bundleId BundleId, con
 // Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
 func (c *Client) TakeHandoff(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTakeHandoffRequest(c.Server, bundleId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetBundleProfileWithBody Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+func (c *Client) SetBundleProfileWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetBundleProfileRequestWithBody(c.Server, bundleId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetBundleProfile Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+func (c *Client) SetBundleProfile(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetBundleProfileRequest(c.Server, bundleId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2927,6 +3025,44 @@ func (c *Client) MarkInboxSeen(ctx context.Context, reqEditors ...RequestEditorF
 // Corresponds with GET /insights (the `GetInsights` operationId).
 func (c *Client) GetInsights(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetInsightsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestLinksWithBody The links Speccy offers between docs in one folder, for a person to confirm.
+//
+// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+func (c *Client) SuggestLinksWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestLinksRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestLinks The links Speccy offers between docs in one folder, for a person to confirm.
+//
+// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+func (c *Client) SuggestLinks(ctx context.Context, body SuggestLinksJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestLinksRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4808,6 +4944,35 @@ func NewImportBundleRequestWithBody(server string, contentType string, body io.R
 	return req, nil
 }
 
+// NewPreviewImportRequestWithBody constructs an http.Request for the PreviewImport method, with any body, and a specified content type
+func NewPreviewImportRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/import/preview")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewDeleteBundleRequest constructs an http.Request for the DeleteBundle method
 func NewDeleteBundleRequest(server string, bundleId BundleId, params *DeleteBundleParams) (*http.Request, error) {
 	var err error
@@ -5687,6 +5852,53 @@ func NewTakeHandoffRequestWithBody(server string, bundleId BundleId, contentType
 	}
 
 	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSetBundleProfileRequest calls the generic SetBundleProfile builder with application/json body
+func NewSetBundleProfileRequest(server string, bundleId BundleId, body SetBundleProfileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetBundleProfileRequestWithBody(server, bundleId, "application/json", bodyReader)
+}
+
+// NewSetBundleProfileRequestWithBody constructs an http.Request for the SetBundleProfile method, with any body, and a specified content type
+func NewSetBundleProfileRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/bundles/%s/profile", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -7219,6 +7431,46 @@ func NewGetInsightsRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewSuggestLinksRequest calls the generic SuggestLinks builder with application/json body
+func NewSuggestLinksRequest(server string, body SuggestLinksJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSuggestLinksRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSuggestLinksRequestWithBody constructs an http.Request for the SuggestLinks method, with any body, and a specified content type
+func NewSuggestLinksRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/links/suggest")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -9015,6 +9267,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/import (the `ImportBundle` operationId).
 	ImportBundleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ImportBundleResponse, error)
 
+	// PreviewImportWithBodyWithResponse List the markdown files of an import, with the profile of each and the links Speccy offers.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /bundles/import/preview (the `PreviewImport` operationId).
+	PreviewImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewImportResponse, error)
+
 	// DeleteBundleWithResponse Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -9154,6 +9413,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
 	TakeHandoffWithResponse(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
+
+	// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfileWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error)
+
+	// SetBundleProfileWithResponse Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfileWithResponse(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error)
 
 	// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	//
@@ -9525,6 +9802,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /insights (the `GetInsights` operationId).
 	GetInsightsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetInsightsResponse, error)
+
+	// SuggestLinksWithBodyWithResponse The links Speccy offers between docs in one folder, for a person to confirm.
+	//
+	// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+	SuggestLinksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestLinksResponse, error)
+
+	// SuggestLinksWithResponse The links Speccy offers between docs in one folder, for a person to confirm.
+	//
+	// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+	SuggestLinksWithResponse(ctx context.Context, body SuggestLinksJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestLinksResponse, error)
 
 	// GetMeWithResponse Who the caller is (SDD §3). Anonymous callers get signed_in false.
 	//
@@ -11185,13 +11480,13 @@ type ImportBundleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *Bundle
+	JSON201 *BundleList
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r ImportBundleResponse) GetJSON201() *Bundle {
+func (r ImportBundleResponse) GetJSON201() *BundleList {
 	return r.JSON201
 }
 
@@ -11223,6 +11518,54 @@ func (r ImportBundleResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ImportBundleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PreviewImportResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ImportPreview
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewImportResponse) GetJSON200() *ImportPreview {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PreviewImportResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewImportResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewImportResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewImportResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewImportResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -12070,6 +12413,54 @@ func (r TakeHandoffResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r TakeHandoffResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetBundleProfileResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Bundle
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetBundleProfileResponse) GetJSON200() *Bundle {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetBundleProfileResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetBundleProfileResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetBundleProfileResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetBundleProfileResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetBundleProfileResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13862,6 +14253,54 @@ func (r GetInsightsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetInsightsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SuggestLinksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LinkSuggestions
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SuggestLinksResponse) GetJSON200() *LinkSuggestions {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SuggestLinksResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SuggestLinksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SuggestLinksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SuggestLinksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SuggestLinksResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -16214,6 +16653,19 @@ func (c *ClientWithResponses) ImportBundleWithBodyWithResponse(ctx context.Conte
 	return ParseImportBundleResponse(rsp)
 }
 
+// PreviewImportWithBodyWithResponse List the markdown files of an import, with the profile of each and the links Speccy offers.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /bundles/import/preview (the `PreviewImport` operationId).
+func (c *ClientWithResponses) PreviewImportWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PreviewImportResponse, error) {
+	rsp, err := c.PreviewImportWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreviewImportResponse(rsp)
+}
+
 // DeleteBundleWithResponse Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16472,6 +16924,36 @@ func (c *ClientWithResponses) TakeHandoffWithResponse(ctx context.Context, bundl
 		return nil, err
 	}
 	return ParseTakeHandoffResponse(rsp)
+}
+
+// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+func (c *ClientWithResponses) SetBundleProfileWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error) {
+	rsp, err := c.SetBundleProfileWithBody(ctx, bundleId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetBundleProfileResponse(rsp)
+}
+
+// SetBundleProfileWithResponse Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
+func (c *ClientWithResponses) SetBundleProfileWithResponse(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error) {
+	rsp, err := c.SetBundleProfile(ctx, bundleId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetBundleProfileResponse(rsp)
 }
 
 // PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
@@ -17161,6 +17643,36 @@ func (c *ClientWithResponses) GetInsightsWithResponse(ctx context.Context, reqEd
 		return nil, err
 	}
 	return ParseGetInsightsResponse(rsp)
+}
+
+// SuggestLinksWithBodyWithResponse The links Speccy offers between docs in one folder, for a person to confirm.
+//
+// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+func (c *ClientWithResponses) SuggestLinksWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestLinksResponse, error) {
+	rsp, err := c.SuggestLinksWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestLinksResponse(rsp)
+}
+
+// SuggestLinksWithResponse The links Speccy offers between docs in one folder, for a person to confirm.
+//
+// A doc whose profile names an upstream type gets a suggested link when exactly one other doc in its folder has that type. With source_id, the source's bundles count as docs in their folders; with local, the bundles on disk do.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /links/suggest (the `SuggestLinks` operationId).
+func (c *ClientWithResponses) SuggestLinksWithResponse(ctx context.Context, body SuggestLinksJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestLinksResponse, error) {
+	rsp, err := c.SuggestLinks(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestLinksResponse(rsp)
 }
 
 // GetMeWithResponse Who the caller is (SDD §3). Anonymous callers get signed_in false.
@@ -18749,11 +19261,44 @@ func ParseImportBundleResponse(rsp *http.Response) (*ImportBundleResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Bundle
+		var dest BundleList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePreviewImportResponse parses an HTTP response from a PreviewImportWithResponse call
+func ParsePreviewImportResponse(rsp *http.Response) (*PreviewImportResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreviewImportResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ImportPreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
@@ -19328,6 +19873,39 @@ func ParseTakeHandoffResponse(rsp *http.Response) (*TakeHandoffResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest BuildPacket
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetBundleProfileResponse parses an HTTP response from a SetBundleProfileWithResponse call
+func ParseSetBundleProfileResponse(rsp *http.Response) (*SetBundleProfileResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetBundleProfileResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Bundle
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -20555,6 +21133,39 @@ func ParseGetInsightsResponse(rsp *http.Response) (*GetInsightsResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Insights
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSuggestLinksResponse parses an HTTP response from a SuggestLinksWithResponse call
+func ParseSuggestLinksResponse(rsp *http.Response) (*SuggestLinksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SuggestLinksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LinkSuggestions
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

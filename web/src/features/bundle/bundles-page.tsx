@@ -16,9 +16,11 @@ import {
   undismissDocMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemCode, problemMessage } from "@/lib/problem";
-import { importBundle, putFileContent } from "@/lib/api";
+import { importBundle } from "@/lib/api";
+import type { ConfirmedLink, Profile } from "@/lib/api";
+import { useLinkOffer } from "./adopt-link";
 import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
-import { bundlesFromDrop, filesFromDrop, isZip, mainDocOf } from "./drop";
+import { type DroppedBundle, bundlesFromDrop, filesFromDrop, isMarkdown, isZip } from "./drop";
 import { GitHubDialog } from "./github-dialog";
 import { SourceDocs } from "./source-docs";
 import { ImportDialog } from "./import-dialog";
@@ -34,40 +36,44 @@ export function BundlesPage() {
   const hosted = useMe().data?.mode === "hosted";
   const qc = useQueryClient();
   const [over, setOver] = useState(false);
-  // dropped is a file whose type Speccy cannot guess: the import dialog asks for one.
-  const [dropped, setDropped] = useState<File | null>(null);
+  // dropped is a folder with several markdown files, or a file whose type Speccy cannot guess:
+  // the import dialog asks for the type of each.
+  const [dropped, setDropped] = useState<DroppedBundle | null>(null);
 
-  // A drop makes one bundle per folder, and one per loose markdown or .zip file. The folder's
-  // main doc starts the bundle, and its other files follow as assets.
+  // A drop makes the bundles of each folder, and of each loose markdown or .zip file. A folder
+  // with one markdown file imports at once; with more, the dialog asks which are specs.
   const make = useMutation({
     mutationFn: async (dt: DataTransfer) => {
       const groups = bundlesFromDrop(await filesFromDrop(dt));
       if (groups.length === 0) throw new Error("Drop a folder, a markdown file, or a .zip file.");
       for (const group of groups) {
-        const main = isZip(group.files[0]!.path) ? group.files[0]! : mainDocOf(group.files);
-        if (!main) throw new Error(`${group.name} has no markdown file, so it is not a bundle.`);
-        let created;
+        if (isZip(group.files[0]!.path)) {
+          await importBundle({ body: { name: group.name, file: group.files[0]!.file }, throwOnError: true });
+          continue;
+        }
+        const markdown = group.files.filter((f) => isMarkdown(f.path));
+        if (markdown.length === 0) throw new Error(`${group.name} has no markdown file, so it is not a bundle.`);
+        if (markdown.length > 1) {
+          setDropped(group);
+          setImporting(true);
+          return;
+        }
         try {
-          created = await importBundle({ body: { name: group.name, file: main.file }, throwOnError: true });
+          await importBundle({
+            body: {
+              name: group.name,
+              files: group.files.map((d) => new File([d.file], d.path, { type: d.file.type })),
+            },
+            throwOnError: true,
+          });
         } catch (err) {
           // No type in the file, and no profile fits its headings: ask for the type.
-          if (problemCode(err) === "no_profile" && group.files.length === 1) {
-            setDropped(main.file);
+          if (problemCode(err) === "no_profile" || problemCode(err) === "no_main_doc") {
+            setDropped(group);
             setImporting(true);
             return;
           }
           throw err;
-        }
-        let base = created.data.current_version.id;
-        for (const item of group.files) {
-          if (item === main) continue;
-          const res = await putFileContent({
-            path: { bundleId: created.data.id },
-            query: { path: item.path, base_version: base },
-            body: item.file,
-          });
-          if (res.error) throw res.error;
-          base = res.data!.version.id;
         }
       }
     },
@@ -97,7 +103,7 @@ export function BundlesPage() {
             <p className="mt-1 text-sm text-ink-2">
               {hosted
                 ? "Each bundle is one spec: a main doc and its assets."
-                : "Each bundle is a folder with one main doc and its assets."}
+                : "Each bundle is one spec doc and its assets."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -269,44 +275,27 @@ function SkippedDocs() {
       ) : null}
       {items.length > 0 ? (
         <ul className="mt-2 overflow-hidden rounded-lg border border-line bg-surface">
-          {items.map((it) => {
-            const key = picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? "";
-            return (
-              <li
-                key={it.path}
-                className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0"
-              >
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{it.path}</span>
-                <select
-                  aria-label={`Doc type for ${it.path}`}
-                  value={key}
-                  onChange={(e) => setPicked({ ...picked, [it.path]: e.target.value })}
-                  className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
-                >
-                  {(profiles.data?.items ?? []).map((p) => (
-                    <option key={p.key} value={p.key}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={dismiss.isPending}
-                  onClick={() => dismiss.mutate({ body: { path: it.path } })}
-                >
-                  Not a spec
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={!key || adopt.isPending}
-                  onClick={() => adopt.mutate({ body: { path: it.path, profile: key } })}
-                >
-                  Adopt
-                </Button>
-              </li>
-            );
-          })}
+          {items.map((it) => (
+            <LocalSkippedRow
+              key={it.path}
+              path={it.path}
+              profileKey={picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? ""}
+              profiles={profiles.data?.items ?? []}
+              onPick={(k) => setPicked({ ...picked, [it.path]: k })}
+              onDismiss={() => dismiss.mutate({ body: { path: it.path } })}
+              dismissing={dismiss.isPending}
+              onAdopt={(link) =>
+                adopt.mutate({
+                  body: {
+                    path: it.path,
+                    profile: picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? "",
+                    ...(link ? { link } : {}),
+                  },
+                })
+              }
+              adopting={adopt.isPending}
+            />
+          ))}
         </ul>
       ) : null}
       {marked.length > 0 ? (
@@ -335,5 +324,53 @@ function SkippedDocs() {
         </div>
       ) : null}
     </section>
+  );
+}
+
+// LocalSkippedRow is one markdown file on disk that names no type, with the link Speccy offers
+// when it is adopted.
+function LocalSkippedRow({
+  path,
+  profileKey,
+  profiles,
+  onPick,
+  onDismiss,
+  dismissing,
+  onAdopt,
+  adopting,
+}: {
+  path: string;
+  profileKey: string;
+  profiles: Profile[];
+  onPick: (key: string) => void;
+  onDismiss: () => void;
+  dismissing: boolean;
+  onAdopt: (link?: ConfirmedLink) => void;
+  adopting: boolean;
+}) {
+  const offer = useLinkOffer(path, profileKey, { local: true });
+  return (
+    <li className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0">
+      <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{path}</span>
+      <select
+        aria-label={`Doc type for ${path}`}
+        value={profileKey}
+        onChange={(e) => onPick(e.target.value)}
+        className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+      >
+        {profiles.map((p) => (
+          <option key={p.key} value={p.key}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <Button size="sm" variant="ghost" disabled={dismissing} onClick={onDismiss}>
+        Not a spec
+      </Button>
+      <Button size="sm" disabled={!profileKey || adopting} onClick={() => onAdopt(offer.link)}>
+        Adopt
+      </Button>
+      {offer.view}
+    </li>
   );
 }

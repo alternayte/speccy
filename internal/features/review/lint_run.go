@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -166,6 +167,9 @@ type input struct {
 	// links are the version's links; linked are the bundle targets, at their current version.
 	links  []link
 	linked []linked
+	// upstreams are the slugs of the bundles whose profile this doc may link up to, so a link
+	// that does not resolve can name what would.
+	upstreams []string
 }
 
 func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, p profile.Versioned) (input, error) {
@@ -195,6 +199,17 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.Bundle, versionID uuid.U
 	in.size, in.sizeInferred = docSize(in.fm, in.main)
 	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
 		return input{}, err
+	}
+	if up := p.Profile.Links.Upstream; up != nil && len(up.Types) > 0 {
+		all, err := s.allBundles(ctx)
+		if err != nil {
+			return input{}, err
+		}
+		for _, o := range all {
+			if o.ID != b.ID && !o.ArchivedAt.Valid && slices.Contains(up.Types, o.ProfileKey) {
+				in.upstreams = append(in.upstreams, o.Slug)
+			}
+		}
 	}
 	if in.linked, err = s.loadLinked(ctx, in.links); err != nil {
 		return input{}, err
@@ -264,6 +279,9 @@ func lintStage(in input) evaluation {
 				f := &ev.findings[len(ev.findings)-1]
 				f.message = fmt.Sprintf("No bundle matches the link target %q, so this %s has no upstream doc.", missing, strings.ToUpper(in.profile.Profile.Key))
 				f.fix = "Use the target bundle's slug, or a path relative to this doc, or add a standalone: entry with the reason."
+				if len(in.upstreams) > 0 {
+					f.message += fmt.Sprintf(" The %s bundles are: %s.", strings.ToUpper(strings.Join(up.Types, " or ")), quoteList(in.upstreams))
+				}
 			}
 		}
 	}
@@ -487,7 +505,11 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bu
 			return err
 		}
 	}
-	links := resolveLinksIn(all, b, main, s.linkRules(), s.linkPatterns())
+	adopted, err := s.adopted(ctx, b)
+	if err != nil {
+		return err
+	}
+	links := resolveLinksIn(all, b, main, adopted, s.linkRules(), s.linkPatterns())
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
 		return err
@@ -754,4 +776,21 @@ func upstreamMoved(ctx context.Context, q store.Querier, workspace, runID uuid.U
 		}
 	}
 	return false, nil
+}
+
+// quoteList names at most 5 slugs, quoted, and says how many more there are.
+func quoteList(slugs []string) string {
+	shown := slugs
+	if len(shown) > 5 {
+		shown = shown[:5]
+	}
+	q := make([]string, len(shown))
+	for i, s := range shown {
+		q[i] = strconv.Quote(s)
+	}
+	out := strings.Join(q, ", ")
+	if n := len(slugs) - len(shown); n > 0 {
+		out += fmt.Sprintf(", and %d more", n)
+	}
+	return out
 }

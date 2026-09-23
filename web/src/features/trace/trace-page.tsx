@@ -5,7 +5,7 @@ import { ArrowLeft, CircleCheck, CircleMinus, CircleX, Hash, Share2 } from "luci
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { BundleLink, TraceCell, TraceMatrix } from "@/lib/api";
+import type { BundleLink, TraceCell, TraceMatrix, TraceView } from "@/lib/api";
 import {
   addTraceIdsMutation,
   getBundleAccessOptions,
@@ -69,6 +69,7 @@ export function TracePage({ bundleId }: { bundleId: string }) {
           </div>
         ) : (
           <>
+            <WhyEmpty trace={trace.data} bundleId={bundleId} />
             <section className="mt-6">
               <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Links</h2>
               {trace.data.standalone ? (
@@ -427,5 +428,51 @@ function Suggestions({
         </Button>
       </div>
     </section>
+  );
+}
+
+// WhyEmpty explains a traceability page with nothing to trace: what the page shows, which of
+// the three causes left it empty, and the one thing to do next (#55).
+function WhyEmpty({ trace, bundleId }: { trace: TraceView; bundleId: string }) {
+  const bundleLinks = trace.links.filter((l) => l.target_kind === "bundle");
+  if (trace.matrices.length > 0 || trace.standalone) return null;
+  const broken = bundleLinks.filter((l) => !l.bundle);
+  let why: string;
+  let next: React.ReactNode;
+  if (broken.length > 0) {
+    why = `The link to "${broken[0]!.target_ref}" does not resolve: no bundle has that slug or that path.`;
+    next = (
+      <>
+        Change the target under <code>links:</code> to the other bundle&apos;s slug, or a path relative to this doc. The{" "}
+        <Link to="/bundles/$bundleId" params={{ bundleId }} className="text-accent hover:underline">
+          findings
+        </Link>{" "}
+        name the bundles that can match.
+      </>
+    );
+  } else if (bundleLinks.length === 0 && trace.incoming.length === 0) {
+    why = "This doc links to no other bundle, and no bundle links to it.";
+    next = (
+      <>
+        Add a link under <code>links:</code> in the frontmatter, for example <code>kind: implements</code> and the
+        PRD&apos;s slug. A PRD and an SDD imported together get the link offered in the import dialog.
+      </>
+    );
+  } else {
+    why = "The linked docs define no trace IDs, such as REQ-001, so there is nothing to cover.";
+    next = (
+      <>
+        Give the upstream doc&apos;s requirements trace IDs. Speccy suggests them below when it finds unnumbered items.
+      </>
+    );
+  }
+  return (
+    <div className="mt-6 rounded-lg border border-line bg-surface px-4 py-3 text-sm">
+      <p className="text-ink">
+        This page shows how this doc covers the requirements of the docs it links to, and which code builds it.
+      </p>
+      <p className="mt-2 text-ink-2">{why}</p>
+      <p className="mt-1 text-ink-2">{next}</p>
+    </div>
   );
 }

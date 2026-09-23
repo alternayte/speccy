@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -293,11 +294,31 @@ func (s *Service) createLocal(ctx context.Context, name string, files []source.F
 		}
 		return pgdb.Bundle{}, kernel.Invalid("create_failed", "%s", sentence(err.Error()))
 	}
-	b, err := s.DB.Queries().GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: dir})
+	all, err := s.bundlesUnder(ctx, dir)
 	if err != nil {
-		return pgdb.Bundle{}, fmt.Errorf("find the new bundle %s: %w", dir, err)
+		return pgdb.Bundle{}, err
 	}
-	return b, nil
+	if len(all) == 0 {
+		return pgdb.Bundle{}, fmt.Errorf("find the new bundle %s: the scan found none", dir)
+	}
+	return all[0], nil
+}
+
+// bundlesUnder returns the local bundles in the folder dir, by slug: one for a folder with one
+// spec doc, one for each spec doc otherwise.
+func (s *Service) bundlesUnder(ctx context.Context, dir string) ([]pgdb.Bundle, error) {
+	bundles, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
+	if err != nil {
+		return nil, err
+	}
+	var out []pgdb.Bundle
+	for _, b := range bundles {
+		if b.Slug == dir || strings.HasPrefix(b.Slug, dir+"/") {
+			out = append(out, b)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
+	return out, nil
 }
 
 // CreateDB creates a bundle in the db source from files.

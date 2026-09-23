@@ -337,6 +337,35 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /bundles/{bundleId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    put:
+      operationId: setBundleProfile
+      summary: Change the profile of the bundle's main doc.
+      description: >
+        A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as
+        a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profile]
+              properties:
+                profile:
+                  type: string
+      responses:
+        "200":
+          description: The bundle, with its new profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /bundles/{bundleId}/visibility:
     parameters:
       - $ref: "#/components/parameters/BundleId"
@@ -585,11 +614,31 @@ paths:
               $ref: "#/components/schemas/ImportRequest"
       responses:
         "201":
-          description: The new bundle.
+          description: The new bundles. A folder with two or more spec docs gives one bundle per doc.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Bundle"
+                $ref: "#/components/schemas/BundleList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/import/preview:
+    post:
+      operationId: previewImport
+      summary: List the markdown files of an import, with the profile of each and the links Speccy offers.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+      responses:
+        "200":
+          description: The docs of the import.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportPreview"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1269,6 +1318,8 @@ paths:
                   type: string
                 profile:
                   type: string
+                link:
+                  $ref: "#/components/schemas/ConfirmedLink"
       responses:
         "201":
           description: The new bundle.
@@ -1276,6 +1327,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Bundle"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /links/suggest:
+    post:
+      operationId: suggestLinks
+      summary: The links Speccy offers between docs in one folder, for a person to confirm.
+      description: >
+        A doc whose profile names an upstream type gets a suggested link when exactly one other
+        doc in its folder has that type. With source_id, the source's bundles count as docs in
+        their folders; with local, the bundles on disk do.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkSuggestRequest"
+      responses:
+        "200":
+          description: The suggested links.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkSuggestions"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2248,6 +2323,8 @@ paths:
                         type: string
                       profile:
                         type: string
+                      link:
+                        $ref: "#/components/schemas/ConfirmedLink"
       responses:
         "200":
           description: The source, after the sync that makes the bundles.
@@ -3270,7 +3347,7 @@ components:
           enum: [implements, refines, references, supersedes, implemented-by]
         origin:
           type: string
-          enum: [frontmatter, rule]
+          enum: [frontmatter, rule, adopted]
         target_kind:
           type: string
           enum: [bundle, external]
@@ -3949,6 +4026,62 @@ components:
           type: string
           format: uuid
           description: The source the file belongs to. Absent for a file of the served folder.
+
+    ConfirmedLink:
+      type: object
+      required: [kind, target]
+      description: A link a person confirmed. target is the root-relative path of the doc it links to.
+      properties:
+        kind:
+          type: string
+        target:
+          type: string
+
+    DocChoice:
+      type: object
+      required: [path, profile]
+      properties:
+        path:
+          type: string
+        profile:
+          type: string
+          description: The doc type. Empty means not a spec.
+
+    LinkSuggestRequest:
+      type: object
+      required: [docs]
+      properties:
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocChoice"
+        source_id:
+          type: string
+          format: uuid
+        local:
+          type: boolean
+
+    SuggestedLink:
+      type: object
+      required: [from, to, kind]
+      properties:
+        from:
+          type: string
+          description: The path of the doc that links.
+        to:
+          type: string
+          description: The path of the doc it links to.
+        kind:
+          type: string
+
+    LinkSuggestions:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedLink"
 
     SourceSkippedDoc:
       type: object
@@ -4885,6 +5018,46 @@ components:
         profile:
           type: string
           description: The doc type for a file that names none. Speccy writes the type line into the frontmatter of the imported file.
+        files:
+          type: array
+          items:
+            type: string
+            contentMediaType: application/octet-stream
+          description: The files of a dropped folder. Each part's file name is its path in the folder.
+        docs:
+          type: string
+          description: "JSON: an array of {path, profile}. The profile of each markdown file; an empty profile is not a spec."
+        links:
+          type: string
+          description: "JSON: an array of {from, to, kind}, the links a person confirmed. Speccy writes each into the from doc."
+
+    ImportPreview:
+      type: object
+      required: [docs, links]
+      properties:
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportDoc"
+        links:
+          type: array
+          items:
+            $ref: "#/components/schemas/SuggestedLink"
+
+    ImportDoc:
+      type: object
+      required: [path, title]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        type:
+          type: string
+          description: The type the file names in its frontmatter.
+        guess:
+          type: string
+          description: The profile whose headings fit the file best. Absent when none fits.
 
     Diff:
       type: object
