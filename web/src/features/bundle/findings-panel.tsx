@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { Loader2, ShieldCheck, Unlink, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -38,6 +38,7 @@ export function FindingsPanel({
   onDiscuss,
   onOpenWaiver,
   onVerify,
+  orderKey,
 }: {
   runId?: string;
   bundleId: string;
@@ -49,6 +50,8 @@ export function FindingsPanel({
   onOpenWaiver: (w: Waiver) => void;
   // onVerify opens the verify field at a target, for a drifted code link.
   onVerify?: (target: string) => void;
+  // orderKey names the review whose order the rail keeps: the AI review, across lint runs.
+  orderKey?: string;
 }) {
   const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
   const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
@@ -56,7 +59,13 @@ export function FindingsPanel({
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selected]);
-  const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
+  // A save makes a new lint run. The list it carries keeps the same findings, so the rail keeps
+  // showing them while it loads, and no open suggestion unmounts (#53).
+  const findings = useQuery({
+    ...listFindingsOptions({ path: { runId: runId ?? "" } }),
+    enabled: !!runId,
+    placeholderData: keepPreviousData,
+  });
   const requests = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const decide = useDecide(bundleId);
   // A GitHub bundle's sidecar reaches the repo through a pull request, so an approval here is
@@ -94,15 +103,17 @@ export function FindingsPanel({
   // the reason belongs beside the text it excuses (SDD §9.1). The order freezes on the first
   // sort of a run, so a decision does not move the list under the reader.
   const open = findings.data.items.filter((f) => !f.anchor.detached);
-  if (frozen.current.runId !== runId && !requests.isPending) {
-    const ranks = new Map(open.map((f) => [f.id, rank(pending(f)) * 10 + order[f.level]]));
-    frozen.current = { runId, ranks };
+  // The order freezes on the AI review, not on each lint run, so a save does not re-sort it.
+  const key = orderKey ?? runId;
+  if (frozen.current.runId !== key && !requests.isPending) {
+    const ranks = new Map(open.map((f) => [ident(f), rank(pending(f)) * 10 + order[f.level]]));
+    frozen.current = { runId: key, ranks };
   }
   const ranks = frozen.current.ranks;
   const items = open.sort(
     (a, b) =>
-      (ranks.get(a.id) ?? rank(pending(a)) * 10 + order[a.level]) -
-      (ranks.get(b.id) ?? rank(pending(b)) * 10 + order[b.level]),
+      (ranks.get(ident(a)) ?? rank(pending(a)) * 10 + order[a.level]) -
+      (ranks.get(ident(b)) ?? rank(pending(b)) * 10 + order[b.level]),
   );
   if (items.length === 0)
     return (
@@ -118,7 +129,7 @@ export function FindingsPanel({
           const { icon: Icon, tone, label } = levelStyle[f.level];
           return (
             <li
-              key={f.id}
+              key={ident(f)}
               ref={f.id === selected ? selectedRef : undefined}
               className={clsx(f.id === selected && "bg-accent-soft/60")}
             >
@@ -195,7 +206,7 @@ export function FindingsPanel({
                   ) : null}
                 </div>
               ) : null}
-              {canEdit && !f.waived ? <SuggestFix runId={runId} bundleId={bundleId} finding={f} /> : null}
+              {canEdit && !f.waived ? <SuggestFix runId={f.run_id} bundleId={bundleId} finding={f} /> : null}
             </li>
           );
         })}
@@ -534,6 +545,9 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
   const [patch, setPatch] = useState<FixSuggestion>();
   const [accepted, setAccepted] = useState<number>();
   const path = { runId, findingId: finding.id };
+  // asked is the finding the suggestion was written for. A save stores the same finding again
+  // under a new ID, and the suggestion stays with the one it was asked for.
+  const [asked, setAsked] = useState(path);
   const suggest = useMutation({ ...suggestFixMutation(), onSuccess: (p) => setPatch(p) });
   const accept = useMutation({
     ...acceptFixMutation(),
@@ -552,7 +566,10 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
       <div className="px-4 pb-3">
         <button
           type="button"
-          onClick={() => suggest.mutate({ path })}
+          onClick={() => {
+            setAsked(path);
+            suggest.mutate({ path });
+          }}
           disabled={suggest.isPending}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
         >
@@ -589,7 +606,7 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
         <Button size="sm" onClick={() => setPatch(undefined)}>
           Reject
         </Button>
-        <Button size="sm" variant="primary" onClick={() => accept.mutate({ path })} disabled={accept.isPending}>
+        <Button size="sm" variant="primary" onClick={() => accept.mutate({ path: asked })} disabled={accept.isPending}>
           {accept.isPending ? "Applying" : "Accept"}
         </Button>
       </div>
@@ -634,4 +651,11 @@ function DetachedList({ bundleId, findings }: { bundleId: string; findings: Find
       </ul>
     </section>
   );
+}
+
+// ident names a finding by what it says: the check, the section, the quote, and the message.
+// A lint run after a save stores the same finding again with a new ID; keyed by what it says,
+// its card keeps an open suggestion and its place in the rail (#53).
+function ident(f: Finding): string {
+  return [f.check_slug, f.anchor.heading_path.join(" > "), f.anchor.quote, f.message].join("|");
 }

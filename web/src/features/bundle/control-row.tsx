@@ -91,6 +91,14 @@ export function ControlRow({
             {" · "}
             {bundle.slug} · v{bundle.current_version.number}
           </span>
+          {v?.ai_version_number ? (
+            <span className="text-ink-3">
+              {" · "}AI review from v{v.ai_version_number}
+              {v.sections_changed
+                ? ` · ${v.sections_changed} section${v.sections_changed === 1 ? "" : "s"} changed`
+                : ""}
+            </span>
+          ) : null}
         </p>
       </div>
       {bundle.run_error ? (

@@ -219,7 +219,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const tabs: RailTab[] = [
     ...(reviewed ? (["findings"] as const) : []),
     "threads",
-    ...(b.verdict?.kind === "full" ? (["evidence"] as const) : []),
+    ...(b.verdict?.ai_run_id ? (["evidence"] as const) : []),
     // History holds the verify field, so it shows even before a second version.
     "history",
   ];
@@ -414,6 +414,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               {shownTab === "findings" ? (
                 <FindingsPanel
                   runId={b.verdict?.run_id}
+                  orderKey={b.verdict?.ai_run_id}
                   selected={selectedFinding}
                   canEdit={canEdit && !guest}
                   bundleId={bundleId}
@@ -449,17 +450,15 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                 <>
                   <EvidencePanel
                     bundleId={bundleId}
-                    runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined}
+                    runId={b.verdict?.ai_run_id}
                     version={b.current_version.id}
                     onOpen={openAnchor}
                   />
                   <h3 className="mt-2 border-t border-line px-3 pt-3 text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
                     Build questions
+                    {b.verdict?.ai_version_number ? ` · from v${b.verdict.ai_version_number}` : ""}
                   </h3>
-                  <QuestionsPanel
-                    runId={b.verdict?.kind === "full" ? b.verdict.run_id : undefined}
-                    onOpen={openAnchor}
-                  />
+                  <QuestionsPanel runId={b.verdict?.ai_run_id} onOpen={openAnchor} />
                 </>
               ) : (
                 <>

@@ -195,6 +195,18 @@ export type BundleVerdict = {
      */
     blocking_threads?: number;
     /**
+     * The full review whose AI findings this verdict counts. For a full run, the run itself.
+     */
+    ai_run_id?: string;
+    /**
+     * The version the AI review read, when it is older than this verdict's version.
+     */
+    ai_version_number?: number;
+    /**
+     * How many sections changed since the AI review read the doc.
+     */
+    sections_changed?: number;
+    /**
      * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
      */
     stale_reason?: 'upstream_changed';
@@ -707,6 +719,10 @@ export type Anchor = {
 };
 
 export type Finding = {
+    /**
+     * The run the finding belongs to. A carried finding belongs to the last full review.
+     */
+    run_id: string;
     /**
      * A valid waiver covers this finding (REQ-074).
      */

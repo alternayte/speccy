@@ -106,6 +106,24 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.Re
 		out.StaleReason = &reason
 	}
 	_ = json.Unmarshal(vd.Radar, &out.Radar)
+	carried, err := carriedRows(ctx, q, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	fs = append(fs, carried...)
+	if run.Kind == "full" {
+		out.AiRunId = &run.ID
+	}
+	if vd.CarriedRunID.Valid {
+		if full, err := q.GetRunByID(ctx, vd.CarriedRunID.UUID); err == nil && full.VersionID != run.VersionID {
+			if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: full.VersionID}); err == nil {
+				n, changed := fv.Number, int(vd.SectionsChanged)
+				out.AiRunId, out.AiVersionNumber, out.SectionsChanged = &full.ID, &n, &changed
+			}
+		} else if err == nil {
+			out.AiRunId = &full.ID
+		}
+	}
 	for _, f := range fs {
 		if f.Waived {
 			continue
@@ -218,8 +236,15 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 	if err != nil {
 		return nil, err
 	}
+	// A lint run's verdict counts the AI findings of the last full review whose sections did not
+	// change. Their rows stay in the full run, so each keeps its ID; the waiver is today's.
+	carried, err := carriedRows(ctx, q, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	rows = append(rows, carried...)
 	var cur *version.Current
-	if b.CurrentVersionID.Valid && b.CurrentVersionID.UUID != run.VersionID {
+	if b.CurrentVersionID.Valid && (b.CurrentVersionID.UUID != run.VersionID || len(carried) > 0) {
 		if cur, err = version.LoadCurrent(ctx, q, b); err != nil {
 			return nil, err
 		}
@@ -239,7 +264,7 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		}
 		_ = json.Unmarshal(f.Suggestion, &sugg)
 		af := api.Finding{
-			Id: f.ID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
+			Id: f.ID, RunId: f.RunID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
 			Anchor: anchorAPI(an),
 		}
 		if detached {
@@ -308,4 +333,31 @@ func (a *API) FirstMust(ctx context.Context, runID uuid.UUID) (*api.Finding, err
 		}
 	}
 	return nil, nil
+}
+
+// carriedRows returns the full-run findings that the verdict of runID counts, with the waiver
+// the verdict found for each.
+func carriedRows(ctx context.Context, q store.Querier, runID uuid.UUID) ([]pgdb.Finding, error) {
+	vd, err := q.GetVerdict(ctx, runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var carried []carriedFinding
+	_ = json.Unmarshal(vd.CarriedFindings, &carried)
+	var out []pgdb.Finding
+	for _, c := range carried {
+		f, err := q.GetFinding(ctx, c.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		f.Waived = c.Waived
+		out = append(out, f)
+	}
+	return out, nil
 }
