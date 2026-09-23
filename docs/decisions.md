@@ -723,3 +723,9 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** A lint run carries the AI findings of the last full review whose anchored section is unchanged; a finding with no section carries while the whole doc is unchanged. They count in the verdict and keep their rows and IDs in the full run; the lint verdict stores their IDs, the full run and the number of changed sections, and the reads merge them. The verdict row keeps its scored items, so the AI items carry into the score.
 - **Alternative:** Show old findings without counting them; copy their rows into each lint run.
 - **Reason:** A lint verdict after any edit dropped every AI MUST finding, so an unrelated edit could turn a blocked doc Build Ready. The error now runs one way: a gap an edit answered elsewhere stays until the next review.
+
+## 2026-09-23 — One baseline migration from 0.15.0
+
+- **Choice:** Migrations 00001 to 00031 become one migration per engine, `00031_baseline.sql`, with the schema of 0.15.0. A database at version 31 needs no change. A database below it stops at start with a message that says what to do.
+- **Alternative:** Keep the steps; keep them and speed up the test store with a migrated template file.
+- **Reason:** From 0.15.0 on, Speccy keeps no data from an older version, so the steps have no use. The 38 renames of the spec doc migration made every test store slow on SQLite, and the PR gate took twice as long.

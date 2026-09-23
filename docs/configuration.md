@@ -12,6 +12,8 @@
 
 Speccy keeps its state in `<dir>/.speccy/state/`. Do not commit that folder.
 
+Speccy cannot read a state from a version before 0.15.0, and it stops at start with a message. Move the folder aside, then start Speccy again. Speccy makes a new state and scans the docs again. The docs and their sidecars stay as they are. The reviews and threads of the old state stay in the folder you moved.
+
 ## Commands
 
 | Command | Does |
@@ -81,7 +83,7 @@ In hosted mode, the same tools are at `/mcp` over streamable HTTP. Send a person
 | `SPECCY_OIDC_ISSUER`, `SPECCY_OIDC_CLIENT_ID`, `SPECCY_OIDC_CLIENT_SECRET` | No | Single sign-on with an OpenID Connect issuer, such as Entra ID. Set all three. |
 | `SPECCY_GITHUB_OAUTH_CLIENT_ID`, `SPECCY_GITHUB_OAUTH_CLIENT_SECRET` | No | Sign-in with GitHub. Set both. |
 
-Speccy applies its database migrations at start. Keep the master key safe: without it, Speccy cannot read the stored API keys.
+Speccy applies its database migrations at start. It cannot read a database from a version before 0.15.0, and it stops at start with a message. Point `SPECCY_DATABASE_URL` at a new, empty database. Keep the master key safe: without it, Speccy cannot read the stored API keys.
 
 Serve Speccy over HTTPS. With an `http://` base URL, the cookies lose the Secure flag. Use that for development only.
 
