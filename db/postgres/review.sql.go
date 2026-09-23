@@ -141,7 +141,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, erro
 }
 
 const getVerdict = `-- name: GetVerdict :one
-SELECT run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids FROM verdict WHERE run_id = $1
+SELECT run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids, items, carried_run_id, carried_findings, sections_changed FROM verdict WHERE run_id = $1
 `
 
 func (q *Queries) GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error) {
@@ -155,6 +155,10 @@ func (q *Queries) GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, err
 		&i.WaiverCount,
 		&i.RelaxedCount,
 		&i.BlockingFindingIds,
+		&i.Items,
+		&i.CarriedRunID,
+		&i.CarriedFindings,
+		&i.SectionsChanged,
 	)
 	return i, err
 }
@@ -332,9 +336,11 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) error {
 }
 
 const insertVerdict = `-- name: InsertVerdict :exec
-INSERT INTO verdict (run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids)
+INSERT INTO verdict (run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids,
+                     items, carried_run_id, carried_findings, sections_changed)
 VALUES ($1, $2, $3, $4, $5,
-        $6, $7)
+        $6, $7, $8, $9,
+        $10, $11)
 `
 
 type InsertVerdictParams struct {
@@ -345,6 +351,10 @@ type InsertVerdictParams struct {
 	WaiverCount        int64
 	RelaxedCount       int64
 	BlockingFindingIds dbtype.JSON
+	Items              dbtype.JSON
+	CarriedRunID       uuid.NullUUID
+	CarriedFindings    dbtype.JSON
+	SectionsChanged    int64
 }
 
 func (q *Queries) InsertVerdict(ctx context.Context, arg InsertVerdictParams) error {
@@ -356,6 +366,10 @@ func (q *Queries) InsertVerdict(ctx context.Context, arg InsertVerdictParams) er
 		arg.WaiverCount,
 		arg.RelaxedCount,
 		arg.BlockingFindingIds,
+		arg.Items,
+		arg.CarriedRunID,
+		arg.CarriedFindings,
+		arg.SectionsChanged,
 	)
 	return err
 }

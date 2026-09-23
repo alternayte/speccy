@@ -1686,6 +1686,12 @@ type BundleStatus struct {
 
 // BundleVerdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
 type BundleVerdict struct {
+	// AiRunId The full review whose AI findings this verdict counts. For a full run, the run itself.
+	AiRunId *openapi_types.UUID `json:"ai_run_id,omitempty"`
+
+	// AiVersionNumber The version the AI review read, when it is older than this verdict's version.
+	AiVersionNumber *int64 `json:"ai_version_number,omitempty"`
+
 	// BlockingThreads Open blocking threads. Any makes the verdict Not Build Ready (§8.6 rule 2).
 	BlockingThreads *int `json:"blocking_threads,omitempty"`
 	Info            int  `json:"info"`
@@ -1702,7 +1708,10 @@ type BundleVerdict struct {
 	Result       VerdictResult      `json:"result"`
 	RunId        openapi_types.UUID `json:"run_id"`
 	Score        int                `json:"score"`
-	Should       int                `json:"should"`
+
+	// SectionsChanged How many sections changed since the AI review read the doc.
+	SectionsChanged *int `json:"sections_changed,omitempty"`
+	Should          int  `json:"should"`
 
 	// StaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
 	StaleReason   *BundleVerdictStaleReason `json:"stale_reason,omitempty"`
@@ -1948,8 +1957,11 @@ type Finding struct {
 	Message string        `json:"message"`
 
 	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
-	Relaxed bool   `json:"relaxed"`
-	Stage   string `json:"stage"`
+	Relaxed bool `json:"relaxed"`
+
+	// RunId The run the finding belongs to. A carried finding belongs to the last full review.
+	RunId openapi_types.UUID `json:"run_id"`
+	Stage string             `json:"stage"`
 
 	// VerifyTarget For a drifted code link, the commit URL a verification run reads to check the code still conforms.
 	VerifyTarget *string `json:"verify_target,omitempty"`

@@ -45,6 +45,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Divider: the draggable separator between two panes. Avoid: splitter, gutter, handle.
 - Next waiver: the control under a decided waiver card that scrolls to the next request waiting for this person on this bundle. Avoid: skip, queue.
 - Decision reason: the text an approver gives when they reject a waiver. Avoid: rejection note, feedback.
+- Carried finding: an AI finding from the last full review whose section has not changed since. It counts in the current version's verdict. Avoid: stale finding, old finding, inherited finding.
 - Ended waiver: an approved waiver that stopped applying because its section changed. The status value stays invalidated. Avoid: expired, stale.
 - Build packet: the main doc, its assets, the linked bundles' main docs, the trace IDs, and the build questions with their agreed answers, handed to a coding agent. Avoid: payload, bundle export.
 - Handoff: one record that a builder took a build packet for one bundle version, with the verdict at that moment. Avoid: job, build run.

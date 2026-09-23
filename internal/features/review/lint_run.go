@@ -112,6 +112,8 @@ const ExternalTargetSlug = "links.external-target"
 
 // pending is a finding before it is stored.
 type pending struct {
+	// carried is the ID of a full run's finding that this run counts. Its row stays there.
+	carried  uuid.UUID
 	slug     string
 	level    kernel.Level
 	stage    string
@@ -147,6 +149,10 @@ type evaluation struct {
 	relaxed   map[string]bool
 	// external is the state of each external link this run read (DEC-021).
 	external []externalState
+	// carriedRun is the full run whose AI findings this run counts, and sectionsChanged is how
+	// many sections changed since that run read the doc.
+	carriedRun      uuid.UUID
+	sectionsChanged int
 }
 
 // input is what every stage reads: the bundle version, its main doc, and the profile.
@@ -360,7 +366,13 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		return err
 	}
 	vin.OpenBlockingThreads = int(blocking)
+	var carried []carriedFinding
 	for i, f := range ev.findings {
+		if f.carried != uuid.Nil {
+			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
+			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
+			continue
+		}
 		id := kernel.NewID()
 		anchorJSON, _ := json.Marshal(f.anchor)
 		evidence := dbtype.JSON(`{}`)
@@ -436,9 +448,17 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		}
 		radar, _ := json.Marshal(v.Radar)
 		blocking, _ := json.Marshal(nonNil(v.BlockingFindingIDs))
+		items, _ := json.Marshal(nonNilItems(vin.Items))
+		carriedJSON, _ := json.Marshal(nonNilCarried(carried))
+		var carriedRun uuid.NullUUID
+		if ev.carriedRun != uuid.Nil {
+			carriedRun = uuid.NullUUID{UUID: ev.carriedRun, Valid: true}
+		}
 		return q.InsertVerdict(ctx, pgdb.InsertVerdictParams{
 			RunID: run.ID, Result: string(v.Result), Score: int64(v.Score), Radar: dbtype.JSON(radar),
 			WaiverCount: int64(v.WaiverCount), RelaxedCount: int64(relaxedCount(p, ev.relaxed)), BlockingFindingIds: dbtype.JSON(blocking),
+			Items: dbtype.JSON(items), CarriedRunID: carriedRun, CarriedFindings: dbtype.JSON(carriedJSON),
+			SectionsChanged: int64(ev.sectionsChanged),
 		})
 	})
 }
@@ -619,6 +639,10 @@ func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) 
 	if err := s.driftStage(ctx, nil, in, &ev); err != nil {
 		return run, err
 	}
+	// The AI findings of the last full review hold for the sections that did not change.
+	if err := s.carry(ctx, b, in, &ev); err != nil {
+		return run, err
+	}
 	return run, s.save(ctx, run, in, ev, p.Profile, false)
 }
 
@@ -793,4 +817,18 @@ func quoteList(slugs []string) string {
 		out += fmt.Sprintf(", and %d more", n)
 	}
 	return out
+}
+
+func nonNilItems(xs []verdict.Item) []verdict.Item {
+	if xs == nil {
+		return []verdict.Item{}
+	}
+	return xs
+}
+
+func nonNilCarried(xs []carriedFinding) []carriedFinding {
+	if xs == nil {
+		return []carriedFinding{}
+	}
+	return xs
 }

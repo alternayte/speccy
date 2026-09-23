@@ -418,6 +418,10 @@ type Verdict struct {
 	WaiverCount        int64
 	RelaxedCount       int64
 	BlockingFindingIds dbtype.JSON
+	Items              dbtype.JSON
+	CarriedRunID       uuid.NullUUID
+	CarriedFindings    dbtype.JSON
+	SectionsChanged    int64
 }
 
 type VerificationOutcome struct {

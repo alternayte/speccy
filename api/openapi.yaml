@@ -2890,6 +2890,17 @@ components:
         blocking_threads:
           type: integer
           description: Open blocking threads. Any makes the verdict Not Build Ready (§8.6 rule 2).
+        ai_run_id:
+          type: string
+          format: uuid
+          description: The full review whose AI findings this verdict counts. For a full run, the run itself.
+        ai_version_number:
+          type: integer
+          format: int64
+          description: The version the AI review read, when it is older than this verdict's version.
+        sections_changed:
+          type: integer
+          description: How many sections changed since the AI review read the doc.
         stale_reason:
           type: string
           enum: [upstream_changed]
@@ -3664,8 +3675,12 @@ components:
 
     Finding:
       type: object
-      required: [id, check_slug, level, stage, relaxed, message, anchor, waived]
+      required: [id, run_id, check_slug, level, stage, relaxed, message, anchor, waived]
       properties:
+        run_id:
+          type: string
+          format: uuid
+          description: The run the finding belongs to. A carried finding belongs to the last full review.
         waived:
           type: boolean
           description: A valid waiver covers this finding (REQ-074).
