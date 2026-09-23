@@ -540,3 +540,26 @@ func TestGitHubSource_AddedAgainTakesOver(t *testing.T) {
 		t.Errorf("the parent did not take over docs/pay: %+v", moved)
 	}
 }
+
+// #68: a sync with no GitHub credential keeps its error on the source, so the app shows it. It
+// used to reach the server log only.
+func TestGitHubSource_NoCredentialKeepsTheError(t *testing.T) {
+	ctx := context.Background()
+	s := services()[0].open(t)
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return nil, kernel.Invalid("gh_logged_out", "The gh login does not cover github.com.")
+	}
+	q := s.DB.Queries()
+	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
+		Path: "docs", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+	if err := q.InsertGithubSource(ctx, src); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SyncSource(ctx, src.ID, false); err == nil {
+		t.Fatal("a sync with no credential succeeded")
+	}
+	row, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: src.ID})
+	if err != nil || !strings.Contains(row.Error, "gh login") {
+		t.Errorf("source error = %q, %v; want the credential error", row.Error, err)
+	}
+}
