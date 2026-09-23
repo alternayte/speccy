@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alternayte/speccy@v0.11.0
+      - uses: alternayte/speccy@v0.13.0
         with:
           models: all=anthropic:<model>             # leave out for lint checks only
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
