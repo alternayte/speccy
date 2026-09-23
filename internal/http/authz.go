@@ -126,10 +126,14 @@ var operations = map[string]access{
 	"deleteBundlePlan": bundleRead,
 	"deleteBundle":     bundleEdit,
 	"runVerification":  bundleAI,
+	// Resolving a target reads GitHub with the workspace credential, so a guest may not.
+	"resolveVerificationTarget": bundleAI,
+	"verificationDefaults":      bundleRead,
 	// A verification waiver follows the waiver policy, exactly as a check waiver does.
 	"requestVerificationWaiver": bundleAI,
 	// A run names no bundle in its path, so the path gives no bundle to scope on.
-	"getVerification": member,
+	"getVerification":    member,
+	"verificationEvents": member,
 	// A build report names a handoff, not a bundle, so the path gives no bundle to scope on.
 	// A workspace member may report; a guest may not (REQ-137).
 	"reportBuild":    member,

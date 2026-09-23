@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/features/verify"
 	"github.com/alternayte/speccy/internal/model"
 
 	"github.com/alternayte/speccy/internal/http/api"
@@ -40,14 +42,7 @@ func TestVerifyFolderRun(t *testing.T) {
 			write(t, repo, "gateway_test.go", "package gateway\n\n// REQ-001 is tested here.\nfunc TestReject(t *testing.T) {}\n")
 			write(t, repo, "vendor/other.go", "package other\n// REQ-002 lives in vendor, which the scan excludes.\n")
 
-			res, err := env.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{
-				BundleId: env.b.ID,
-				Body:     &api.RunVerificationJSONRequestBody{Path: ptr(repo)},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			v := api.Verification(res.(api.RunVerification200JSONResponse))
+			v := runVerify(t, env, repo)
 
 			got := map[string]api.VerificationOutcomeOutcome{}
 			for _, o := range v.Outcomes {
@@ -62,8 +57,8 @@ func TestVerifyFolderRun(t *testing.T) {
 			if got["REQ-002"] != api.Missing {
 				t.Errorf("REQ-002 = %q, want missing: the vendor directory is excluded", got["REQ-002"])
 			}
-			if v.Verdict != api.VerificationVerdictNotVerified {
-				t.Errorf("Verdict = %q, want not_verified: a MUST is missing", v.Verdict)
+			if !v.NotVerified() {
+				t.Errorf("Verdict = %q, want not_verified: a MUST is missing", ptrValue(v.Verdict))
 			}
 			if v.Counts.Blocking != 1 {
 				t.Fatalf("Blocking = %d, want 1", v.Counts.Blocking)
@@ -136,7 +131,10 @@ func fakeModels(t *testing.T, e *env) {
 		}
 	}
 	e.app.Reviews.Gateway.Fake = model.BackendFunc(func(_ context.Context, _ string, c model.Call) (model.Raw, error) {
-		if c.PromptVersion == "verify-map-1" {
+		switch c.PromptVersion {
+		case verify.PromptPick:
+			return model.Raw{Text: `{"files":[]}`}, nil
+		case verify.PromptMap:
 			return model.Raw{Text: `{"targets":[]}`}, nil
 		}
 		return model.Raw{Text: `{"verdict":"silent","requirement_quote":"","code_quote":"","reason":"I cannot tell."}`}, nil
@@ -206,8 +204,8 @@ func TestVerifyWaiverStopsTheBlockUntilTheSectionChanges(t *testing.T) {
 			if v.Counts.Waived != 1 || v.Counts.Blocking != 0 {
 				t.Fatalf("waived %d, blocking %d; an approved waiver stops the block", v.Counts.Waived, v.Counts.Blocking)
 			}
-			if v.Verdict != api.VerificationVerdictVerified {
-				t.Errorf("Verdict = %q, want verified", v.Verdict)
+			if v.NotVerified() {
+				t.Errorf("Verdict = %q, want verified", ptrValue(v.Verdict))
 			}
 			// The waiver excuses one build, so it never reaches the doc's sidecar.
 			dec, err := env.app.Bundles.Decisions(context.Background(), env.b)
@@ -233,12 +231,149 @@ func TestVerifyWaiverStopsTheBlockUntilTheSectionChanges(t *testing.T) {
 
 func runVerify(t *testing.T, e *env, repo string) api.Verification {
 	t.Helper()
+	// A folder run is local mode only; the test env serves hosted mode otherwise.
+	e.app.API.Local = true
 	res, err := e.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{
-		BundleId: e.b.ID, Body: &api.RunVerificationJSONRequestBody{Path: ptr(repo)}})
+		BundleId: e.b.ID, Body: &api.RunVerificationJSONRequestBody{Target: ptr(repo)}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return api.Verification(res.(api.RunVerification200JSONResponse))
+	// A run is a job: the worker takes it, and the run ends done or failed.
+	id := api.Verification(res.(api.RunVerification202JSONResponse)).Id
+	for range 250 {
+		r, err := e.app.API.GetVerification(as("member"), api.GetVerificationRequestObject{RunId: id})
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := api.Verification(r.(api.GetVerification200JSONResponse))
+		switch v.Status {
+		case api.VerificationStatusDone:
+			return v
+		case api.VerificationStatusFailed:
+			t.Fatalf("the run failed: %s", *v.Error)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the run did not end")
+	return api.Verification{}
+}
+
+// The mapper finds code that names no trace ID in two steps: it picks files from the paths,
+// then quotes a line from the text Speccy read. A model cannot quote a file it never saw, so the
+// quoting step must carry the file's text.
+func TestVerifyMapperQuotesFromTheFileText(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			env.edit(t, specDoc)
+			fakeModels(t, env)
+			tracePrefixes(t, env)
+			repo := t.TempDir()
+			write(t, repo, "gateway.go", "package gateway\n\n// REQ-001: reject a request with no token.\nfunc Reject() bool { return true }\n")
+			write(t, repo, "retry.go", "package gateway\n\nfunc Call() error { return retryOnce(send) }\n")
+			sawText := false
+			env.app.Reviews.Gateway.Fake = model.BackendFunc(func(_ context.Context, _ string, c model.Call) (model.Raw, error) {
+				switch c.PromptVersion {
+				case verify.PromptPick:
+					return model.Raw{Text: `{"files":[{"kind":"code","path":"retry.go"}]}`}, nil
+				case verify.PromptMap:
+					sawText = strings.Contains(c.Prompt, "return retryOnce(send)")
+					return model.Raw{Text: `{"targets":[{"kind":"code","path":"retry.go","quote":"func Call() error { return retryOnce(send) }"}]}`}, nil
+				}
+				return model.Raw{Text: `{"verdict":"silent","requirement_quote":"","code_quote":"","reason":"I cannot tell."}`}, nil
+			})
+			v := runVerify(t, env, repo)
+			if !sawText {
+				t.Error("the quoting step did not carry the picked file's text")
+			}
+			for _, o := range v.Outcomes {
+				if o.TraceId == "REQ-002" && o.Outcome == api.Missing {
+					t.Errorf("REQ-002 is missing; the mapper's quote from retry.go should hold")
+				}
+			}
+		})
+	}
+}
+
+// A mapper quote that is not in its file does not count, and the run keeps it with its fault,
+// so a missing outcome says why.
+func TestVerifyKeepsAFailedMapperProposalWithItsFault(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			env.edit(t, specDoc)
+			fakeModels(t, env)
+			tracePrefixes(t, env)
+			repo := t.TempDir()
+			write(t, repo, "gateway.go", "package gateway\n\n// REQ-001: reject a request with no token.\nfunc Reject() bool { return true }\n")
+			write(t, repo, "retry.go", "package gateway\n\nfunc Call() error { return retryOnce(send) }\n")
+			env.app.Reviews.Gateway.Fake = model.BackendFunc(func(_ context.Context, _ string, c model.Call) (model.Raw, error) {
+				switch c.PromptVersion {
+				case verify.PromptPick:
+					return model.Raw{Text: `{"files":[{"kind":"code","path":"retry.go"}]}`}, nil
+				case verify.PromptMap:
+					return model.Raw{Text: `{"targets":[{"kind":"code","path":"retry.go","quote":"func Call() { invented }"}]}`}, nil
+				}
+				return model.Raw{Text: `{"verdict":"silent","requirement_quote":"","code_quote":"","reason":"I cannot tell."}`}, nil
+			})
+			v := runVerify(t, env, repo)
+			for _, o := range v.Outcomes {
+				if o.TraceId != "REQ-002" {
+					continue
+				}
+				if o.Outcome != api.Missing || len(o.Targets) != 1 || *o.Targets[0].Holds || o.Targets[0].Fault == nil {
+					t.Errorf("REQ-002 = %s with targets %+v; want missing, with the failed proposal and its fault", o.Outcome, o.Targets)
+				}
+				if o.Note == nil || !strings.Contains(*o.Note, "mapper proposed targets") {
+					t.Errorf("REQ-002 note = %v", o.Note)
+				}
+			}
+		})
+	}
+}
+
+// Hosted mode reads no disk, so a folder target is refused with the sentence that says what to
+// paste instead.
+func TestVerifyRefusesAFolderInHostedMode(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			env.edit(t, specDoc)
+			fakeModels(t, env)
+			tracePrefixes(t, env)
+			for _, body := range []api.RunVerificationJSONRequestBody{{Target: ptr(t.TempDir())}, {Path: ptr(t.TempDir())}} {
+				_, err := env.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{BundleId: env.b.ID, Body: &body})
+				ke, ok := kernel.AsError(err)
+				if !ok || ke.Detail != "Paste a GitHub URL. The server cannot read your disk." {
+					t.Errorf("err = %v, want the hosted refusal", err)
+				}
+			}
+		})
+	}
+}
+
+// The verify field prefills from the doc's implemented-by links, one entry per repo, and a
+// pasted target writes nothing into the doc.
+func TestVerifyDefaultsComeFromTheImplementedByLink(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			env.edit(t, "---\ntype: note\ntitle: Pay\nlinks:\n  - kind: implemented-by\n    target: github:acme/pay#internal/pay\n"+
+				"  - kind: implemented-by\n    target: github:acme/pay#cmd\n  - kind: implemented-by\n    target: github:acme/web@1a2b3c4\n---\n\n# Pay\n")
+			res, err := env.app.API.VerificationDefaults(as("member"), api.VerificationDefaultsRequestObject{BundleId: env.b.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, d := range res.(api.VerificationDefaults200JSONResponse).Items {
+				got = append(got, d.Target+" "+string(d.From))
+			}
+			want := []string{"https://github.com/acme/pay link", "https://github.com/acme/web/commit/1a2b3c4 link"}
+			if strings.Join(got, "|") != strings.Join(want, "|") {
+				t.Errorf("defaults = %v, want %v", got, want)
+			}
+		})
+	}
 }
 
 // A new bundle version makes an earlier verification run stale: the requirements moved, so the
@@ -315,4 +450,11 @@ func TestDeleteBundleRemovesEverything(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ptrValue[T any](p *T) any {
+	if p == nil {
+		return "none"
+	}
+	return *p
 }

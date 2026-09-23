@@ -86,7 +86,9 @@ func (s *Service) driftStage(ctx context.Context, rc *runCtx, in input, ev *eval
 			message: st.reason,
 			fix:     "Read the code and say what this doc must change, or waive the drift with a reason.",
 			evidence: map[string]string{"target": t.URL, "commit": st.checked,
-				"compare": compareURL(t, previous[l.ref], st.checked)},
+				"compare": compareURL(t, previous[l.ref], st.checked),
+				// The build a verification run reads to check the code still conforms.
+				"verify": "https://" + t.Host + "/" + t.Repo + "/commit/" + st.checked},
 		})
 	}
 	if code > 0 {

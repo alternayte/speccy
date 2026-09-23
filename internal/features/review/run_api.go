@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/divergence"
@@ -247,6 +249,20 @@ type eventStream struct {
 }
 
 func (e eventStream) VisitRunEventsResponse(w http.ResponseWriter) error {
+	var final *Event
+	switch e.run.Status {
+	case "complete":
+		final = &Event{Type: "done", Stage: e.run.Stage}
+	case "failed":
+		final = &Event{Type: "failed", Stage: e.run.Stage, Message: e.run.Error}
+	}
+	return WriteEvents(e.ctx, w, e.broker, e.run.ID, final, Event{Type: "stage", Stage: e.run.Stage})
+}
+
+// WriteEvents streams one run's events as server-sent events. A run that ended before this
+// request, or before a restart, sends final alone. A listener that joins before any event gets
+// first, so it has a state to show.
+func WriteEvents(ctx context.Context, w http.ResponseWriter, broker *Broker, id uuid.UUID, final *Event, first Event) error {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -262,14 +278,10 @@ func (e eventStream) VisitRunEventsResponse(w http.ResponseWriter) error {
 		}
 		return nil
 	}
-	// A run that ended before this request (or before a restart) sends its final state.
-	switch e.run.Status {
-	case "complete":
-		return send(Event{Type: "done", Stage: e.run.Stage})
-	case "failed":
-		return send(Event{Type: "failed", Stage: e.run.Stage, Message: e.run.Error})
+	if final != nil {
+		return send(*final)
 	}
-	history, next, cancel := e.broker.Subscribe(e.run.ID)
+	history, next, cancel := broker.Subscribe(id)
 	defer cancel()
 	for _, ev := range history {
 		if err := send(ev); err != nil {
@@ -277,13 +289,13 @@ func (e eventStream) VisitRunEventsResponse(w http.ResponseWriter) error {
 		}
 	}
 	if len(history) == 0 {
-		if err := send(Event{Type: "stage", Stage: e.run.Stage}); err != nil {
+		if err := send(first); err != nil {
 			return nil
 		}
 	}
 	for {
 		select {
-		case <-e.ctx.Done():
+		case <-ctx.Done():
 			return nil
 		case ev, ok := <-next:
 			if !ok {

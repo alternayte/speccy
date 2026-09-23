@@ -158,7 +158,7 @@ The traceability screen holds one table of these links.
 | State | Means | What you do |
 |---|---|---|
 | Aligned | Speccy read the target, and it agrees with the doc. | Nothing. |
-| Drifted | The code changed after this version of the doc. | Read the commit. Update the doc, or waive the drift with a reason. |
+| Drifted | The code changed after this version of the doc. | Read the commit. Verify the build at it, then update the doc, or waive the drift with a reason. |
 | Conflicting | The issue or the page states something the doc contradicts. | Decide which of the two is right, and change that one. |
 | Unchecked | No credential and no connection reads that target. | Add the MCP connection for the host, or leave it: an unchecked link is not a failure. |
 

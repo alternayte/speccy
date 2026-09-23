@@ -174,7 +174,10 @@ For one profile, the false-ready rate is the share of Build Ready handoffs that 
 
 ## 12. Verify the build against the spec
 
-After the build, Speccy verifies it. `speccy verify docs/specs/pay --repo acme/pay --sha <sha>` reads the repo at
+After the build, Speccy verifies it. On the bundle page, the **Verification** panel holds one field. Paste the
+GitHub URL of the repo, the branch, the commit or the pull request you built. A doc with an `implemented-by` link
+fills the field for you. Speccy shows the repo and the commit before it starts. In a terminal,
+`speccy verify docs/specs/pay https://github.com/acme/pay/pull/12` does the same. The run reads the whole repo at
 that commit, finds where each requirement is implemented and tested, and gives each trace ID one outcome:
 
 | Outcome | What it means |

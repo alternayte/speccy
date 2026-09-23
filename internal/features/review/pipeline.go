@@ -140,6 +140,9 @@ func (s *Service) wakeChan() chan struct{} {
 	return s.wake
 }
 
+// Wake tells the worker that a job is queued.
+func (s *Service) Wake() { s.notify() }
+
 func (s *Service) notify() {
 	select {
 	case s.wakeChan() <- struct{}{}:
@@ -181,8 +184,10 @@ func (s *Service) RunNext(ctx context.Context) (ran bool, err error) {
 		return false, err
 	}
 	var p runJob
-	runErr := json.Unmarshal(job.Payload, &p)
-	if runErr == nil {
+	var runErr error
+	if h, ok := s.Jobs[job.Kind]; ok {
+		runErr = h(ctx, job.Payload)
+	} else if runErr = json.Unmarshal(job.Payload, &p); runErr == nil {
 		switch job.Kind {
 		case jobKindAnswer:
 			runErr = s.answerThread(ctx, uuidOf(p.ThreadID))

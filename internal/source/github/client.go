@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/alternayte/speccy/internal/kernel"
 )
 
 // DefaultAPI is the GitHub API. GitHub Enterprise Server uses https://<host>/api/v3.
@@ -388,4 +390,13 @@ func (c *Client) Compare(ctx context.Context, repo, base, head string) (paths []
 	}
 	// The compare endpoint returns at most 300 files.
 	return paths, len(out.Files) >= 300, nil
+}
+
+// UnreadableRepo says that the credentials cannot read the repo, which GitHub answers with a
+// 404 for a private repo (REQ-129).
+func UnreadableRepo(repo string, err error) error {
+	if IsNotFound(err) {
+		return kernel.Invalid("repo_no_access", "The GitHub credentials have no access to %s. It may be private, or the token may not cover it.", repo)
+	}
+	return kernel.Invalid("repo_unreadable", "Speccy cannot read %s: %s.", repo, strings.TrimSuffix(err.Error(), "."))
 }

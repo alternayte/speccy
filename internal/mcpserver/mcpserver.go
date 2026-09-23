@@ -43,7 +43,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its main doc, its assets, the main doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
-	add(s, t, "verify_build", "Verify one build against the bundle. Name the repo and the commit you built, or a folder. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
+	add(s, t, "verify_build", "Verify one build against the bundle. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
 	return s
@@ -187,9 +187,9 @@ func (tools) reviewBundle(ctx context.Context, c *api.ClientWithResponses, in re
 			return nil, problem(run.ApplicationproblemJSONDefault, run.StatusCode())
 		}
 		switch run.JSON200.Status {
-		case api.Complete:
+		case api.RunStatusComplete:
 			return run.JSON200, nil
-		case api.Failed:
+		case api.RunStatusFailed:
 			return nil, errors.New(run.JSON200.Error)
 		}
 		select {
@@ -320,6 +320,7 @@ func (tools) handoffBundle(ctx context.Context, c *api.ClientWithResponses, in h
 
 type verifyArg struct {
 	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Target string `json:"target,omitempty" jsonschema:"the GitHub URL of the repo, branch, commit or pull request you built, or an absolute folder path in local mode. Leave it and repo out to verify the repo that the doc's implemented-by link names"`
 	Repo   string `json:"repo,omitempty" jsonschema:"the repo you built, as owner/name"`
 	SHA    string `json:"sha,omitempty" jsonschema:"the commit you built"`
 	Path   string `json:"path,omitempty" jsonschema:"a folder on disk, instead of a repo and a commit"`
@@ -342,8 +343,14 @@ func (tools) verifyBuild(ctx context.Context, c *api.ClientWithResponses, in ver
 		return nil, err
 	}
 	body := api.RunVerificationJSONRequestBody{}
+	if in.Target != "" {
+		body.Target = &in.Target
+	}
 	if in.Repo != "" {
-		body.Repo, body.Sha = &in.Repo, &in.SHA
+		body.Repo = &in.Repo
+	}
+	if in.SHA != "" {
+		body.Sha = &in.SHA
 	}
 	if in.Path != "" {
 		body.Path = &in.Path
@@ -367,14 +374,11 @@ func (tools) verifyBuild(ctx context.Context, c *api.ClientWithResponses, in ver
 		}
 		body.Claims = &claims
 	}
-	res, err := c.RunVerificationWithResponse(ctx, b.Id, body)
+	run, err := api.StartVerification(ctx, c, b.Id, body)
 	if err != nil {
 		return nil, err
 	}
-	if res.JSON200 == nil {
-		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
-	}
-	return res.JSON200, nil
+	return run, nil
 }
 
 func (tools) getVerdict(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {

@@ -45,15 +45,12 @@ func runActionVerify(ctx context.Context, fl reviewFlags, gh *github.Client, rep
 			continue
 		}
 		v := action.VerifyBundle{Slug: b.Slug}
-		res, err := s.client.RunVerificationWithResponse(ctx, sum.Id, api.RunVerificationJSONRequestBody{
+		run, err := api.StartVerification(ctx, s.client, sum.Id, api.RunVerificationJSONRequestBody{
 			Repo: &repo, Sha: &headSHA})
-		switch {
-		case err != nil:
+		if err != nil {
 			v.Error = "The verification failed: " + err.Error()
-		case res.JSON200 == nil:
-			v.Error = "The verification failed: " + problemText(res.ApplicationproblemJSONDefault)
-		default:
-			v.Run = *res.JSON200
+		} else {
+			v.Run = run
 		}
 		runs = append(runs, v)
 	}

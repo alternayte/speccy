@@ -224,7 +224,7 @@ paths:
           $ref: "#/components/responses/Problem"
     post:
       operationId: runVerification
-      summary: Verify one build of this bundle against a code repo at one commit.
+      summary: Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
       requestBody:
         required: true
         content:
@@ -232,12 +232,71 @@ paths:
             schema:
               $ref: "#/components/schemas/VerificationRequest"
       responses:
-        "200":
-          description: The verification run.
+        "202":
+          description: The queued run. Follow its progress at /verifications/{runId}/events, or read it until its status is done or failed.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Verification"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/verifications/resolve:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    post:
+      operationId: resolveVerificationTarget
+      summary: Say which repo and commit, or which folder, a pasted target names, before a run starts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationTargetInput"
+      responses:
+        "200":
+          description: The build the target names.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvedBuild"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /bundles/{bundleId}/verifications/defaults:
+    parameters:
+      - $ref: "#/components/parameters/BundleId"
+    get:
+      operationId: verificationDefaults
+      summary: The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+      responses:
+        "200":
+          description: The targets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationDefaults"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /verifications/{runId}/events:
+    parameters:
+      - name: runId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: verificationEvents
+      summary: Follow a verification run's progress by trace ID, as server-sent events.
+      responses:
+        "200":
+          description: A stream of events. Each data line is a RunEvent. The stream ends when the run ends.
+          content:
+            text/event-stream:
+              schema:
+                type: string
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2893,8 +2952,11 @@ components:
 
     VerificationRequest:
       type: object
-      description: "The code target of one verification run: a GitHub repo and a commit, or a folder on disk."
+      description: "The code target of one verification run: a pasted target, a GitHub repo and a commit, or a folder on disk. With none, the run reads the bundle's implemented-by link."
       properties:
+        target:
+          type: string
+          description: A GitHub URL of a repo, a branch, a file, a commit or a pull request, or owner/name. In local mode, also an absolute folder path.
         repo:
           type: string
           description: The repo, as owner/name.
@@ -2913,6 +2975,48 @@ components:
           description: The builder's claims. A claim replaces the derived targets of its trace ID.
           items:
             $ref: "#/components/schemas/VerificationClaim"
+
+    VerificationTargetInput:
+      type: object
+      required: [target]
+      properties:
+        target:
+          type: string
+
+    ResolvedBuild:
+      type: object
+      required: [repo, sha, folder]
+      description: The build a target names. A folder has no SHA.
+      properties:
+        repo:
+          type: string
+          description: owner/name, or the folder path.
+        sha: { type: string }
+        branch:
+          type: string
+          description: The branch the SHA is the head of. Absent for a commit, a pull request or a folder.
+        pull:
+          type: integer
+          description: The pull request whose head the SHA is.
+        folder: { type: boolean }
+
+    VerificationDefaults:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VerificationDefault"
+
+    VerificationDefault:
+      type: object
+      required: [target, from]
+      properties:
+        target: { type: string }
+        from:
+          type: string
+          enum: [link, last_run]
 
     VerificationClaim:
       type: object
@@ -3001,7 +3105,7 @@ components:
 
     Verification:
       type: object
-      required: [id, bundle_id, verdict, repo, sha, counts, notes, stale, created_at, outcomes]
+      required: [id, bundle_id, status, repo, sha, counts, notes, stale, created_at, outcomes]
       properties:
         id:
           type: string
@@ -3012,12 +3116,21 @@ components:
         handoff_id:
           type: string
           format: uuid
+        status:
+          type: string
+          enum: [queued, running, done, failed]
+        error:
+          type: string
+          description: Why a failed run failed.
         verdict:
           type: string
           enum: [verified, not_verified]
-          description: The run's own verdict. It is not the bundle's Build Ready verdict.
+          description: The run's own verdict, when the run is done. It is not the bundle's Build Ready verdict.
         repo: { type: string }
         sha: { type: string }
+        branch:
+          type: string
+          description: The branch the SHA was the head of, when the target named a branch or a repo.
         base_sha:
           type: string
           description: The commit the ranking compared against. Empty when the run had no base.
@@ -3480,6 +3593,9 @@ components:
           type: string
           enum: [ambiguous, unverified, contradicted, risk, slop]
           description: The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
+        verify_target:
+          type: string
+          description: For a drifted code link, the commit URL a verification run reads to check the code still conforms.
         anchor:
           $ref: "#/components/schemas/Anchor"
           description: The anchor in the bundle's current version, re-anchored when the run read an older version.

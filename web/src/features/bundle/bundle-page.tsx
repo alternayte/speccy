@@ -12,7 +12,6 @@ import {
   getBundleOptions,
   listFilesOptions,
   listFindingsOptions,
-  listHandoffsOptions,
   listWaiversOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
@@ -62,6 +61,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const [dirty, setDirty] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<RailTab>("findings");
+  // The build a drifted code link asked to verify, which prefills the verify field.
+  const [verifyAt, setVerifyAt] = useState<string>();
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
   const [deleting, setDeleting] = useState(false);
   // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
@@ -119,8 +120,6 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const hosted = me.data?.mode === "hosted";
   const guest = !!me.data?.guest;
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
-  // History holds the versions and the handoffs. A v1 doc with a handoff has history too.
-  const handoffs = useQuery(listHandoffsOptions({ path: { bundleId } }));
   // Waivers that wait for this person: the next action opens the first one.
   const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
   // openWaiver shows a waiver where it can be judged: the rail selects the finding it excuses,
@@ -219,7 +218,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
     ...(reviewed ? (["findings"] as const) : []),
     "threads",
     ...(b.verdict?.kind === "full" ? (["evidence"] as const) : []),
-    ...(b.current_version.number > 1 || (handoffs.data?.items.length ?? 0) > 0 ? (["history"] as const) : []),
+    // History holds the verify field, so it shows even before a second version.
+    "history",
   ];
   const shownTab = tabs.includes(tab) ? tab : "threads";
 
@@ -416,6 +416,14 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                   member={!guest}
                   onOpen={openFinding}
                   onOpenWaiver={openWaiver}
+                  onVerify={
+                    guest
+                      ? undefined
+                      : (target) => {
+                          setVerifyAt(target);
+                          setTab("history");
+                        }
+                  }
                   onDiscuss={(f) =>
                     startThread({
                       kind: "finding",
@@ -453,7 +461,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                 <>
                   <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
                   <HandoffsPanel bundleId={bundleId} current={b.current_version.number} />
-                  <VerificationsPanel bundleId={bundleId} />
+                  <VerificationsPanel bundleId={bundleId} canVerify={!guest} prefill={verifyAt} />
                 </>
               )}
             </div>

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -13,8 +14,9 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 )
 
-// runVerify verifies one build of a bundle against a code repo at one commit, or against a
-// folder on disk. Speccy reads the code; it never runs it, and it never runs the tests.
+// runVerify verifies one build of a bundle: a pasted GitHub URL, a folder on disk, a repo at one
+// commit, or with none of these the repo the doc's implemented-by link names. Speccy reads the
+// code; it never runs it, and it never runs the tests.
 func runVerify(args []string, stdout, stderr io.Writer) int {
 	var repo, sha, path, handoff string
 	summary := false
@@ -54,14 +56,30 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 			return exitUsage
 		}
 	}
-	if len(paths) != 1 || (path == "" && (repo == "" || sha == "")) {
-		fmt.Fprint(stderr, "Usage: speccy verify <path> --repo <owner/name> --sha <sha> [--handoff <id>] [--summary]\n"+
-			"       speccy verify <path> --path <folder> [--summary]\n")
+	if len(paths) < 1 || len(paths) > 2 || (sha != "" && repo == "") {
+		fmt.Fprint(stderr, "Usage: speccy verify <path> [<GitHub URL or folder>] [--handoff <id>] [--summary]\n"+
+			"       speccy verify <path> --repo <owner/name> [--sha <sha>] [--summary]\n"+
+			"       speccy verify <path> --path <folder> [--summary]\n"+
+			"With no URL, Speccy verifies the repo that the doc's implemented-by link names.\n")
 		return exitUsage
 	}
 	body := api.RunVerificationJSONRequestBody{}
+	if len(paths) == 2 {
+		target := paths[1]
+		paths = paths[:1]
+		// A folder on this machine goes to the server as an absolute path.
+		if info, err := os.Stat(target); err == nil && info.IsDir() {
+			if abs, err := filepath.Abs(target); err == nil {
+				target = abs
+			}
+		}
+		body.Target = &target
+	}
 	if repo != "" {
-		body.Repo, body.Sha = &repo, &sha
+		body.Repo = &repo
+	}
+	if sha != "" {
+		body.Sha = &sha
 	}
 	if path != "" {
 		body.Path = &path
@@ -81,22 +99,17 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 	if code != exitOK {
 		return code
 	}
-	res, err := s.client.RunVerificationWithResponse(ctx, b.Id, body)
+	v, err := api.StartVerification(ctx, s.client, b.Id, body)
 	if err != nil {
-		fmt.Fprintf(stderr, "speccy verify: %v.\n", err)
+		fmt.Fprintf(stderr, "speccy verify: %s\n", sentenceEnd(err.Error()))
 		return exitRun
 	}
-	if res.JSON200 == nil {
-		fmt.Fprintf(stderr, "speccy verify: %s\n", problemText(res.ApplicationproblemJSONDefault))
-		return exitRun
-	}
-	v := res.JSON200
 	if summary {
-		fmt.Fprint(stdout, verifySummary(*v))
+		fmt.Fprint(stdout, verifySummary(v))
 	} else {
-		fmt.Fprint(stdout, verifyTable(*v))
+		fmt.Fprint(stdout, verifyTable(v))
 	}
-	if v.Verdict == api.VerificationVerdictNotVerified {
+	if v.NotVerified() {
 		return exitNotReady
 	}
 	return exitOK
@@ -145,7 +158,7 @@ func verifyTable(v api.Verification) string {
 func verifySummary(v api.Verification) string {
 	var b strings.Builder
 	verdict := "Verified"
-	if v.Verdict == api.VerificationVerdictNotVerified {
+	if v.NotVerified() {
 		verdict = "Not Verified"
 	}
 	at := v.Sha
@@ -170,4 +183,13 @@ func verifySummary(v api.Verification) string {
 		b.WriteString(n + "\n")
 	}
 	return b.String()
+}
+
+// sentenceEnd ends a message with a full stop.
+func sentenceEnd(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, ".") {
+		return s
+	}
+	return s + "."
 }
