@@ -42,7 +42,9 @@ A doc you wrote before Speccy takes a different way in. [adoption.md](adoption.m
 - `speccy init --github` in a repo that holds specs already. It maps the docs it recognises, relaxes the checks that fail today, and writes the Action's workflow. One pull request adopts the repo, and the first review names the checks your team opted into. See [configuration.md](configuration.md).
 - **From GitHub** on the bundles screen, or `speccy add <url>`. Paste the address of a repo, a folder in one, or a single doc. Speccy shows the repo, the branch, the doc and the doc type before it reads anything. It reads through the GitHub API and writes no file into your folder. Local mode uses the token of your `gh` login; run `gh auth login` first, or paste a token in Admin → GitHub.
 
-A doc written before Speccy names no type. **Import** takes it anyway: it guesses the type from the headings, shows the guess, and lets you pick another. It then writes one line, `type: <key>`, at the top of the file it creates, and changes nothing else. A drop whose type Speccy cannot guess opens the same dialog with the file in it.
+A doc written before Speccy names no type. **Import** takes it anyway. It lists every markdown file in the upload with a doc type picker, prefilled with the type the file names or the profile its headings fit, and a "Not a spec" choice. Each file you give a type becomes its own bundle, and Speccy writes one line, `type: <key>`, into it and changes nothing else. When the files include an SDD and the one PRD it builds on, Speccy offers the link, and writes it into the SDD once you confirm. A drop of a folder with several markdown files, or of a file whose type Speccy cannot guess, opens the same dialog.
+
+**More → Change doc type** changes a doc's type later. Speccy writes the new type into a doc it holds, and keeps it in Speccy for a doc in a repo.
 
 ![Import: the file, the guessed doc type, and what Speccy writes](images/guide-import.png)
 
@@ -104,6 +106,8 @@ The verdict is the answer. It sits under the title, in words. Build Ready means:
 ![The control row after a review: the verdict, and the next thing to fix](images/guide-verdict.png)
 
 An older version's verdict is stale. Speccy says so and asks for a new run.
+
+An edit does not throw the AI review away. Lint runs again on the new version, and the AI findings of the last review stay for every section you did not change: they still count in the verdict, and the rail keeps them. A finding in a section you changed drops out, because the model never read the new text. The control row says so: "AI review from v2 · 1 section changed". Run the review again to cover the changed sections; the unchanged ones come from the cache.
 
 ## 6. Follow the next action
 

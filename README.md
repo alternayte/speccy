@@ -30,7 +30,7 @@ The script picks the release for your machine, **checks it against the published
 Download an archive from the [releases page](https://github.com/alternayte/speccy/releases), check it, and put the binary on your PATH:
 
 ```sh
-VERSION=0.13.0
+VERSION=0.14.0
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')          # darwin or linux
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 BASE=https://github.com/alternayte/speccy/releases/download/v$VERSION
@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alternayte/speccy@v0.13.0
+      - uses: alternayte/speccy@v0.14.0
         with:
           models: all=anthropic:<model> # leave out for the deterministic checks only
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -135,7 +135,7 @@ docker run -p 8080:8080 \
   -e SPECCY_DATABASE_URL=postgres://user:pass@host:5432/speccy \
   -e SPECCY_MASTER_KEY="$(openssl rand -base64 32)" \
   -e SPECCY_BASE_URL=https://speccy.example.com \
-  ghcr.io/alternayte/speccy:0.13.0
+  ghcr.io/alternayte/speccy:0.14.0
 ```
 
 The image runs hosted mode as a non-root user. Local mode is not a container job: it listens on loopback only, by design, because it has no sign-in. [docs/configuration.md](docs/configuration.md) has the environment, the accounts and the sharing.
@@ -160,7 +160,7 @@ A review has six stages: lint, rubric, grounding, divergence, coherence, and the
 - **Coherence** — linked docs must cover each other, must not contradict, and must not repeat. When a linked doc changes, the verdict goes stale.
 - **Verdict** — a pure function with no I/O.
 
-Each check carries a level. The doc is **Build Ready** only when no MUST finding is open and any required upstream link exists. SHOULD and INFO never change the verdict. A verdict for an old version is **stale**. The score is passed checks over applicable checks: for tracking, not a gate.
+Each check carries a level. The doc is **Build Ready** only when no MUST finding is open and any required upstream link exists. SHOULD and INFO never change the verdict. A verdict for an old version is **stale**. An edit keeps the AI findings of every section it did not change, so a doc blocked by one stays blocked until that section changes or a new review clears it. The score is passed checks over applicable checks: for tracking, not a gate.
 
 ## Commands
 
