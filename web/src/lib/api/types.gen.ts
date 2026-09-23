@@ -1328,6 +1328,10 @@ export type InboxItem = {
     text: string;
     at: string;
     unread: boolean;
+    /**
+     * Names the item, so a click marks this one item read.
+     */
+    key: string;
 };
 
 export type Insights = {
@@ -4123,6 +4127,33 @@ export type MarkInboxSeenResponses = {
 };
 
 export type MarkInboxSeenResponse = MarkInboxSeenResponses[keyof MarkInboxSeenResponses];
+
+export type MarkInboxItemReadData = {
+    body: {
+        key: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/inbox/read';
+};
+
+export type MarkInboxItemReadErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type MarkInboxItemReadError = MarkInboxItemReadErrors[keyof MarkInboxItemReadErrors];
+
+export type MarkInboxItemReadResponses = {
+    /**
+     * Marked.
+     */
+    204: void;
+};
+
+export type MarkInboxItemReadResponse = MarkInboxItemReadResponses[keyof MarkInboxItemReadResponses];
 
 export type GetInsightsData = {
     body?: never;

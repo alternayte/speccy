@@ -16,6 +16,7 @@ import {
   Wrench,
   Tags,
 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import type { Bundle, NextAction } from "@/lib/api";
@@ -66,6 +67,8 @@ export function ControlRow({
   extra?: React.ReactNode;
 }) {
   const navigate = useNavigate();
+  // showError opens the full cause of a failed review, which is often long.
+  const [showError, setShowError] = useState(false);
   const go = (to: string, params: Record<string, string>) => navigate({ to, params });
   const v = bundle.verdict;
   const tone =
@@ -91,10 +94,15 @@ export function ControlRow({
         </p>
       </div>
       {bundle.run_error ? (
-        <span className="inline-flex items-center gap-1 text-xs text-bad" title={bundle.run_error}>
+        <button
+          type="button"
+          aria-expanded={showError}
+          onClick={() => setShowError((v) => !v)}
+          className="inline-flex items-center gap-1 text-xs text-bad hover:underline"
+        >
           <CircleAlert aria-hidden className="size-3.5" />
           The last review failed
-        </span>
+        </button>
       ) : null}
       {extra}
       {next ? (
@@ -161,6 +169,11 @@ export function ControlRow({
           </MenuItem>
         ) : null}
       </Menu>
+      {bundle.run_error && showError ? (
+        <p role="alert" className="w-full rounded-md border border-bad/40 bg-bad-soft px-3 py-2 text-xs text-bad">
+          {bundle.run_error}
+        </p>
+      ) : null}
     </div>
   );
 }

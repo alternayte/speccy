@@ -101,10 +101,11 @@ var operations = map[string]access{
 	"approveBundle":   bundleAI,
 	"requestReview":   bundleEdit,
 
-	"listPeople":    member,
-	"getInbox":      member,
-	"markInboxSeen": member,
-	"getInsights":   maintainer,
+	"listPeople":        member,
+	"getInbox":          member,
+	"markInboxSeen":     member,
+	"markInboxItemRead": member,
+	"getInsights":       maintainer,
 
 	"getProfile":         member,
 	"listProfileThreads": member,

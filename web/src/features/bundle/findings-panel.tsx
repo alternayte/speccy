@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { ShieldCheck, Unlink, Wand2 } from "lucide-react";
+import { Loader2, ShieldCheck, Unlink, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -556,7 +556,11 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
           disabled={suggest.isPending}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
         >
-          <Wand2 aria-hidden className="size-3.5" />
+          {suggest.isPending ? (
+            <Loader2 aria-hidden className="size-3.5 animate-spin text-accent" />
+          ) : (
+            <Wand2 aria-hidden className="size-3.5" />
+          )}
           {suggest.isPending ? "Writing a fix" : "Suggest fix"}
         </button>
         {suggest.isError ? (

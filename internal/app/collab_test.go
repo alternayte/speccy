@@ -364,6 +364,10 @@ func TestThread_AIAnswers(t *testing.T) {
 	if !strings.Contains(prompt, "The request limit is TBD for now.") || !strings.Contains(prompt, "<<<DATA") {
 		t.Errorf("the prompt lacks the doc as data:\n%s", prompt)
 	}
+	// The thread is anchored to a section, so the prompt names that section (#56).
+	if !strings.Contains(prompt, "The section the thread is about: Pay > Limits") {
+		t.Errorf("the prompt lacks the thread's anchor:\n%s", prompt)
+	}
 	guest := kernel.WithActor(ctx, kernel.Actor{Guest: &kernel.Guest{ID: uuid.New(), BundleID: e.b.ID, Name: "G"}})
 	if _, err := e.app.API.PostMessage(guest, api.PostMessageRequestObject{ThreadId: th.Id, Body: &api.PostMessageJSONRequestBody{Body: "And?"}}); err == nil {
 		t.Error("a guest asked the AI")

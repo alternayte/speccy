@@ -819,6 +819,10 @@ func (a Adapter) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]pgdb.H
 	return out, nil
 }
 
+func (a Adapter) ListInboxRead(ctx context.Context, arg pgdb.ListInboxReadParams) ([]string, error) {
+	return a.q.ListInboxRead(ctx, ListInboxReadParams(arg))
+}
+
 func (a Adapter) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Invite, error) {
 	rows, err := a.q.ListInvites(ctx, workspaceID)
 	if err != nil {
@@ -1113,6 +1117,10 @@ func (a Adapter) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID
 		out[i] = pgdb.WaiverView(r)
 	}
 	return out, nil
+}
+
+func (a Adapter) MarkInboxItemRead(ctx context.Context, arg pgdb.MarkInboxItemReadParams) error {
+	return a.q.MarkInboxItemRead(ctx, MarkInboxItemReadParams(arg))
 }
 
 func (a Adapter) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error) {

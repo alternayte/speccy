@@ -147,3 +147,10 @@ SELECT EXISTS (SELECT 1 FROM profile_maintainer pm JOIN profile p ON p.id = pm.p
 
 -- name: ListBuildThreads :many
 SELECT * FROM thread_view WHERE workspace_id = sqlc.arg(workspace_id) AND handoff_id IS NOT NULL;
+
+-- name: MarkInboxItemRead :exec
+INSERT INTO inbox_read (user_id, item_key, read_at) VALUES (sqlc.arg(user_id), sqlc.arg(item_key), sqlc.arg(read_at))
+ON CONFLICT (user_id, item_key) DO NOTHING;
+
+-- name: ListInboxRead :many
+SELECT item_key FROM inbox_read WHERE user_id = sqlc.arg(user_id) AND read_at > sqlc.arg(since);

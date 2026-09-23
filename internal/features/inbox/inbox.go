@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -204,6 +205,20 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 		add(api.InboxItemKindRun, b, nil, text, r.FinishedAt.Time)
 	}
 
+	// A key names each item, so a click marks one item read. An item is unread when it is
+	// newer than "mark all read" and the person has not opened it.
+	read := map[string]bool{}
+	keys, err := q.ListInboxRead(ctx, pgdb.ListInboxReadParams{UserID: act.UserID, Since: since})
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range keys {
+		read[k] = true
+	}
+	for i := range items {
+		items[i].Key = itemKey(items[i])
+		items[i].Unread = items[i].Unread && !read[items[i].Key]
+	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].At.After(items[j].At) })
 	if len(items) > 100 {
 		items = items[:100]
@@ -266,4 +281,25 @@ func snippet(s string) string {
 		return string(r[:139]) + "…"
 	}
 	return s
+}
+
+// itemKey names one inbox item: its kind, its bundle, its thread or waiver, and its time.
+func itemKey(i api.InboxItem) string {
+	k := string(i.Kind) + "|" + i.BundleId.String()
+	if i.ThreadId != nil {
+		k += "|t:" + i.ThreadId.String()
+	}
+	if i.WaiverId != nil {
+		k += "|w:" + i.WaiverId.String()
+	}
+	return k + "|" + strconv.FormatInt(i.At.UnixNano(), 10)
+}
+
+// MarkInboxItemRead marks one inbox item read, when the person opens it.
+func (a *API) MarkInboxItemRead(ctx context.Context, req api.MarkInboxItemReadRequestObject) (api.MarkInboxItemReadResponseObject, error) {
+	if err := a.DB.Queries().MarkInboxItemRead(ctx, pgdb.MarkInboxItemReadParams{UserID: kernel.ActorFrom(ctx).UserID,
+		ItemKey: req.Body.Key, ReadAt: time.Now().UTC()}); err != nil {
+		return nil, err
+	}
+	return api.MarkInboxItemRead204Response{}, nil
 }

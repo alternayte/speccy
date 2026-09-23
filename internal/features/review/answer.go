@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +21,7 @@ import (
 const jobKindAnswer = "thread_answer"
 
 // PromptAnswer is the prompt of an AI answer in a thread (REQ-088).
-const PromptAnswer = "answer-v1"
+const PromptAnswer = "answer-v2"
 
 // answering holds the threads with a queued or running AI answer. One process runs the jobs
 // (SDD §19 Q10), so memory is enough.
@@ -73,6 +74,7 @@ func (s *Service) answerThread(ctx context.Context, id uuid.UUID) (err error) {
 		return err
 	}
 	var ctxDocs strings.Builder
+	var about string
 	if t.BundleID.Valid {
 		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: t.BundleID.UUID})
 		if err != nil {
@@ -83,6 +85,7 @@ func (s *Service) answerThread(ctx context.Context, id uuid.UUID) (err error) {
 			return err
 		}
 		ctxDocs.WriteString(bundleData(b.MainDoc, in.main, textAssets(in)))
+		about = s.anchorContext(ctx, t.AnchorKind, t.Anchor, in)
 		for _, l := range in.linked {
 			ctxDocs.WriteString("\n" + data(fmt.Sprintf("Linked doc (%s) %s", l.kind, l.target.Slug), string(l.main)))
 		}
@@ -124,6 +127,9 @@ func (s *Service) answerThread(ctx context.Context, id uuid.UUID) (err error) {
 	p.WriteString("Answer the latest question in this thread. Use the docs first. Quote the doc where it answers. When the docs do not answer, say so.\n")
 	p.WriteString("Do not state a fact about the world outside the docs from memory: give a source for it, or say that it is unverified. List every source URL or reference in \"sources\". Keep the answer short.\n")
 	p.WriteString(search + "\n\n")
+	if about != "" {
+		p.WriteString("The thread is about one part of the doc. Answer about that part.\n" + about + "\n")
+	}
 	for _, m := range msgs {
 		p.WriteString(data(fmt.Sprintf("Message %d by %s (%s)", m.Seq, m.AuthorName, m.AuthorKind), m.Body))
 	}
@@ -143,3 +149,64 @@ func (s *Service) answerThread(ctx context.Context, id uuid.UUID) (err error) {
 	}
 	return thread.PostAI(ctx, s.ES, id, out.Answer, out.Sources)
 }
+
+// anchorContext is the part of the doc a thread is anchored to, as the model reads it: the
+// quoted text, the section, or the finding with its evidence (REQ-087). It says so when the
+// anchored text is no longer in the current version, because the AI reads the current version.
+func (s *Service) anchorContext(ctx context.Context, kind string, raw []byte, in input) string {
+	var a struct {
+		Quote       string   `json:"quote"`
+		HeadingPath []string `json:"heading_path"`
+		FindingID   string   `json:"finding_id"`
+		CheckSlug   string   `json:"check_slug"`
+		Label       string   `json:"label"`
+	}
+	_ = json.Unmarshal(raw, &a)
+	where := ""
+	if len(a.HeadingPath) > 0 {
+		where = " in the section " + strings.Join(a.HeadingPath, " > ")
+	}
+	switch kind {
+	case thread.AnchorText:
+		if a.Quote == "" {
+			return ""
+		}
+		text := data("The text the thread is about"+where, a.Quote)
+		if !strings.Contains(collapseSpace(string(in.main)), collapseSpace(a.Quote)) {
+			text += "This text is no longer in the current version of the doc. It changed after the thread opened.\n"
+		}
+		return text
+	case thread.AnchorSection:
+		for _, sec := range in.doc.Sections {
+			if slices.Equal(sec.Path, a.HeadingPath) {
+				return data("The section the thread is about: "+strings.Join(a.HeadingPath, " > "), string(in.main[sec.Start:sec.End]))
+			}
+		}
+		if len(a.HeadingPath) > 0 {
+			return "The thread is about the section " + strings.Join(a.HeadingPath, " > ") + ". That section is no longer in the current version of the doc.\n"
+		}
+	case thread.AnchorFinding:
+		id, err := uuid.Parse(a.FindingID)
+		if err != nil {
+			break
+		}
+		f, err := s.DB.Queries().GetFinding(ctx, id)
+		if err != nil {
+			break
+		}
+		body := f.CheckSlug + " (" + f.Level + "): " + f.Message
+		if len(f.Evidence) > 0 && string(f.Evidence) != "null" && string(f.Evidence) != "{}" {
+			body += "\nEvidence: " + string(f.Evidence)
+		}
+		return data("The review finding the thread is about", body)
+	case thread.AnchorCheck:
+		if a.CheckSlug != "" {
+			return data("The profile check the thread is about", a.CheckSlug+" "+a.Label)
+		}
+	}
+	return ""
+}
+
+// collapseSpace joins the words of s with single spaces, so a quote that wraps differently
+// still matches.
+func collapseSpace(s string) string { return strings.Join(strings.Fields(s), " ") }

@@ -644,6 +644,38 @@ func (q *Queries) ListFullRunsSince(ctx context.Context, arg ListFullRunsSincePa
 	return items, nil
 }
 
+const listInboxRead = `-- name: ListInboxRead :many
+SELECT item_key FROM inbox_read WHERE user_id = ?1 AND read_at > ?2
+`
+
+type ListInboxReadParams struct {
+	UserID string
+	Since  time.Time
+}
+
+func (q *Queries) ListInboxRead(ctx context.Context, arg ListInboxReadParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listInboxRead, arg.UserID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var item_key string
+		if err := rows.Scan(&item_key); err != nil {
+			return nil, err
+		}
+		items = append(items, item_key)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMessagesSince = `-- name: ListMessagesSince :many
 SELECT m.id, m.thread_id, m.seq, m.author_kind, m.author_id, m.author_name, m.body, m.sources, m.decision, m.created_at, t.bundle_id, t.profile_key, t.title
 FROM thread_message_view m JOIN thread_view t ON t.id = m.thread_id
@@ -1022,6 +1054,22 @@ func (q *Queries) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUI
 		return nil, err
 	}
 	return items, nil
+}
+
+const markInboxItemRead = `-- name: MarkInboxItemRead :exec
+INSERT INTO inbox_read (user_id, item_key, read_at) VALUES (?1, ?2, ?3)
+ON CONFLICT (user_id, item_key) DO NOTHING
+`
+
+type MarkInboxItemReadParams struct {
+	UserID  string
+	ItemKey string
+	ReadAt  time.Time
+}
+
+func (q *Queries) MarkInboxItemRead(ctx context.Context, arg MarkInboxItemReadParams) error {
+	_, err := q.db.ExecContext(ctx, markInboxItemRead, arg.UserID, arg.ItemKey, arg.ReadAt)
+	return err
 }
 
 const setInboxSeen = `-- name: SetInboxSeen :exec
