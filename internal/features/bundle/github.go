@@ -182,11 +182,6 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 			return fail(fmt.Errorf("%s in the repo is not valid: %w", source.RepoConfigFile, err))
 		}
 	}
-	if src.IsFile {
-		// REQ-128: a one-doc source maps its doc, so the scan makes a single-file bundle. A
-		// type in the doc, or a mapping in the repo, still wins (REQ-130).
-		cfg = mapOneDoc(cfg, src)
-	}
 	// REQ-133: the types a person accepted in the app, for the docs the repo names none for.
 	// The repo wins, so a path the repo now maps drops its row. repoCfg is the repo's own
 	// answer, without the mappings Speccy adds, so a doc does not look mapped to itself.
@@ -268,9 +263,22 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 			var ref githubRef
 			if b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug}); err == nil {
 				_ = json.Unmarshal(b.SourceRef, &ref)
-				if b.SourceKind != KindGitHub || ref.Source != src.ID {
+				if b.SourceKind != KindGitHub {
 					taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
 					return nil
+				}
+				if ref.Source != src.ID {
+					// A spec doc of a source that is gone comes back with its history when a
+					// source reads its folder again (#67). A live source keeps its own docs.
+					_, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: ref.Source})
+					if err == nil {
+						taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
+						return nil
+					}
+					if !errors.Is(err, sql.ErrNoRows) {
+						return err
+					}
+					ref.Source = src.ID
 				}
 			} else if !errors.Is(err, sql.ErrNoRows) {
 				return err
@@ -345,46 +353,20 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 	return taken, s.archiveEmptyBundles(ctx, s.DB.Queries(), KindGitHub, nil, now)
 }
 
-// underSource says whether a repo path belongs to the source: anything in its folder, or the
-// doc of a one-doc source and the files of that doc's assets folder (REQ-128).
+// underSource says whether a repo path belongs to the source: anything in its folder.
 func underSource(src pgdb.GithubSource, p string) bool {
-	if !src.IsFile {
-		return github.Under(p, src.Path)
-	}
-	return p == src.Path || github.Under(p, path.Join(path.Dir(src.Path), source.AssetsDir(path.Base(src.Path))))
+	return github.Under(p, src.Path)
 }
 
-// readable says which paths the scan may read. It is wider than underSource: a bundle carries
-// the files its doc references, and those sit beside the doc or below it. The scan decides
-// what a bundle takes; this decides only what Speccy fetches.
+// readable says which paths the scan may read: the files of the source's folder.
 func readable(src pgdb.GithubSource, p string) bool {
-	if underSource(src, p) {
-		return true
-	}
-	if !src.IsFile {
-		return false
-	}
-	return github.Under(p, path.Dir(src.Path))
+	return underSource(src, p)
 }
 
-// bundleOfSource says whether a scanned bundle belongs to the source.
+// bundleOfSource says whether a scanned spec doc belongs to the source: its bundle folder is in
+// the source's folder.
 func bundleOfSource(src pgdb.GithubSource, b local.Bundle) bool {
-	if !src.IsFile {
-		return github.Under(b.Slug, src.Path) || github.Under(b.Dir, src.Path)
-	}
-	return path.Join(b.Dir, b.File) == src.Path
-}
-
-// mapOneDoc adds the mapping of a one-doc source, unless the repo already maps that doc.
-func mapOneDoc(cfg source.RepoConfig, src pgdb.GithubSource) source.RepoConfig {
-	if src.Profile == "" {
-		return cfg
-	}
-	if key, ok := cfg.MappedProfile(src.Path); ok && key != "" {
-		return cfg
-	}
-	cfg.Map = append(cfg.Map, source.Mapping{Glob: src.Path, Profile: src.Profile})
-	return cfg
+	return github.Under(b.Dir, src.Path)
 }
 
 func short(sha string) string {
@@ -609,14 +591,14 @@ func SkippedUnder(src pgdb.GithubSource, scan *local.Scan) []string {
 	return out
 }
 
-// alreadyHeld names the docs another source holds, and what to do about it.
+// alreadyHeld names the docs another bundle holds under the same slug, and what to do about it.
 func alreadyHeld(taken []string) error {
 	sort.Strings(taken)
 	shown := taken
 	if len(shown) > 3 {
 		shown = append(shown[:3:3], "and more")
 	}
-	return fmt.Errorf("another source already holds %s, so this source makes no bundle for %s. Remove the other source, or point this one at a folder it does not cover",
+	return fmt.Errorf("another bundle already holds %s, so this source makes no bundle for %s. Remove the other bundle or source",
 		strings.Join(shown, ", "), plural2(len(taken), "that doc", "those docs"))
 }
 

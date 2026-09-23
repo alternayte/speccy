@@ -13992,13 +13992,13 @@ type AddGithubSourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *GithubSource
+	JSON200 *AddedSource
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r AddGithubSourceResponse) GetJSON200() *GithubSource {
+func (r AddGithubSourceResponse) GetJSON200() *AddedSource {
 	return r.JSON200
 }
 
@@ -21159,7 +21159,7 @@ func ParseAddGithubSourceResponse(rsp *http.Response) (*AddGithubSourceResponse,
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest GithubSource
+		var dest AddedSource
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

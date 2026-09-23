@@ -2214,14 +2214,18 @@ paths:
                   description: A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
                 profile:
                   type: string
-                  description: The profile of a one-doc source whose doc has no type and no mapping.
+                  description: >
+                    For the URL of one doc that names no type and that no mapping covers: the
+                    profile, which Speccy stores as the doc's adopted type.
       responses:
         "200":
-          description: The source, after its first sync.
+          description: >
+            The source of the URL's folder, after its first sync. A URL whose folder an existing
+            source covers makes no source, and names the existing one.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GithubSource"
+                $ref: "#/components/schemas/AddedSource"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -4087,7 +4091,8 @@ components:
 
     GithubSource:
       type: object
-      required: [id, repo, branch, path, file, head_commit, error, bundles]
+      description: A repo, a branch and a folder whose bundles Speccy reads.
+      required: [id, repo, branch, path, head_commit, error, bundles]
       properties:
         id:
           type: string
@@ -4098,9 +4103,7 @@ components:
           type: string
         path:
           type: string
-        file:
-          type: boolean
-          description: The path names one doc (REQ-128).
+          description: The folder, relative to the repo root.
         head_commit:
           type: string
         synced_at:
@@ -4113,6 +4116,24 @@ components:
         adopted:
           type: integer
           description: How many docs of this source have a type accepted in Speccy (REQ-133).
+
+    AddedSource:
+      type: object
+      required: [source, already_added]
+      properties:
+        source:
+          $ref: "#/components/schemas/GithubSource"
+        already_added:
+          type: boolean
+          description: An existing source already covers the URL's folder, so Speccy made none.
+        bundle_id:
+          type: string
+          format: uuid
+          description: The bundle to open, when the URL names a folder or a doc that holds one.
+        doc_id:
+          type: string
+          format: uuid
+          description: The spec doc to open, when the URL names one doc.
 
     DismissedDoc:
       type: object

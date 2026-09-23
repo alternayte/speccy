@@ -1202,6 +1202,14 @@ func (a Adapter) MarkInboxItemRead(ctx context.Context, arg pgdb.MarkInboxItemRe
 	return a.q.MarkInboxItemRead(ctx, MarkInboxItemReadParams(arg))
 }
 
+func (a Adapter) MoveAdoptedLinks(ctx context.Context, arg pgdb.MoveAdoptedLinksParams) error {
+	return a.q.MoveAdoptedLinks(ctx, MoveAdoptedLinksParams(arg))
+}
+
+func (a Adapter) MoveAdoptedTypes(ctx context.Context, arg pgdb.MoveAdoptedTypesParams) error {
+	return a.q.MoveAdoptedTypes(ctx, MoveAdoptedTypesParams(arg))
+}
+
 func (a Adapter) NextVersionNumber(ctx context.Context, specDocID uuid.UUID) (int64, error) {
 	return a.q.NextVersionNumber(ctx, specDocID)
 }

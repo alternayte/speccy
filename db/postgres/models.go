@@ -158,8 +158,6 @@ type GithubSource struct {
 	Error       string
 	CreatedBy   string
 	CreatedAt   time.Time
-	IsFile      bool
-	Profile     string
 	ApiUrl      string
 	Skipped     dbtype.JSON
 }

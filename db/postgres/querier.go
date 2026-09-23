@@ -214,6 +214,9 @@ type Querier interface {
 	ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error)
 	ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error)
 	MarkInboxItemRead(ctx context.Context, arg MarkInboxItemReadParams) error
+	MoveAdoptedLinks(ctx context.Context, arg MoveAdoptedLinksParams) error
+	// A source that covers another takes over its adopted types.
+	MoveAdoptedTypes(ctx context.Context, arg MoveAdoptedTypesParams) error
 	NextVersionNumber(ctx context.Context, specDocID uuid.UUID) (int64, error)
 	PeekInvite(ctx context.Context, arg PeekInviteParams) (Invite, error)
 	PeekResetLink(ctx context.Context, arg PeekResetLinkParams) (ResetLink, error)

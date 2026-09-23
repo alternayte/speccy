@@ -136,6 +136,10 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 		}
 		out.Items = append(out.Items, bundleToAPI(b, docs))
 	}
+	// What the scan of the import could not use: the dialog shows it (#66).
+	for _, p := range scan.Problems {
+		out.Problems = append(out.Problems, api.BundleProblem{Path: p.Path, Message: p.Message})
+	}
 	return out, nil
 }
 

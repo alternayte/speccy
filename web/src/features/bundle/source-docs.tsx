@@ -20,7 +20,7 @@ import { problemMessage } from "@/lib/problem";
 // a type holds it in Speccy and makes the bundle: the repo takes no commit (REQ-133).
 export function SourceDocs() {
   const sources = useQuery(listGithubSourcesOptions());
-  const items = (sources.data?.items ?? []).filter((s) => !s.file);
+  const items = sources.data?.items ?? [];
   if (items.length === 0) return null;
   return (
     <>

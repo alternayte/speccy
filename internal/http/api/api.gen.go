@@ -1424,6 +1424,21 @@ func (e ExportBundleParamsFormat) Valid() bool {
 	}
 }
 
+// AddedSource defines model for AddedSource.
+type AddedSource struct {
+	// AlreadyAdded An existing source already covers the URL's folder, so Speccy made none.
+	AlreadyAdded bool `json:"already_added"`
+
+	// BundleId The bundle to open, when the URL names a folder or a doc that holds one.
+	BundleId *openapi_types.UUID `json:"bundle_id,omitempty"`
+
+	// DocId The spec doc to open, when the URL names one doc.
+	DocId *openapi_types.UUID `json:"doc_id,omitempty"`
+
+	// Source A repo, a branch and a folder whose bundles Speccy reads.
+	Source GithubSource `json:"source"`
+}
+
 // Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
 type Adopt struct {
 	Size *string `json:"size,omitempty"`
@@ -2068,21 +2083,20 @@ type GithubResolved struct {
 	Title *string `json:"title,omitempty"`
 }
 
-// GithubSource defines model for GithubSource.
+// GithubSource A repo, a branch and a folder whose bundles Speccy reads.
 type GithubSource struct {
 	// Adopted How many docs of this source have a type accepted in Speccy (REQ-133).
-	Adopted *int   `json:"adopted,omitempty"`
-	Branch  string `json:"branch"`
-	Bundles int    `json:"bundles"`
-	Error   string `json:"error"`
-
-	// File The path names one doc (REQ-128).
-	File       bool               `json:"file"`
+	Adopted    *int               `json:"adopted,omitempty"`
+	Branch     string             `json:"branch"`
+	Bundles    int                `json:"bundles"`
+	Error      string             `json:"error"`
 	HeadCommit string             `json:"head_commit"`
 	Id         openapi_types.UUID `json:"id"`
-	Path       string             `json:"path"`
-	Repo       string             `json:"repo"`
-	SyncedAt   *time.Time         `json:"synced_at,omitempty"`
+
+	// Path The folder, relative to the repo root.
+	Path     string     `json:"path"`
+	Repo     string     `json:"repo"`
+	SyncedAt *time.Time `json:"synced_at,omitempty"`
 }
 
 // Handoff defines model for Handoff.
@@ -3424,7 +3438,7 @@ type ResolveGithubUrlJSONBody struct {
 
 // AddGithubSourceJSONBody defines parameters for AddGithubSource.
 type AddGithubSourceJSONBody struct {
-	// Profile The profile of a one-doc source whose doc has no type and no mapping.
+	// Profile For the URL of one doc that names no type and that no mapping covers: the profile, which Speccy stores as the doc's adopted type.
 	Profile *string `json:"profile,omitempty"`
 
 	// Url A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
@@ -10465,7 +10479,7 @@ type AddGithubSourceResponseObject interface {
 	VisitAddGithubSourceResponse(w http.ResponseWriter) error
 }
 
-type AddGithubSource200JSONResponse GithubSource
+type AddGithubSource200JSONResponse AddedSource
 
 func (response AddGithubSource200JSONResponse) VisitAddGithubSourceResponse(w http.ResponseWriter) error {
 

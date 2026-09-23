@@ -19,10 +19,11 @@ import (
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
+	"github.com/alternayte/speccy/internal/store"
 )
 
 func (a *API) sourceAPI(ctx context.Context, src pgdb.GithubSource) (api.GithubSource, error) {
-	out := api.GithubSource{Id: src.ID, Repo: src.Repo, Branch: src.Branch, Path: src.Path, File: src.IsFile,
+	out := api.GithubSource{Id: src.ID, Repo: src.Repo, Branch: src.Branch, Path: src.Path,
 		HeadCommit: src.HeadCommit, Error: src.Error}
 	if src.SyncedAt.Valid {
 		t := src.SyncedAt.Time.UTC()
@@ -34,18 +35,9 @@ func (a *API) sourceAPI(ctx context.Context, src pgdb.GithubSource) (api.GithubS
 	}
 	n := len(adopted)
 	out.Adopted = &n
-	bundles, err := a.Service.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: a.Service.Workspace, SourceKind: KindGitHub})
-	if err != nil {
-		return out, err
-	}
-	for _, b := range bundles {
-		var ref githubRef
-		_ = json.Unmarshal(b.SourceRef, &ref)
-		if ref.Source == src.ID && !b.ArchivedAt.Valid {
-			out.Bundles++
-		}
-	}
-	return out, nil
+	n, err = a.Service.bundlesOfSource(ctx, src.ID)
+	out.Bundles = n
+	return out, err
 }
 
 // ListGithubSources lists the GitHub sources (REQ-123).
@@ -157,51 +149,127 @@ func (a *API) ResolveGithubUrl(ctx context.Context, req api.ResolveGithubUrlRequ
 	return api.ResolveGithubUrl200JSONResponse(out), nil
 }
 
-// AddGithubSource makes a source from a source URL and syncs it once (REQ-128).
+// AddGithubSource makes a source for the folder of a source URL and syncs it once (REQ-128).
+// A URL that names one doc makes a source for the doc's folder, and opens that doc. A URL whose
+// folder an existing source covers makes no source. A new source that covers existing ones
+// takes their place, with their adopted types and links.
 func (a *API) AddGithubSource(ctx context.Context, req api.AddGithubSourceRequestObject) (api.AddGithubSourceResponseObject, error) {
 	s := a.Service
+	q := s.DB.Queries()
 	ref, res, err := a.resolve(ctx, req.Body.Url)
 	if err != nil {
 		return nil, err
 	}
-	key := ""
-	if req.Body.Profile != nil {
-		key = strings.TrimSpace(*req.Body.Profile)
-	}
-	if key == "" && res.Profile != nil {
-		key = *res.Profile
-	}
+	folder := ref.Path
 	if ref.File {
-		if key == "" {
+		folder = path.Dir(ref.Path)
+	}
+	// A doc that names no type and that no mapping covers needs a profile, which becomes its
+	// adopted type.
+	adopt := ""
+	if ref.File && (res.Profile == nil || (res.Guessed != nil && *res.Guessed)) {
+		if req.Body.Profile != nil {
+			adopt = strings.TrimSpace(*req.Body.Profile)
+		}
+		if adopt == "" && res.Profile != nil {
+			adopt = *res.Profile
+		}
+		if adopt == "" {
 			return nil, kernel.Invalid("no_profile", "%s names no type, and Speccy cannot guess one. Name a profile: %s.",
 				ref.Path, strings.Join(a.profileKeys(), ", "))
 		}
-		if _, ok := a.Profiles()[key]; !ok {
-			return nil, kernel.Invalid("no_such_profile", "There is no profile %q. The profiles are: %s.", key, strings.Join(a.profileKeys(), ", "))
+		if _, ok := a.Profiles()[adopt]; !ok {
+			return nil, kernel.Invalid("no_such_profile", "There is no profile %q. The profiles are: %s.", adopt, strings.Join(a.profileKeys(), ", "))
 		}
-	} else {
-		key = ""
+	}
+	all, err := q.ListGithubSources(ctx, s.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	var covered []pgdb.GithubSource
+	for _, e := range all {
+		if e.Repo != ref.Repo || e.Branch != ref.Branch || e.ApiUrl != ref.APIURL() {
+			continue
+		}
+		if github.Under(folder, e.Path) {
+			if adopt != "" {
+				if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: e.ID, Path: ref.Path, Profile: adopt}); err != nil {
+					return nil, err
+				}
+				_ = s.SyncSource(ctx, e.ID, true)
+			}
+			return a.added(ctx, e, ref, true)
+		}
+		if github.Under(e.Path, folder) {
+			covered = append(covered, e)
+		}
 	}
 	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: ref.Repo, Branch: ref.Branch,
-		Path: ref.Path, IsFile: ref.File, Profile: key, ApiUrl: ref.APIURL(),
-		CreatedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: time.Now().UTC()}
-	if err := s.DB.Queries().InsertGithubSource(ctx, src); err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unique") {
-			return nil, kernel.Conflict("source_exists", "Speccy already reads %s on %s at %s.", ref.Repo, ref.Branch, ref.Path)
+		Path: folder, ApiUrl: ref.APIURL(), CreatedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: time.Now().UTC()}
+	err = s.DB.InTx(ctx, func(tx store.Tx) error {
+		q := tx.Queries()
+		if err := q.InsertGithubSource(ctx, src); err != nil {
+			return err
 		}
+		for _, e := range covered {
+			if err := q.MoveAdoptedTypes(ctx, pgdb.MoveAdoptedTypesParams{ToSource: src.ID, FromSource: e.ID}); err != nil {
+				return err
+			}
+			if err := q.MoveAdoptedLinks(ctx, pgdb.MoveAdoptedLinksParams{ToSource: src.ID, FromSource: e.ID}); err != nil {
+				return err
+			}
+			// The new source takes over the spec docs of a source that is gone.
+			if err := q.DeleteGithubSource(ctx, pgdb.DeleteGithubSourceParams{WorkspaceID: s.Workspace, ID: e.ID}); err != nil {
+				return err
+			}
+		}
+		if adopt != "" {
+			return q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: ref.Path, Profile: adopt})
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
-	// A failed first sync keeps the source, with its error, so a person can fix and retry.
+	// A failed first sync keeps the source, with its error, so a person can fix and retry. The
+	// response carries the error, and the dialog shows it (#67).
 	_ = s.SyncSource(ctx, src.ID, true)
-	row, err := s.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: src.ID})
+	row, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: src.ID})
 	if err != nil {
 		return nil, err
 	}
-	out, err := a.sourceAPI(ctx, row)
+	return a.added(ctx, row, ref, false)
+}
+
+// added is the response of AddGithubSource: the source, and the bundle and the spec doc the
+// URL names, when the source holds them.
+func (a *API) added(ctx context.Context, src pgdb.GithubSource, ref github.Ref, already bool) (api.AddGithubSourceResponseObject, error) {
+	s := a.Service
+	q := s.DB.Queries()
+	out, err := a.sourceAPI(ctx, src)
 	if err != nil {
 		return nil, err
 	}
-	return api.AddGithubSource200JSONResponse(out), nil
+	res := api.AddedSource{Source: out, AlreadyAdded: already}
+	docs, err := q.ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range docs {
+		var r githubRef
+		_ = json.Unmarshal(d.SourceRef, &r)
+		if r.Source != src.ID || d.ArchivedAt.Valid {
+			continue
+		}
+		if ref.File && path.Join(r.Dir, d.DocPath) == ref.Path {
+			res.BundleId, res.DocId = &d.BundleID, &d.ID
+			break
+		}
+		if !ref.File && res.BundleId == nil && github.Under(r.Dir, ref.Path) {
+			res.BundleId = &d.BundleID
+		}
+	}
+	return api.AddGithubSource200JSONResponse(res), nil
 }
 
 // DeleteGithubSource archives the source's bundles and removes it.
@@ -228,6 +296,9 @@ func (a *API) DeleteGithubSource(ctx context.Context, req api.DeleteGithubSource
 		}
 	}
 	if err := q.DeleteGithubSource(ctx, pgdb.DeleteGithubSourceParams{WorkspaceID: s.Workspace, ID: req.SourceId}); err != nil {
+		return nil, err
+	}
+	if err := s.archiveEmptyBundles(ctx, q, KindGitHub, nil, now); err != nil {
 		return nil, err
 	}
 	return api.DeleteGithubSource204Response{}, nil

@@ -981,15 +981,17 @@ export type GithubConnection = {
     login?: string;
 };
 
+/**
+ * A repo, a branch and a folder whose bundles Speccy reads.
+ */
 export type GithubSource = {
     id: string;
     repo: string;
     branch: string;
-    path: string;
     /**
-     * The path names one doc (REQ-128).
+     * The folder, relative to the repo root.
      */
-    file: boolean;
+    path: string;
     head_commit: string;
     synced_at?: string;
     error: string;
@@ -998,6 +1000,22 @@ export type GithubSource = {
      * How many docs of this source have a type accepted in Speccy (REQ-133).
      */
     adopted?: number;
+};
+
+export type AddedSource = {
+    source: GithubSource;
+    /**
+     * An existing source already covers the URL's folder, so Speccy made none.
+     */
+    already_added: boolean;
+    /**
+     * The bundle to open, when the URL names a folder or a doc that holds one.
+     */
+    bundle_id?: string;
+    /**
+     * The spec doc to open, when the URL names one doc.
+     */
+    doc_id?: string;
 };
 
 export type DismissedDoc = {
@@ -4992,7 +5010,8 @@ export type AddGithubSourceData = {
          */
         url: string;
         /**
-         * The profile of a one-doc source whose doc has no type and no mapping.
+         * For the URL of one doc that names no type and that no mapping covers: the profile, which Speccy stores as the doc's adopted type.
+         *
          */
         profile?: string;
     };
@@ -5012,9 +5031,10 @@ export type AddGithubSourceError = AddGithubSourceErrors[keyof AddGithubSourceEr
 
 export type AddGithubSourceResponses = {
     /**
-     * The source, after its first sync.
+     * The source of the URL's folder, after its first sync. A URL whose folder an existing source covers makes no source, and names the existing one.
+     *
      */
-    200: GithubSource;
+    200: AddedSource;
 };
 
 export type AddGithubSourceResponse = AddGithubSourceResponses[keyof AddGithubSourceResponses];
