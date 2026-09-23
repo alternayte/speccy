@@ -80,7 +80,7 @@ func (st Stages) roles(p profile.Profile) []string {
 
 // StartRun queues a review of the bundle's current version with the chosen stages (REQ-020).
 // It checks the setup first, so a missing profile or model fails at once, not in the worker.
-func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle, stages Stages) (pgdb.ReviewRun, error) {
+func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (pgdb.ReviewRun, error) {
 	if !b.CurrentVersionID.Valid {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_version", "The bundle has no version to review.")
 	}
@@ -101,7 +101,7 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle, stages Stages) (p
 	}
 	now := time.Now().UTC()
 	run := pgdb.ReviewRun{
-		ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
+		ID: kernel.NewID(), WorkspaceID: s.Workspace, SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID,
 		ProfileKey: b.ProfileKey, ProfileVersion: p.Version, Kind: "full", Status: "queued", Stage: "queued", StartedAt: now,
 	}
 	if s.Decisions != nil {
@@ -115,7 +115,7 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.Bundle, stages Stages) (p
 	err := s.DB.InTx(ctx, func(tx store.Tx) error {
 		tq := tx.Queries()
 		if err := tq.InsertRun(ctx, pgdb.InsertRunParams{
-			ID: run.ID, WorkspaceID: run.WorkspaceID, BundleID: run.BundleID, VersionID: run.VersionID, ProfileKey: run.ProfileKey,
+			ID: run.ID, WorkspaceID: run.WorkspaceID, SpecDocID: run.SpecDocID, VersionID: run.VersionID, ProfileKey: run.ProfileKey,
 			ProfileVersion: run.ProfileVersion, Kind: run.Kind, Status: run.Status, Stage: run.Stage,
 			DecisionsHash: run.DecisionsHash, StartedAt: now,
 		}); err != nil {
@@ -220,7 +220,7 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	if err != nil {
 		return err
 	}
-	b, err := q.GetBundle(parent, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: run.BundleID})
+	b, err := q.GetSpecDoc(parent, pgdb.GetSpecDocParams{WorkspaceID: s.Workspace, ID: run.SpecDocID})
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ type Estimate struct {
 }
 
 // EstimateRun estimates a full run of b's current version.
-func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, error) {
+func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, error) {
 	var est Estimate
 	p, ok := s.Profiles()[b.ProfileKey]
 	if !ok {
@@ -377,7 +377,7 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.Bundle) (Estimate, err
 		return est, err
 	}
 	fp := assigned.Backend.Kind + ":" + assigned.Model
-	bundleTokens := int64(len(bundleData(in.bundle.MainDoc, in.main, textAssets(in)))) / 4
+	bundleTokens := int64(len(bundleData(in.bundle.DocPath, in.main, textAssets(in)))) / 4
 	var scratch struct{}
 	// Rubric: a call per batch of uncached doc checks.
 	docUncached := 0

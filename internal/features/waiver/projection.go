@@ -23,7 +23,7 @@ func Projection(workspace uuid.UUID) es.Projection {
 		section, _ := json.Marshal(nonNil(s.Section))
 		approvals, _ := json.Marshal(nonNil(s.Approvals))
 		return tx.Queries().UpsertWaiverView(ctx, pgdb.UpsertWaiverViewParams{
-			ID: s.ID, WorkspaceID: workspace, BundleID: s.BundleID, CheckSlug: s.Check, Level: string(s.Level),
+			ID: s.ID, WorkspaceID: workspace, SpecDocID: s.BundleID, CheckSlug: s.Check, Level: string(s.Level),
 			SectionPath: dbtype.JSON(section), SectionHash: s.SectionHash, Reason: s.Reason, Status: s.Status,
 			RequestedBy: s.RequestedBy, Approvals: dbtype.JSON(approvals), DecidedBy: s.DecidedBy,
 			Scope: scopeOf(s), TraceID: s.TraceID, Repo: s.Repo,

@@ -130,7 +130,7 @@ func textAssets(in input) []textFile {
 	var out []textFile
 	total := 0
 	for _, f := range in.files {
-		if f.Path == in.bundle.MainDoc || !utf8.Valid(f.Content) || len(f.Content) == 0 {
+		if f.Path == in.bundle.DocPath || !utf8.Valid(f.Content) || len(f.Content) == 0 {
 			continue
 		}
 		if total+len(f.Content) > maxAssetText {
@@ -277,7 +277,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		}
 		todo = append(todo, c)
 	}
-	bundle := bundleData(in.bundle.MainDoc, in.main, textAssets(in))
+	bundle := bundleData(in.bundle.DocPath, in.main, textAssets(in))
 	scopeNote := ""
 	if u.sec != nil {
 		scopeNote = fmt.Sprintf("Answer the checks for the section \"%s\" only. The whole bundle is below for context.", strings.Join(u.sec.Path, " > "))
@@ -366,7 +366,7 @@ func rubricAnchor(in input, sec *section.Section, quotes []string) (anchor.Ancho
 		s, e, ok := anchor.Find(in.main, q)
 		ev = append(ev, quoteEvidence{Text: q, Found: ok})
 		if ok && an == nil {
-			a := anchor.New(in.bundle.MainDoc, in.main, in.doc, s, e)
+			a := anchor.New(in.bundle.DocPath, in.main, in.doc, s, e)
 			an = &a
 		}
 	}
@@ -378,7 +378,7 @@ func rubricAnchor(in input, sec *section.Section, quotes []string) (anchor.Ancho
 		if end > sec.Start {
 			end--
 		}
-		return anchor.New(in.bundle.MainDoc, in.main, in.doc, sec.Start, end), ev
+		return anchor.New(in.bundle.DocPath, in.main, in.doc, sec.Start, end), ev
 	}
 	return docAnchor(in), ev
 }

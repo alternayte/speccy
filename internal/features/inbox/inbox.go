@@ -48,12 +48,12 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 	}
 	since := time.Now().UTC().Add(-window)
 	me := kernel.PersonByID(ctx, a.People, act.UserID)
-	bundles := map[uuid.UUID]pgdb.Bundle{}
-	bundle := func(id uuid.UUID) (pgdb.Bundle, bool) {
+	bundles := map[uuid.UUID]pgdb.SpecDoc{}
+	bundle := func(id uuid.UUID) (pgdb.SpecDoc, bool) {
 		if b, ok := bundles[id]; ok {
 			return b, true
 		}
-		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: id})
+		b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: id})
 		if err != nil || b.ArchivedAt.Valid {
 			return b, false
 		}
@@ -73,25 +73,26 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 	for _, id := range ids {
 		authored[id] = true
 	}
-	mine := func(id uuid.UUID) bool { return authored[id] || act.UserID == kernel.LocalActor.UserID }
+	// An author of a bundle owns every spec doc in it.
+	mine := func(b pgdb.SpecDoc) bool { return authored[b.BundleID] || act.UserID == kernel.LocalActor.UserID }
 
 	var items []api.InboxItem
-	add := func(kind api.InboxItemKind, b pgdb.Bundle, thread *uuid.UUID, text string, at time.Time) {
+	add := func(kind api.InboxItemKind, b pgdb.SpecDoc, thread *uuid.UUID, text string, at time.Time) {
 		items = append(items, api.InboxItem{Kind: kind, BundleId: b.ID, BundleTitle: b.Title, ThreadId: thread, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}
 	// addWaiver is add for an item about one waiver: the bundle page opens on the finding it
 	// excuses (SDD §9.1).
-	addWaiver := func(kind api.InboxItemKind, b pgdb.Bundle, id uuid.UUID, text string, at time.Time) {
+	addWaiver := func(kind api.InboxItemKind, b pgdb.SpecDoc, id uuid.UUID, text string, at time.Time) {
 		items = append(items, api.InboxItem{Kind: kind, BundleId: b.ID, BundleTitle: b.Title, WaiverId: &id, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}
 
 	// Bundles waiting for my review.
-	reviewing, err := q.ListReviewerBundles(ctx, act.UserID)
+	reviewing, err := q.ListReviewerSpecDocs(ctx, act.UserID)
 	if err != nil {
 		return nil, err
 	}
 	for _, id := range reviewing {
-		sv, err := q.GetBundleStatusView(ctx, id)
+		sv, err := q.GetSpecDocStatusView(ctx, id)
 		if err != nil || sv.Status != "in_review" {
 			continue
 		}
@@ -153,7 +154,7 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 					text += " " + *d.Waiver.DecisionReason
 				}
 				addWaiver(api.InboxItemKindWaiverRejected, b, d.Waiver.Id, text, d.At)
-			case d.Waiver.Status == api.WaiverStatusInvalidated && mine(b.ID):
+			case d.Waiver.Status == api.WaiverStatusInvalidated && mine(b):
 				addWaiver(api.InboxItemKindWaiverEnded, b, d.Waiver.Id,
 					fmt.Sprintf("The waiver of %s ended: %s changed. Run the review again.", d.Waiver.CheckSlug, sectionName(d.Waiver.Section)), d.At)
 			}
@@ -166,10 +167,10 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 		return nil, err
 	}
 	for _, m := range msgs {
-		if m.AuthorID == act.UserID || !m.BundleID.Valid {
+		if m.AuthorID == act.UserID || !m.SpecDocID.Valid {
 			continue
 		}
-		b, ok := bundle(m.BundleID.UUID)
+		b, ok := bundle(m.SpecDocID.UUID)
 		if !ok {
 			continue
 		}
@@ -177,7 +178,7 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 		switch {
 		case mentions(m.Body, me):
 			add(api.InboxItemKindMention, b, &tid, fmt.Sprintf("%s mentioned you in “%s”: %s", m.AuthorName, m.Title, snippet(m.Body)), m.CreatedAt)
-		case mine(b.ID):
+		case mine(b):
 			add(api.InboxItemKindMessage, b, &tid, fmt.Sprintf("%s in “%s”: %s", m.AuthorName, m.Title, snippet(m.Body)), m.CreatedAt)
 		}
 	}
@@ -188,11 +189,11 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 		return nil, err
 	}
 	for _, r := range runs {
-		if !mine(r.BundleID) || !r.FinishedAt.Valid {
+		if !r.FinishedAt.Valid {
 			continue
 		}
-		b, ok := bundle(r.BundleID)
-		if !ok {
+		b, ok := bundle(r.SpecDocID)
+		if !ok || !mine(b) {
 			continue
 		}
 		text := "The review failed: " + r.Error

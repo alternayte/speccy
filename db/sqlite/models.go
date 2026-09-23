@@ -49,41 +49,23 @@ type Budget struct {
 }
 
 type Bundle struct {
-	ID               uuid.UUID
-	WorkspaceID      uuid.UUID
-	Slug             string
-	Title            string
-	ProfileKey       string
-	MainDoc          string
-	SourceKind       string
-	SourceRef        dbtype.JSON
-	CurrentVersionID uuid.NullUUID
-	ArchivedAt       sql.NullTime
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	Visibility       string
-	ShareTokenHash   sql.NullString
-	ShareExpiresAt   sql.NullTime
+	ID             uuid.UUID
+	WorkspaceID    uuid.UUID
+	Slug           string
+	Title          string
+	SourceKind     string
+	SourceRef      dbtype.JSON
+	Visibility     string
+	ShareTokenHash sql.NullString
+	ShareExpiresAt sql.NullTime
+	ArchivedAt     sql.NullTime
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type BundleAuthor struct {
 	BundleID uuid.UUID
 	UserID   string
-}
-
-type BundleReviewer struct {
-	BundleID uuid.UUID
-	UserID   string
-}
-
-type BundleStatusView struct {
-	BundleID          uuid.UUID
-	Status            string
-	Approvals         dbtype.JSON
-	ApprovedVersion   uuid.NullUUID
-	ReviewRequestedAt sql.NullTime
-	ApprovedAt        sql.NullTime
-	UpdatedAt         time.Time
 }
 
 type CacheEntry struct {
@@ -185,7 +167,7 @@ type GithubSource struct {
 type Handoff struct {
 	ID           uuid.UUID
 	WorkspaceID  uuid.UUID
-	BundleID     uuid.UUID
+	SpecDocID    uuid.UUID
 	VersionID    uuid.UUID
 	Verdict      string
 	Acknowledged bool
@@ -226,19 +208,19 @@ type Job struct {
 }
 
 type Link struct {
-	ID             uuid.UUID
-	WorkspaceID    uuid.UUID
-	FromBundleID   uuid.UUID
-	Kind           string
-	TargetKind     string
-	TargetBundleID uuid.NullUUID
-	TargetRef      string
-	Origin         string
-	TargetUrl      string
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	FromSpecDocID   uuid.UUID
+	Kind            string
+	TargetKind      string
+	TargetSpecDocID uuid.NullUUID
+	TargetRef       string
+	Origin          string
+	TargetUrl       string
 }
 
 type LinkState struct {
-	BundleID   uuid.UUID
+	SpecDocID  uuid.UUID
 	TargetRef  string
 	State      string
 	Reason     string
@@ -299,7 +281,7 @@ type ProfileVersion struct {
 type Question struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	VersionID   uuid.UUID
 	Number      int64
 	Text        string
@@ -330,7 +312,7 @@ type ResetLink struct {
 type ReviewRun struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
-	BundleID       uuid.UUID
+	SpecDocID      uuid.UUID
 	VersionID      uuid.UUID
 	ProfileKey     string
 	ProfileVersion int64
@@ -362,7 +344,7 @@ type RoleAssignment struct {
 
 type RunLink struct {
 	RunID     uuid.UUID
-	BundleID  uuid.UUID
+	SpecDocID uuid.UUID
 	VersionID uuid.UUID
 }
 
@@ -371,6 +353,37 @@ type ShareGuest struct {
 	BundleID    uuid.UUID
 	DisplayName string
 	CreatedAt   time.Time
+}
+
+type SpecDoc struct {
+	ID               uuid.UUID
+	WorkspaceID      uuid.UUID
+	Slug             string
+	Title            string
+	ProfileKey       string
+	DocPath          string
+	SourceKind       string
+	SourceRef        dbtype.JSON
+	CurrentVersionID uuid.NullUUID
+	ArchivedAt       sql.NullTime
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	BundleID         uuid.UUID
+}
+
+type SpecDocReviewer struct {
+	SpecDocID uuid.UUID
+	UserID    string
+}
+
+type SpecDocStatusView struct {
+	SpecDocID         uuid.UUID
+	Status            string
+	Approvals         dbtype.JSON
+	ApprovedVersion   uuid.NullUUID
+	ReviewRequestedAt sql.NullTime
+	ApprovedAt        sql.NullTime
+	UpdatedAt         time.Time
 }
 
 type ThreadMessageView struct {
@@ -389,7 +402,7 @@ type ThreadMessageView struct {
 type ThreadView struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
-	BundleID       uuid.NullUUID
+	SpecDocID      uuid.NullUUID
 	ProfileKey     string
 	AnchorKind     string
 	Anchor         dbtype.JSON
@@ -441,7 +454,7 @@ type VerificationOutcome struct {
 type VerificationRun struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	VersionID   uuid.UUID
 	HandoffID   uuid.NullUUID
 	Repo        string
@@ -462,7 +475,7 @@ type VerificationRun struct {
 type Version struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	Number      int64
 	CreatedBy   string
 	Message     string
@@ -479,7 +492,7 @@ type VersionFile struct {
 type WaiverView struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	CheckSlug   string
 	Level       string
 	SectionPath dbtype.JSON

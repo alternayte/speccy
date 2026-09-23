@@ -75,8 +75,8 @@ func (s *Service) answerThread(ctx context.Context, id uuid.UUID) (err error) {
 	}
 	var ctxDocs strings.Builder
 	var about string
-	if t.BundleID.Valid {
-		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: t.BundleID.UUID})
+	if t.SpecDocID.Valid {
+		b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: s.Workspace, ID: t.SpecDocID.UUID})
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func (s *Service) answerThread(ctx context.Context, id uuid.UUID) (err error) {
 		if err != nil {
 			return err
 		}
-		ctxDocs.WriteString(bundleData(b.MainDoc, in.main, textAssets(in)))
+		ctxDocs.WriteString(bundleData(b.DocPath, in.main, textAssets(in)))
 		about = s.anchorContext(ctx, t.AnchorKind, t.Anchor, in)
 		for _, l := range in.linked {
 			ctxDocs.WriteString("\n" + data(fmt.Sprintf("Linked doc (%s) %s", l.kind, l.target.Slug), string(l.main)))

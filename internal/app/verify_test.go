@@ -436,7 +436,7 @@ func TestDeleteBundleRemovesEverything(t *testing.T) {
 
 			ctx := context.Background()
 			q := env.app.Bundles.DB.Queries()
-			if _, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: env.app.Workspace, ID: id}); err == nil {
+			if _, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: env.app.Workspace, ID: id}); err == nil {
 				t.Error("the bundle row is still there")
 			}
 			if n, err := q.CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: id, Valid: true}); err != nil || n != 0 {
@@ -445,7 +445,7 @@ func TestDeleteBundleRemovesEverything(t *testing.T) {
 			if rows, err := q.ListVerificationRuns(ctx, id); err != nil || len(rows) != 0 {
 				t.Errorf("verification runs = %d (%v), want none", len(rows), err)
 			}
-			if rows, err := q.ListBundleWaivers(ctx, id); err != nil || len(rows) != 0 {
+			if rows, err := q.ListSpecDocWaivers(ctx, id); err != nil || len(rows) != 0 {
 				t.Errorf("waivers = %d (%v), want none", len(rows), err)
 			}
 		})

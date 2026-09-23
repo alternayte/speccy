@@ -40,9 +40,9 @@ func aiFinding(stage, slug string) bool {
 // section is about the whole doc, so it carries only while the doc is unchanged. The model
 // never read a changed section, so its findings there drop out. The run's AI items carry too,
 // so the score counts them; a failed item whose every finding dropped is no longer known.
-func (s *Service) carry(ctx context.Context, b pgdb.Bundle, in input, ev *evaluation) error {
+func (s *Service) carry(ctx context.Context, b pgdb.SpecDoc, in input, ev *evaluation) error {
 	q := s.DB.Queries()
-	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{BundleID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: 50})
+	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{SpecDocID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: 50})
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (s *Service) carry(ctx context.Context, b pgdb.Bundle, in input, ev *evalua
 	}
 	var oldMain []byte
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			oldMain = f.Content
 		}
 	}

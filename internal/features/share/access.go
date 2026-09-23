@@ -17,8 +17,21 @@ const (
 	Link     = "link"     // every member, and anyone with the share link as a guest
 )
 
-// CanRead reports whether the actor can see b. An admin sees every bundle (SDD §3).
-func CanRead(ctx context.Context, q store.Querier, a kernel.Actor, b pgdb.Bundle) (bool, error) {
+// CanRead reports whether the actor can see spec doc d. Visibility belongs to the bundle that
+// holds d. An admin sees every bundle (SDD §3).
+func CanRead(ctx context.Context, q store.Querier, a kernel.Actor, d pgdb.SpecDoc) (bool, error) {
+	if a.UserID == "" && a.Guest == nil {
+		return false, nil
+	}
+	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: d.WorkspaceID, ID: d.BundleID})
+	if err != nil {
+		return false, err
+	}
+	return CanReadBundle(ctx, q, a, b)
+}
+
+// CanReadBundle reports whether the actor can see bundle b and every spec doc in it.
+func CanReadBundle(ctx context.Context, q store.Querier, a kernel.Actor, b pgdb.Bundle) (bool, error) {
 	if a.Guest != nil {
 		return a.Guest.BundleID == b.ID && b.Visibility == Link, nil
 	}
@@ -31,13 +44,14 @@ func CanRead(ctx context.Context, q store.Querier, a kernel.Actor, b pgdb.Bundle
 	return q.IsBundleMember(ctx, pgdb.IsBundleMemberParams{BundleID: b.ID, UserID: a.UserID})
 }
 
-// CanEdit reports whether the actor can change b's files and settings: an author, or an admin.
-func CanEdit(ctx context.Context, q store.Querier, a kernel.Actor, b pgdb.Bundle) (bool, error) {
+// CanEdit reports whether the actor can change spec doc d's files and settings: an author of
+// the bundle that holds d, or an admin.
+func CanEdit(ctx context.Context, q store.Querier, a kernel.Actor, d pgdb.SpecDoc) (bool, error) {
 	if a.Guest != nil || a.UserID == "" {
 		return false, nil
 	}
 	if a.IsAdmin() {
 		return true, nil
 	}
-	return q.IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: b.ID, UserID: a.UserID})
+	return q.IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: d.BundleID, UserID: a.UserID})
 }

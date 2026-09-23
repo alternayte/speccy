@@ -182,9 +182,9 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 	if err != nil {
 		return nil, err
 	}
-	downstream := []pgdb.Bundle{}
+	downstream := []pgdb.SpecDoc{}
 	for _, l := range incoming {
-		from, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: l.FromBundleID})
+		from, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: l.FromSpecDocID})
 		if err != nil || from.ArchivedAt.Valid {
 			continue
 		}
@@ -218,12 +218,12 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 		if err != nil {
 			return nil, err
 		}
-		downs := []pgdb.Bundle{b}
+		downs := []pgdb.SpecDoc{b}
 		for _, dl := range links {
-			if dl.Kind != "implements" || dl.FromBundleID == b.ID {
+			if dl.Kind != "implements" || dl.FromSpecDocID == b.ID {
 				continue
 			}
-			d, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: dl.FromBundleID})
+			d, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: dl.FromSpecDocID})
 			if err == nil && !d.ArchivedAt.Valid {
 				downs = append(downs, d)
 			}
@@ -236,7 +236,7 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 			out.Matrices = append(out.Matrices, *m)
 		}
 	}
-	for _, sg := range suggestIDs(b.MainDoc, in.main, in.doc, p.Profile.Trace.Prefixes) {
+	for _, sg := range suggestIDs(b.DocPath, in.main, in.doc, p.Profile.Trace.Prefixes) {
 		out.Suggestions = append(out.Suggestions, api.IdSuggestion{Id: sg.ID, Text: sg.Text, Anchor: anchorAPI(sg.Anchor)})
 	}
 	return api.GetTrace200JSONResponse(out), nil
@@ -244,7 +244,7 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 
 // matrix builds one traceability matrix: the upstream IDs that any downstream profile covers,
 // against each downstream bundle. It is nil when no downstream profile covers a prefix.
-func (a *API) matrix(ctx context.Context, up pgdb.Bundle, upMain []byte, downs []pgdb.Bundle) (*api.TraceMatrix, error) {
+func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs []pgdb.SpecDoc) (*api.TraceMatrix, error) {
 	profiles := a.Service.Profiles()
 	var prefixes []string
 	for _, d := range downs {
@@ -262,7 +262,7 @@ func (a *API) matrix(ctx context.Context, up pgdb.Bundle, upMain []byte, downs [
 	m := &api.TraceMatrix{Upstream: bundleRefAPI(up), Rows: []api.TraceRow{}, Columns: []api.BundleRef{}, Cells: [][]api.TraceCell{}}
 	defs := lint.Definitions(upMain, prefixes)
 	for _, d := range defs {
-		m.Rows = append(m.Rows, api.TraceRow{Id: d.ID, Text: strings.TrimSpace(d.Text), Anchor: anchorAPI(anchor.New(up.MainDoc, upMain, upDoc, d.Start, d.End))})
+		m.Rows = append(m.Rows, api.TraceRow{Id: d.ID, Text: strings.TrimSpace(d.Text), Anchor: anchorAPI(anchor.New(up.DocPath, upMain, upDoc, d.Start, d.End))})
 		m.Cells = append(m.Cells, []api.TraceCell{})
 	}
 	for _, d := range downs {
@@ -275,7 +275,7 @@ func (a *API) matrix(ctx context.Context, up pgdb.Bundle, upMain []byte, downs [
 		}
 		var main []byte
 		for _, f := range files {
-			if f.Path == d.MainDoc {
+			if f.Path == d.DocPath {
 				main = f.Content
 			}
 		}
@@ -293,7 +293,7 @@ func (a *API) matrix(ctx context.Context, up pgdb.Bundle, upMain []byte, downs [
 		cover := profiles[d.ProfileKey].Profile.Trace.Cover
 		m.Columns = append(m.Columns, bundleRefAPI(d))
 		for i, def := range defs {
-			c := cellFor(def.ID, d.MainDoc, main, doc, acks, cover)
+			c := cellFor(def.ID, d.DocPath, main, doc, acks, cover)
 			cell := api.TraceCell{State: api.TraceCellState(c.State), Refs: []api.Anchor{}}
 			for _, r := range c.Refs {
 				cell.Refs = append(cell.Refs, anchorAPI(r))
@@ -319,7 +319,7 @@ func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject)
 	if a.Change == nil {
 		return nil, kernel.Invalid("not_supported", "This server cannot change bundle files.")
 	}
-	if _, err := a.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: req.Params.BaseVersion}); err != nil {
+	if _, err := a.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: req.Params.BaseVersion}); err != nil {
 		return nil, kernel.NotFound("version_not_found", "The bundle has no version %s.", req.Params.BaseVersion)
 	}
 	files, err := version.Files(ctx, a.DB.Queries(), req.Params.BaseVersion)
@@ -328,7 +328,7 @@ func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject)
 	}
 	var main []byte
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			main = f.Content
 		}
 	}
@@ -337,7 +337,7 @@ func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject)
 		want[id] = true
 	}
 	var chosen []idSuggestion
-	for _, sg := range suggestIDs(b.MainDoc, main, section.Parse(main), a.Service.Profiles()[b.ProfileKey].Profile.Trace.Prefixes) {
+	for _, sg := range suggestIDs(b.DocPath, main, section.Parse(main), a.Service.Profiles()[b.ProfileKey].Profile.Trace.Prefixes) {
 		if want[sg.ID] {
 			chosen = append(chosen, sg)
 		}
@@ -351,14 +351,14 @@ func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject)
 	}
 	sort.Strings(ids)
 	v, changed, err := a.Change(ctx, b.ID, req.Params.BaseVersion,
-		source.Op{Kind: source.OpWrite, Path: b.MainDoc, Content: applyIDs(main, chosen)}, "local", "Added trace IDs "+strings.Join(ids, ", "))
+		source.Op{Kind: source.OpWrite, Path: b.DocPath, Content: applyIDs(main, chosen)}, "local", "Added trace IDs "+strings.Join(ids, ", "))
 	if err != nil {
 		return nil, err
 	}
 	return api.AddTraceIds200JSONResponse{Version: version.ToAPI(v), Changed: changed}, nil
 }
 
-func bundleRefAPI(b pgdb.Bundle) api.BundleRef {
+func bundleRefAPI(b pgdb.SpecDoc) api.BundleRef {
 	return api.BundleRef{Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey}
 }
 

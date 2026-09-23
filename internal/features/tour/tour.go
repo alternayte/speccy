@@ -38,7 +38,7 @@ var decisionChecks = map[string]bool{
 // threads, MUST findings that need a decision, pending waivers, then open decisions.
 func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.GetTourResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.BundleId})
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 		if path == nil {
 			path = []string{}
 		}
-		return &api.Anchor{File: b.MainDoc, HeadingPath: path}
+		return &api.Anchor{File: b.DocPath, HeadingPath: path}
 	}
 
 	// The findings of the run behind the verdict, with anchors in the current version.

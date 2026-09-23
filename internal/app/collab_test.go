@@ -49,7 +49,7 @@ const doc = "---\ntype: note\ntitle: Pay\n---\n\n# Pay\n\n## Limits\n\nThe reque
 
 type env struct {
 	app *app.App
-	b   pgdb.Bundle
+	b   pgdb.SpecDoc
 }
 
 func newEnv(t *testing.T, e storetest.Engine) *env {
@@ -79,7 +79,7 @@ func newEnv(t *testing.T, e storetest.Engine) *env {
 func (e *env) verdict(t *testing.T) (string, int) {
 	t.Helper()
 	q := e.app.Bundles.DB.Queries()
-	b, err := q.GetBundle(context.Background(), pgdb.GetBundleParams{WorkspaceID: e.app.Workspace, ID: e.b.ID})
+	b, err := q.GetSpecDoc(context.Background(), pgdb.GetSpecDocParams{WorkspaceID: e.app.Workspace, ID: e.b.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func (e *env) mustFinding(t *testing.T, slug string) uuid.UUID {
 func (e *env) edit(t *testing.T, content string) {
 	t.Helper()
 	q := e.app.Bundles.DB.Queries()
-	b, _ := q.GetBundle(context.Background(), pgdb.GetBundleParams{WorkspaceID: e.app.Workspace, ID: e.b.ID})
+	b, _ := q.GetSpecDoc(context.Background(), pgdb.GetSpecDocParams{WorkspaceID: e.app.Workspace, ID: e.b.ID})
 	if _, _, err := e.app.Bundles.Change(as("author"), b.ID, b.CurrentVersionID.UUID,
 		source.Op{Kind: source.OpWrite, Path: "NOTE.md", Content: []byte(content)}, "author", "Edit"); err != nil {
 		t.Fatal(err)

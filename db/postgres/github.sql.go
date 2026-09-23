@@ -365,21 +365,6 @@ func (q *Queries) SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) 
 	return err
 }
 
-const setBundleSourceRef = `-- name: SetBundleSourceRef :exec
-UPDATE bundle SET source_ref = $1, updated_at = $2 WHERE id = $3
-`
-
-type SetBundleSourceRefParams struct {
-	SourceRef dbtype.JSON
-	UpdatedAt time.Time
-	ID        uuid.UUID
-}
-
-func (q *Queries) SetBundleSourceRef(ctx context.Context, arg SetBundleSourceRefParams) error {
-	_, err := q.db.ExecContext(ctx, setBundleSourceRef, arg.SourceRef, arg.UpdatedAt, arg.ID)
-	return err
-}
-
 const setGithubSourceSkipped = `-- name: SetGithubSourceSkipped :exec
 UPDATE github_source SET skipped = $1 WHERE id = $2
 `
@@ -413,6 +398,21 @@ func (q *Queries) SetGithubSourceSynced(ctx context.Context, arg SetGithubSource
 		arg.Error,
 		arg.ID,
 	)
+	return err
+}
+
+const setSpecDocSourceRef = `-- name: SetSpecDocSourceRef :exec
+UPDATE spec_doc SET source_ref = $1, updated_at = $2 WHERE id = $3
+`
+
+type SetSpecDocSourceRefParams struct {
+	SourceRef dbtype.JSON
+	UpdatedAt time.Time
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetSpecDocSourceRef(ctx context.Context, arg SetSpecDocSourceRefParams) error {
+	_, err := q.db.ExecContext(ctx, setSpecDocSourceRef, arg.SourceRef, arg.UpdatedAt, arg.ID)
 	return err
 }
 

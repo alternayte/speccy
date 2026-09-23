@@ -72,7 +72,7 @@ func (a *API) VerificationDefaults(ctx context.Context, req api.VerificationDefa
 	if err != nil {
 		return nil, err
 	}
-	ds, err := a.defaults(ctx, b, cur.File(b.MainDoc))
+	ds, err := a.defaults(ctx, b, cur.File(b.DocPath))
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 		return api.Verification{}, err
 	}
 	stale := row.Stale
-	if b, err := version.Bundle(ctx, q, a.Workspace, row.BundleID); err == nil {
+	if b, err := version.Bundle(ctx, q, a.Workspace, row.SpecDocID); err == nil {
 		stale = stale || b.CurrentVersionID.UUID != row.VersionID
 	}
 	row.Stale = stale
@@ -182,7 +182,7 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 	if row.HandoffID.Valid {
 		handoff = &row.HandoffID.UUID
 	}
-	v := runAPI(row.BundleID, run, handoff, row.Stale)
+	v := runAPI(row.SpecDocID, run, handoff, row.Stale)
 	v.StartedBy = &row.StartedBy
 	return v, nil
 }

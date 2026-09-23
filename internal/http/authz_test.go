@@ -111,7 +111,7 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 				for _, n := range allowed[table[op.id]] {
 					want = want || n == a.name
 				}
-				status, code := env.call(t, op, a.actor(env.bundle.ID))
+				status, code := env.call(t, op, a.actor(env.bundle.BundleID))
 				denied := code == "sign_in_required" || code == "forbidden" || code == "guest_not_allowed" || code == "not_author" || code == "not_maintainer" ||
 					(status == 404 && code == "bundle_not_found")
 				if denied == want {
@@ -125,7 +125,7 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 // A member who is not an author cannot see a private bundle; an admin can (REQ-084).
 func TestAuthz_PrivateBundle(t *testing.T) {
 	env := newHosted(t, storetest.Engines()[0])
-	if err := env.app.Bundles.DB.Queries().SetBundleVisibility(context.Background(), pgdb.SetBundleVisibilityParams{ID: env.bundle.ID, Visibility: "private", UpdatedAt: time.Now()}); err != nil {
+	if err := env.app.Bundles.DB.Queries().SetBundleVisibility(context.Background(), pgdb.SetBundleVisibilityParams{ID: env.bundle.BundleID, Visibility: "private", UpdatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	get := operation{id: "getBundle", method: "GET", path: "/bundles/{bundleId}"}
@@ -154,7 +154,7 @@ func TestAuthz_PrivateBundle(t *testing.T) {
 type hostedEnv struct {
 	app     *app.App
 	handler nethttp.Handler
-	bundle  pgdb.Bundle
+	bundle  pgdb.SpecDoc
 	run     pgdb.ReviewRun
 	thread  string
 	waiver  string
@@ -178,7 +178,7 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 		t.Fatal(err)
 	}
 	q := db.Queries()
-	if err := q.SetBundleVisibility(ctx, pgdb.SetBundleVisibilityParams{ID: b.ID, Visibility: "link", UpdatedAt: time.Now()}); err != nil {
+	if err := q.SetBundleVisibility(ctx, pgdb.SetBundleVisibilityParams{ID: b.BundleID, Visibility: "link", UpdatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	run, err := q.LatestRun(ctx, b.ID)

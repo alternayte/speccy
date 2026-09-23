@@ -24,7 +24,7 @@ func (a *API) ListFiles(ctx context.Context, req api.ListFilesRequestObject) (ap
 	if err != nil {
 		return nil, err
 	}
-	main := b.MainDoc
+	main := b.DocPath
 	if v.ID != b.CurrentVersionID.UUID {
 		// An older version can have another main doc. Read only its top-level markdown files.
 		var candidates []source.File

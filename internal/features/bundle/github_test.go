@@ -168,11 +168,11 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, false); err != nil {
 				t.Fatal(err)
 			}
-			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if err != nil {
 				t.Fatalf("the bundle under docs was not read: %v", err)
 			}
-			if _, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "other/x"}); err == nil {
+			if _, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "other/x"}); err == nil {
 				t.Error("a bundle outside the source path was read")
 			}
 			files, _ := version.Files(ctx, q, b.CurrentVersionID.UUID)
@@ -193,7 +193,7 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, true); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if state, _ = GitHubStateOf(ctx, q, b); !state.Draft || b.CurrentVersionID.UUID != v.ID {
 				t.Fatalf("the draft was lost: %+v", state)
 			}
@@ -218,7 +218,7 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, false); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if state, _ = GitHubStateOf(ctx, q, b); state.Draft || state.PR != "" || b.CurrentVersionID.UUID != v.ID {
 				t.Fatalf("after the merge: %+v, version changed %v", state, b.CurrentVersionID.UUID != v.ID)
 			}
@@ -234,14 +234,14 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, false); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if state, _ = GitHubStateOf(ctx, q, b); !state.Draft || !state.Ahead {
 				t.Fatalf("GitHub moved under a draft: %+v", state)
 			}
 			if _, err := s.DiscardDraft(ctx, b.ID, "user-1"); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			files, _ = version.Files(ctx, q, b.CurrentVersionID.UUID)
 			state, _ = GitHubStateOf(ctx, q, b)
 			var spec string
@@ -283,20 +283,21 @@ func TestGitHubSource_OneDoc(t *testing.T) {
 	if err := s.SyncSource(ctx, src.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
 	if err != nil {
 		t.Fatalf("the one doc did not become a bundle: %v", err)
 	}
-	if b.ProfileKey != "prd" || b.MainDoc != "prd-payments.md" {
-		t.Errorf("bundle profile %q, main doc %q", b.ProfileKey, b.MainDoc)
+	if b.ProfileKey != "prd" || b.DocPath != "prd-payments.md" {
+		t.Errorf("bundle profile %q, main doc %q", b.ProfileKey, b.DocPath)
 	}
+	// The doc's version holds the assets of its folder: every file that is not a spec doc.
 	files, _ := version.Files(ctx, q, b.CurrentVersionID.UUID)
-	if len(files) != 2 {
-		t.Errorf("files %+v, want the doc and its asset", files)
+	if len(files) != 3 {
+		t.Errorf("files %+v, want the doc and the folder's assets", files)
 	}
-	// No other doc of the folder comes with it.
+	// No other spec doc comes with it.
 	for _, slug := range []string{"docs/prd-refunds", "docs/pay"} {
-		if _, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: slug}); err == nil {
+		if _, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: slug}); err == nil {
 			t.Errorf("%s came with a one-doc source", slug)
 		}
 	}
@@ -345,7 +346,7 @@ func TestGitHubSource_AdoptedType(t *testing.T) {
 	if err := s.SyncSource(ctx, src.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
 	if err != nil {
 		t.Fatalf("the accepted doc did not become a bundle: %v", err)
 	}
@@ -368,7 +369,7 @@ func TestGitHubSource_AdoptedType(t *testing.T) {
 	if err := s.SyncSource(ctx, src.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	again, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	again, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
 	if err != nil || again.ID != b.ID {
 		t.Fatalf("the bundle changed when the repo named the type: %v", err)
 	}

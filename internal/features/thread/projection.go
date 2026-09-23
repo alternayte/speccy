@@ -39,7 +39,7 @@ func Projection(workspace uuid.UUID) es.Projection {
 			p.HandoffID = uuid.NullUUID{UUID: *s.HandoffID, Valid: true}
 		}
 		if s.BundleID != nil {
-			p.BundleID = uuid.NullUUID{UUID: *s.BundleID, Valid: true}
+			p.SpecDocID = uuid.NullUUID{UUID: *s.BundleID, Valid: true}
 		}
 		if err := q.UpsertThreadView(ctx, p); err != nil {
 			return err

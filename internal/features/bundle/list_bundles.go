@@ -25,9 +25,9 @@ func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject)
 	// REQ-084: the list holds only the bundles the actor can see. Hidden bundles are skipped,
 	// so pages are read until this page is full.
 	actor := kernel.ActorFrom(ctx)
-	var rows []pgdb.Bundle
+	var rows []pgdb.SpecDoc
 	for int64(len(rows)) <= limit {
-		page, err := q.ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: s.Workspace, AfterSlug: after, PageSize: limit + 1})
+		page, err := q.ListSpecDocs(ctx, pgdb.ListSpecDocsParams{WorkspaceID: s.Workspace, AfterSlug: after, PageSize: limit + 1})
 		if err != nil {
 			return nil, err
 		}

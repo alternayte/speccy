@@ -49,17 +49,24 @@ func TestScan(t *testing.T) {
 		}
 		got = append(got, b.Slug+"="+strings.Join(paths, ","))
 	}
-	// A folder with two spec docs gives one single-file bundle per doc, and its untyped
-	// markdown is a skipped doc, not a bundle.
-	want := []string{"docs/dup/a=a.md", "docs/dup/b=b.md", "docs/prd=PRD.md,assets/a.png", "docs/prd/child=SDD.md"}
+	// A folder with two spec docs gives one bundle with both: each spec doc's version holds
+	// the doc and the folder's assets, and never the other spec doc. A subfolder with its own
+	// spec doc is its own bundle.
+	want := []string{"docs/dup/a=a.md,notes.md", "docs/dup/b=b.md,notes.md", "docs/prd=PRD.md,assets/a.png", "docs/prd/child=SDD.md"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("bundles = %v, want %v", got, want)
 	}
 	if len(s.Problems) != 0 {
 		t.Errorf("problems = %+v, want none", s.Problems)
 	}
-	if !strings.Contains(strings.Join(s.Skipped, " "), "docs/dup/notes.md") {
-		t.Errorf("skipped = %v, want docs/dup/notes.md", s.Skipped)
+	for _, b := range s.Bundles {
+		if b.Slug == "docs/dup/a" && b.Folder != "docs/dup" {
+			t.Errorf("docs/dup/a is in bundle %q, want docs/dup", b.Folder)
+		}
+	}
+	// Untyped markdown in a bundle is an asset, not a skipped doc.
+	if len(s.Skipped) != 0 {
+		t.Errorf("skipped = %v, want none", s.Skipped)
 	}
 }
 
@@ -121,68 +128,16 @@ func TestScan_SingleFileBundles(t *testing.T) {
 		}
 		got = append(got, b.Slug+":"+b.Main.Frontmatter.Type+"="+strings.Join(paths, ","))
 	}
-	// The mapped files are single-file bundles; the frontmatter type wins over the mapping.
-	// other/b is not under a bundles glob, so it is not a bundle.
-	want := []string{"docs/prd-pay:prd=prd-pay.assets/flow.png,prd-pay.md", "docs/sdd-pay:sdd=sdd-pay.md", "specs/a:sdd=SPEC.md"}
+	// The mapped files are spec docs of the docs bundle; the frontmatter type wins over the
+	// mapping. other/b is not under a bundles glob, so it is not a bundle.
+	want := []string{"docs/prd-pay:prd=notes.md,prd-pay.assets/flow.png,prd-pay.md", "docs/sdd-pay:sdd=notes.md,prd-pay.assets/flow.png,sdd-pay.md", "specs/a:sdd=SPEC.md"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("bundles = %v, want %v", got, want)
 	}
-	for p, ok := range map[string]bool{"prd-pay.assets/new.sql": true, "other.md": false, "prd-pay.assets/../x.md": false} {
+	for p, ok := range map[string]bool{"prd-pay.assets/new.sql": true, "other.md": true, "sdd-pay.md": false, "prd-pay.assets/../x.md": false} {
 		err := r.Persist(s, "docs/prd-pay", source.Op{Kind: source.OpWrite, Path: p, Content: []byte("x")})
 		if (err == nil) != ok {
 			t.Errorf("write %s: err = %v, want allowed %v", p, err, ok)
-		}
-	}
-}
-
-// A bundle carries the files its markdown points at, to closure, and stops at another
-// bundle's doc and at the folder above it. Without this a doc's own image is a MUST finding
-// for a file that exists.
-func TestScan_CarriesReferencedFiles(t *testing.T) {
-	dir := t.TempDir()
-	write(t, dir, "shared/logo.png", "png")
-	write(t, dir, "docs/prd-pay.md", "# Pay\n\n"+
-		"![flow](images/flow.png)\n[limits](limits.md)\n[other](sdd-pay.md)\n[up](../shared/logo.png)\n[gone](missing.png)\n")
-	write(t, dir, "docs/images/flow.png", "png")
-	write(t, dir, "docs/limits.md", "# Limits\n\n![limit](images/limit.png)\n")
-	write(t, dir, "docs/images/limit.png", "png")
-	write(t, dir, "docs/sdd-pay.md", "# Pay design\n")
-	cfg, err := source.ParseRepoConfig([]byte("map:\n  - glob: docs/prd-*.md\n    profile: prd\n  - glob: docs/sdd-*.md\n    profile: sdd\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s, err := r.Scan(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, ok := s.Bundle("docs/prd-pay")
-	if !ok {
-		t.Fatal("the mapped doc is not a bundle")
-	}
-	got := map[string]string{}
-	for _, f := range b.Files {
-		got[f.Path] = f.CarriedBy
-	}
-	// The image, the reference doc, and the image that reference doc shows.
-	for _, p := range []string{"images/flow.png", "limits.md", "images/limit.png"} {
-		if _, ok := got[p]; !ok {
-			t.Errorf("%s is not in the bundle: %v", p, got)
-		}
-	}
-	if got["images/limit.png"] != "limits.md" {
-		t.Errorf("images/limit.png was carried by %q, want limits.md", got["images/limit.png"])
-	}
-	if got["prd-pay.md"] != "" {
-		t.Error("the main doc is not a carried file")
-	}
-	// Another bundle's doc, a file above the folder, and a file that is not there.
-	for _, p := range []string{"sdd-pay.md", "../shared/logo.png", "shared/logo.png", "missing.png"} {
-		if _, ok := got[p]; ok {
-			t.Errorf("%s must not be in the bundle: %v", p, got)
 		}
 	}
 }

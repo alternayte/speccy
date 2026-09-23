@@ -67,7 +67,7 @@ func TestImportSplitsAFolderAndLinksTheDocs(t *testing.T) {
 				t.Fatalf("bundles = %+v, want one PRD and one SDD bundle", slugs)
 			}
 			q := env.app.Bundles.DB.Queries()
-			sdd, err := q.GetBundleBySlug(context.Background(), pgdb.GetBundleBySlugParams{WorkspaceID: env.app.Workspace, Slug: slugs["sdd"]})
+			sdd, err := q.GetSpecDocBySlug(context.Background(), pgdb.GetSpecDocBySlugParams{WorkspaceID: env.app.Workspace, Slug: slugs["sdd"]})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +75,7 @@ func TestImportSplitsAFolderAndLinksTheDocs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(links) != 1 || links[0].Kind != "implements" || !links[0].TargetBundleID.Valid {
+			if len(links) != 1 || links[0].Kind != "implements" || !links[0].TargetSpecDocID.Valid {
 				t.Errorf("SDD links = %+v, want one resolved implements link", links)
 			}
 		})

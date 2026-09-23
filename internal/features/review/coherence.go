@@ -92,7 +92,7 @@ func coherenceChecks(in input, ev *evaluation) {
 					continue
 				}
 				d := byID[c.ID]
-				up := anchor.New(l.target.MainDoc, l.main, l.doc, d.Start, d.End)
+				up := anchor.New(l.target.DocPath, l.main, l.doc, d.Start, d.End)
 				msg := fmt.Sprintf("%s of %s is not referenced in this doc, and not acknowledged.", c.ID, l.target.Slug)
 				if a, ok := acks[c.ID]; ok && !a.Valid() {
 					msg = fmt.Sprintf("%s of %s is not referenced, and its acknowledgement needs a status, a reason, and a target for covered_by.", c.ID, l.target.Slug)
@@ -117,11 +117,11 @@ func coherenceChecks(in input, ev *evaluation) {
 				dp, up := downParas[r.Down], upParas[r.Up]
 				ev.findings = append(ev.findings, pending{
 					slug: RestatementSlug, level: restateLevel, stage: StageCoherence,
-					anchor:  anchor.New(in.bundle.MainDoc, in.main, in.doc, dp.Start, dp.End),
+					anchor:  anchor.New(in.bundle.DocPath, in.main, in.doc, dp.Start, dp.End),
 					message: fmt.Sprintf("This paragraph repeats %s (%d%% of its 8-word runs). Link, do not repeat.", l.target.Slug, int(r.Overlap*100)),
 					fix:     fmt.Sprintf("Replace the paragraph with a reference to %s, and keep only what this doc adds.", l.target.Slug),
 					evidence: map[string]any{"upstream": l.target.Slug, "upstream_bundle_id": l.target.ID, "overlap": r.Overlap,
-						"upstream_anchor": anchor.New(l.target.MainDoc, l.main, l.doc, up.Start, up.End)},
+						"upstream_anchor": anchor.New(l.target.DocPath, l.main, l.doc, up.Start, up.End)},
 				})
 			}
 		}
@@ -150,7 +150,7 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 		}
 	}
 	lvl := in.level(ContradictionSlug, kernel.Must)
-	this := bundleData(in.bundle.MainDoc, in.main, textAssets(in))
+	this := bundleData(in.bundle.DocPath, in.main, textAssets(in))
 	for i, l := range targets {
 		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Comparing with " + l.target.Slug, Done: i, Total: len(targets)})
 		key := cacheKey{Step: "contradiction", InputHash: hashOf(bundleHash(in), l.target.ID.String(), l.version.String()),
@@ -194,12 +194,12 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 			kept++
 			ev.findings = append(ev.findings, pending{
 				slug: ContradictionSlug, level: lvl, stage: StageCoherence,
-				anchor:  anchor.New(in.bundle.MainDoc, in.main, in.doc, ts, te),
+				anchor:  anchor.New(in.bundle.DocPath, in.main, in.doc, ts, te),
 				message: fmt.Sprintf("This conflicts with %s: %s", l.target.Slug, sentence(c.Explanation)),
 				fix:     fmt.Sprintf("Change this doc or %s so that both say the same thing.", l.target.Slug),
 				evidence: map[string]any{"upstream": l.target.Slug, "upstream_bundle_id": l.target.ID, "explanation": c.Explanation,
 					"quote": c.ThisQuote, "upstream_quote": c.OtherQuote,
-					"upstream_anchor": anchor.New(l.target.MainDoc, l.main, l.doc, os, oe)},
+					"upstream_anchor": anchor.New(l.target.DocPath, l.main, l.doc, os, oe)},
 			})
 		}
 		if dropped > 0 {

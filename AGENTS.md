@@ -18,9 +18,8 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - SDD.md and BUILD.md are gitignored. A clone holds no design docs.
 
 ## Domain words
-- Bundle: a folder with one main doc and zero or more assets.
-- Main doc: the one markdown file in a bundle that a type field or a path mapping names.
-- Asset: any other file in the bundle.
+- Bundle: a folder with one or more spec docs and zero or more assets. Avoid: group, initiative folder.
+- Asset: any file in the bundle that is not a spec doc.
 - Profile: the versioned configuration for one doc type.
 - Check: one binary rule in a profile, with a slug, a level, and a stage.
 - Finding: one failed check, with an anchor to the text.
@@ -47,7 +46,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Decision reason: the text an approver gives when they reject a waiver. Avoid: rejection note, feedback.
 - Carried finding: an AI finding from the last full review whose section has not changed since. It counts in the current version's verdict. Avoid: stale finding, old finding, inherited finding.
 - Ended waiver: an approved waiver that stopped applying because its section changed. The status value stays invalidated. Avoid: expired, stale.
-- Build packet: the main doc, its assets, the linked bundles' main docs, the trace IDs, and the build questions with their agreed answers, handed to a coding agent. Avoid: payload, bundle export.
+- Build packet: the spec doc, the bundle's assets, the linked spec docs, the trace IDs, and the build questions with their agreed answers, handed to a coding agent. Avoid: payload, bundle export.
 - Handoff: one record that a builder took a build packet for one bundle version, with the verdict at that moment. Avoid: job, build run.
 - Size: the scale one main doc covers: feature, app, or initiative, declared in its frontmatter. A check's scope field is a different thing. Avoid: scale.
 - Re-entry prompt: HANDOFF.md, the file a coding agent reads to resume building after it loses its context. Avoid: handover doc, resume file.
@@ -70,7 +69,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Skipped doc: a markdown file in a source that the scan passed over, because it names no type and no mapping covers it. Avoid: unmapped file, orphan doc, candidate.
 - Adopted type: the doc type a person accepted in Speccy for one path in a source. The repo replaces it when it names its own. Avoid: override, profile override, guess.
 - Adopted link: a link a person confirmed in Speccy for a doc in a repo source. Speccy stores it and writes nothing into the repo. A link the repo names replaces it. Avoid: inferred link, implicit link, stored link.
-- Spec doc: a markdown file that names a type, that a map glob covers, or that has an adopted type. Each spec doc is its own bundle. Avoid: typed doc, reviewed doc.
+- Spec doc: a markdown file that names a type, that a map glob covers, or that has an adopted type. Each spec doc has its own profile, versions, review runs and verdict. Avoid: typed doc, reviewed doc, main doc.
 - Dismissed doc: a markdown file a person marked as not a spec, so Speccy stops offering to adopt it. Avoid: ignored file, hidden file, excluded.
 - Verification run: one execution of the post-build gate on one bundle version against one code repo at one SHA. Avoid: conformance run, build check, second gate.
 - Code target: a repo path plus a verbatim anchor quote that locates where one trace ID is implemented. A test target is the same, anchored on the test declaration line. Avoid: code link, symbol, reference, coverage entry.

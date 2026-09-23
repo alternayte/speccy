@@ -54,29 +54,23 @@ func Open(dir string) (*Root, error) {
 // Dir returns the absolute root folder.
 func (r *Root) Dir() string { return r.dir }
 
-// Bundle is one bundle found by a scan.
+// Bundle is one spec doc found by a scan, with the files of its version. A bundle is the
+// folder that holds one or more spec docs: every spec doc in one folder has the same Folder.
 type Bundle struct {
-	// Slug names the bundle: its folder relative to the root ("." for the root), or for a
-	// single-file bundle the file path without ".md".
+	// Slug names the spec doc: its folder relative to the root ("." for the root) when it is
+	// the only spec doc there and names its own type, and otherwise its path without ".md".
 	Slug string
+	// Folder is the slug of the bundle that holds the spec doc: its folder relative to the root.
+	Folder string
 	// Dir is the bundle's folder relative to the root. File paths are relative to it.
 	Dir string
-	// File is the main doc of a single-file bundle, and "" for a folder bundle.
+	// File is the spec doc, relative to Dir.
 	File  string
 	Main  source.MainDoc
 	Files []source.File
 	// Unnamed is a bundle that only exists because the user pointed Speccy at the file: it
 	// names no type, and no map entry selects it (REQ-135). It is reviewed, never saved.
 	Unnamed bool
-}
-
-// Allows reports whether a single-file bundle may hold path: its main doc, or a file in its
-// assets folder. A folder bundle allows any path.
-func (b Bundle) Allows(p string) bool {
-	if b.File == "" {
-		return true
-	}
-	return p == b.File || strings.HasPrefix(p, source.AssetsDir(b.File)+"/")
 }
 
 // Problem is a folder or file that the scan could not use.
@@ -92,11 +86,10 @@ type Scan struct {
 	// Skipped are the markdown files the scan passed over because they name no type. The app
 	// offers to adopt them (REQ-001).
 	Skipped []string
-	// bundleDirs holds every folder bundle, valid or not. Their files never count as assets of
-	// a parent bundle. excluded holds mapped files and their assets folders, which belong to
-	// single-file bundles.
+	// bundleDirs holds every bundle folder. Their files never count as assets of a parent
+	// bundle. docs holds every spec doc: a spec doc is never an asset of another spec doc.
 	bundleDirs map[string]bool
-	excluded   map[string]bool
+	docs       map[string]bool
 	bySlug     map[string]int
 }
 
@@ -106,14 +99,15 @@ func skipDir(name string) bool {
 	return strings.HasPrefix(name, ".") || name == "node_modules"
 }
 
-// Scan finds every bundle under the root. A folder is a bundle when exactly one markdown file
-// directly in it has a frontmatter type (REQ-001 form a); cfg.Bundles can limit the folders.
-// A folder with two or more such files gives a single-file bundle for each one. A markdown
-// file that a cfg.Map glob selects is a single-file bundle too (form b, REQ-130).
+// Scan finds every bundle under the root. A folder is a bundle when it directly holds one or
+// more spec docs: a markdown file with a frontmatter type (REQ-001 form a; cfg.Bundles can limit
+// the folders), or one that a cfg.Map glob selects (form b, REQ-130). A subfolder with no spec
+// doc holds assets of the bundle above it; a subfolder with its own spec doc is its own bundle.
+// Each spec doc's version holds the doc and every asset of its bundle.
 func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
-	s := &Scan{bundleDirs: map[string]bool{}, excluded: map[string]bool{}, bySlug: map[string]int{}}
+	s := &Scan{bundleDirs: map[string]bool{}, docs: map[string]bool{}, bySlug: map[string]int{}}
 	var dirs []string
-	var mapped []string
+	mapped := map[string][]string{} // folder -> mapped files directly in it
 	var markdown []string
 	err := fs.WalkDir(r.fsys, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -132,7 +126,7 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		}
 		if d.Type().IsRegular() && source.IsMarkdown(rel) {
 			if _, ok := cfg.MappedProfile(rel); ok {
-				mapped = append(mapped, rel)
+				mapped[path.Dir(rel)] = append(mapped[path.Dir(rel)], path.Base(rel))
 			} else {
 				markdown = append(markdown, rel)
 			}
@@ -142,64 +136,48 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, m := range mapped {
-		s.excluded[m] = true
-		s.excluded[source.AssetsDir(m)] = true
-	}
 
-	// A folder with two or more spec docs gives one single-file bundle per doc: a PRD and an
-	// SDD side by side each get their own profile and review. They are found before any folder
-	// loads, so no folder bundle takes them as assets.
-	var singles []string
+	// The spec docs of each folder are found before any folder loads, so no bundle takes a
+	// spec doc or a nested bundle as an asset.
+	docsIn := map[string][]string{}
 	for _, dir := range dirs {
-		if s.excluded[dir] {
-			continue
-		}
-		mains, problems := r.mainDocCandidates(dir, s.excluded)
+		typed, problems := r.mainDocCandidates(dir)
 		s.Problems = append(s.Problems, problems...)
-		if len(mains) == 0 || !cfg.BundleFolderAllowed(dir) {
+		if !cfg.BundleFolderAllowed(dir) {
+			typed = nil
+		}
+		files := append(typed, mapped[dir]...)
+		if len(files) == 0 {
 			continue
 		}
-		if len(mains) > 1 {
-			for _, m := range mains {
-				rel := path.Join(dir, m)
-				singles = append(singles, rel)
-				s.excluded[rel] = true
-				s.excluded[source.AssetsDir(rel)] = true
-			}
-			continue
-		}
+		sort.Strings(files)
+		files = uniq(files)
+		docsIn[dir] = files
 		s.bundleDirs[dir] = true
+		for _, f := range files {
+			s.docs[path.Join(dir, f)] = true
+		}
 	}
 	for _, dir := range dirs {
-		if !s.bundleDirs[dir] {
+		files := docsIn[dir]
+		if len(files) == 0 {
 			continue
 		}
-		files, problems, err := r.load(dir, s.skipFor(dir))
+		assets, problems, err := r.load(dir, s.skipFor(dir, ""))
 		if err != nil {
 			s.Problems = append(s.Problems, Problem{Path: dir, Message: err.Error()})
 			continue
 		}
 		s.Problems = append(s.Problems, problems...)
-		main, err := source.FindMainDoc(files)
-		if err != nil {
-			continue // reported above
+		for _, f := range files {
+			rel := path.Join(dir, f)
+			b, err := r.loadDoc(dir, f, assets, cfg, len(files) == 1)
+			if err != nil {
+				s.Problems = append(s.Problems, Problem{Path: rel, Message: err.Error()})
+				continue
+			}
+			s.Bundles = append(s.Bundles, b)
 		}
-		s.Bundles = append(s.Bundles, Bundle{Slug: dir, Dir: dir, Main: main, Files: files})
-	}
-	for _, m := range append(mapped, singles...) {
-		b, problems, err := r.loadSingle(m, cfg)
-		s.Problems = append(s.Problems, problems...)
-		if err != nil {
-			s.Problems = append(s.Problems, Problem{Path: m, Message: err.Error()})
-			continue
-		}
-		s.Bundles = append(s.Bundles, b)
-	}
-	// Every bundle takes the files its markdown points at (the carried files). The walk runs
-	// after both kinds of bundle exist, so a reference to another bundle's doc is known.
-	for i := range s.Bundles {
-		s.Problems = append(s.Problems, s.carry(r, &s.Bundles[i], source.DefaultLimits.BundleBytes)...)
 	}
 	sort.Slice(s.Bundles, func(i, j int) bool { return s.Bundles[i].Slug < s.Bundles[j].Slug })
 	for i, b := range s.Bundles {
@@ -212,7 +190,6 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		for _, f := range b.Files {
 			inBundle[path.Join(b.Dir, f.Path)] = true
 		}
-		inBundle[b.Slug] = true
 	}
 	for _, m := range markdown {
 		if inBundle[m] {
@@ -228,7 +205,17 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 	return s, nil
 }
 
-// Bundle returns the bundle with slug from the scan.
+func uniq(sorted []string) []string {
+	out := sorted[:0]
+	for i, v := range sorted {
+		if i == 0 || v != sorted[i-1] {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// Bundle returns the spec doc with slug from the scan.
 func (s *Scan) Bundle(slug string) (Bundle, bool) {
 	i, ok := s.bySlug[slug]
 	if !ok {
@@ -237,48 +224,50 @@ func (s *Scan) Bundle(slug string) (Bundle, bool) {
 	return s.Bundles[i], true
 }
 
-// skipFor returns the paths a folder bundle in dir must not include: nested bundle folders,
-// mapped files, and their assets folders.
-func (s *Scan) skipFor(dir string) func(rel string) bool {
+// Folders returns the bundle folders of the scan, sorted.
+func (s *Scan) Folders() []string {
+	out := make([]string, 0, len(s.bundleDirs))
+	for d := range s.bundleDirs {
+		out = append(out, d)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// skipFor returns the paths the assets of the bundle in dir must not include: nested bundle
+// folders, and every spec doc except keep.
+func (s *Scan) skipFor(dir, keep string) func(rel string) bool {
 	return func(rel string) bool {
-		return (rel != dir && s.bundleDirs[rel]) || s.excluded[rel]
+		return (rel != dir && s.bundleDirs[rel]) || (s.docs[rel] && rel != keep)
 	}
 }
 
-// loadSingle reads a single-file bundle: the mapped file and its assets folder (REQ-131).
-func (r *Root) loadSingle(rel string, cfg source.RepoConfig) (Bundle, []Problem, error) {
-	dir := path.Dir(rel)
-	file := path.Base(rel)
+// loadDoc makes the spec doc file in the bundle folder dir: the doc and the bundle's assets.
+// alone is true when the doc is the only spec doc in dir. Such a doc takes the folder's slug,
+// unless a mapping selects it.
+func (r *Root) loadDoc(dir, file string, assets []source.File, cfg source.RepoConfig, alone bool) (Bundle, error) {
+	rel := path.Join(dir, file)
 	content, err := r.readCapped(rel)
 	if err != nil {
-		return Bundle{}, nil, err
+		return Bundle{}, err
 	}
-	files := []source.File{{Path: file, Content: content}}
-	var problems []Problem
-	assets := path.Join(dir, source.AssetsDir(file))
-	if info, err := fs.Stat(r.fsys, assets); err == nil && info.IsDir() {
-		more, p, err := r.load(assets, func(string) bool { return false })
-		if err != nil {
-			return Bundle{}, nil, err
-		}
-		problems = p
-		for _, f := range more {
-			files = append(files, source.File{Path: source.AssetsDir(file) + "/" + f.Path, Content: f.Content})
-		}
-	}
-	profile, _ := cfg.MappedProfile(rel)
+	profile, mapped := cfg.MappedProfile(rel)
 	main, err := source.SingleFileMainDoc(file, content, profile)
 	if err != nil {
-		return Bundle{}, problems, err
+		return Bundle{}, err
 	}
+	files := append([]source.File{{Path: file, Content: content}}, assets...)
 	source.Sort(files)
-	slug := strings.TrimSuffix(rel, path.Ext(rel))
-	return Bundle{Slug: slug, Dir: dir, File: file, Main: main, Files: files}, problems, nil
+	slug := dir
+	if !alone || mapped {
+		slug = strings.TrimSuffix(rel, path.Ext(rel))
+	}
+	return Bundle{Slug: slug, Folder: dir, Dir: dir, File: file, Main: main, Files: files}, nil
 }
 
 // mainDocCandidates returns the markdown files directly in dir that have a frontmatter type.
 // A file whose frontmatter does not parse, but has a type line, is a problem.
-func (r *Root) mainDocCandidates(dir string, excluded map[string]bool) ([]string, []Problem) {
+func (r *Root) mainDocCandidates(dir string) ([]string, []Problem) {
 	entries, err := fs.ReadDir(r.fsys, dir)
 	if err != nil {
 		return nil, []Problem{{Path: dir, Message: err.Error()}}
@@ -290,9 +279,6 @@ func (r *Root) mainDocCandidates(dir string, excluded map[string]bool) ([]string
 			continue
 		}
 		rel := path.Join(dir, e.Name())
-		if excluded[rel] {
-			continue
-		}
 		content, err := r.readCapped(rel)
 		if err != nil {
 			continue // load reports it when the folder is a bundle
@@ -311,17 +297,13 @@ func (r *Root) mainDocCandidates(dir string, excluded map[string]bool) ([]string
 	return mains, problems
 }
 
-// Load reads the current files of the bundle with slug.
+// Load reads the current files of the spec doc with slug.
 func (r *Root) Load(s *Scan, slug string) ([]source.File, error) {
 	b, ok := s.Bundle(slug)
 	if !ok {
 		return nil, fmt.Errorf("no bundle %q on disk", slug)
 	}
-	if b.File != "" {
-		fresh, _, err := r.loadSingle(path.Join(b.Dir, b.File), source.RepoConfig{})
-		return fresh.Files, err
-	}
-	files, _, err := r.load(b.Dir, s.skipFor(b.Dir))
+	files, _, err := r.load(b.Dir, s.skipFor(b.Dir, path.Join(b.Dir, b.File)))
 	return files, err
 }
 
@@ -397,18 +379,18 @@ func (r *Root) Persist(s *Scan, slug string, op source.Op) error {
 		if err != nil {
 			return "", err
 		}
-		if !b.Allows(clean) {
-			return "", fmt.Errorf("%q is outside this single-file bundle; put assets in %s/", clean, source.AssetsDir(b.File))
+		if clean == b.File && op.Kind != source.OpWrite {
+			return "", fmt.Errorf("%s is the spec doc; rename or delete it on disk", clean)
 		}
-		if b.File != "" && clean == b.File && op.Kind != source.OpWrite {
-			return "", fmt.Errorf("%s is the doc of this bundle; rename or delete it on disk", clean)
-		}
-		// A path must not reach into a nested bundle.
+		// A path must not reach into a nested bundle or name another spec doc.
 		parts := strings.Split(clean, "/")
 		for i := 1; i <= len(parts); i++ {
 			rel := path.Join(dir, strings.Join(parts[:i], "/"))
-			if (i < len(parts) && s.bundleDirs[rel]) || (b.File == "" && s.excluded[rel]) {
+			if i < len(parts) && s.bundleDirs[rel] {
 				return "", fmt.Errorf("%q is inside another bundle", clean)
+			}
+			if i == len(parts) && s.docs[rel] && clean != b.File {
+				return "", fmt.Errorf("%q is another spec doc in this bundle; open that doc to change it", clean)
 			}
 		}
 		return r.abs(path.Join(dir, clean)), nil
@@ -604,76 +586,4 @@ func repoFilePath(rel string) (string, error) {
 		return "", fmt.Errorf("%q is outside the served folder", rel)
 	}
 	return clean, nil
-}
-
-// carry adds the files a bundle's markdown points at, to closure. A reference is a relative
-// link or an image that resolves at or below the bundle's folder: a bundle path may hold no
-// ".." segment, so a target above the folder has no path here, and the doc's link is never
-// rewritten. A mapped doc is another bundle, and a file already in the bundle is not taken
-// twice, so a cycle ends by itself.
-func (s *Scan) carry(r *Root, b *Bundle, limit int64) []Problem {
-	var problems []Problem
-	held := map[string]bool{} // paths in the bundle, relative to it
-	var total int64
-	for _, f := range b.Files {
-		held[f.Path] = true
-		total += int64(len(f.Content))
-	}
-	// The queue holds the bundle-relative paths whose references are still to read.
-	var queue []string
-	for _, f := range b.Files {
-		if source.IsMarkdown(f.Path) {
-			queue = append(queue, f.Path)
-		}
-	}
-	for len(queue) > 0 {
-		from := queue[0]
-		queue = queue[1:]
-		content := fileIn(b.Files, from)
-		if content == nil {
-			continue
-		}
-		for _, ref := range source.References(content) {
-			// The reference is relative to the folder of the file that wrote it.
-			inBundle := path.Join(path.Dir(from), ref)
-			if strings.HasPrefix(inBundle, "..") || inBundle == "." || held[inBundle] {
-				continue
-			}
-			rel := path.Join(b.Dir, inBundle)
-			if s.excluded[rel] || s.bundleDirs[rel] {
-				continue // another bundle holds it
-			}
-			info, err := fs.Stat(r.fsys, rel)
-			if err != nil || !info.Mode().IsRegular() {
-				continue // a link to nothing stays a broken link finding
-			}
-			if limit > 0 && total+info.Size() > limit {
-				problems = append(problems, Problem{Path: rel,
-					Message: fmt.Sprintf("%s references this file, and the bundle limit stops Speccy from taking it.", from)})
-				continue
-			}
-			content, err := r.readCapped(rel)
-			if err != nil {
-				continue
-			}
-			held[inBundle] = true
-			total += int64(len(content))
-			b.Files = append(b.Files, source.File{Path: inBundle, Content: content, CarriedBy: from})
-			if source.IsMarkdown(inBundle) {
-				queue = append(queue, inBundle)
-			}
-		}
-	}
-	source.Sort(b.Files)
-	return problems
-}
-
-// fileIn returns the content of one file of a bundle.
-func fileIn(files []source.File, p string) []byte {
-	for _, f := range files {
-		if f.Path == p {
-			return f.Content
-		}
-	}
-	return nil
 }

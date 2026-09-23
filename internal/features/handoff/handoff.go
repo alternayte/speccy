@@ -70,7 +70,7 @@ func (a *API) TakeHandoff(ctx context.Context, req api.TakeHandoffRequestObject)
 		return nil, err
 	}
 	row := pgdb.Handoff{
-		ID: kernel.NewID(), WorkspaceID: a.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
+		ID: kernel.NewID(), WorkspaceID: a.Workspace, SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID,
 		Verdict: result, Acknowledged: ack, Label: label, TakenBy: kernel.ActorFrom(ctx).UserID,
 		CreatedAt: time.Now().UTC(),
 	}
@@ -112,7 +112,7 @@ func allow(result string, v *api.BundleVerdict, ack bool) error {
 }
 
 // packet builds the build packet of b's current version.
-func (a *API) packet(ctx context.Context, b pgdb.Bundle) (api.BuildPacket, error) {
+func (a *API) packet(ctx context.Context, b pgdb.SpecDoc) (api.BuildPacket, error) {
 	q := a.DB.Queries()
 	if !b.CurrentVersionID.Valid {
 		return api.BuildPacket{}, kernel.NotFound("no_version", "The bundle has no version.")
@@ -126,14 +126,14 @@ func (a *API) packet(ctx context.Context, b pgdb.Bundle) (api.BuildPacket, error
 		return api.BuildPacket{}, err
 	}
 	out := api.BuildPacket{
-		Bundle: b.Slug, Title: b.Title, VersionNumber: ver.Number, MainDoc: b.MainDoc,
+		Bundle: b.Slug, Title: b.Title, VersionNumber: ver.Number, MainDoc: b.DocPath,
 		Files: []api.ContentFile{}, Links: []api.PacketLink{}, ExternalLinks: []api.PacketExternalLink{},
 		TraceIds:  []api.PacketTraceId{},
 		Questions: []api.PacketQuestion{},
 	}
 	var main []byte
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			main = f.Content
 		}
 		out.Files = append(out.Files, contentFile(f.Path, f.Content))
@@ -155,7 +155,7 @@ func (a *API) packet(ctx context.Context, b pgdb.Bundle) (api.BuildPacket, error
 }
 
 // prefixes are the trace ID prefixes of the bundle's profile.
-func (a *API) prefixes(b pgdb.Bundle) []string {
+func (a *API) prefixes(b pgdb.SpecDoc) []string {
 	if p, ok := a.Profiles()[b.ProfileKey]; ok {
 		return p.Profile.Trace.Prefixes
 	}
@@ -164,7 +164,7 @@ func (a *API) prefixes(b pgdb.Bundle) []string {
 
 // links carries the main doc of each bundle this one links to, so the builder reads the
 // upstream text without a second call.
-func (a *API) links(ctx context.Context, b pgdb.Bundle, main []byte) ([]api.PacketLink, error) {
+func (a *API) links(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]api.PacketLink, error) {
 	out := []api.PacketLink{}
 	linked, err := a.Reviews.LinkedBundles(ctx, b, main)
 	if err != nil {
@@ -181,12 +181,12 @@ func (a *API) links(ctx context.Context, b pgdb.Bundle, main []byte) ([]api.Pack
 			return nil, err
 		}
 		for _, f := range files {
-			if f.Path != l.Bundle.MainDoc {
+			if f.Path != l.Bundle.DocPath {
 				continue
 			}
 			out = append(out, api.PacketLink{
 				Kind: l.Kind, Bundle: l.Bundle.Slug, Title: l.Bundle.Title,
-				Path: path.Join(LinksDir, path.Base(l.Bundle.Slug)+path.Ext(l.Bundle.MainDoc)), Content: string(f.Content),
+				Path: path.Join(LinksDir, path.Base(l.Bundle.Slug)+path.Ext(l.Bundle.DocPath)), Content: string(f.Content),
 			})
 		}
 	}
@@ -195,7 +195,7 @@ func (a *API) links(ctx context.Context, b pgdb.Bundle, main []byte) ([]api.Pack
 
 // externalLinks carries the issues, pages, and code the doc links to: the kind, the URL, and
 // for a code target the commit the last run read. Speccy fetches no content (DEC-021).
-func (a *API) externalLinks(ctx context.Context, b pgdb.Bundle) ([]api.PacketExternalLink, error) {
+func (a *API) externalLinks(ctx context.Context, b pgdb.SpecDoc) ([]api.PacketExternalLink, error) {
 	q := a.DB.Queries()
 	rows, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
@@ -235,7 +235,7 @@ func traceIDs(main []byte, prefixes []string) []api.PacketTraceId {
 
 // questions are the build questions of the bundle's newest full run, with the answer the
 // readers agreed on. A question they read differently carries no answer.
-func (a *API) questions(ctx context.Context, b pgdb.Bundle) ([]api.PacketQuestion, error) {
+func (a *API) questions(ctx context.Context, b pgdb.SpecDoc) ([]api.PacketQuestion, error) {
 	out := []api.PacketQuestion{}
 	if a.Questions == nil {
 		return out, nil
@@ -282,7 +282,7 @@ func (a *API) ListHandoffs(ctx context.Context, req api.ListHandoffsRequestObjec
 	}
 	out := api.ListHandoffs200JSONResponse{Items: []api.Handoff{}}
 	for _, r := range rows {
-		v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: r.VersionID})
+		v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: r.VersionID})
 		number := int64(0)
 		if err == nil {
 			number = v.Number
@@ -324,7 +324,7 @@ func (a *API) CountForVersion(ctx context.Context, bundleID uuid.UUID, number in
 	}
 	n := 0
 	for _, r := range rows {
-		v, err := a.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{BundleID: bundleID, ID: r.VersionID})
+		v, err := a.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: bundleID, ID: r.VersionID})
 		if err == nil && v.Number == number {
 			n++
 		}

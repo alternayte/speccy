@@ -54,13 +54,29 @@ func (a *API) sharedBundle(ctx context.Context, token string) (pgdb.Bundle, erro
 	return b, err
 }
 
+// firstDoc returns the spec doc a share link opens: the first spec doc of the bundle by path.
+func (a *API) firstDoc(ctx context.Context, b pgdb.Bundle) (pgdb.SpecDoc, error) {
+	docs, err := a.DB.Queries().ListSpecDocsOfBundle(ctx, b.ID)
+	if err != nil {
+		return pgdb.SpecDoc{}, err
+	}
+	if len(docs) == 0 {
+		return pgdb.SpecDoc{}, errShareGone
+	}
+	return docs[0], nil
+}
+
 // GetShare looks up a share link.
 func (a *API) GetShare(ctx context.Context, req api.GetShareRequestObject) (api.GetShareResponseObject, error) {
 	b, err := a.sharedBundle(ctx, req.Token)
 	if err != nil {
 		return nil, err
 	}
-	return api.GetShare200JSONResponse{BundleId: b.ID, Title: b.Title}, nil
+	d, err := a.firstDoc(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetShare200JSONResponse{BundleId: d.ID, Title: b.Title}, nil
 }
 
 // joinResponse writes the guest cookie with the body.
@@ -87,6 +103,10 @@ func (a *API) JoinShare(ctx context.Context, req api.JoinShareRequestObject) (ap
 	if err != nil {
 		return nil, err
 	}
+	d, err := a.firstDoc(ctx, b)
+	if err != nil {
+		return nil, err
+	}
 	g := pgdb.ShareGuest{ID: kernel.NewID(), BundleID: b.ID, DisplayName: name, CreatedAt: time.Now().UTC()}
 	if err := a.DB.Queries().InsertShareGuest(ctx, pgdb.InsertShareGuestParams(g)); err != nil {
 		return nil, err
@@ -96,7 +116,7 @@ func (a *API) JoinShare(ctx context.Context, req api.JoinShareRequestObject) (ap
 		Name: GuestCookie, Value: a.signGuest(g.ID, b.ShareTokenHash.String, exp), Path: "/", Expires: exp,
 		HttpOnly: true, Secure: a.Secure, SameSite: http.SameSiteLaxMode,
 	}
-	return joinResponse{body: api.ShareInfo{BundleId: b.ID, Title: b.Title}, cookie: cookie}, nil
+	return joinResponse{body: api.ShareInfo{BundleId: d.ID, Title: b.Title}, cookie: cookie}, nil
 }
 
 // signGuest makes the cookie value: the guest ID, the share token hash it was made for, and
@@ -155,21 +175,29 @@ func (a *API) Guest(ctx context.Context, r *http.Request) *kernel.Guest {
 	return &kernel.Guest{ID: g.ID, BundleID: g.BundleID, Name: g.DisplayName}
 }
 
-func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.Bundle, error) {
-	return a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: id})
+// bundle returns spec doc docID and the bundle that holds it. Visibility and the share link
+// belong to the bundle.
+func (a *API) bundle(ctx context.Context, docID uuid.UUID) (pgdb.SpecDoc, pgdb.Bundle, error) {
+	q := a.DB.Queries()
+	d, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: docID})
+	if err != nil {
+		return d, pgdb.Bundle{}, err
+	}
+	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: d.BundleID})
+	return d, b, err
 }
 
-func (a *API) access(ctx context.Context, b pgdb.Bundle) (api.BundleAccess, error) {
+func (a *API) access(ctx context.Context, d pgdb.SpecDoc, b pgdb.Bundle) (api.BundleAccess, error) {
 	q := a.DB.Queries()
 	authors, err := q.ListBundleAuthors(ctx, b.ID)
 	if err != nil {
 		return api.BundleAccess{}, err
 	}
-	reviewers, err := q.ListBundleReviewers(ctx, b.ID)
+	reviewers, err := q.ListSpecDocReviewers(ctx, d.ID)
 	if err != nil {
 		return api.BundleAccess{}, err
 	}
-	canEdit, err := CanEdit(ctx, q, kernel.ActorFrom(ctx), b)
+	canEdit, err := CanEdit(ctx, q, kernel.ActorFrom(ctx), d)
 	if err != nil {
 		return api.BundleAccess{}, err
 	}
@@ -191,11 +219,11 @@ func nonNil(xs []string) []string {
 
 // GetBundleAccess returns who can see the bundle.
 func (a *API) GetBundleAccess(ctx context.Context, req api.GetBundleAccessRequestObject) (api.GetBundleAccessResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	d, b, err := a.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
-	out, err := a.access(ctx, b)
+	out, err := a.access(ctx, d, b)
 	if err != nil {
 		return nil, err
 	}
@@ -210,7 +238,7 @@ func (a *API) SetVisibility(ctx context.Context, req api.SetVisibilityRequestObj
 	}
 	q := a.DB.Queries()
 	now := time.Now().UTC()
-	b, err := a.bundle(ctx, req.BundleId)
+	d, b, err := a.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -222,10 +250,10 @@ func (a *API) SetVisibility(ctx context.Context, req api.SetVisibilityRequestObj
 			return nil, err
 		}
 	}
-	if b, err = a.bundle(ctx, b.ID); err != nil {
+	if d, b, err = a.bundle(ctx, d.ID); err != nil {
 		return nil, err
 	}
-	out, err := a.access(ctx, b)
+	out, err := a.access(ctx, d, b)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +266,7 @@ func (a *API) CreateShareLink(ctx context.Context, req api.CreateShareLinkReques
 	if a.Sealer == nil {
 		return nil, kernel.Invalid("hosted_only", "Share links work in hosted mode. In local mode, share the file or export the bundle.")
 	}
-	b, err := a.bundle(ctx, req.BundleId)
+	d, b, err := a.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -265,10 +293,10 @@ func (a *API) CreateShareLink(ctx context.Context, req api.CreateShareLinkReques
 	if err != nil {
 		return nil, err
 	}
-	if b, err = a.bundle(ctx, b.ID); err != nil {
+	if d, b, err = a.bundle(ctx, d.ID); err != nil {
 		return nil, err
 	}
-	acc, err := a.access(ctx, b)
+	acc, err := a.access(ctx, d, b)
 	if err != nil {
 		return nil, err
 	}
@@ -277,17 +305,17 @@ func (a *API) CreateShareLink(ctx context.Context, req api.CreateShareLinkReques
 
 // RevokeShareLink ends the share link. Its guests lose access at once.
 func (a *API) RevokeShareLink(ctx context.Context, req api.RevokeShareLinkRequestObject) (api.RevokeShareLinkResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	d, b, err := a.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
 	if err := a.DB.Queries().SetBundleShare(ctx, pgdb.SetBundleShareParams{ID: b.ID, UpdatedAt: time.Now().UTC()}); err != nil {
 		return nil, err
 	}
-	if b, err = a.bundle(ctx, b.ID); err != nil {
+	if d, b, err = a.bundle(ctx, d.ID); err != nil {
 		return nil, err
 	}
-	out, err := a.access(ctx, b)
+	out, err := a.access(ctx, d, b)
 	if err != nil {
 		return nil, err
 	}

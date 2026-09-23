@@ -28,8 +28,8 @@ DELETE FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND id = s
 UPDATE github_source SET head_commit = sqlc.arg(head_commit), synced_at = sqlc.arg(synced_at), error = sqlc.arg(error)
 WHERE id = sqlc.arg(id);
 
--- name: SetBundleSourceRef :exec
-UPDATE bundle SET source_ref = sqlc.arg(source_ref), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
+-- name: SetSpecDocSourceRef :exec
+UPDATE spec_doc SET source_ref = sqlc.arg(source_ref), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
 
 -- name: ListAdoptedTypes :many
 SELECT * FROM adopted_type WHERE source_id = sqlc.arg(source_id) ORDER BY path;

@@ -34,7 +34,7 @@ func (a *API) sourceAPI(ctx context.Context, src pgdb.GithubSource) (api.GithubS
 	}
 	n := len(adopted)
 	out.Adopted = &n
-	bundles, err := a.Service.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: a.Service.Workspace, SourceKind: KindGitHub})
+	bundles, err := a.Service.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: a.Service.Workspace, SourceKind: KindGitHub})
 	if err != nil {
 		return out, err
 	}
@@ -213,7 +213,7 @@ func (a *API) DeleteGithubSource(ctx context.Context, req api.DeleteGithubSource
 	} else if err != nil {
 		return nil, err
 	}
-	bundles, err := q.ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
+	bundles, err := q.ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +222,7 @@ func (a *API) DeleteGithubSource(ctx context.Context, req api.DeleteGithubSource
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
 		if ref.Source == req.SourceId && !b.ArchivedAt.Valid {
-			if err := q.SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID, ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now}); err != nil {
+			if err := q.SetSpecDocArchived(ctx, pgdb.SetSpecDocArchivedParams{ID: b.ID, ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now}); err != nil {
 				return nil, err
 			}
 		}

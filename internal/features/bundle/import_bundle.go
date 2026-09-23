@@ -13,6 +13,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing/fstest"
 
@@ -83,14 +84,24 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 		}
 	}
 
-	var made []pgdb.Bundle
+	var made []pgdb.SpecDoc
 	if s.Local == nil {
+		// The spec docs of one folder make one bundle.
+		byFolder := map[string][]NewDoc{}
+		var folders []string
 		for _, fb := range scan.Bundles {
-			b, err := s.CreateDB(ctx, dbSlug(name, fb.Slug), fb.Files, a.user(ctx))
+			if _, ok := byFolder[fb.Folder]; !ok {
+				folders = append(folders, fb.Folder)
+			}
+			byFolder[fb.Folder] = append(byFolder[fb.Folder], NewDoc{Slug: dbSlug(name, fb.Slug), Main: fb.Main, Files: fb.Files})
+		}
+		sort.Strings(folders)
+		for _, f := range folders {
+			docs, err := s.CreateDBBundle(ctx, dbSlug(name, f), byFolder[f], a.user(ctx))
 			if err != nil {
 				return nil, err
 			}
-			made = append(made, b)
+			made = append(made, docs...)
 		}
 	} else {
 		if _, err := s.createLocal(ctx, name, files); err != nil {

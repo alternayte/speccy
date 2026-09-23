@@ -15,18 +15,18 @@ import (
 
 // RepoDocPath is the path of a bundle's main doc in the repo, for a local or GitHub bundle.
 // A db bundle has no repo, so its doc path is its path in the bundle.
-func (s *Service) RepoDocPath(b pgdb.Bundle) string {
+func (s *Service) RepoDocPath(b pgdb.SpecDoc) string {
 	switch b.SourceKind {
 	case KindLocal:
 		var ref localRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
-		return path.Join(ref.Dir, b.MainDoc)
+		return path.Join(ref.Dir, b.DocPath)
 	case KindGitHub:
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
-		return path.Join(ref.Dir, b.MainDoc)
+		return path.Join(ref.Dir, b.DocPath)
 	default:
-		return b.MainDoc
+		return b.DocPath
 	}
 }
 
@@ -36,7 +36,7 @@ func (s *Service) RepoDocPath(b pgdb.Bundle) string {
 // A local bundle reads the sidecar at the root of the served folder, where git sees it. A db
 // or GitHub bundle reads it from the bundle's own files, so it travels in the version, and a
 // publish puts it at the root of the repo.
-func (s *Service) Decisions(ctx context.Context, b pgdb.Bundle) (source.Decisions, error) {
+func (s *Service) Decisions(ctx context.Context, b pgdb.SpecDoc) (source.Decisions, error) {
 	var src []byte
 	if b.SourceKind == KindLocal {
 		root := s.Local
@@ -56,7 +56,7 @@ func (s *Service) Decisions(ctx context.Context, b pgdb.Bundle) (source.Decision
 		if err != nil {
 			return source.Decisions{}, err
 		}
-		src = FileContent(files, source.SidecarPath(b.MainDoc))
+		src = FileContent(files, source.SidecarPath(b.DocPath))
 	}
 	if len(src) == 0 {
 		return source.Decisions{}, nil
@@ -80,7 +80,7 @@ func FileContent(files []source.File, p string) []byte {
 
 // SetDecisions writes the sidecar of a bundle's main doc. The doc text does not change, so a
 // local write makes no version, and a db or GitHub write records one (DEC-009).
-func (s *Service) SetDecisions(ctx context.Context, b pgdb.Bundle, d source.Decisions, by, message string) error {
+func (s *Service) SetDecisions(ctx context.Context, b pgdb.SpecDoc, d source.Decisions, by, message string) error {
 	content, err := d.Marshal()
 	if err != nil {
 		return err
@@ -95,9 +95,9 @@ func (s *Service) SetDecisions(ctx context.Context, b pgdb.Bundle, d source.Deci
 		}
 		return s.afterChange(ctx)
 	}
-	op := source.Op{Kind: source.OpWrite, Path: source.SidecarPath(b.MainDoc), Content: content}
+	op := source.Op{Kind: source.OpWrite, Path: source.SidecarPath(b.DocPath), Content: content}
 	if len(content) == 0 {
-		op = source.Op{Kind: source.OpDelete, Path: source.SidecarPath(b.MainDoc)}
+		op = source.Op{Kind: source.OpDelete, Path: source.SidecarPath(b.DocPath)}
 	}
 	var base uuid.UUID
 	if b.CurrentVersionID.Valid {

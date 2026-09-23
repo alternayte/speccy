@@ -100,34 +100,27 @@ func (s *Service) syncLocked(ctx context.Context) error {
 		return err
 	}
 	now := time.Now().UTC()
-	found := map[string]bool{}
+	found := map[uuid.UUID]bool{}
+	folders := map[string]bool{}
 	for _, fb := range scan.Bundles {
-		found[fb.Slug] = true
+		folders[fb.Folder] = true
+		ref, _ := json.Marshal(localRef{Dir: fb.Dir, File: fb.File})
 		err := s.DB.InTx(ctx, func(tx store.Tx) error {
-			q := tx.Queries()
-			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug})
-			message := "Changed on disk"
-			if errors.Is(err, sql.ErrNoRows) {
-				ref, _ := json.Marshal(localRef{Dir: fb.Dir, File: fb.File})
-				b = pgdb.Bundle{
-					ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: fb.Slug, Title: s.title(fb.Main, fb.Slug),
-					ProfileKey: fb.Main.Frontmatter.Type, MainDoc: fb.Main.Path, SourceKind: KindLocal, SourceRef: dbtype.JSON(ref),
-					CreatedAt: now, UpdatedAt: now,
-				}
-				if err := q.InsertBundle(ctx, insertParams(b)); err != nil {
-					return err
-				}
-				message = "Found on disk"
-			} else if err != nil {
+			folder, err := s.ensureBundle(ctx, tx.Queries(), fb.Folder, s.folderTitle(fb.Folder), KindLocal, dbtype.JSON(ref), now)
+			if err != nil {
 				return err
 			}
-			if b.ArchivedAt.Valid {
-				if err := q.SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID, UpdatedAt: now}); err != nil {
-					return err
-				}
+			d, isNew, err := s.ensureSpecDoc(ctx, tx.Queries(), folder, fb.Slug, fb.Main, KindLocal, dbtype.JSON(ref), now)
+			if err != nil {
+				return err
 			}
+			message := "Changed on disk"
+			if isNew {
+				message = "Found on disk"
+			}
+			found[d.ID] = true
 			_, _, err = version.Record(ctx, tx, version.Change{
-				Bundle: b, Files: fb.Files, Title: s.title(fb.Main, fb.Slug), Profile: fb.Main.Frontmatter.Type,
+				Bundle: d, Files: fb.Files, Title: s.title(fb.Main, fb.Slug), Profile: fb.Main.Frontmatter.Type,
 				MainDoc: fb.Main.Path, CreatedBy: LocalUser, Message: message,
 			})
 			return err
@@ -136,24 +129,118 @@ func (s *Service) syncLocked(ctx context.Context) error {
 			return err
 		}
 	}
-	existing, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
+	q := s.DB.Queries()
+	existing, err := q.ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
 	if err != nil {
 		return err
 	}
-	for _, b := range existing {
-		if !found[b.Slug] && !b.ArchivedAt.Valid {
-			err := s.DB.Queries().SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{
-				ID: b.ID, ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now,
+	for _, d := range existing {
+		if !found[d.ID] && !d.ArchivedAt.Valid {
+			err := q.SetSpecDocArchived(ctx, pgdb.SetSpecDocArchivedParams{
+				ID: d.ID, ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now,
 			})
 			if err != nil {
 				return err
 			}
 		}
 	}
+	if err := s.archiveEmptyBundles(ctx, q, KindLocal, folders, now); err != nil {
+		return err
+	}
 	s.scan = scan
 	s.repo = repo
 	s.problems = append(problems, scan.Problems...)
 	return nil
+}
+
+// ensureBundle returns the bundle with slug, and creates it when it is new. It keeps the title
+// and the source in step and un-archives the bundle.
+func (s *Service) ensureBundle(ctx context.Context, q store.Querier, slug, title, kind string, ref dbtype.JSON, now time.Time) (pgdb.Bundle, error) {
+	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: slug})
+	if errors.Is(err, sql.ErrNoRows) {
+		b = pgdb.Bundle{ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: slug, Title: title, SourceKind: kind,
+			SourceRef: ref, Visibility: "internal", CreatedAt: now, UpdatedAt: now}
+		return b, q.InsertBundle(ctx, pgdb.InsertBundleParams{ID: b.ID, WorkspaceID: b.WorkspaceID, Slug: b.Slug,
+			Title: b.Title, SourceKind: b.SourceKind, SourceRef: b.SourceRef, CreatedAt: now, UpdatedAt: now})
+	}
+	if err != nil {
+		return b, err
+	}
+	if b.Title != title || string(b.SourceRef) != string(ref) || b.ArchivedAt.Valid {
+		if err := q.UpdateBundle(ctx, pgdb.UpdateBundleParams{ID: b.ID, Title: title, SourceRef: ref, UpdatedAt: now}); err != nil {
+			return b, err
+		}
+		b.Title, b.SourceRef, b.ArchivedAt = title, ref, sql.NullTime{}
+	}
+	return b, nil
+}
+
+// ensureSpecDoc returns the spec doc main in bundle folder, and creates it when it is new. A spec
+// doc is found by its slug, or by its path in the bundle when its slug changed. isNew reports
+// that the spec doc was created.
+func (s *Service) ensureSpecDoc(ctx context.Context, q store.Querier, folder pgdb.Bundle, slug string, main source.MainDoc,
+	kind string, ref dbtype.JSON, now time.Time) (d pgdb.SpecDoc, isNew bool, err error) {
+	d, err = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: slug})
+	if errors.Is(err, sql.ErrNoRows) {
+		d, err = q.GetSpecDocByPath(ctx, pgdb.GetSpecDocByPathParams{BundleID: folder.ID, DocPath: main.Path})
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		d = pgdb.SpecDoc{
+			ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: folder.ID, Slug: slug, Title: s.title(main, slug),
+			ProfileKey: main.Frontmatter.Type, DocPath: main.Path, SourceKind: kind, SourceRef: ref,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		return d, true, q.InsertSpecDoc(ctx, insertParams(d))
+	}
+	if err != nil {
+		return d, false, err
+	}
+	if d.BundleID != folder.ID || d.Slug != slug || string(d.SourceRef) != string(ref) {
+		if err := q.SetSpecDocBundle(ctx, pgdb.SetSpecDocBundleParams{ID: d.ID, BundleID: folder.ID, Slug: slug, SourceRef: ref, UpdatedAt: now}); err != nil {
+			return d, false, err
+		}
+		d.BundleID, d.Slug, d.SourceRef = folder.ID, slug, ref
+	}
+	if d.ArchivedAt.Valid {
+		if err := q.SetSpecDocArchived(ctx, pgdb.SetSpecDocArchivedParams{ID: d.ID, UpdatedAt: now}); err != nil {
+			return d, false, err
+		}
+		d.ArchivedAt = sql.NullTime{}
+	}
+	return d, false, nil
+}
+
+// archiveEmptyBundles archives the bundles of kind that hold no live spec doc, and those whose
+// slug is not in keep when keep is not nil.
+func (s *Service) archiveEmptyBundles(ctx context.Context, q store.Querier, kind string, keep map[string]bool, now time.Time) error {
+	bundles, err := q.ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: kind})
+	if err != nil {
+		return err
+	}
+	for _, b := range bundles {
+		if b.ArchivedAt.Valid {
+			continue
+		}
+		docs, err := q.ListSpecDocsOfBundle(ctx, b.ID)
+		if err != nil {
+			return err
+		}
+		if len(docs) > 0 && (keep == nil || keep[b.Slug]) {
+			continue
+		}
+		if err := q.SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID, ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// folderTitle is the title of a bundle: its folder name.
+func (s *Service) folderTitle(slug string) string {
+	if slug == "." && s.Local != nil {
+		return filepath.Base(s.Local.Dir())
+	}
+	return path.Base(slug)
 }
 
 // localRef is source_ref for a local bundle: its folder, and the file of a single-file bundle.
@@ -216,6 +303,15 @@ func (s *Service) change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 	if err != nil {
 		return pgdb.Version{}, false, err
 	}
+	siblings, err := s.siblings(ctx, q, b)
+	if err != nil {
+		return pgdb.Version{}, false, err
+	}
+	for _, sib := range siblings {
+		if op.Path == sib.DocPath || (op.Kind == source.OpRename && op.To == sib.DocPath) {
+			return pgdb.Version{}, false, kernel.Invalid("other_spec_doc", "%s is another spec doc in this bundle. Open that doc to change it.", sib.DocPath)
+		}
+	}
 	next, err := source.Apply(files, op)
 	if err != nil {
 		return pgdb.Version{}, false, applyError(err)
@@ -244,18 +340,75 @@ func (s *Service) change(ctx context.Context, id, base uuid.UUID, op source.Op, 
 			Bundle: b, Files: next, Title: s.title(main, b.Slug), Profile: main.Frontmatter.Type,
 			MainDoc: main.Path, CreatedBy: by, Message: message,
 		})
-		return err
+		if err != nil || !changed || b.SourceKind == KindLocal || op.Path == b.DocPath {
+			return err
+		}
+		// An asset belongs to every spec doc of the bundle, so a change to it makes a new
+		// version of each. On disk the sync below does this.
+		for _, sib := range siblings {
+			if err := s.applyToSibling(ctx, tx, sib, op, by, message); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		return v, changed, err
+	}
+	if changed && b.SourceKind == KindLocal {
+		// The other spec docs of the folder read the changed asset from disk.
+		err = s.syncLocked(ctx)
+	}
 	return v, changed, err
+}
+
+// siblings returns the other live spec docs of the bundle that holds d.
+func (s *Service) siblings(ctx context.Context, q store.Querier, d pgdb.SpecDoc) ([]pgdb.SpecDoc, error) {
+	docs, err := q.ListSpecDocsOfBundle(ctx, d.BundleID)
+	if err != nil {
+		return nil, err
+	}
+	var out []pgdb.SpecDoc
+	for _, o := range docs {
+		if o.ID != d.ID {
+			out = append(out, o)
+		}
+	}
+	return out, nil
+}
+
+// applyToSibling applies an asset change to another spec doc of the same bundle. A change that
+// does not apply to its files (a carried file only this doc holds) leaves it as it is.
+func (s *Service) applyToSibling(ctx context.Context, tx store.Tx, sib pgdb.SpecDoc, op source.Op, by, message string) error {
+	if !sib.CurrentVersionID.Valid {
+		return nil
+	}
+	q := tx.Queries()
+	files, err := version.Files(ctx, q, sib.CurrentVersionID.UUID)
+	if err != nil {
+		return err
+	}
+	next, err := source.Apply(files, op)
+	if err == nil {
+		var main source.MainDoc
+		if main, err = s.mainDoc(sib, next); err == nil {
+			_, _, err = version.Record(ctx, tx, version.Change{
+				Bundle: sib, Files: next, Title: s.title(main, sib.Slug), Profile: main.Frontmatter.Type,
+				MainDoc: main.Path, CreatedBy: by, Message: message,
+			})
+			return err
+		}
+	}
+	return nil
 }
 
 // mainDoc finds the main doc of b in files: the mapped file of a single-file bundle, or the
 // REQ-001 rule for a folder.
-func (s *Service) mainDoc(b pgdb.Bundle, files []source.File) (source.MainDoc, error) {
+func (s *Service) mainDoc(b pgdb.SpecDoc, files []source.File) (source.MainDoc, error) {
 	var ref localRef
 	var gh githubRef
 	switch b.SourceKind {
-	case KindLocal:
+	case KindLocal, KindDB:
 		_ = json.Unmarshal(b.SourceRef, &ref)
 	case KindGitHub:
 		_ = json.Unmarshal(b.SourceRef, &gh)
@@ -278,7 +431,7 @@ func (s *Service) mainDoc(b pgdb.Bundle, files []source.File) (source.MainDoc, e
 
 // createLocal writes files to the new folder name under the served folder, and returns the
 // bundle that the sync finds there.
-func (s *Service) createLocal(ctx context.Context, name string, files []source.File) (pgdb.Bundle, error) {
+func (s *Service) createLocal(ctx context.Context, name string, files []source.File) (pgdb.SpecDoc, error) {
 	s.mu.Lock()
 	dir, err := s.Local.CreateBundle(name, files)
 	if err == nil {
@@ -290,28 +443,28 @@ func (s *Service) createLocal(ctx context.Context, name string, files []source.F
 	}
 	if err != nil {
 		if _, ok := kernel.AsError(err); ok {
-			return pgdb.Bundle{}, err
+			return pgdb.SpecDoc{}, err
 		}
-		return pgdb.Bundle{}, kernel.Invalid("create_failed", "%s", sentence(err.Error()))
+		return pgdb.SpecDoc{}, kernel.Invalid("create_failed", "%s", sentence(err.Error()))
 	}
 	all, err := s.bundlesUnder(ctx, dir)
 	if err != nil {
-		return pgdb.Bundle{}, err
+		return pgdb.SpecDoc{}, err
 	}
 	if len(all) == 0 {
-		return pgdb.Bundle{}, fmt.Errorf("find the new bundle %s: the scan found none", dir)
+		return pgdb.SpecDoc{}, fmt.Errorf("find the new bundle %s: the scan found none", dir)
 	}
 	return all[0], nil
 }
 
 // bundlesUnder returns the local bundles in the folder dir, by slug: one for a folder with one
 // spec doc, one for each spec doc otherwise.
-func (s *Service) bundlesUnder(ctx context.Context, dir string) ([]pgdb.Bundle, error) {
-	bundles, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
+func (s *Service) bundlesUnder(ctx context.Context, dir string) ([]pgdb.SpecDoc, error) {
+	bundles, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
 	if err != nil {
 		return nil, err
 	}
-	var out []pgdb.Bundle
+	var out []pgdb.SpecDoc
 	for _, b := range bundles {
 		if b.Slug == dir || strings.HasPrefix(b.Slug, dir+"/") {
 			out = append(out, b)
@@ -321,49 +474,88 @@ func (s *Service) bundlesUnder(ctx context.Context, dir string) ([]pgdb.Bundle, 
 	return out, nil
 }
 
-// CreateDB creates a bundle in the db source from files.
-func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File, by string) (pgdb.Bundle, error) {
+// CreateDB creates a bundle in the db source from files, with the one spec doc they hold.
+func (s *Service) CreateDB(ctx context.Context, slug string, files []source.File, by string) (pgdb.SpecDoc, error) {
 	main, err := source.FindMainDoc(files)
 	if err != nil {
-		return pgdb.Bundle{}, kernel.Invalid("no_main_doc", "The files have %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
+		return pgdb.SpecDoc{}, kernel.Invalid("no_main_doc", "The files have %s. A bundle needs exactly one markdown file with a type field in its frontmatter.", err.Error())
 	}
-	if err := source.CheckLimits(files, s.limits(ctx)); err != nil {
-		return pgdb.Bundle{}, err
+	docs, err := s.CreateDBBundle(ctx, slug, []NewDoc{{Slug: slug, Main: main, Files: files}}, by)
+	if err != nil {
+		return pgdb.SpecDoc{}, err
+	}
+	return docs[0], nil
+}
+
+// NewDoc is one spec doc of a new db bundle: its slug, its doc, and the files of its version.
+type NewDoc struct {
+	Slug  string
+	Main  source.MainDoc
+	Files []source.File
+}
+
+// CreateDBBundle creates the bundle slug in the db source, with one spec doc for each of docs.
+func (s *Service) CreateDBBundle(ctx context.Context, slug string, docs []NewDoc, by string) ([]pgdb.SpecDoc, error) {
+	for _, d := range docs {
+		if err := source.CheckLimits(d.Files, s.limits(ctx)); err != nil {
+			return nil, err
+		}
 	}
 	now := time.Now().UTC()
-	b := pgdb.Bundle{
-		ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: slug, Title: s.title(main, slug),
-		ProfileKey: main.Frontmatter.Type, MainDoc: main.Path, SourceKind: KindDB, SourceRef: dbtype.JSON(`{}`),
-		CreatedAt: now, UpdatedAt: now,
-	}
-	err = s.DB.InTx(ctx, func(tx store.Tx) error {
+	var made []pgdb.SpecDoc
+	err := s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
 		if _, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: slug}); err == nil {
 			return kernel.Conflict("slug_taken", "A bundle named %q already exists. Choose another name.", slug)
 		} else if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		if err := q.InsertBundle(ctx, insertParams(b)); err != nil {
+		folder, err := s.ensureBundle(ctx, q, slug, path.Base(slug), KindDB, dbtype.JSON(`{}`), now)
+		if err != nil {
 			return err
 		}
 		// SDD §3: a member who creates a bundle becomes its author.
 		if by != LocalUser {
-			if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: b.ID, UserID: by}); err != nil {
+			if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: folder.ID, UserID: by}); err != nil {
 				return err
 			}
 		}
-		_, _, err := version.Record(ctx, tx, version.Change{
-			Bundle: b, Files: files, Title: b.Title, Profile: b.ProfileKey, MainDoc: b.MainDoc, CreatedBy: by, Message: "Imported",
-		})
-		return err
+		for _, nd := range docs {
+			if _, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: nd.Slug}); err == nil {
+				return kernel.Conflict("slug_taken", "A bundle named %q already exists. Choose another name.", nd.Slug)
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
+			ref, _ := json.Marshal(localRef{File: nd.Main.Path})
+			d := pgdb.SpecDoc{
+				ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: folder.ID, Slug: nd.Slug, Title: s.title(nd.Main, nd.Slug),
+				ProfileKey: nd.Main.Frontmatter.Type, DocPath: nd.Main.Path, SourceKind: KindDB, SourceRef: dbtype.JSON(ref),
+				CreatedAt: now, UpdatedAt: now,
+			}
+			if err := q.InsertSpecDoc(ctx, insertParams(d)); err != nil {
+				return err
+			}
+			if _, _, err := version.Record(ctx, tx, version.Change{
+				Bundle: d, Files: nd.Files, Title: d.Title, Profile: d.ProfileKey, MainDoc: d.DocPath, CreatedBy: by, Message: "Imported",
+			}); err != nil {
+				return err
+			}
+			made = append(made, d)
+		}
+		return nil
 	})
 	if err != nil {
-		return pgdb.Bundle{}, err
+		return nil, err
 	}
 	if err := s.afterChange(ctx); err != nil {
-		return pgdb.Bundle{}, err
+		return nil, err
 	}
-	return version.Bundle(ctx, s.DB.Queries(), s.Workspace, b.ID)
+	for i, d := range made {
+		if made[i], err = version.Bundle(ctx, s.DB.Queries(), s.Workspace, d.ID); err != nil {
+			return nil, err
+		}
+	}
+	return made, nil
 }
 
 func (s *Service) title(m source.MainDoc, slug string) string {
@@ -376,9 +568,9 @@ func (s *Service) title(m source.MainDoc, slug string) string {
 	return path.Base(slug)
 }
 
-func insertParams(b pgdb.Bundle) pgdb.InsertBundleParams {
-	return pgdb.InsertBundleParams{
-		ID: b.ID, WorkspaceID: b.WorkspaceID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey, MainDoc: b.MainDoc,
+func insertParams(b pgdb.SpecDoc) pgdb.InsertSpecDocParams {
+	return pgdb.InsertSpecDocParams{
+		ID: b.ID, WorkspaceID: b.WorkspaceID, BundleID: b.BundleID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey, DocPath: b.DocPath,
 		SourceKind: b.SourceKind, SourceRef: b.SourceRef, CreatedAt: b.CreatedAt, UpdatedAt: b.UpdatedAt,
 	}
 }

@@ -56,7 +56,7 @@ type GitHubState struct {
 }
 
 // GitHubStateOf returns the GitHub state of b, or false for another source.
-func GitHubStateOf(ctx context.Context, q store.Querier, b pgdb.Bundle) (GitHubState, bool) {
+func GitHubStateOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (GitHubState, bool) {
 	if b.SourceKind != KindGitHub {
 		return GitHubState{}, false
 	}
@@ -265,35 +265,33 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 		}
 		err := s.DB.InTx(ctx, func(tx store.Tx) error {
 			q := tx.Queries()
-			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug})
 			var ref githubRef
-			if errors.Is(err, sql.ErrNoRows) {
-				ref = githubRef{Source: src.ID, Dir: fb.Dir, File: fb.File, Profile: mapped}
-				raw, _ := json.Marshal(ref)
-				b = pgdb.Bundle{ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: fb.Slug, Title: s.title(fb.Main, fb.Slug),
-					ProfileKey: fb.Main.Frontmatter.Type, MainDoc: fb.Main.Path, SourceKind: KindGitHub, SourceRef: dbtype.JSON(raw),
-					CreatedAt: now, UpdatedAt: now}
-				if err := q.InsertBundle(ctx, insertParams(b)); err != nil {
-					return err
-				}
-				// The admin who added the source is the author of its bundles (SDD §3).
-				if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: b.ID, UserID: src.CreatedBy}); err != nil {
-					return err
-				}
-			} else if err != nil {
-				return err
-			} else if b.SourceKind != KindGitHub {
-				taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
-				return nil
-			} else {
+			if b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug}); err == nil {
 				_ = json.Unmarshal(b.SourceRef, &ref)
-				if ref.Source != src.ID {
+				if b.SourceKind != KindGitHub || ref.Source != src.ID {
 					taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
 					return nil
 				}
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return err
 			}
-			if b.ArchivedAt.Valid {
-				if err := q.SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID, UpdatedAt: now}); err != nil {
+			folderRef, _ := json.Marshal(githubRef{Source: src.ID, Dir: fb.Dir})
+			folder, err := s.ensureBundle(ctx, q, fb.Folder, s.folderTitle(fb.Folder), KindGitHub, dbtype.JSON(folderRef), now)
+			if err != nil {
+				return err
+			}
+			if ref.Source == uuid.Nil {
+				ref = githubRef{Source: src.ID, Dir: fb.Dir, File: fb.File, Profile: mapped}
+			}
+			raw, _ := json.Marshal(ref)
+			b, isNew, err := s.ensureSpecDoc(ctx, q, folder, fb.Slug, fb.Main, KindGitHub, dbtype.JSON(raw), now)
+			if err != nil {
+				return err
+			}
+			_ = json.Unmarshal(b.SourceRef, &ref)
+			if isNew {
+				// The admin who added the source is the author of its bundles (SDD §3).
+				if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: folder.ID, UserID: src.CreatedBy}); err != nil {
 					return err
 				}
 			}
@@ -323,14 +321,14 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 				}
 			}
 			ref.Profile = mapped
-			raw, _ := json.Marshal(ref)
-			return q.SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: now})
+			raw, _ = json.Marshal(ref)
+			return q.SetSpecDocSourceRef(ctx, pgdb.SetSpecDocSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: now})
 		})
 		if err != nil {
 			return taken, err
 		}
 	}
-	existing, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
+	existing, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
 	if err != nil {
 		return taken, err
 	}
@@ -338,13 +336,13 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
 		if ref.Source == src.ID && !found[b.Slug] && !b.ArchivedAt.Valid {
-			if err := s.DB.Queries().SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID,
+			if err := s.DB.Queries().SetSpecDocArchived(ctx, pgdb.SetSpecDocArchivedParams{ID: b.ID,
 				ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now}); err != nil {
 				return taken, err
 			}
 		}
 	}
-	return taken, nil
+	return taken, s.archiveEmptyBundles(ctx, s.DB.Queries(), KindGitHub, nil, now)
 }
 
 // underSource says whether a repo path belongs to the source: anything in its folder, or the
@@ -447,8 +445,8 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	if err != nil {
 		return github.PullRequest{}, err
 	}
-	changes := diffChanges(ref.Dir, b.MainDoc, published, current)
-	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: b.CurrentVersionID.UUID})
+	changes := diffChanges(ref.Dir, b.DocPath, published, current)
+	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID})
 	if err != nil {
 		return github.PullRequest{}, err
 	}
@@ -463,7 +461,7 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	}
 	ref.PR, ref.PRNumber = pr.URL, pr.Number
 	raw, _ := json.Marshal(ref)
-	if err := q.SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()}); err != nil {
+	if err := q.SetSpecDocSourceRef(ctx, pgdb.SetSpecDocSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()}); err != nil {
 		return pr, err
 	}
 	return pr, nil
@@ -548,7 +546,7 @@ func (s *Service) DiscardDraft(ctx context.Context, id uuid.UUID, by string) (pg
 		}
 		ref.Published, ref.PR, ref.PRNumber = v.ID, "", 0
 		raw, _ := json.Marshal(ref)
-		return tx.Queries().SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()})
+		return tx.Queries().SetSpecDocSourceRef(ctx, pgdb.SetSpecDocSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()})
 	})
 	s.mu.Unlock()
 	if err != nil {

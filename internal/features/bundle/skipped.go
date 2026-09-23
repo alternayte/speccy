@@ -122,18 +122,18 @@ func (a *API) GuessProfile(ctx context.Context, req api.GuessProfileRequestObjec
 }
 
 // bundleOfDoc returns the local bundle whose main doc is the root-relative path doc.
-func (a *API) bundleOfDoc(ctx context.Context, doc string) (pgdb.Bundle, error) {
+func (a *API) bundleOfDoc(ctx context.Context, doc string) (pgdb.SpecDoc, error) {
 	s := a.Service
-	bundles, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
+	bundles, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
 	if err != nil {
-		return pgdb.Bundle{}, err
+		return pgdb.SpecDoc{}, err
 	}
 	for _, b := range bundles {
 		var ref localRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
-		if path.Join(ref.Dir, b.MainDoc) == doc {
+		if path.Join(ref.Dir, b.DocPath) == doc {
 			return b, nil
 		}
 	}
-	return pgdb.Bundle{}, kernel.NotFound("bundle_not_found", "No bundle holds %s after the scan.", doc)
+	return pgdb.SpecDoc{}, kernel.NotFound("bundle_not_found", "No bundle holds %s after the scan.", doc)
 }

@@ -11,39 +11,51 @@ import (
 	"github.com/google/uuid"
 )
 
-const clearBundleHead = `-- name: ClearBundleHead :exec
-UPDATE bundle SET current_version_id = NULL WHERE id = ?1
+const clearSpecDocHead = `-- name: ClearSpecDocHead :exec
+UPDATE spec_doc SET current_version_id = NULL WHERE id = ?1
 `
 
 // The bundle points at a version, and the version points at the bundle. The head goes first,
 // so neither foreign key holds the other up.
-func (q *Queries) ClearBundleHead(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, clearBundleHead, id)
+func (q *Queries) ClearSpecDocHead(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, clearSpecDocHead, id)
 	return err
 }
 
-const countBundlesUsingProfile = `-- name: CountBundlesUsingProfile :one
-SELECT COUNT(*) FROM bundle WHERE workspace_id = ?1 AND profile_key = ?2 AND archived_at IS NULL
+const countSpecDocsInBundle = `-- name: CountSpecDocsInBundle :one
+SELECT COUNT(*) FROM spec_doc WHERE bundle_id = ?1
 `
 
-type CountBundlesUsingProfileParams struct {
-	WorkspaceID uuid.UUID
-	ProfileKey  string
-}
-
-func (q *Queries) CountBundlesUsingProfile(ctx context.Context, arg CountBundlesUsingProfileParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countBundlesUsingProfile, arg.WorkspaceID, arg.ProfileKey)
+// Every spec doc of the bundle, archived or not.
+func (q *Queries) CountSpecDocsInBundle(ctx context.Context, bundleID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSpecDocsInBundle, bundleID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const deleteAnswersOfBundle = `-- name: DeleteAnswersOfBundle :exec
-DELETE FROM answer WHERE run_id IN (SELECT id FROM review_run WHERE bundle_id = ?1)
+const countSpecDocsUsingProfile = `-- name: CountSpecDocsUsingProfile :one
+SELECT COUNT(*) FROM spec_doc WHERE workspace_id = ?1 AND profile_key = ?2 AND archived_at IS NULL
 `
 
-func (q *Queries) DeleteAnswersOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAnswersOfBundle, bundleID)
+type CountSpecDocsUsingProfileParams struct {
+	WorkspaceID uuid.UUID
+	ProfileKey  string
+}
+
+func (q *Queries) CountSpecDocsUsingProfile(ctx context.Context, arg CountSpecDocsUsingProfileParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSpecDocsUsingProfile, arg.WorkspaceID, arg.ProfileKey)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteAnswersOfSpecDoc = `-- name: DeleteAnswersOfSpecDoc :exec
+DELETE FROM answer WHERE run_id IN (SELECT id FROM review_run WHERE spec_doc_id = ?1)
+`
+
+func (q *Queries) DeleteAnswersOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAnswersOfSpecDoc, specDocID)
 	return err
 }
 
@@ -53,15 +65,6 @@ DELETE FROM bundle_author WHERE bundle_id = ?1
 
 func (q *Queries) DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteBundleAuthors, bundleID)
-	return err
-}
-
-const deleteBundleReviewers = `-- name: DeleteBundleReviewers :exec
-DELETE FROM bundle_reviewer WHERE bundle_id = ?1
-`
-
-func (q *Queries) DeleteBundleReviewers(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteBundleReviewers, bundleID)
 	return err
 }
 
@@ -79,21 +82,12 @@ func (q *Queries) DeleteBundleRow(ctx context.Context, arg DeleteBundleRowParams
 	return err
 }
 
-const deleteBundleStatusView = `-- name: DeleteBundleStatusView :exec
-DELETE FROM bundle_status_view WHERE bundle_id = ?1
+const deleteClaimsOfSpecDoc = `-- name: DeleteClaimsOfSpecDoc :exec
+DELETE FROM claim WHERE run_id IN (SELECT id FROM review_run WHERE spec_doc_id = ?1)
 `
 
-func (q *Queries) DeleteBundleStatusView(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteBundleStatusView, bundleID)
-	return err
-}
-
-const deleteClaimsOfBundle = `-- name: DeleteClaimsOfBundle :exec
-DELETE FROM claim WHERE run_id IN (SELECT id FROM review_run WHERE bundle_id = ?1)
-`
-
-func (q *Queries) DeleteClaimsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteClaimsOfBundle, bundleID)
+func (q *Queries) DeleteClaimsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteClaimsOfSpecDoc, specDocID)
 	return err
 }
 
@@ -106,39 +100,39 @@ func (q *Queries) DeleteEventsOfStream(ctx context.Context, streamID uuid.UUID) 
 	return err
 }
 
-const deleteFindingsOfBundle = `-- name: DeleteFindingsOfBundle :exec
-DELETE FROM finding WHERE run_id IN (SELECT id FROM review_run WHERE bundle_id = ?1)
+const deleteFindingsOfSpecDoc = `-- name: DeleteFindingsOfSpecDoc :exec
+DELETE FROM finding WHERE run_id IN (SELECT id FROM review_run WHERE spec_doc_id = ?1)
 `
 
-func (q *Queries) DeleteFindingsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteFindingsOfBundle, bundleID)
+func (q *Queries) DeleteFindingsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteFindingsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteHandoffsOfBundle = `-- name: DeleteHandoffsOfBundle :exec
-DELETE FROM handoff WHERE bundle_id = ?1
+const deleteHandoffsOfSpecDoc = `-- name: DeleteHandoffsOfSpecDoc :exec
+DELETE FROM handoff WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteHandoffsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteHandoffsOfBundle, bundleID)
+func (q *Queries) DeleteHandoffsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteHandoffsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteLinkStatesOfBundle = `-- name: DeleteLinkStatesOfBundle :exec
-DELETE FROM link_state WHERE bundle_id = ?1
+const deleteLinkStatesOfSpecDoc = `-- name: DeleteLinkStatesOfSpecDoc :exec
+DELETE FROM link_state WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteLinkStatesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteLinkStatesOfBundle, bundleID)
+func (q *Queries) DeleteLinkStatesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLinkStatesOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteLinksOfBundle = `-- name: DeleteLinksOfBundle :exec
-DELETE FROM link WHERE from_bundle_id = ?1 OR target_bundle_id = ?1
+const deleteLinksOfSpecDoc = `-- name: DeleteLinksOfSpecDoc :exec
+DELETE FROM link WHERE from_spec_doc_id = ?1 OR target_spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteLinksOfBundle, bundleID)
+func (q *Queries) DeleteLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLinksOfSpecDoc, specDocID)
 	return err
 }
 
@@ -183,39 +177,80 @@ func (q *Queries) DeleteProfileVersionsOf(ctx context.Context, profileID uuid.UU
 	return err
 }
 
-const deleteQuestionResultsOfBundle = `-- name: DeleteQuestionResultsOfBundle :exec
-DELETE FROM question_result WHERE run_id IN (SELECT id FROM review_run WHERE bundle_id = ?1)
+const deleteQuestionResultsOfSpecDoc = `-- name: DeleteQuestionResultsOfSpecDoc :exec
+DELETE FROM question_result WHERE run_id IN (SELECT id FROM review_run WHERE spec_doc_id = ?1)
 `
 
-func (q *Queries) DeleteQuestionResultsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteQuestionResultsOfBundle, bundleID)
+func (q *Queries) DeleteQuestionResultsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteQuestionResultsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteQuestionsOfBundle = `-- name: DeleteQuestionsOfBundle :exec
-DELETE FROM question WHERE bundle_id = ?1
+const deleteQuestionsOfSpecDoc = `-- name: DeleteQuestionsOfSpecDoc :exec
+DELETE FROM question WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteQuestionsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteQuestionsOfBundle, bundleID)
+func (q *Queries) DeleteQuestionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteQuestionsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteReviewRunsOfBundle = `-- name: DeleteReviewRunsOfBundle :exec
-DELETE FROM review_run WHERE bundle_id = ?1
+const deleteReviewRunsOfSpecDoc = `-- name: DeleteReviewRunsOfSpecDoc :exec
+DELETE FROM review_run WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteReviewRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteReviewRunsOfBundle, bundleID)
+func (q *Queries) DeleteReviewRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteReviewRunsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteRunLinksOfBundle = `-- name: DeleteRunLinksOfBundle :exec
-DELETE FROM run_link WHERE bundle_id = ?1
+const deleteRunLinksOfSpecDoc = `-- name: DeleteRunLinksOfSpecDoc :exec
+DELETE FROM run_link WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteRunLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteRunLinksOfBundle, bundleID)
+func (q *Queries) DeleteRunLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteRunLinksOfSpecDoc, specDocID)
+	return err
+}
+
+const deleteShareGuestsOfBundle = `-- name: DeleteShareGuestsOfBundle :exec
+DELETE FROM share_guest WHERE bundle_id = ?1
+`
+
+func (q *Queries) DeleteShareGuestsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteShareGuestsOfBundle, bundleID)
+	return err
+}
+
+const deleteSpecDocReviewers = `-- name: DeleteSpecDocReviewers :exec
+DELETE FROM spec_doc_reviewer WHERE spec_doc_id = ?1
+`
+
+func (q *Queries) DeleteSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteSpecDocReviewers, specDocID)
+	return err
+}
+
+const deleteSpecDocRow = `-- name: DeleteSpecDocRow :exec
+DELETE FROM spec_doc WHERE workspace_id = ?1 AND id = ?2
+`
+
+type DeleteSpecDocRowParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) DeleteSpecDocRow(ctx context.Context, arg DeleteSpecDocRowParams) error {
+	_, err := q.db.ExecContext(ctx, deleteSpecDocRow, arg.WorkspaceID, arg.ID)
+	return err
+}
+
+const deleteSpecDocStatusView = `-- name: DeleteSpecDocStatusView :exec
+DELETE FROM spec_doc_status_view WHERE spec_doc_id = ?1
+`
+
+func (q *Queries) DeleteSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteSpecDocStatusView, specDocID)
 	return err
 }
 
@@ -228,107 +263,107 @@ func (q *Queries) DeleteStream(ctx context.Context, streamID uuid.UUID) error {
 	return err
 }
 
-const deleteThreadMessagesOfBundle = `-- name: DeleteThreadMessagesOfBundle :exec
-DELETE FROM thread_message_view WHERE thread_id IN (SELECT id FROM thread_view WHERE bundle_id = ?1)
+const deleteThreadMessagesOfSpecDoc = `-- name: DeleteThreadMessagesOfSpecDoc :exec
+DELETE FROM thread_message_view WHERE thread_id IN (SELECT id FROM thread_view WHERE spec_doc_id = ?1)
 `
 
-func (q *Queries) DeleteThreadMessagesOfBundle(ctx context.Context, bundleID uuid.NullUUID) error {
-	_, err := q.db.ExecContext(ctx, deleteThreadMessagesOfBundle, bundleID)
+func (q *Queries) DeleteThreadMessagesOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error {
+	_, err := q.db.ExecContext(ctx, deleteThreadMessagesOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteThreadsOfBundle = `-- name: DeleteThreadsOfBundle :exec
-DELETE FROM thread_view WHERE bundle_id = ?1
+const deleteThreadsOfSpecDoc = `-- name: DeleteThreadsOfSpecDoc :exec
+DELETE FROM thread_view WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteThreadsOfBundle(ctx context.Context, bundleID uuid.NullUUID) error {
-	_, err := q.db.ExecContext(ctx, deleteThreadsOfBundle, bundleID)
+func (q *Queries) DeleteThreadsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error {
+	_, err := q.db.ExecContext(ctx, deleteThreadsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteVerdictsOfBundle = `-- name: DeleteVerdictsOfBundle :exec
-DELETE FROM verdict WHERE run_id IN (SELECT id FROM review_run WHERE bundle_id = ?1)
+const deleteVerdictsOfSpecDoc = `-- name: DeleteVerdictsOfSpecDoc :exec
+DELETE FROM verdict WHERE run_id IN (SELECT id FROM review_run WHERE spec_doc_id = ?1)
 `
 
-func (q *Queries) DeleteVerdictsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteVerdictsOfBundle, bundleID)
+func (q *Queries) DeleteVerdictsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteVerdictsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteVerificationOutcomesOfBundle = `-- name: DeleteVerificationOutcomesOfBundle :exec
+const deleteVerificationOutcomesOfSpecDoc = `-- name: DeleteVerificationOutcomesOfSpecDoc :exec
 
-DELETE FROM verification_outcome WHERE run_id IN (SELECT id FROM verification_run WHERE bundle_id = ?1)
+DELETE FROM verification_outcome WHERE run_id IN (SELECT id FROM verification_run WHERE spec_doc_id = ?1)
 `
 
 // Deleting a bundle removes everything that hangs off it. The order is children first,
 // because the foreign keys do not cascade.
-func (q *Queries) DeleteVerificationOutcomesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteVerificationOutcomesOfBundle, bundleID)
+func (q *Queries) DeleteVerificationOutcomesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteVerificationOutcomesOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteVerificationRunsOfBundle = `-- name: DeleteVerificationRunsOfBundle :exec
-DELETE FROM verification_run WHERE bundle_id = ?1
+const deleteVerificationRunsOfSpecDoc = `-- name: DeleteVerificationRunsOfSpecDoc :exec
+DELETE FROM verification_run WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteVerificationRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteVerificationRunsOfBundle, bundleID)
+func (q *Queries) DeleteVerificationRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteVerificationRunsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteVersionFilesOfBundle = `-- name: DeleteVersionFilesOfBundle :exec
-DELETE FROM version_file WHERE version_id IN (SELECT id FROM version WHERE bundle_id = ?1)
+const deleteVersionFilesOfSpecDoc = `-- name: DeleteVersionFilesOfSpecDoc :exec
+DELETE FROM version_file WHERE version_id IN (SELECT id FROM version WHERE spec_doc_id = ?1)
 `
 
-func (q *Queries) DeleteVersionFilesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteVersionFilesOfBundle, bundleID)
+func (q *Queries) DeleteVersionFilesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteVersionFilesOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteVersionsOfBundle = `-- name: DeleteVersionsOfBundle :exec
-DELETE FROM version WHERE bundle_id = ?1
+const deleteVersionsOfSpecDoc = `-- name: DeleteVersionsOfSpecDoc :exec
+DELETE FROM version WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteVersionsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteVersionsOfBundle, bundleID)
+func (q *Queries) DeleteVersionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteVersionsOfSpecDoc, specDocID)
 	return err
 }
 
-const deleteWaiversOfBundle = `-- name: DeleteWaiversOfBundle :exec
-DELETE FROM waiver_view WHERE bundle_id = ?1
+const deleteWaiversOfSpecDoc = `-- name: DeleteWaiversOfSpecDoc :exec
+DELETE FROM waiver_view WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteWaiversOfBundle, bundleID)
+func (q *Queries) DeleteWaiversOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteWaiversOfSpecDoc, specDocID)
 	return err
 }
 
-const listBundlesUsingProfile = `-- name: ListBundlesUsingProfile :many
-SELECT id, slug, title FROM bundle
+const listSpecDocsUsingProfile = `-- name: ListSpecDocsUsingProfile :many
+SELECT id, slug, title FROM spec_doc
 WHERE workspace_id = ?1 AND profile_key = ?2 AND archived_at IS NULL
 ORDER BY slug LIMIT 5
 `
 
-type ListBundlesUsingProfileParams struct {
+type ListSpecDocsUsingProfileParams struct {
 	WorkspaceID uuid.UUID
 	ProfileKey  string
 }
 
-type ListBundlesUsingProfileRow struct {
+type ListSpecDocsUsingProfileRow struct {
 	ID    uuid.UUID
 	Slug  string
 	Title string
 }
 
-func (q *Queries) ListBundlesUsingProfile(ctx context.Context, arg ListBundlesUsingProfileParams) ([]ListBundlesUsingProfileRow, error) {
-	rows, err := q.db.QueryContext(ctx, listBundlesUsingProfile, arg.WorkspaceID, arg.ProfileKey)
+func (q *Queries) ListSpecDocsUsingProfile(ctx context.Context, arg ListSpecDocsUsingProfileParams) ([]ListSpecDocsUsingProfileRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocsUsingProfile, arg.WorkspaceID, arg.ProfileKey)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListBundlesUsingProfileRow
+	var items []ListSpecDocsUsingProfileRow
 	for rows.Next() {
-		var i ListBundlesUsingProfileRow
+		var i ListSpecDocsUsingProfileRow
 		if err := rows.Scan(&i.ID, &i.Slug, &i.Title); err != nil {
 			return nil, err
 		}
@@ -343,12 +378,12 @@ func (q *Queries) ListBundlesUsingProfile(ctx context.Context, arg ListBundlesUs
 	return items, nil
 }
 
-const threadIDsOfBundle = `-- name: ThreadIDsOfBundle :many
-SELECT id FROM thread_view WHERE bundle_id = ?1
+const threadIDsOfSpecDoc = `-- name: ThreadIDsOfSpecDoc :many
+SELECT id FROM thread_view WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, threadIDsOfBundle, bundleID)
+func (q *Queries) ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, threadIDsOfSpecDoc, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -370,12 +405,12 @@ func (q *Queries) ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID)
 	return items, nil
 }
 
-const waiverIDsOfBundle = `-- name: WaiverIDsOfBundle :many
-SELECT id FROM waiver_view WHERE bundle_id = ?1
+const waiverIDsOfSpecDoc = `-- name: WaiverIDsOfSpecDoc :many
+SELECT id FROM waiver_view WHERE spec_doc_id = ?1
 `
 
-func (q *Queries) WaiverIDsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, waiverIDsOfBundle, bundleID)
+func (q *Queries) WaiverIDsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, waiverIDsOfSpecDoc, specDocID)
 	if err != nil {
 		return nil, err
 	}

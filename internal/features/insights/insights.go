@@ -25,7 +25,7 @@ type API struct {
 	Workspace uuid.UUID
 	Profiles  func() map[string]profile.Versioned
 	// Decisions returns a bundle's sidecar (DEC-009).
-	Decisions func(ctx context.Context, b pgdb.Bundle) (source.Decisions, error)
+	Decisions func(ctx context.Context, b pgdb.SpecDoc) (source.Decisions, error)
 }
 
 type bundleStats struct {
@@ -37,10 +37,10 @@ type bundleStats struct {
 // GetInsights returns the metrics per profile.
 func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (api.GetInsightsResponseObject, error) {
 	q := a.DB.Queries()
-	var bundles []pgdb.Bundle
+	var bundles []pgdb.SpecDoc
 	after := ""
 	for {
-		page, err := q.ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: a.Workspace, AfterSlug: after, PageSize: 200})
+		page, err := q.ListSpecDocs(ctx, pgdb.ListSpecDocsParams{WorkspaceID: a.Workspace, AfterSlug: after, PageSize: 200})
 		if err != nil {
 			return nil, err
 		}
@@ -67,21 +67,21 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 		if r.Kind != "full" {
 			continue
 		}
-		st := stats[r.BundleID]
+		st := stats[r.SpecDocID]
 		if st == nil {
 			st = &bundleStats{}
-			stats[r.BundleID] = st
-			first[r.BundleID] = r.StartedAt
+			stats[r.SpecDocID] = st
+			first[r.SpecDocID] = r.StartedAt
 		}
 		if !st.ready {
 			st.runsToReady++
 			if r.VerdictResult.Valid && r.VerdictResult.String == "build_ready" {
 				st.ready = true
-				st.toReady = r.StartedAt.Sub(first[r.BundleID])
+				st.toReady = r.StartedAt.Sub(first[r.SpecDocID])
 			}
 		}
 		if r.VerdictResult.Valid {
-			current[r.BundleID] = r.VerdictResult.String + "|" + r.VersionID.String()
+			current[r.SpecDocID] = r.VerdictResult.String + "|" + r.VersionID.String()
 		}
 	}
 	waivers, err := q.ListWorkspaceWaivers(ctx, a.Workspace)
@@ -109,7 +109,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 		}
 	}
 
-	byProfile := map[string][]pgdb.Bundle{}
+	byProfile := map[string][]pgdb.SpecDoc{}
 	for _, b := range bundles {
 		byProfile[b.ProfileKey] = append(byProfile[b.ProfileKey], b)
 	}
@@ -147,7 +147,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 			if v, ok := current[b.ID]; ok && b.CurrentVersionID.Valid && v == "build_ready|"+b.CurrentVersionID.UUID.String() {
 				pi.BuildReady++
 			}
-			if sv, err := q.GetBundleStatusView(ctx, b.ID); err == nil && sv.ReviewRequestedAt.Valid && sv.ApprovedAt.Valid {
+			if sv, err := q.GetSpecDocStatusView(ctx, b.ID); err == nil && sv.ReviewRequestedAt.Valid && sv.ApprovedAt.Valid {
 				hoursApproval = append(hoursApproval, sv.ApprovedAt.Time.Sub(sv.ReviewRequestedAt.Time).Hours())
 			}
 			if a.standalone(ctx, b) {
@@ -159,7 +159,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 		ready, cameBack := 0, 0
 		sections := map[string]int{}
 		for _, h := range handoffs {
-			if !ids[h.BundleID] || h.Acknowledged || h.Verdict != "build_ready" {
+			if !ids[h.SpecDocID] || h.Acknowledged || h.Verdict != "build_ready" {
 				continue
 			}
 			ready++
@@ -178,7 +178,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 		// missing. A profile whose requirements are built wrong has a weak rubric.
 		verified, wrong := 0, 0
 		for _, v := range verifications {
-			if !ids[v.BundleID] {
+			if !ids[v.SpecDocID] {
 				continue
 			}
 			var c verify.Counts
@@ -218,7 +218,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 		}
 		rate := map[string][2]int{}
 		for _, w := range waivers {
-			if !ids[w.BundleID] {
+			if !ids[w.SpecDocID] {
 				continue
 			}
 			r := rate[w.CheckSlug]
@@ -254,7 +254,7 @@ func sectionOf(raw []byte) string {
 	return strings.Join(an.HeadingPath, " › ")
 }
 
-func (a *API) standalone(ctx context.Context, b pgdb.Bundle) bool {
+func (a *API) standalone(ctx context.Context, b pgdb.SpecDoc) bool {
 	if a.Decisions == nil {
 		return false
 	}

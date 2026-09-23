@@ -98,10 +98,10 @@ func TestExternal_BadTargetIsMust(t *testing.T) {
 	}
 }
 
-func bundleRow(t *testing.T, en *env, slug string) (id pgdb.Bundle) {
+func bundleRow(t *testing.T, en *env, slug string) (id pgdb.SpecDoc) {
 	t.Helper()
-	b, err := en.bundles.DB.Queries().GetBundleBySlug(context.Background(),
-		pgdb.GetBundleBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: slug})
+	b, err := en.bundles.DB.Queries().GetSpecDocBySlug(context.Background(),
+		pgdb.GetSpecDocBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: slug})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -107,7 +107,7 @@ func TestCoherence_UpstreamEditStales(t *testing.T) {
 			pe := newPipeline(t, e, map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd(ack, ""), ackPath("refunds-sdd/SPEC.md"): traceAck}, "fake-1")
 			q := pe.bundles.DB.Queries()
 			summary := func(slug string) *string {
-				b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
+				b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -182,7 +182,7 @@ func TestConfig_LinkRules(t *testing.T) {
 			})
 			q := en.bundles.DB.Queries()
 			links := func(slug string) []pgdb.Link {
-				b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: slug})
+				b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: slug})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -192,9 +192,9 @@ func TestConfig_LinkRules(t *testing.T) {
 				}
 				return ls
 			}
-			prd, _ := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: "docs/prd-refunds"})
+			prd, _ := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: "docs/prd-refunds"})
 			got := links("docs/sdd-refunds")
-			if len(got) != 1 || got[0].Kind != "implements" || got[0].Origin != "rule" || got[0].TargetBundleID.UUID != prd.ID {
+			if len(got) != 1 || got[0].Kind != "implements" || got[0].Origin != "rule" || got[0].TargetSpecDocID.UUID != prd.ID {
 				t.Errorf("sdd-refunds links %+v, want one implements rule link to the PRD", got)
 			}
 			if got := links("docs/sdd-orphan"); len(got) != 0 {

@@ -214,7 +214,7 @@ func (a *API) prepare(ctx context.Context, in *Input) error {
 	if err != nil {
 		return err
 	}
-	main := cur.File(b.MainDoc)
+	main := cur.File(b.DocPath)
 	if len(main) == 0 {
 		return kernel.Invalid("no_main_doc", "This bundle has no main doc to verify against.")
 	}
@@ -297,7 +297,7 @@ func (a *API) execute(ctx context.Context, id uuid.UUID, in Input) (Run, error) 
 	if err != nil {
 		return Run{}, err
 	}
-	main := cur.File(b.MainDoc)
+	main := cur.File(b.DocPath)
 	prof, ok := a.Profiles()[b.ProfileKey]
 	if !ok {
 		return Run{}, kernel.Invalid("no_profile", "No profile is loaded for the doc type %q.", b.ProfileKey)
@@ -355,7 +355,7 @@ func (a *API) execute(ctx context.Context, id uuid.UUID, in Input) (Run, error) 
 		return Run{}, err
 	}
 	number := int64(0)
-	if v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: b.CurrentVersionID.UUID}); err == nil {
+	if v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID}); err == nil {
 		number = v.Number
 	}
 	if _, err := a.openThreads(ctx, b, prof.Profile, main, run, in.HandoffID, number); err != nil {
@@ -441,9 +441,9 @@ func (a *API) confirmRole(ctx context.Context, first string) string {
 
 // waivers returns the trace IDs an approved verification waiver excuses in this repo. A
 // waiver whose requirement's section changed has ended, so it no longer applies.
-func (a *API) waivers(ctx context.Context, b pgdb.Bundle, repo string, main []byte) (map[string]bool, error) {
+func (a *API) waivers(ctx context.Context, b pgdb.SpecDoc, repo string, main []byte) (map[string]bool, error) {
 	rows, err := a.DB.Queries().ListVerificationWaivers(ctx, pgdb.ListVerificationWaiversParams{
-		BundleID: b.ID, Repo: repo})
+		SpecDocID: b.ID, Repo: repo})
 	if err != nil {
 		return nil, err
 	}
@@ -521,7 +521,7 @@ func (a *API) baseSHA(ctx context.Context, in Input, repo Repo) (string, error) 
 		return "", nil
 	}
 	sha, err := a.DB.Queries().LatestVerificationSHA(ctx, pgdb.LatestVerificationSHAParams{
-		BundleID: in.BundleID, Repo: repo.Name()})
+		SpecDocID: in.BundleID, Repo: repo.Name()})
 	if err != nil {
 		// The first run of this bundle against this repo has no base, and the candidates then
 		// carry no ranking. The scan still covers the whole tree.
@@ -715,20 +715,20 @@ func snapLine(body, quote string) (string, bool) {
 }
 
 // insert writes a queued run: the bundle version, and the repo and the commit it will read.
-func (a *API) insert(ctx context.Context, q store.Querier, b pgdb.Bundle, run Run, handoff *uuid.UUID) error {
+func (a *API) insert(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run Run, handoff *uuid.UUID) error {
 	var h uuid.NullUUID
 	if handoff != nil {
 		h = uuid.NullUUID{UUID: *handoff, Valid: true}
 	}
 	return q.InsertVerificationRun(ctx, pgdb.InsertVerificationRunParams{
-		ID: run.ID, WorkspaceID: a.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
+		ID: run.ID, WorkspaceID: a.Workspace, SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID,
 		HandoffID: h, Repo: run.Repo, Sha: run.SHA, Branch: run.Branch, Counts: dbtype.JSON("{}"), Notes: dbtype.JSON("[]"),
 		StartedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: run.At,
 	})
 }
 
 // store writes the run's outcomes, and marks every earlier run of another version stale.
-func (a *API) store(ctx context.Context, b pgdb.Bundle, run Run) error {
+func (a *API) store(ctx context.Context, b pgdb.SpecDoc, run Run) error {
 	return a.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
 		for _, o := range run.Results {
@@ -744,7 +744,7 @@ func (a *API) store(ctx context.Context, b pgdb.Bundle, run Run) error {
 		}
 		// A new bundle version makes every earlier run stale: the requirements moved.
 		return q.StaleVerificationRuns(ctx, pgdb.StaleVerificationRunsParams{
-			BundleID: b.ID, VersionID: b.CurrentVersionID.UUID})
+			SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID})
 	})
 }
 

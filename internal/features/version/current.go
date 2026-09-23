@@ -21,8 +21,8 @@ type Current struct {
 }
 
 // LoadCurrent reads the current version of b.
-func LoadCurrent(ctx context.Context, q store.Querier, b pgdb.Bundle) (*Current, error) {
-	c := &Current{ID: b.CurrentVersionID.UUID, main: b.MainDoc, files: map[string][]byte{}, docs: map[string]section.Doc{}}
+func LoadCurrent(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (*Current, error) {
+	c := &Current{ID: b.CurrentVersionID.UUID, main: b.DocPath, files: map[string][]byte{}, docs: map[string]section.Doc{}}
 	if !b.CurrentVersionID.Valid {
 		return c, nil
 	}

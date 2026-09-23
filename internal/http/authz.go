@@ -320,58 +320,58 @@ func (z *Authz) memberOnly(a kernel.Actor) error {
 }
 
 // pathBundle returns the bundle that the request's path names, directly or through a run.
-func (z *Authz) pathBundle(ctx context.Context, r *nethttp.Request) (pgdb.Bundle, error) {
+func (z *Authz) pathBundle(ctx context.Context, r *nethttp.Request) (pgdb.SpecDoc, error) {
 	q := z.DB.Queries()
 	if s := r.PathValue("bundleId"); s != "" {
 		id, err := uuid.Parse(s)
 		if err != nil {
-			return pgdb.Bundle{}, sql.ErrNoRows
+			return pgdb.SpecDoc{}, sql.ErrNoRows
 		}
-		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: id})
+		return q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: z.Workspace, ID: id})
 	}
 	if s := r.PathValue("runId"); s != "" {
 		id, err := uuid.Parse(s)
 		if err != nil {
-			return pgdb.Bundle{}, sql.ErrNoRows
+			return pgdb.SpecDoc{}, sql.ErrNoRows
 		}
 		run, err := q.GetRun(ctx, pgdb.GetRunParams{WorkspaceID: z.Workspace, ID: id})
 		if err != nil {
-			return pgdb.Bundle{}, err
+			return pgdb.SpecDoc{}, err
 		}
-		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: run.BundleID})
+		return q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: z.Workspace, ID: run.SpecDocID})
 	}
 	if s := r.PathValue("threadId"); s != "" {
 		id, err := uuid.Parse(s)
 		if err != nil {
-			return pgdb.Bundle{}, sql.ErrNoRows
+			return pgdb.SpecDoc{}, sql.ErrNoRows
 		}
 		t, err := q.GetThreadView(ctx, pgdb.GetThreadViewParams{WorkspaceID: z.Workspace, ID: id})
 		if errors.Is(err, sql.ErrNoRows) {
-			return pgdb.Bundle{}, kernel.NotFound("thread_not_found", "No thread has this ID.")
+			return pgdb.SpecDoc{}, kernel.NotFound("thread_not_found", "No thread has this ID.")
 		}
 		if err != nil {
-			return pgdb.Bundle{}, err
+			return pgdb.SpecDoc{}, err
 		}
-		if !t.BundleID.Valid {
-			return pgdb.Bundle{}, errProfileThread
+		if !t.SpecDocID.Valid {
+			return pgdb.SpecDoc{}, errProfileThread
 		}
-		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: t.BundleID.UUID})
+		return q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: z.Workspace, ID: t.SpecDocID.UUID})
 	}
 	if s := r.PathValue("waiverId"); s != "" {
 		id, err := uuid.Parse(s)
 		if err != nil {
-			return pgdb.Bundle{}, sql.ErrNoRows
+			return pgdb.SpecDoc{}, sql.ErrNoRows
 		}
 		w, err := q.GetWaiverView(ctx, pgdb.GetWaiverViewParams{WorkspaceID: z.Workspace, ID: id})
 		if errors.Is(err, sql.ErrNoRows) {
-			return pgdb.Bundle{}, kernel.NotFound("waiver_not_found", "No waiver has this ID.")
+			return pgdb.SpecDoc{}, kernel.NotFound("waiver_not_found", "No waiver has this ID.")
 		}
 		if err != nil {
-			return pgdb.Bundle{}, err
+			return pgdb.SpecDoc{}, err
 		}
-		return q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: z.Workspace, ID: w.BundleID})
+		return q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: z.Workspace, ID: w.SpecDocID})
 	}
-	return pgdb.Bundle{}, errors.New("the operation names no bundle in its path")
+	return pgdb.SpecDoc{}, errors.New("the operation names no bundle in its path")
 }
 
 // errProfileThread marks a thread that belongs to a profile, not a bundle.

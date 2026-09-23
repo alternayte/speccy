@@ -45,11 +45,11 @@ func (a *API) run(ctx context.Context, bundle uuid.UUID, decide func(State) ([]e
 	return es.Run(ctx, a.ES, StreamType, bundle, decide, Evolve)
 }
 
-func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.Bundle, error) {
-	return a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: id})
+func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.SpecDoc, error) {
+	return a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: id})
 }
 
-func (a *API) required(b pgdb.Bundle) int {
+func (a *API) required(b pgdb.SpecDoc) int {
 	if p, ok := a.Profiles()[b.ProfileKey]; ok && p.Profile.Approvals.Required > 0 {
 		return p.Profile.Approvals.Required
 	}
@@ -57,7 +57,7 @@ func (a *API) required(b pgdb.Bundle) int {
 }
 
 // buildReady reports whether b has a current build_ready verdict (REQ-076).
-func (a *API) buildReady(ctx context.Context, b pgdb.Bundle) (bool, error) {
+func (a *API) buildReady(ctx context.Context, b pgdb.SpecDoc) (bool, error) {
 	v, _, err := review.Summary(ctx, a.DB.Queries(), b)
 	if err != nil || v == nil {
 		return false, err
@@ -125,9 +125,9 @@ func (a *API) ApproveBundle(ctx context.Context, req api.ApproveBundleRequestObj
 	return api.ApproveBundle200JSONResponse(out), nil
 }
 
-func (a *API) approveCommand(ctx context.Context, b pgdb.Bundle) (Approve, error) {
+func (a *API) approveCommand(ctx context.Context, b pgdb.SpecDoc) (Approve, error) {
 	act := kernel.ActorFrom(ctx)
-	author, err := a.DB.Queries().IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: b.ID, UserID: act.UserID})
+	author, err := a.DB.Queries().IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: b.BundleID, UserID: act.UserID})
 	if err != nil {
 		return Approve{}, err
 	}
@@ -205,7 +205,7 @@ func (a *API) ListPeople(ctx context.Context, _ api.ListPeopleRequestObject) (ap
 // after every change.
 func OnNewVersions(ctx context.Context, db *store.DB, st *es.Store, workspace uuid.UUID) error {
 	q := db.Queries()
-	views, err := q.ListBundleStatusViews(ctx, workspace)
+	views, err := q.ListSpecDocStatusViews(ctx, workspace)
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func OnNewVersions(ctx context.Context, db *store.DB, st *es.Store, workspace uu
 		if len(approvals) == 0 && v.Status != StatusApproved {
 			continue
 		}
-		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: workspace, ID: v.BundleID})
+		b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: workspace, ID: v.SpecDocID})
 		if err != nil || !b.CurrentVersionID.Valid {
 			continue
 		}
@@ -229,7 +229,7 @@ func OnNewVersions(ctx context.Context, db *store.DB, st *es.Store, workspace uu
 		return err
 	}
 	for _, l := range links {
-		if err := Supersede(ctx, st, l.TargetBundleID.UUID, l.FromBundleID); err != nil {
+		if err := Supersede(ctx, st, l.TargetSpecDocID.UUID, l.FromSpecDocID); err != nil {
 			return err
 		}
 	}

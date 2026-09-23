@@ -19,7 +19,7 @@ import (
 
 // openThreads opens one blocking thread for each MUST outcome that blocks. The run computes
 // no Build Ready verdict: the thread does, through the rule that already exists.
-func (a *API) openThreads(ctx context.Context, b pgdb.Bundle, p profile.Profile, main []byte,
+func (a *API) openThreads(ctx context.Context, b pgdb.SpecDoc, p profile.Profile, main []byte,
 	run Run, handoff *uuid.UUID, version int64) ([]uuid.UUID, error) {
 
 	if a.Threads == nil {
@@ -37,9 +37,9 @@ func (a *API) openThreads(ctx context.Context, b pgdb.Bundle, p profile.Profile,
 		if !o.Blocks {
 			continue
 		}
-		an := anchor.New(b.MainDoc, main, doc, doc.BodyStart, doc.BodyStart)
+		an := anchor.New(b.DocPath, main, doc, doc.BodyStart, doc.BodyStart)
 		if d, ok := defs[o.ID]; ok {
-			an = anchor.New(b.MainDoc, main, doc, d.Start, d.End)
+			an = anchor.New(b.DocPath, main, doc, d.Start, d.End)
 		}
 		blocking := true
 		addressed := api.OpenThreadAddressedToHumans

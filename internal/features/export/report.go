@@ -62,12 +62,12 @@ type reportData struct {
 
 // report writes the current version of b as one self-contained HTML file: the verdict, the
 // findings, and the rendered main doc with its images inline (REQ-008). It needs no server.
-func (a *API) report(ctx context.Context, b pgdb.Bundle) (api.ExportBundleResponseObject, error) {
+func (a *API) report(ctx context.Context, b pgdb.SpecDoc) (api.ExportBundleResponseObject, error) {
 	q := a.DB.Queries()
 	if !b.CurrentVersionID.Valid {
 		return nil, kernel.Invalid("no_version", "The bundle has no version to export.")
 	}
-	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: b.CurrentVersionID.UUID})
+	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID})
 	if err != nil {
 		return nil, err
 	}
@@ -76,11 +76,11 @@ func (a *API) report(ctx context.Context, b pgdb.Bundle) (api.ExportBundleRespon
 		return nil, err
 	}
 	d := reportData{Title: b.Title, Slug: b.Slug, Profile: strings.ToUpper(b.ProfileKey), Version: v.Number,
-		Generated: time.Now().UTC().Format("2 January 2006, 15:04 UTC"), MainDoc: b.MainDoc}
+		Generated: time.Now().UTC().Format("2 January 2006, 15:04 UTC"), MainDoc: b.DocPath}
 	byPath := map[string][]byte{}
 	for _, f := range files {
 		byPath[f.Path] = f.Content
-		if f.Path != b.MainDoc {
+		if f.Path != b.DocPath {
 			d.Assets = append(d.Assets, f.Path)
 		}
 	}

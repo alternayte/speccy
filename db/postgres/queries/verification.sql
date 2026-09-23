@@ -1,7 +1,7 @@
 -- name: InsertVerificationRun :exec
-INSERT INTO verification_run (id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
+INSERT INTO verification_run (id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
                               verdict, counts, notes, status, started_by, created_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.narg(handoff_id),
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), sqlc.arg(version_id), sqlc.narg(handoff_id),
         sqlc.arg(repo), sqlc.arg(sha), sqlc.arg(branch), '', '', '', sqlc.arg(counts), sqlc.arg(notes), 'queued',
         sqlc.arg(started_by), sqlc.arg(created_at));
 
@@ -26,18 +26,18 @@ VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(trace_id), sqlc.arg(outcome), s
 SELECT * FROM verification_run WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 
 -- name: ListVerificationRuns :many
-SELECT * FROM verification_run WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY created_at DESC, id;
+SELECT * FROM verification_run WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY created_at DESC, id;
 
 -- name: ListVerificationOutcomes :many
 SELECT * FROM verification_outcome WHERE run_id = sqlc.arg(run_id) ORDER BY trace_id;
 
 -- name: LatestVerificationSHA :one
 SELECT sha FROM verification_run
-WHERE bundle_id = sqlc.arg(bundle_id) AND repo = sqlc.arg(repo) AND sha <> '' AND status = 'done'
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND repo = sqlc.arg(repo) AND sha <> '' AND status = 'done'
 ORDER BY created_at DESC, id LIMIT 1;
 
 -- name: StaleVerificationRuns :exec
-UPDATE verification_run SET stale = true WHERE bundle_id = sqlc.arg(bundle_id) AND version_id <> sqlc.arg(version_id);
+UPDATE verification_run SET stale = true WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND version_id <> sqlc.arg(version_id);
 
 -- name: ListWorkspaceVerificationRuns :many
 SELECT * FROM verification_run WHERE workspace_id = sqlc.arg(workspace_id) AND status = 'done' ORDER BY created_at DESC;

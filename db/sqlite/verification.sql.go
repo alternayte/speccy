@@ -56,7 +56,7 @@ func (q *Queries) FinishVerificationRun(ctx context.Context, arg FinishVerificat
 }
 
 const getVerificationRun = `-- name: GetVerificationRun :one
-SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetVerificationRunParams struct {
@@ -70,7 +70,7 @@ func (q *Queries) GetVerificationRun(ctx context.Context, arg GetVerificationRun
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.HandoffID,
 		&i.Repo,
@@ -128,7 +128,7 @@ func (q *Queries) InsertVerificationOutcome(ctx context.Context, arg InsertVerif
 }
 
 const insertVerificationRun = `-- name: InsertVerificationRun :exec
-INSERT INTO verification_run (id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
+INSERT INTO verification_run (id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
                               verdict, counts, notes, status, started_by, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, '', '', '', ?9, ?10, 'queued',
@@ -138,7 +138,7 @@ VALUES (?1, ?2, ?3, ?4, ?5,
 type InsertVerificationRunParams struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	VersionID   uuid.UUID
 	HandoffID   uuid.NullUUID
 	Repo        string
@@ -154,7 +154,7 @@ func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificat
 	_, err := q.db.ExecContext(ctx, insertVerificationRun,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.VersionID,
 		arg.HandoffID,
 		arg.Repo,
@@ -170,17 +170,17 @@ func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificat
 
 const latestVerificationSHA = `-- name: LatestVerificationSHA :one
 SELECT sha FROM verification_run
-WHERE bundle_id = ?1 AND repo = ?2 AND sha <> '' AND status = 'done'
+WHERE spec_doc_id = ?1 AND repo = ?2 AND sha <> '' AND status = 'done'
 ORDER BY created_at DESC, id LIMIT 1
 `
 
 type LatestVerificationSHAParams struct {
-	BundleID uuid.UUID
-	Repo     string
+	SpecDocID uuid.UUID
+	Repo      string
 }
 
 func (q *Queries) LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, latestVerificationSHA, arg.BundleID, arg.Repo)
+	row := q.db.QueryRowContext(ctx, latestVerificationSHA, arg.SpecDocID, arg.Repo)
 	var sha string
 	err := row.Scan(&sha)
 	return sha, err
@@ -226,11 +226,11 @@ func (q *Queries) ListVerificationOutcomes(ctx context.Context, runID uuid.UUID)
 }
 
 const listVerificationRuns = `-- name: ListVerificationRuns :many
-SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE bundle_id = ?1 ORDER BY created_at DESC, id
+SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE spec_doc_id = ?1 ORDER BY created_at DESC, id
 `
 
-func (q *Queries) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) ([]VerificationRun, error) {
-	rows, err := q.db.QueryContext(ctx, listVerificationRuns, bundleID)
+func (q *Queries) ListVerificationRuns(ctx context.Context, specDocID uuid.UUID) ([]VerificationRun, error) {
+	rows, err := q.db.QueryContext(ctx, listVerificationRuns, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func (q *Queries) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) 
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.HandoffID,
 			&i.Repo,
@@ -272,7 +272,7 @@ func (q *Queries) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) 
 }
 
 const listWorkspaceVerificationRuns = `-- name: ListWorkspaceVerificationRuns :many
-SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = ?1 AND status = 'done' ORDER BY created_at DESC
+SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = ?1 AND status = 'done' ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error) {
@@ -287,7 +287,7 @@ func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.HandoffID,
 			&i.Repo,
@@ -318,16 +318,16 @@ func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID
 }
 
 const staleVerificationRuns = `-- name: StaleVerificationRuns :exec
-UPDATE verification_run SET stale = true WHERE bundle_id = ?1 AND version_id <> ?2
+UPDATE verification_run SET stale = true WHERE spec_doc_id = ?1 AND version_id <> ?2
 `
 
 type StaleVerificationRunsParams struct {
-	BundleID  uuid.UUID
+	SpecDocID uuid.UUID
 	VersionID uuid.UUID
 }
 
 func (q *Queries) StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error {
-	_, err := q.db.ExecContext(ctx, staleVerificationRuns, arg.BundleID, arg.VersionID)
+	_, err := q.db.ExecContext(ctx, staleVerificationRuns, arg.SpecDocID, arg.VersionID)
 	return err
 }
 

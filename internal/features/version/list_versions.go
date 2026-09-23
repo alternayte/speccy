@@ -38,7 +38,7 @@ func (a *API) ListVersions(ctx context.Context, req api.ListVersionsRequestObjec
 		}
 		before = n
 	}
-	rows, err := q.ListVersions(ctx, pgdb.ListVersionsParams{BundleID: b.ID, BeforeNumber: before, PageSize: limit + 1})
+	rows, err := q.ListVersions(ctx, pgdb.ListVersionsParams{SpecDocID: b.ID, BeforeNumber: before, PageSize: limit + 1})
 	if err != nil {
 		return nil, err
 	}

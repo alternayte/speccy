@@ -22,7 +22,7 @@ type API struct {
 	Deps Deps
 }
 
-func toAPI(ctx context.Context, q store.Querier, b pgdb.Bundle) (api.Bundle, error) {
+func toAPI(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (api.Bundle, error) {
 	v, err := version.Get(ctx, q, b, nil)
 	if err != nil {
 		return api.Bundle{}, err
@@ -31,16 +31,20 @@ func toAPI(ctx context.Context, q store.Querier, b pgdb.Bundle) (api.Bundle, err
 	if err != nil {
 		return api.Bundle{}, err
 	}
+	folder, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: b.WorkspaceID, ID: b.BundleID})
+	if err != nil {
+		return api.Bundle{}, err
+	}
 	status := "draft" // §9.5: a bundle with no status stream is a draft
-	if sv, err := q.GetBundleStatusView(ctx, b.ID); err == nil {
+	if sv, err := q.GetSpecDocStatusView(ctx, b.ID); err == nil {
 		status = sv.Status
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return api.Bundle{}, err
 	}
 	out := api.Bundle{
-		Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey, MainDoc: b.MainDoc,
+		Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey, MainDoc: b.DocPath,
 		SourceKind: api.BundleSourceKind(b.SourceKind), CurrentVersion: version.ToAPI(v), UpdatedAt: b.UpdatedAt.UTC(),
-		Verdict: verdict, RunError: runErr, Visibility: ptr(api.Visibility(b.Visibility)),
+		Verdict: verdict, RunError: runErr, Visibility: ptr(api.Visibility(folder.Visibility)),
 		Status: ptr(api.ReviewStatus(status)),
 	}
 	if gh, ok := GitHubStateOf(ctx, q, b); ok {

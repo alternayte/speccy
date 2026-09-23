@@ -70,7 +70,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: RunningRunFor :one
 SELECT * FROM review_run
-WHERE bundle_id = sqlc.arg(bundle_id) AND kind = 'full' AND status IN ('queued', 'running')
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND kind = 'full' AND status IN ('queued', 'running')
 ORDER BY started_at DESC
 LIMIT 1;
 
@@ -86,15 +86,15 @@ SELECT * FROM review_run WHERE id = sqlc.arg(id);
 SELECT * FROM question WHERE version_id = sqlc.arg(version_id) ORDER BY number;
 
 -- name: InsertQuestion :exec
-INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor, input_hash)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.arg(number),
+INSERT INTO question (id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), sqlc.arg(version_id), sqlc.arg(number),
         sqlc.arg(text), sqlc.arg(level), sqlc.arg(cites), sqlc.arg(anchor), sqlc.arg(input_hash));
 
 -- name: ListQuestionsByInput :many
 -- REQ-047: the questions of an earlier version of the bundle with the same content.
 SELECT q.* FROM question q
-WHERE q.bundle_id = sqlc.arg(bundle_id) AND q.input_hash = sqlc.arg(input_hash) AND q.input_hash <> ''
-  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.bundle_id = sqlc.arg(bundle_id)
+WHERE q.spec_doc_id = sqlc.arg(spec_doc_id) AND q.input_hash = sqlc.arg(input_hash) AND q.input_hash <> ''
+  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.spec_doc_id = sqlc.arg(spec_doc_id)
                       AND q2.input_hash = sqlc.arg(input_hash) LIMIT 1)
 ORDER BY q.number;
 
@@ -114,31 +114,31 @@ VALUES (sqlc.arg(run_id), sqlc.arg(question_id), sqlc.arg(result), sqlc.arg(grou
 SELECT * FROM question_result WHERE run_id = sqlc.arg(run_id);
 
 -- name: DeleteLinksFrom :exec
-DELETE FROM link WHERE from_bundle_id = sqlc.arg(from_bundle_id);
+DELETE FROM link WHERE from_spec_doc_id = sqlc.arg(from_spec_doc_id);
 
 -- name: InsertLink :exec
-INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(from_bundle_id), sqlc.arg(kind), sqlc.arg(target_kind),
-        sqlc.arg(target_bundle_id), sqlc.arg(target_ref), sqlc.arg(origin), sqlc.arg(target_url));
+INSERT INTO link (id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(from_spec_doc_id), sqlc.arg(kind), sqlc.arg(target_kind),
+        sqlc.arg(target_spec_doc_id), sqlc.arg(target_ref), sqlc.arg(origin), sqlc.arg(target_url));
 
 -- name: ListLinksFrom :many
-SELECT * FROM link WHERE from_bundle_id = sqlc.arg(from_bundle_id) ORDER BY kind, target_ref;
+SELECT * FROM link WHERE from_spec_doc_id = sqlc.arg(from_spec_doc_id) ORDER BY kind, target_ref;
 
 -- name: ListLinksTo :many
-SELECT * FROM link WHERE target_bundle_id = sqlc.arg(target_bundle_id) ORDER BY kind, from_bundle_id;
+SELECT * FROM link WHERE target_spec_doc_id = sqlc.arg(target_spec_doc_id) ORDER BY kind, from_spec_doc_id;
 
 -- name: InsertRunLink :exec
-INSERT INTO run_link (run_id, bundle_id, version_id) VALUES (sqlc.arg(run_id), sqlc.arg(bundle_id), sqlc.arg(version_id));
+INSERT INTO run_link (run_id, spec_doc_id, version_id) VALUES (sqlc.arg(run_id), sqlc.arg(spec_doc_id), sqlc.arg(version_id));
 
 -- name: ListRunLinks :many
-SELECT * FROM run_link WHERE run_id = sqlc.arg(run_id) ORDER BY bundle_id;
+SELECT * FROM run_link WHERE run_id = sqlc.arg(run_id) ORDER BY spec_doc_id;
 
 -- name: DeleteLinkStates :exec
-DELETE FROM link_state WHERE bundle_id = sqlc.arg(bundle_id);
+DELETE FROM link_state WHERE spec_doc_id = sqlc.arg(spec_doc_id);
 
 -- name: InsertLinkState :exec
-INSERT INTO link_state (bundle_id, target_ref, state, reason, checked_ref, checked_at)
-VALUES (sqlc.arg(bundle_id), sqlc.arg(target_ref), sqlc.arg(state), sqlc.arg(reason), sqlc.arg(checked_ref), sqlc.arg(checked_at));
+INSERT INTO link_state (spec_doc_id, target_ref, state, reason, checked_ref, checked_at)
+VALUES (sqlc.arg(spec_doc_id), sqlc.arg(target_ref), sqlc.arg(state), sqlc.arg(reason), sqlc.arg(checked_ref), sqlc.arg(checked_at));
 
 -- name: ListLinkStates :many
-SELECT * FROM link_state WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY target_ref;
+SELECT * FROM link_state WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY target_ref;

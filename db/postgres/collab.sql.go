@@ -35,9 +35,9 @@ const countFindingsByCheck = `-- name: CountFindingsByCheck :many
 SELECT f.check_slug, COUNT(*) AS n
 FROM finding f
 WHERE f.run_id IN (
-    SELECT (SELECT r2.id FROM review_run r2 WHERE r2.bundle_id = b.id AND r2.status = 'complete'
+    SELECT (SELECT r2.id FROM review_run r2 WHERE r2.spec_doc_id = b.id AND r2.status = 'complete'
             ORDER BY r2.started_at DESC LIMIT 1)
-    FROM bundle b WHERE b.workspace_id = $1 AND b.archived_at IS NULL AND b.profile_key = $2
+    FROM spec_doc b WHERE b.workspace_id = $1 AND b.archived_at IS NULL AND b.profile_key = $2
 )
 GROUP BY f.check_slug ORDER BY n DESC LIMIT 10
 `
@@ -77,11 +77,11 @@ func (q *Queries) CountFindingsByCheck(ctx context.Context, arg CountFindingsByC
 }
 
 const countOpenBlockingThreads = `-- name: CountOpenBlockingThreads :one
-SELECT COUNT(*) FROM thread_view WHERE bundle_id = $1 AND blocking AND status = 'open'
+SELECT COUNT(*) FROM thread_view WHERE spec_doc_id = $1 AND blocking AND status = 'open'
 `
 
-func (q *Queries) CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countOpenBlockingThreads, bundleID)
+func (q *Queries) CountOpenBlockingThreads(ctx context.Context, specDocID uuid.NullUUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOpenBlockingThreads, specDocID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -94,25 +94,6 @@ DELETE FROM profile_maintainer WHERE profile_id = $1
 func (q *Queries) DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteProfileMaintainers, profileID)
 	return err
-}
-
-const getBundleStatusView = `-- name: GetBundleStatusView :one
-SELECT bundle_id, status, approvals, approved_version, review_requested_at, approved_at, updated_at FROM bundle_status_view WHERE bundle_id = $1
-`
-
-func (q *Queries) GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (BundleStatusView, error) {
-	row := q.db.QueryRowContext(ctx, getBundleStatusView, bundleID)
-	var i BundleStatusView
-	err := row.Scan(
-		&i.BundleID,
-		&i.Status,
-		&i.Approvals,
-		&i.ApprovedVersion,
-		&i.ReviewRequestedAt,
-		&i.ApprovedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const getFinding = `-- name: GetFinding :one
@@ -138,8 +119,27 @@ func (q *Queries) GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
 	return i, err
 }
 
+const getSpecDocStatusView = `-- name: GetSpecDocStatusView :one
+SELECT spec_doc_id, status, approvals, approved_version, review_requested_at, approved_at, updated_at FROM spec_doc_status_view WHERE spec_doc_id = $1
+`
+
+func (q *Queries) GetSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) (SpecDocStatusView, error) {
+	row := q.db.QueryRowContext(ctx, getSpecDocStatusView, specDocID)
+	var i SpecDocStatusView
+	err := row.Scan(
+		&i.SpecDocID,
+		&i.Status,
+		&i.Approvals,
+		&i.ApprovedVersion,
+		&i.ReviewRequestedAt,
+		&i.ApprovedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getThreadView = `-- name: GetThreadView :one
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, spec_doc_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = $1 AND id = $2
 `
 
 type GetThreadViewParams struct {
@@ -153,7 +153,7 @@ func (q *Queries) GetThreadView(ctx context.Context, arg GetThreadViewParams) (T
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.ProfileKey,
 		&i.AnchorKind,
 		&i.Anchor,
@@ -183,7 +183,7 @@ func (q *Queries) GetUserState(ctx context.Context, userID string) (UserState, e
 }
 
 const getWaiverView = `-- name: GetWaiverView :one
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, spec_doc_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE workspace_id = $1 AND id = $2
 `
 
 type GetWaiverViewParams struct {
@@ -197,7 +197,7 @@ func (q *Queries) GetWaiverView(ctx context.Context, arg GetWaiverViewParams) (W
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.CheckSlug,
 		&i.Level,
 		&i.SectionPath,
@@ -216,20 +216,6 @@ func (q *Queries) GetWaiverView(ctx context.Context, arg GetWaiverViewParams) (W
 	return i, err
 }
 
-const insertBundleReviewer = `-- name: InsertBundleReviewer :exec
-INSERT INTO bundle_reviewer (bundle_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
-`
-
-type InsertBundleReviewerParams struct {
-	BundleID uuid.UUID
-	UserID   string
-}
-
-func (q *Queries) InsertBundleReviewer(ctx context.Context, arg InsertBundleReviewerParams) error {
-	_, err := q.db.ExecContext(ctx, insertBundleReviewer, arg.BundleID, arg.UserID)
-	return err
-}
-
 const insertProfileMaintainer = `-- name: InsertProfileMaintainer :exec
 INSERT INTO profile_maintainer (profile_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
 `
@@ -241,6 +227,20 @@ type InsertProfileMaintainerParams struct {
 
 func (q *Queries) InsertProfileMaintainer(ctx context.Context, arg InsertProfileMaintainerParams) error {
 	_, err := q.db.ExecContext(ctx, insertProfileMaintainer, arg.ProfileID, arg.UserID)
+	return err
+}
+
+const insertSpecDocReviewer = `-- name: InsertSpecDocReviewer :exec
+INSERT INTO spec_doc_reviewer (spec_doc_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING
+`
+
+type InsertSpecDocReviewerParams struct {
+	SpecDocID uuid.UUID
+	UserID    string
+}
+
+func (q *Queries) InsertSpecDocReviewer(ctx context.Context, arg InsertSpecDocReviewerParams) error {
+	_, err := q.db.ExecContext(ctx, insertSpecDocReviewer, arg.SpecDocID, arg.UserID)
 	return err
 }
 
@@ -315,7 +315,7 @@ func (q *Queries) IsProfileMaintainer(ctx context.Context, arg IsProfileMaintain
 }
 
 const listAllRuns = `-- name: ListAllRuns :many
-SELECT r.id, r.workspace_id, r.bundle_id, r.version_id, r.profile_key, r.profile_version, r.kind, r.status, r.stage, r.roles, r.prompt_versions, r.tokens_in, r.tokens_out, r.cost_estimate, r.cache_hits, r.error, r.started_at, r.finished_at, r.notes, r.stages, r.decisions_hash, v.result AS verdict_result
+SELECT r.id, r.workspace_id, r.spec_doc_id, r.version_id, r.profile_key, r.profile_version, r.kind, r.status, r.stage, r.roles, r.prompt_versions, r.tokens_in, r.tokens_out, r.cost_estimate, r.cache_hits, r.error, r.started_at, r.finished_at, r.notes, r.stages, r.decisions_hash, v.result AS verdict_result
 FROM review_run r LEFT JOIN verdict v ON v.run_id = r.id
 WHERE r.workspace_id = $1 AND r.status = 'complete'
 ORDER BY r.started_at
@@ -324,7 +324,7 @@ ORDER BY r.started_at
 type ListAllRunsRow struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
-	BundleID       uuid.UUID
+	SpecDocID      uuid.UUID
 	VersionID      uuid.UUID
 	ProfileKey     string
 	ProfileVersion int64
@@ -359,7 +359,7 @@ func (q *Queries) ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]Lis
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.ProfileKey,
 			&i.ProfileVersion,
@@ -421,7 +421,7 @@ func (q *Queries) ListAuthorBundles(ctx context.Context, userID string) ([]uuid.
 }
 
 const listBuildThreads = `-- name: ListBuildThreads :many
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = $1 AND handoff_id IS NOT NULL
+SELECT id, workspace_id, spec_doc_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = $1 AND handoff_id IS NOT NULL
 `
 
 func (q *Queries) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) ([]ThreadView, error) {
@@ -436,7 +436,7 @@ func (q *Queries) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) (
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.ProfileKey,
 			&i.AnchorKind,
 			&i.Anchor,
@@ -450,130 +450,6 @@ func (q *Queries) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) (
 			&i.MessageCount,
 			&i.HandoffID,
 			&i.HandoffVersion,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBundleStatusViews = `-- name: ListBundleStatusViews :many
-SELECT s.bundle_id, s.status, s.approvals, s.approved_version, s.review_requested_at, s.approved_at, s.updated_at FROM bundle_status_view s JOIN bundle b ON b.id = s.bundle_id WHERE b.workspace_id = $1
-`
-
-func (q *Queries) ListBundleStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]BundleStatusView, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleStatusViews, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []BundleStatusView
-	for rows.Next() {
-		var i BundleStatusView
-		if err := rows.Scan(
-			&i.BundleID,
-			&i.Status,
-			&i.Approvals,
-			&i.ApprovedVersion,
-			&i.ReviewRequestedAt,
-			&i.ApprovedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBundleThreads = `-- name: ListBundleThreads :many
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE bundle_id = $1 ORDER BY status DESC, last_message_at DESC
-`
-
-func (q *Queries) ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID) ([]ThreadView, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleThreads, bundleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ThreadView
-	for rows.Next() {
-		var i ThreadView
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.BundleID,
-			&i.ProfileKey,
-			&i.AnchorKind,
-			&i.Anchor,
-			&i.AddressedTo,
-			&i.Title,
-			&i.Blocking,
-			&i.Status,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.LastMessageAt,
-			&i.MessageCount,
-			&i.HandoffID,
-			&i.HandoffVersion,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBundleWaivers = `-- name: ListBundleWaivers :many
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE bundle_id = $1 ORDER BY created_at DESC
-`
-
-func (q *Queries) ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]WaiverView, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleWaivers, bundleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WaiverView
-	for rows.Next() {
-		var i WaiverView
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.BundleID,
-			&i.CheckSlug,
-			&i.Level,
-			&i.SectionPath,
-			&i.SectionHash,
-			&i.Reason,
-			&i.Status,
-			&i.RequestedBy,
-			&i.Approvals,
-			&i.DecidedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Scope,
-			&i.TraceID,
-			&i.Repo,
 		); err != nil {
 			return nil, err
 		}
@@ -589,7 +465,7 @@ func (q *Queries) ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]
 }
 
 const listFullRunsSince = `-- name: ListFullRunsSince :many
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE workspace_id = $1 AND kind = 'full' AND status IN ('complete', 'failed')
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE workspace_id = $1 AND kind = 'full' AND status IN ('complete', 'failed')
   AND finished_at > $2
 ORDER BY finished_at DESC LIMIT 200
 `
@@ -611,7 +487,7 @@ func (q *Queries) ListFullRunsSince(ctx context.Context, arg ListFullRunsSincePa
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.ProfileKey,
 			&i.ProfileVersion,
@@ -677,7 +553,7 @@ func (q *Queries) ListInboxRead(ctx context.Context, arg ListInboxReadParams) ([
 }
 
 const listMessagesSince = `-- name: ListMessagesSince :many
-SELECT m.id, m.thread_id, m.seq, m.author_kind, m.author_id, m.author_name, m.body, m.sources, m.decision, m.created_at, t.bundle_id, t.profile_key, t.title
+SELECT m.id, m.thread_id, m.seq, m.author_kind, m.author_id, m.author_name, m.body, m.sources, m.decision, m.created_at, t.spec_doc_id, t.profile_key, t.title
 FROM thread_message_view m JOIN thread_view t ON t.id = m.thread_id
 WHERE t.workspace_id = $1 AND m.created_at > $2
 ORDER BY m.created_at DESC LIMIT 500
@@ -699,7 +575,7 @@ type ListMessagesSinceRow struct {
 	Sources    dbtype.JSON
 	Decision   string
 	CreatedAt  time.Time
-	BundleID   uuid.NullUUID
+	SpecDocID  uuid.NullUUID
 	ProfileKey string
 	Title      string
 }
@@ -725,7 +601,7 @@ func (q *Queries) ListMessagesSince(ctx context.Context, arg ListMessagesSincePa
 			&i.Sources,
 			&i.Decision,
 			&i.CreatedAt,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.ProfileKey,
 			&i.Title,
 		); err != nil {
@@ -770,7 +646,7 @@ func (q *Queries) ListProfileMaintainers(ctx context.Context, profileID uuid.UUI
 }
 
 const listProfileThreads = `-- name: ListProfileThreads :many
-SELECT id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = $1 AND profile_key = $2
+SELECT id, workspace_id, spec_doc_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE workspace_id = $1 AND profile_key = $2
 ORDER BY status DESC, last_message_at DESC
 `
 
@@ -791,7 +667,7 @@ func (q *Queries) ListProfileThreads(ctx context.Context, arg ListProfileThreads
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.ProfileKey,
 			&i.AnchorKind,
 			&i.Anchor,
@@ -858,23 +734,147 @@ func (q *Queries) ListProfileVersions(ctx context.Context, profileID uuid.UUID) 
 	return items, nil
 }
 
-const listReviewerBundles = `-- name: ListReviewerBundles :many
-SELECT bundle_id FROM bundle_reviewer WHERE user_id = $1
+const listReviewerSpecDocs = `-- name: ListReviewerSpecDocs :many
+SELECT spec_doc_id FROM spec_doc_reviewer WHERE user_id = $1
 `
 
-func (q *Queries) ListReviewerBundles(ctx context.Context, userID string) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, listReviewerBundles, userID)
+func (q *Queries) ListReviewerSpecDocs(ctx context.Context, userID string) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, listReviewerSpecDocs, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var items []uuid.UUID
 	for rows.Next() {
-		var bundle_id uuid.UUID
-		if err := rows.Scan(&bundle_id); err != nil {
+		var spec_doc_id uuid.UUID
+		if err := rows.Scan(&spec_doc_id); err != nil {
 			return nil, err
 		}
-		items = append(items, bundle_id)
+		items = append(items, spec_doc_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocStatusViews = `-- name: ListSpecDocStatusViews :many
+SELECT s.spec_doc_id, s.status, s.approvals, s.approved_version, s.review_requested_at, s.approved_at, s.updated_at FROM spec_doc_status_view s JOIN spec_doc b ON b.id = s.spec_doc_id WHERE b.workspace_id = $1
+`
+
+func (q *Queries) ListSpecDocStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]SpecDocStatusView, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocStatusViews, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpecDocStatusView
+	for rows.Next() {
+		var i SpecDocStatusView
+		if err := rows.Scan(
+			&i.SpecDocID,
+			&i.Status,
+			&i.Approvals,
+			&i.ApprovedVersion,
+			&i.ReviewRequestedAt,
+			&i.ApprovedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocThreads = `-- name: ListSpecDocThreads :many
+SELECT id, workspace_id, spec_doc_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking, status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version FROM thread_view WHERE spec_doc_id = $1 ORDER BY status DESC, last_message_at DESC
+`
+
+func (q *Queries) ListSpecDocThreads(ctx context.Context, specDocID uuid.NullUUID) ([]ThreadView, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocThreads, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ThreadView
+	for rows.Next() {
+		var i ThreadView
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpecDocID,
+			&i.ProfileKey,
+			&i.AnchorKind,
+			&i.Anchor,
+			&i.AddressedTo,
+			&i.Title,
+			&i.Blocking,
+			&i.Status,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.LastMessageAt,
+			&i.MessageCount,
+			&i.HandoffID,
+			&i.HandoffVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocWaivers = `-- name: ListSpecDocWaivers :many
+SELECT id, workspace_id, spec_doc_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE spec_doc_id = $1 ORDER BY created_at DESC
+`
+
+func (q *Queries) ListSpecDocWaivers(ctx context.Context, specDocID uuid.UUID) ([]WaiverView, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocWaivers, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WaiverView
+	for rows.Next() {
+		var i WaiverView
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpecDocID,
+			&i.CheckSlug,
+			&i.Level,
+			&i.SectionPath,
+			&i.SectionHash,
+			&i.Reason,
+			&i.Status,
+			&i.RequestedBy,
+			&i.Approvals,
+			&i.DecidedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Scope,
+			&i.TraceID,
+			&i.Repo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -886,7 +886,7 @@ func (q *Queries) ListReviewerBundles(ctx context.Context, userID string) ([]uui
 }
 
 const listSupersedesLinks = `-- name: ListSupersedesLinks :many
-SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url FROM link WHERE workspace_id = $1 AND kind = 'supersedes' AND target_bundle_id IS NOT NULL
+SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url FROM link WHERE workspace_id = $1 AND kind = 'supersedes' AND target_spec_doc_id IS NOT NULL
 `
 
 func (q *Queries) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error) {
@@ -901,10 +901,10 @@ func (q *Queries) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.FromBundleID,
+			&i.FromSpecDocID,
 			&i.Kind,
 			&i.TargetKind,
-			&i.TargetBundleID,
+			&i.TargetSpecDocID,
 			&i.TargetRef,
 			&i.Origin,
 			&i.TargetUrl,
@@ -961,17 +961,17 @@ func (q *Queries) ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([
 }
 
 const listVerificationWaivers = `-- name: ListVerificationWaivers :many
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view
-WHERE bundle_id = $1 AND scope = 'verify' AND repo = $2 AND status = 'approved'
+SELECT id, workspace_id, spec_doc_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view
+WHERE spec_doc_id = $1 AND scope = 'verify' AND repo = $2 AND status = 'approved'
 `
 
 type ListVerificationWaiversParams struct {
-	BundleID uuid.UUID
-	Repo     string
+	SpecDocID uuid.UUID
+	Repo      string
 }
 
 func (q *Queries) ListVerificationWaivers(ctx context.Context, arg ListVerificationWaiversParams) ([]WaiverView, error) {
-	rows, err := q.db.QueryContext(ctx, listVerificationWaivers, arg.BundleID, arg.Repo)
+	rows, err := q.db.QueryContext(ctx, listVerificationWaivers, arg.SpecDocID, arg.Repo)
 	if err != nil {
 		return nil, err
 	}
@@ -982,7 +982,7 @@ func (q *Queries) ListVerificationWaivers(ctx context.Context, arg ListVerificat
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.CheckSlug,
 			&i.Level,
 			&i.SectionPath,
@@ -1012,7 +1012,7 @@ func (q *Queries) ListVerificationWaivers(ctx context.Context, arg ListVerificat
 }
 
 const listWorkspaceWaivers = `-- name: ListWorkspaceWaivers :many
-SELECT id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE workspace_id = $1 ORDER BY created_at DESC
+SELECT id, workspace_id, spec_doc_id, check_slug, level, section_path, section_hash, reason, status, requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo FROM waiver_view WHERE workspace_id = $1 ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error) {
@@ -1027,7 +1027,7 @@ func (q *Queries) ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUI
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.CheckSlug,
 			&i.Level,
 			&i.SectionPath,
@@ -1101,17 +1101,17 @@ func (q *Queries) SetMessageDecision(ctx context.Context, arg SetMessageDecision
 	return err
 }
 
-const upsertBundleStatusView = `-- name: UpsertBundleStatusView :exec
-INSERT INTO bundle_status_view (bundle_id, status, approvals, approved_version, review_requested_at, approved_at, updated_at)
+const upsertSpecDocStatusView = `-- name: UpsertSpecDocStatusView :exec
+INSERT INTO spec_doc_status_view (spec_doc_id, status, approvals, approved_version, review_requested_at, approved_at, updated_at)
 VALUES ($1, $2, $3, $4,
         $5, $6, $7)
-ON CONFLICT (bundle_id) DO UPDATE SET status = excluded.status, approvals = excluded.approvals,
+ON CONFLICT (spec_doc_id) DO UPDATE SET status = excluded.status, approvals = excluded.approvals,
     approved_version = excluded.approved_version, review_requested_at = excluded.review_requested_at,
     approved_at = excluded.approved_at, updated_at = excluded.updated_at
 `
 
-type UpsertBundleStatusViewParams struct {
-	BundleID          uuid.UUID
+type UpsertSpecDocStatusViewParams struct {
+	SpecDocID         uuid.UUID
 	Status            string
 	Approvals         dbtype.JSON
 	ApprovedVersion   uuid.NullUUID
@@ -1120,9 +1120,9 @@ type UpsertBundleStatusViewParams struct {
 	UpdatedAt         time.Time
 }
 
-func (q *Queries) UpsertBundleStatusView(ctx context.Context, arg UpsertBundleStatusViewParams) error {
-	_, err := q.db.ExecContext(ctx, upsertBundleStatusView,
-		arg.BundleID,
+func (q *Queries) UpsertSpecDocStatusView(ctx context.Context, arg UpsertSpecDocStatusViewParams) error {
+	_, err := q.db.ExecContext(ctx, upsertSpecDocStatusView,
+		arg.SpecDocID,
 		arg.Status,
 		arg.Approvals,
 		arg.ApprovedVersion,
@@ -1134,7 +1134,7 @@ func (q *Queries) UpsertBundleStatusView(ctx context.Context, arg UpsertBundleSt
 }
 
 const upsertThreadView = `-- name: UpsertThreadView :exec
-INSERT INTO thread_view (id, workspace_id, bundle_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking,
+INSERT INTO thread_view (id, workspace_id, spec_doc_id, profile_key, anchor_kind, anchor, addressed_to, title, blocking,
                          status, created_by, created_at, last_message_at, message_count, handoff_id, handoff_version)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
@@ -1147,7 +1147,7 @@ ON CONFLICT (id) DO UPDATE SET blocking = excluded.blocking, status = excluded.s
 type UpsertThreadViewParams struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
-	BundleID       uuid.NullUUID
+	SpecDocID      uuid.NullUUID
 	ProfileKey     string
 	AnchorKind     string
 	Anchor         dbtype.JSON
@@ -1167,7 +1167,7 @@ func (q *Queries) UpsertThreadView(ctx context.Context, arg UpsertThreadViewPara
 	_, err := q.db.ExecContext(ctx, upsertThreadView,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.ProfileKey,
 		arg.AnchorKind,
 		arg.Anchor,
@@ -1186,7 +1186,7 @@ func (q *Queries) UpsertThreadView(ctx context.Context, arg UpsertThreadViewPara
 }
 
 const upsertWaiverView = `-- name: UpsertWaiverView :exec
-INSERT INTO waiver_view (id, workspace_id, bundle_id, check_slug, level, section_path, section_hash, reason, status,
+INSERT INTO waiver_view (id, workspace_id, spec_doc_id, check_slug, level, section_path, section_hash, reason, status,
                          requested_by, approvals, decided_by, created_at, updated_at, scope, trace_id, repo)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
@@ -1199,7 +1199,7 @@ ON CONFLICT (id) DO UPDATE SET status = excluded.status, approvals = excluded.ap
 type UpsertWaiverViewParams struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	CheckSlug   string
 	Level       string
 	SectionPath dbtype.JSON
@@ -1220,7 +1220,7 @@ func (q *Queries) UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewPara
 	_, err := q.db.ExecContext(ctx, upsertWaiverView,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.CheckSlug,
 		arg.Level,
 		arg.SectionPath,

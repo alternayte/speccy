@@ -25,12 +25,12 @@ func (a *API) DeleteProfile(ctx context.Context, req api.DeleteProfileRequestObj
 			"%s ships in the binary, so it cannot be deleted. An edit of it is a new version of it.", req.Key)
 	}
 	q := r.DB.Queries()
-	rows, err := q.ListBundlesUsingProfile(ctx, pgdb.ListBundlesUsingProfileParams{WorkspaceID: r.Workspace, ProfileKey: req.Key})
+	rows, err := q.ListSpecDocsUsingProfile(ctx, pgdb.ListSpecDocsUsingProfileParams{WorkspaceID: r.Workspace, ProfileKey: req.Key})
 	if err != nil {
 		return nil, err
 	}
 	if len(rows) > 0 {
-		n, err := q.CountBundlesUsingProfile(ctx, pgdb.CountBundlesUsingProfileParams{WorkspaceID: r.Workspace, ProfileKey: req.Key})
+		n, err := q.CountSpecDocsUsingProfile(ctx, pgdb.CountSpecDocsUsingProfileParams{WorkspaceID: r.Workspace, ProfileKey: req.Key})
 		if err != nil {
 			return nil, err
 		}

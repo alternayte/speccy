@@ -80,7 +80,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	if slug == "" {
 		slug = strings.TrimSuffix(path.Base(main.Path), path.Ext(main.Path))
 	}
-	b := pgdb.Bundle{WorkspaceID: s.Workspace, Slug: slug, Title: main.Title, ProfileKey: p.Profile.Key, MainDoc: main.Path}
+	b := pgdb.SpecDoc{WorkspaceID: s.Workspace, Slug: slug, Title: main.Title, ProfileKey: p.Profile.Key, DocPath: main.Path}
 	in, err := s.loadFiles(ctx, b, uuid.Nil, c.Files, p)
 	if err != nil {
 		return out, err

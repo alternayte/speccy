@@ -18,56 +18,60 @@ type Querier interface {
 	ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 	// The bundle points at a version, and the version points at the bundle. The head goes first,
 	// so neither foreign key holds the other up.
-	ClearBundleHead(ctx context.Context, id uuid.UUID) error
+	ClearSpecDocHead(ctx context.Context, id uuid.UUID) error
 	CountAssignmentsForBackend(ctx context.Context, arg CountAssignmentsForBackendParams) (int64, error)
 	// REQ-086: a guest's posts in the last hour.
 	CountAuthorMessagesSince(ctx context.Context, arg CountAuthorMessagesSinceParams) (int64, error)
-	CountBundlesUsingProfile(ctx context.Context, arg CountBundlesUsingProfileParams) (int64, error)
 	// For insights: failing checks in the latest completed run of each bundle.
 	CountFindingsByCheck(ctx context.Context, arg CountFindingsByCheckParams) ([]CountFindingsByCheckRow, error)
-	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
+	CountOpenBlockingThreads(ctx context.Context, specDocID uuid.NullUUID) (int64, error)
+	// Every spec doc of the bundle, archived or not.
+	CountSpecDocsInBundle(ctx context.Context, bundleID uuid.UUID) (int64, error)
+	CountSpecDocsUsingProfile(ctx context.Context, arg CountSpecDocsUsingProfileParams) (int64, error)
 	DeleteAdoptedLink(ctx context.Context, arg DeleteAdoptedLinkParams) error
 	DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypeParams) error
-	DeleteAnswersOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteAnswersOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
 	DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error
-	DeleteBundleReviewers(ctx context.Context, bundleID uuid.UUID) error
 	DeleteBundleRow(ctx context.Context, arg DeleteBundleRowParams) error
-	DeleteBundleStatusView(ctx context.Context, bundleID uuid.UUID) error
-	DeleteClaimsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteClaimsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteContentReviewsBefore(ctx context.Context, arg DeleteContentReviewsBeforeParams) error
 	DeleteDismissedDoc(ctx context.Context, arg DeleteDismissedDocParams) error
 	DeleteEventsOfStream(ctx context.Context, streamID uuid.UUID) error
-	DeleteFindingsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteFindingsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
-	DeleteHandoffsOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error
-	DeleteLinkStatesOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error
-	DeleteLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteHandoffsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteLinkStates(ctx context.Context, specDocID uuid.UUID) error
+	DeleteLinkStatesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) error
+	DeleteLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
 	DeleteOrphanBlobs(ctx context.Context) error
 	DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error
 	DeleteProfileMaintainersOf(ctx context.Context, profileID uuid.UUID) error
 	DeleteProfileRow(ctx context.Context, arg DeleteProfileRowParams) error
 	DeleteProfileVersionsOf(ctx context.Context, profileID uuid.UUID) error
-	DeleteQuestionResultsOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteQuestionsOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteReviewRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteRunLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteQuestionResultsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteQuestionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteReviewRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteRunLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteShareGuestsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) error
+	DeleteSpecDocRow(ctx context.Context, arg DeleteSpecDocRowParams) error
+	DeleteSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) error
 	DeleteStream(ctx context.Context, streamID uuid.UUID) error
-	DeleteThreadMessagesOfBundle(ctx context.Context, bundleID uuid.NullUUID) error
-	DeleteThreadsOfBundle(ctx context.Context, bundleID uuid.NullUUID) error
-	DeleteVerdictsOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteThreadMessagesOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error
+	DeleteThreadsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error
+	DeleteVerdictsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	// Deleting a bundle removes everything that hangs off it. The order is children first,
 	// because the foreign keys do not cascade.
-	DeleteVerificationOutcomesOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteVerificationRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteVersionFilesOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteVersionsOfBundle(ctx context.Context, bundleID uuid.UUID) error
-	DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	DeleteVerificationOutcomesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteVerificationRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteVersionFilesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteVersionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteWaiversOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
@@ -78,7 +82,6 @@ type Querier interface {
 	GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error)
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
-	GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (BundleStatusView, error)
 	GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error)
 	GetContentReview(ctx context.Context, arg GetContentReviewParams) (ContentReview, error)
 	GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
@@ -92,6 +95,10 @@ type Querier interface {
 	GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, error)
 	GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error)
 	GetShareGuest(ctx context.Context, id uuid.UUID) (ShareGuest, error)
+	GetSpecDoc(ctx context.Context, arg GetSpecDocParams) (SpecDoc, error)
+	GetSpecDocByPath(ctx context.Context, arg GetSpecDocByPathParams) (SpecDoc, error)
+	GetSpecDocBySlug(ctx context.Context, arg GetSpecDocBySlugParams) (SpecDoc, error)
+	GetSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) (SpecDocStatusView, error)
 	GetStream(ctx context.Context, streamID uuid.UUID) (EsStream, error)
 	GetThreadView(ctx context.Context, arg GetThreadViewParams) (ThreadView, error)
 	GetUserState(ctx context.Context, userID string) (UserState, error)
@@ -107,7 +114,6 @@ type Querier interface {
 	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
 	InsertBundleAuthor(ctx context.Context, arg InsertBundleAuthorParams) error
-	InsertBundleReviewer(ctx context.Context, arg InsertBundleReviewerParams) error
 	InsertClaim(ctx context.Context, arg InsertClaimParams) error
 	InsertContentReview(ctx context.Context, arg InsertContentReviewParams) error
 	InsertDismissedDoc(ctx context.Context, arg InsertDismissedDocParams) error
@@ -129,6 +135,8 @@ type Querier interface {
 	InsertRun(ctx context.Context, arg InsertRunParams) error
 	InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error
 	InsertShareGuest(ctx context.Context, arg InsertShareGuestParams) error
+	InsertSpecDoc(ctx context.Context, arg InsertSpecDocParams) error
+	InsertSpecDocReviewer(ctx context.Context, arg InsertSpecDocReviewerParams) error
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
 	InsertThreadMessage(ctx context.Context, arg InsertThreadMessageParams) error
 	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
@@ -139,13 +147,13 @@ type Querier interface {
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error
 	IsAnyMaintainer(ctx context.Context, arg IsAnyMaintainerParams) (bool, error)
 	IsBundleAuthor(ctx context.Context, arg IsBundleAuthorParams) (bool, error)
-	// An author or a named member (reviewer) of the bundle.
+	// An author of the bundle, or a named member (reviewer) of a spec doc in it.
 	IsBundleMember(ctx context.Context, arg IsBundleMemberParams) (bool, error)
 	IsProfileMaintainer(ctx context.Context, arg IsProfileMaintainerParams) (bool, error)
 	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
 	// REQ-007: the latest finished run of a kind on a version.
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
-	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
+	LatestRun(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)
 	ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]AdoptedLink, error)
@@ -158,25 +166,20 @@ type Querier interface {
 	ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]ModelBackend, error)
 	ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) ([]ThreadView, error)
 	ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]string, error)
-	ListBundleReviewers(ctx context.Context, bundleID uuid.UUID) ([]string, error)
-	ListBundleStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]BundleStatusView, error)
-	ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID) ([]ThreadView, error)
-	ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]WaiverView, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
-	ListBundlesUsingProfile(ctx context.Context, arg ListBundlesUsingProfileParams) ([]ListBundlesUsingProfileRow, error)
 	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
 	ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) ([]DismissedDoc, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
 	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
-	ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Handoff, error)
+	ListHandoffs(ctx context.Context, specDocID uuid.UUID) ([]Handoff, error)
 	ListInboxRead(ctx context.Context, arg ListInboxReadParams) ([]string, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
-	ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]LinkState, error)
-	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
-	ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error)
+	ListLinkStates(ctx context.Context, specDocID uuid.UUID) ([]LinkState, error)
+	ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([]Link, error)
+	ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID) ([]Link, error)
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
 	// Messages in threads of the workspace after a time, newest first, for the inbox.
 	ListMessagesSince(ctx context.Context, arg ListMessagesSinceParams) ([]ListMessagesSinceRow, error)
@@ -188,13 +191,22 @@ type Querier interface {
 	ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error)
 	// REQ-047: the questions of an earlier version of the bundle with the same content.
 	ListQuestionsByInput(ctx context.Context, arg ListQuestionsByInputParams) ([]Question, error)
-	ListReviewerBundles(ctx context.Context, userID string) ([]uuid.UUID, error)
+	ListReviewerSpecDocs(ctx context.Context, userID string) ([]uuid.UUID, error)
 	ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
+	ListSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) ([]string, error)
+	ListSpecDocStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]SpecDocStatusView, error)
+	ListSpecDocThreads(ctx context.Context, specDocID uuid.NullUUID) ([]ThreadView, error)
+	ListSpecDocWaivers(ctx context.Context, specDocID uuid.UUID) ([]WaiverView, error)
+	ListSpecDocs(ctx context.Context, arg ListSpecDocsParams) ([]SpecDoc, error)
+	ListSpecDocsBySource(ctx context.Context, arg ListSpecDocsBySourceParams) ([]SpecDoc, error)
+	ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]SpecDoc, error)
+	ListSpecDocsOfBundles(ctx context.Context, workspaceID uuid.UUID) ([]SpecDoc, error)
+	ListSpecDocsUsingProfile(ctx context.Context, arg ListSpecDocsUsingProfileParams) ([]ListSpecDocsUsingProfileRow, error)
 	ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error)
 	ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]ThreadMessageView, error)
 	ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) ([]VerificationOutcome, error)
-	ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) ([]VerificationRun, error)
+	ListVerificationRuns(ctx context.Context, specDocID uuid.UUID) ([]VerificationRun, error)
 	ListVerificationWaivers(ctx context.Context, arg ListVerificationWaiversParams) ([]WaiverView, error)
 	ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]ListVersionFilesRow, error)
 	ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error)
@@ -202,18 +214,17 @@ type Querier interface {
 	ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error)
 	ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error)
 	MarkInboxItemRead(ctx context.Context, arg MarkInboxItemReadParams) error
-	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
+	NextVersionNumber(ctx context.Context, specDocID uuid.UUID) (int64, error)
 	PeekInvite(ctx context.Context, arg PeekInviteParams) (Invite, error)
 	PeekResetLink(ctx context.Context, arg PeekResetLinkParams) (ResetLink, error)
 	PutCache(ctx context.Context, arg PutCacheParams) error
 	RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error)
-	RunningRunFor(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
+	RunningRunFor(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	SetAdoptedLink(ctx context.Context, arg SetAdoptedLinkParams) error
 	SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) error
 	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
-	SetBundleSourceRef(ctx context.Context, arg SetBundleSourceRefParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
 	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
 	SetGithubSourceSkipped(ctx context.Context, arg SetGithubSourceSkippedParams) error
@@ -221,6 +232,11 @@ type Querier interface {
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
 	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
+	SetSpecDocArchived(ctx context.Context, arg SetSpecDocArchivedParams) error
+	// A scan keeps a spec doc in the bundle of its folder, with its slug: a second spec doc in the
+	// folder changes the slug of the first.
+	SetSpecDocBundle(ctx context.Context, arg SetSpecDocBundleParams) error
+	SetSpecDocSourceRef(ctx context.Context, arg SetSpecDocSourceRefParams) error
 	SetWorkspaceSettings(ctx context.Context, arg SetWorkspaceSettingsParams) error
 	// One conditional update spends an invite, so two parallel acceptances use it once.
 	SpendInvite(ctx context.Context, arg SpendInviteParams) (Invite, error)
@@ -228,20 +244,22 @@ type Querier interface {
 	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
 	StartVerificationRun(ctx context.Context, id uuid.UUID) error
-	ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error)
+	ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error)
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
-	// The head moves only from the version the change was based on.
-	UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error)
+	// A scan keeps the title and the source of a bundle in step, and un-archives it.
+	UpdateBundle(ctx context.Context, arg UpdateBundleParams) error
 	UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnectionParams) error
 	UpdateRunProgress(ctx context.Context, arg UpdateRunProgressParams) error
+	// The head moves only from the version the change was based on.
+	UpdateSpecDocHead(ctx context.Context, arg UpdateSpecDocHeadParams) (int64, error)
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
-	UpsertBundleStatusView(ctx context.Context, arg UpsertBundleStatusViewParams) error
 	UpsertGithubConnection(ctx context.Context, arg UpsertGithubConnectionParams) error
+	UpsertSpecDocStatusView(ctx context.Context, arg UpsertSpecDocStatusViewParams) error
 	UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error
 	UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewParams) error
-	WaiverIDsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]uuid.UUID, error)
+	WaiverIDsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]uuid.UUID, error)
 }
 
 var _ Querier = (*Queries)(nil)
