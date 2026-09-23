@@ -96,3 +96,21 @@ func TestSplitFrontmatter_None(t *testing.T) {
 		}
 	}
 }
+
+// A team hides its frontmatter from a wiki in an HTML comment. Speccy reads the block, and the
+// body starts after the --> line (#76).
+func TestFrontmatter_Wrapped(t *testing.T) {
+	src := "<!--\n---\n{\n    \"title\": \"SDD - X\",\n    \"type\": \"sdd\"\n}\n---\n-->\n\n# SDD - X\n"
+	fm, body, form := Frontmatter([]byte(src))
+	if !strings.Contains(string(fm), `"type": "sdd"`) || src[body:] != "\n# SDD - X\n" {
+		t.Fatalf("fm %q, body %q", fm, src[body:])
+	}
+	if !form.Wrapped || !form.JSON || form.Indent != "    " || string(form.Open) != "<!--\n---\n" || string(form.Close) != "---\n-->\n" {
+		t.Errorf("form = %+v", form)
+	}
+	for _, bad := range []string{"<!--\n---\na: b\n---\n\n# T\n", "<!-- ---\na: b\n---\n-->\n"} {
+		if fm, _, _ := Frontmatter([]byte(bad)); fm != nil {
+			t.Errorf("Frontmatter(%q) = %q; want none", bad, fm)
+		}
+	}
+}

@@ -20,6 +20,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AcceptedFixResult.
+const (
+	Fixed       AcceptedFixResult = "fixed"
+	ReviewAgain AcceptedFixResult = "review_again"
+	StillFails  AcceptedFixResult = "still_fails"
+)
+
+// Valid indicates whether the value is a known member of the AcceptedFixResult enum.
+func (e AcceptedFixResult) Valid() bool {
+	switch e {
+	case Fixed:
+		return true
+	case ReviewAgain:
+		return true
+	case StillFails:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackendInputPromptVia.
 const (
 	File  BackendInputPromptVia = "file"
@@ -1424,6 +1445,28 @@ func (e ExportBundleParamsFormat) Valid() bool {
 	}
 }
 
+// AcceptFixRequest defines model for AcceptFixRequest.
+type AcceptFixRequest struct {
+	// LinkTo For a missing upstream link, the spec doc the link names. It must be one of the suggestion's link choices.
+	LinkTo *openapi_types.UUID `json:"link_to,omitempty"`
+}
+
+// AcceptedFix defines model for AcceptedFix.
+type AcceptedFix struct {
+	// Changed False when the fix left the doc unchanged, so no version was created.
+	Changed bool `json:"changed"`
+
+	// Message For still_fails, the finding the lint still gives.
+	Message *string `json:"message,omitempty"`
+
+	// Result For a lint finding, whether the lint of the result still gives it. An AI finding needs a new review to check.
+	Result  AcceptedFixResult `json:"result"`
+	Version *Version          `json:"version,omitempty"`
+}
+
+// AcceptedFixResult For a lint finding, whether the lint of the result still gives it. An AI finding needs a new review to check.
+type AcceptedFixResult string
+
 // AddedSource defines model for AddedSource.
 type AddedSource struct {
 	// AlreadyAdded An existing source already covers the URL's folder, so Speccy made none.
@@ -2041,8 +2084,11 @@ type FixSuggestion struct {
 	Explanation string             `json:"explanation"`
 	File        string             `json:"file"`
 	FindingId   openapi_types.UUID `json:"finding_id"`
-	New         string             `json:"new"`
-	Old         string             `json:"old"`
+
+	// LinkChoices For a missing upstream link, the docs the link can name. The patch is empty; the person picks one, and Speccy writes the link (#75).
+	LinkChoices *[]LinkChoice `json:"link_choices,omitempty"`
+	New         string        `json:"new"`
+	Old         string        `json:"old"`
 
 	// VersionId The version the patch was written for.
 	VersionId openapi_types.UUID `json:"version_id"`
@@ -2233,6 +2279,16 @@ type LineOp struct {
 
 // LineOpOp defines model for LineOp.Op.
 type LineOpOp string
+
+// LinkChoice defines model for LinkChoice.
+type LinkChoice struct {
+	DocId openapi_types.UUID `json:"doc_id"`
+
+	// Path The doc's path relative to the root of its source.
+	Path    string `json:"path"`
+	Profile string `json:"profile"`
+	Title   string `json:"title"`
+}
 
 // LinkSuggestRequest defines model for LinkSuggestRequest.
 type LinkSuggestRequest struct {
@@ -3495,10 +3551,12 @@ type JoinShareJSONBody struct {
 
 // AdoptSkippedJSONBody defines parameters for AdoptSkipped.
 type AdoptSkippedJSONBody struct {
-	// Link A link a person confirmed. target is the root-relative path of the doc it links to.
-	Link    *ConfirmedLink `json:"link,omitempty"`
-	Path    string         `json:"path"`
-	Profile string         `json:"profile"`
+	Items []struct {
+		// Link A link a person confirmed. target is the root-relative path of the doc it links to.
+		Link    *ConfirmedLink `json:"link,omitempty"`
+		Path    string         `json:"path"`
+		Profile string         `json:"profile"`
+	} `json:"items"`
 }
 
 // SetThreadBlockingJSONBody defines parameters for SetThreadBlocking.
@@ -3650,6 +3708,9 @@ type RenderMarkdownJSONRequestBody = RenderRequest
 
 // ReviewContentJSONRequestBody defines body for ReviewContent for application/json ContentType.
 type ReviewContentJSONRequestBody = ContentReviewRequest
+
+// AcceptFixJSONRequestBody defines body for AcceptFix for application/json ContentType.
+type AcceptFixJSONRequestBody = AcceptFixRequest
 
 // JoinShareJSONRequestBody defines body for JoinShare for application/json ContentType.
 type JoinShareJSONRequestBody JoinShareJSONBody
@@ -4022,7 +4083,7 @@ type ServerInterface interface {
 	// ListSkipped The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
 	// (GET /skipped)
 	ListSkipped(w http.ResponseWriter, r *http.Request)
-	// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// AdoptSkipped Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 	// (POST /skipped)
 	AdoptSkipped(w http.ResponseWriter, r *http.Request)
 	// GetThread A thread with its messages.
@@ -11828,13 +11889,14 @@ func (response SuggestFixdefaultApplicationProblemPlusJSONResponse) VisitSuggest
 type AcceptFixRequestObject struct {
 	RunId     RunId     `json:"runId"`
 	FindingId FindingId `json:"findingId"`
+	Body      *AcceptFixJSONRequestBody
 }
 
 type AcceptFixResponseObject interface {
 	VisitAcceptFixResponse(w http.ResponseWriter) error
 }
 
-type AcceptFix200JSONResponse WriteResult
+type AcceptFix200JSONResponse AcceptedFix
 
 func (response AcceptFix200JSONResponse) VisitAcceptFixResponse(w http.ResponseWriter) error {
 
@@ -12072,7 +12134,9 @@ type AdoptSkippedResponseObject interface {
 	VisitAdoptSkippedResponse(w http.ResponseWriter) error
 }
 
-type AdoptSkipped201JSONResponse SpecDoc
+type AdoptSkipped201JSONResponse struct {
+	Items []SpecDoc `json:"items"`
+}
 
 func (response AdoptSkipped201JSONResponse) VisitAdoptSkippedResponse(w http.ResponseWriter) error {
 
@@ -12838,7 +12902,7 @@ type StrictServerInterface interface {
 	// ListSkipped The markdown files the local scan passed over because they name no type (REQ-001). Empty in hosted mode.
 	// (GET /skipped)
 	ListSkipped(ctx context.Context, request ListSkippedRequestObject) (ListSkippedResponseObject, error)
-	// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// AdoptSkipped Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 	// (POST /skipped)
 	AdoptSkipped(ctx context.Context, request AdoptSkippedRequestObject) (AdoptSkippedResponseObject, error)
 	// GetThread A thread with its messages.
@@ -16026,6 +16090,16 @@ func (sh *strictHandler) AcceptFix(w http.ResponseWriter, r *http.Request, runId
 
 	request.RunId = runId
 	request.FindingId = findingId
+
+	var body AcceptFixJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
 
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.AcceptFix(ctx, request.(AcceptFixRequestObject))

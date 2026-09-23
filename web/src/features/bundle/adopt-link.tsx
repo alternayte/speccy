@@ -1,32 +1,47 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { suggestLinks } from "@/lib/api";
+import { suggestLinks, type ConfirmedLink } from "@/lib/api";
 
 // Scope says which bundles count as docs beside the one being adopted: the bundles on disk, or
 // the bundles of one GitHub source.
 type Scope = { local: true } | { source_id: string };
 
-// useLinkOffer asks which link Speccy offers for one doc about to be adopted with profile, and
-// holds whether the person keeps it. It offers a link only when exactly one doc in the same
-// folder has the upstream type; Speccy never makes it without the person.
-export function useLinkOffer(path: string, profile: string, scope: Scope) {
-  const offer = useQuery({
-    queryKey: ["suggestLinks", path, profile, scope],
-    enabled: !!profile,
+// useLinkOffers asks which links Speccy offers for the docs about to be adopted, each with the
+// profile picked for it, and holds which links the person keeps. The docs of the list count
+// as targets too, so an SDD is offered its PRD before either is accepted. Speccy offers a link
+// only when exactly one doc in the same folder has the upstream type, and never makes it
+// without the person.
+export function useLinkOffers(docs: { path: string; profile: string }[], scope: Scope) {
+  const picked = docs.filter((d) => d.profile);
+  const offers = useQuery({
+    queryKey: ["suggestLinks", picked, scope],
+    enabled: picked.length > 0,
     queryFn: async () => {
-      const res = await suggestLinks({ body: { docs: [{ path, profile }], ...scope }, throwOnError: true });
-      return res.data.items[0] ?? null;
+      const res = await suggestLinks({ body: { docs: picked, ...scope }, throwOnError: true });
+      return res.data.items;
     },
   });
-  const [keep, setKeep] = useState(true);
-  const link = offer.data && keep ? { kind: offer.data.kind, target: offer.data.to } : undefined;
-  const view = offer.data ? (
-    <label className="flex w-full items-center gap-2 text-2xs text-ink-2">
-      <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} />
-      <span>
-        Link: {offer.data.kind} <code>{offer.data.to}</code>
-      </span>
-    </label>
-  ) : null;
+  const [dropped, setDropped] = useState<Record<string, boolean>>({});
+  const offerFor = (path: string) => offers.data?.find((o) => o.from === path);
+  const link = (path: string): ConfirmedLink | undefined => {
+    const o = offerFor(path);
+    return o && !dropped[path] ? { kind: o.kind, target: o.to } : undefined;
+  };
+  const view = (path: string) => {
+    const o = offerFor(path);
+    if (!o) return null;
+    return (
+      <label className="flex w-full items-center gap-2 text-2xs text-ink-2">
+        <input
+          type="checkbox"
+          checked={!dropped[path]}
+          onChange={(e) => setDropped({ ...dropped, [path]: !e.target.checked })}
+        />
+        <span>
+          Link: {o.kind} <code>{o.to}</code>
+        </span>
+      </label>
+    );
+  };
   return { link, view };
 }

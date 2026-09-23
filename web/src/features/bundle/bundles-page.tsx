@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { AlertTriangle, FolderPlus, GitBranch, Plus } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMe } from "@/features/account/me";
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
@@ -17,8 +17,8 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle } from "@/lib/api";
-import type { Bundle, ConfirmedLink, Profile } from "@/lib/api";
-import { useLinkOffer } from "./adopt-link";
+import type { Bundle, Profile } from "@/lib/api";
+import { useLinkOffers } from "./adopt-link";
 import { listBundlesQueryKey, listGithubSourcesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { type DroppedBundle, bundlesFromDrop, filesFromDrop, isMarkdown, isZip } from "./drop";
 import { GitHubDialog } from "./github-dialog";
@@ -255,17 +255,31 @@ function SkippedDocs() {
   const marked = (dismissed.data?.items ?? []).filter((d) => !d.source_id);
   const adopt = useMutation({
     ...adoptSkippedMutation(),
-    onSuccess: async (b) => {
+    onSuccess: async (res) => {
       await qc.invalidateQueries();
-      navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId: b.bundle_id, docId: b.id } });
+      const first = res.items[0];
+      if (first)
+        navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId: first.bundle_id, docId: first.id } });
     },
   });
   const items = skipped.data?.items ?? [];
+  const keyOf = (path: string, guess?: string) => picked[path] ?? guess ?? "";
+  const offers = useLinkOffers(
+    items.map((it) => ({ path: it.path, profile: keyOf(it.path, it.profile) })),
+    { local: true },
+  );
+  const adoptItem = (path: string, profile: string) => {
+    const link = offers.link(path);
+    return { path, profile, ...(link ? { link } : {}) };
+  };
+  // Adopt all sends every doc with a type in one request, so the order of the clicks does not
+  // matter (#73).
+  const ready = items.filter((it) => keyOf(it.path, it.profile));
   if (items.length === 0 && marked.length === 0) return null;
   return (
     <section className="mt-6" aria-labelledby="skipped">
       <h2 id="skipped" className="text-sm font-semibold text-ink">
-        Markdown files that are not bundles yet
+        Markdown files that are not spec docs yet
       </h2>
       {items.length > 0 ? (
         <p className="mt-1 text-sm text-ink-2">
@@ -283,24 +297,31 @@ function SkippedDocs() {
             <LocalSkippedRow
               key={it.path}
               path={it.path}
-              profileKey={picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? ""}
+              profileKey={keyOf(it.path, it.profile)}
               profiles={profiles.data?.items ?? []}
               onPick={(k) => setPicked({ ...picked, [it.path]: k })}
               onDismiss={() => dismiss.mutate({ body: { path: it.path } })}
               dismissing={dismiss.isPending}
-              onAdopt={(link) =>
-                adopt.mutate({
-                  body: {
-                    path: it.path,
-                    profile: picked[it.path] ?? it.profile ?? profiles.data?.items[0]?.key ?? "",
-                    ...(link ? { link } : {}),
-                  },
-                })
-              }
+              link={offers.view(it.path)}
+              onAdopt={() => adopt.mutate({ body: { items: [adoptItem(it.path, keyOf(it.path, it.profile))] } })}
               adopting={adopt.isPending}
             />
           ))}
         </ul>
+      ) : null}
+      {items.length > 1 ? (
+        <div className="mt-2 flex justify-end">
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={ready.length === 0 || adopt.isPending}
+            onClick={() =>
+              adopt.mutate({ body: { items: ready.map((it) => adoptItem(it.path, keyOf(it.path, it.profile))) } })
+            }
+          >
+            Adopt all picked types{ready.length > 0 ? ` (${ready.length})` : ""}
+          </Button>
+        </div>
       ) : null}
       {marked.length > 0 ? (
         <div className="mt-2 text-xs text-ink-3">
@@ -340,6 +361,7 @@ function LocalSkippedRow({
   onPick,
   onDismiss,
   dismissing,
+  link,
   onAdopt,
   adopting,
 }: {
@@ -349,19 +371,22 @@ function LocalSkippedRow({
   onPick: (key: string) => void;
   onDismiss: () => void;
   dismissing: boolean;
-  onAdopt: (link?: ConfirmedLink) => void;
+  link: ReactNode;
+  onAdopt: () => void;
   adopting: boolean;
 }) {
-  const offer = useLinkOffer(path, profileKey, { local: true });
   return (
     <li className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0">
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{path}</span>
+      <span title={path} className="w-full min-w-0 truncate font-mono text-xs text-ink-2 sm:w-auto sm:flex-1">
+        {path}
+      </span>
       <select
         aria-label={`Doc type for ${path}`}
         value={profileKey}
         onChange={(e) => onPick(e.target.value)}
         className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
       >
+        <option value="">Pick a type</option>
         {profiles.map((p) => (
           <option key={p.key} value={p.key}>
             {p.name}
@@ -371,10 +396,10 @@ function LocalSkippedRow({
       <Button size="sm" variant="ghost" disabled={dismissing} onClick={onDismiss}>
         Not a spec
       </Button>
-      <Button size="sm" disabled={!profileKey || adopting} onClick={() => onAdopt(offer.link)}>
+      <Button size="sm" disabled={!profileKey || adopting} onClick={onAdopt}>
         Adopt
       </Button>
-      {offer.view}
+      {link}
     </li>
   );
 }

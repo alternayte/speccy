@@ -1,12 +1,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { Loader2, ShieldCheck, Unlink, Wand2 } from "lucide-react";
+import { Loader2, ShieldCheck, Unlink, Wand2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { Finding, FixSuggestion, Waiver } from "@/lib/api";
+import type { AcceptedFix, Finding, FixSuggestion, Waiver } from "@/lib/api";
 import {
   acceptFixMutation,
   approveWaiverMutation,
@@ -54,13 +54,17 @@ export function FindingsPanel({
   orderKey?: string;
 }) {
   const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
+  // fixed is the result of the last accepted fix. It sits above the list, because a fixed
+  // finding leaves the list with the next run.
+  const [fixed, setFixed] = useState<{ slug: string; result: AcceptedFix }>();
   const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
   const selectedRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selected]);
   // A save makes a new lint run. The list it carries keeps the same findings, so the rail keeps
-  // showing them while it loads, and no open suggestion unmounts (#53).
+  // showing them while it loads, and no open suggestion unmounts (#53). The page mounts one
+  // panel per doc, so the list kept is always this doc's (#74).
   const findings = useQuery({
     ...listFindingsOptions({ path: { runId: runId ?? "" } }),
     enabled: !!runId,
@@ -115,15 +119,20 @@ export function FindingsPanel({
       (ranks.get(ident(a)) ?? rank(pending(a)) * 10 + order[a.level]) -
       (ranks.get(ident(b)) ?? rank(pending(b)) * 10 + order[b.level]),
   );
+  const notice = fixed ? (
+    <FixResult slug={fixed.slug} result={fixed.result} onClose={() => setFixed(undefined)} />
+  ) : null;
   if (items.length === 0)
     return (
       <>
+        {notice}
         <Empty title="No findings">Every check passed. SHOULD and INFO findings appear here when a check fails.</Empty>
         {waivers}
       </>
     );
   return (
     <>
+      {notice}
       <ul className="divide-y divide-line">
         {items.map((f) => {
           const { icon: Icon, tone, label } = levelStyle[f.level];
@@ -206,7 +215,14 @@ export function FindingsPanel({
                   ) : null}
                 </div>
               ) : null}
-              {canEdit && !f.waived ? <SuggestFix runId={f.run_id} docId={docId} finding={f} /> : null}
+              {canEdit && !f.waived ? (
+                <SuggestFix
+                  runId={f.run_id}
+                  docId={docId}
+                  finding={f}
+                  onAccepted={(result) => setFixed({ slug: f.check_slug, result })}
+                />
+              ) : null}
             </li>
           );
         })}
@@ -539,28 +555,42 @@ function WaiversList({
 }
 
 // SuggestFix asks the AI for a patch for one finding and shows it. The doc changes only when
-// the author accepts the patch (REQ-025, T-092).
-function SuggestFix({ runId, docId, finding }: { runId: string; docId: string; finding: Finding }) {
+// the author accepts the patch (REQ-025, T-092). A missing upstream link gets a list of docs
+// instead, and Speccy writes the link (#75). After an accept of a lint finding's fix, the rail
+// says at once whether the check still fails.
+function SuggestFix({
+  runId,
+  docId,
+  finding,
+  onAccepted,
+}: {
+  runId: string;
+  docId: string;
+  finding: Finding;
+  onAccepted: (r: AcceptedFix) => void;
+}) {
   const qc = useQueryClient();
   const [patch, setPatch] = useState<FixSuggestion>();
-  const [accepted, setAccepted] = useState<number>();
+  const [linkTo, setLinkTo] = useState<string>();
   const path = { runId, findingId: finding.id };
   // asked is the finding the suggestion was written for. A save stores the same finding again
   // under a new ID, and the suggestion stays with the one it was asked for.
   const [asked, setAsked] = useState(path);
-  const suggest = useMutation({ ...suggestFixMutation(), onSuccess: (p) => setPatch(p) });
+  const suggest = useMutation({
+    ...suggestFixMutation(),
+    onSuccess: (p) => {
+      setPatch(p);
+      setLinkTo(p.link_choices?.[0]?.doc_id);
+    },
+  });
   const accept = useMutation({
     ...acceptFixMutation(),
     onSuccess: (r) => {
       setPatch(undefined);
-      setAccepted(r.version.number);
+      onAccepted(r);
       qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
     },
   });
-  if (accepted)
-    return (
-      <p className="px-4 pb-3 text-xs text-ok">Fix applied as version {accepted}. Run the review again to check it.</p>
-    );
   if (!patch)
     return (
       <div className="px-4 pb-3">
@@ -587,16 +617,40 @@ function SuggestFix({ runId, docId, finding }: { runId: string; docId: string; f
         ) : null}
       </div>
     );
+  const choices = patch.link_choices;
   return (
     <div className="mx-4 mb-3 rounded-md border border-line bg-sunken p-2 text-xs">
       <p className="text-ink-2">{patch.explanation}</p>
-      <p className="mt-1.5 font-mono text-2xs text-ink-3">{patch.file}</p>
-      <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-del)] px-1.5 py-1 font-mono whitespace-pre-wrap line-through decoration-ink-3">
-        {patch.old}
-      </pre>
-      <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-add)] px-1.5 py-1 font-mono whitespace-pre-wrap">
-        {patch.new}
-      </pre>
+      {choices ? (
+        <fieldset className="mt-1.5 space-y-1">
+          <legend className="sr-only">The doc the link names</legend>
+          {choices.map((c) => (
+            <label key={c.doc_id} className="flex items-start gap-2 text-ink">
+              <input
+                type="radio"
+                name={`link-${finding.id}`}
+                className="mt-0.5"
+                checked={linkTo === c.doc_id}
+                onChange={() => setLinkTo(c.doc_id)}
+              />
+              <span className="min-w-0">
+                <span className="block truncate">{c.title || c.path}</span>
+                <span className="block truncate font-mono text-2xs text-ink-3">{c.path}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      ) : (
+        <>
+          <p className="mt-1.5 font-mono text-2xs text-ink-3">{patch.file}</p>
+          <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-del)] px-1.5 py-1 font-mono whitespace-pre-wrap line-through decoration-ink-3">
+            {patch.old}
+          </pre>
+          <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-add)] px-1.5 py-1 font-mono whitespace-pre-wrap">
+            {patch.new}
+          </pre>
+        </>
+      )}
       {accept.isError ? (
         <div className="mt-1.5">
           <ErrorState message={problemMessage(accept.error)} />
@@ -606,10 +660,43 @@ function SuggestFix({ runId, docId, finding }: { runId: string; docId: string; f
         <Button size="sm" onClick={() => setPatch(undefined)}>
           Reject
         </Button>
-        <Button size="sm" variant="primary" onClick={() => accept.mutate({ path: asked })} disabled={accept.isPending}>
-          {accept.isPending ? "Applying" : "Accept"}
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => accept.mutate({ path: asked, ...(choices ? { body: { link_to: linkTo } } : {}) })}
+          disabled={accept.isPending || (!!choices && !linkTo)}
+        >
+          {accept.isPending ? "Applying" : choices ? "Add link" : "Accept"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// FixResult says what the last accepted fix did. A lint finding is checked at once; an AI
+// finding needs a new review.
+function FixResult({ slug, result, onClose }: { slug: string; result: AcceptedFix; onClose: () => void }) {
+  const where = result.version ? ` as version ${result.version.number}` : "";
+  const text =
+    result.result === "still_fails"
+      ? `Fix applied${where}. Still fails: ${result.message ?? ""}`
+      : result.result === "fixed"
+        ? `Fixed${where}.${result.version ? "" : " Speccy keeps the link, and the repo takes no commit."}`
+        : `Fix applied${where}. Run the review again to check it.`;
+  return (
+    <div
+      role="status"
+      className={clsx(
+        "flex items-start gap-2 border-b border-line px-4 py-2 text-xs",
+        result.result === "still_fails" ? "text-bad" : "text-ok",
+      )}
+    >
+      <p className="min-w-0 flex-1">
+        <span className="font-mono text-2xs text-ink-3">{slug}</span> {text}
+      </p>
+      <button type="button" onClick={onClose} aria-label="Close" className="text-ink-3 hover:text-ink">
+        <X aria-hidden className="size-3.5" />
+      </button>
     </div>
   );
 }

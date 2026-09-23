@@ -64,9 +64,10 @@ func TestScan(t *testing.T) {
 			t.Errorf("docs/dup/a is in bundle %q, want docs/dup", b.Folder)
 		}
 	}
-	// Untyped markdown in a bundle is an asset, not a skipped doc.
-	if len(s.Skipped) != 0 {
-		t.Errorf("skipped = %v, want none", s.Skipped)
+	// Untyped markdown in a bundle is an asset, and it stays a skipped doc until a person
+	// decides on it, so an Accept on one doc does not take the others off the list (#73).
+	if strings.Join(s.Skipped, ",") != "docs/dup/notes.md" {
+		t.Errorf("skipped = %v, want docs/dup/notes.md", s.Skipped)
 	}
 }
 

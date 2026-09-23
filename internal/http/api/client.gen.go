@@ -1030,10 +1030,19 @@ type ClientInterface interface {
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
 	SuggestFix(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	// AcceptFixWithBody Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	//
+	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
-	AcceptFix(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	AcceptFixWithBody(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
+	AcceptFix(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	//
@@ -1069,14 +1078,14 @@ type ClientInterface interface {
 	// Corresponds with GET /skipped (the `ListSkipped` operationId).
 	ListSkipped(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AdoptSkippedWithBody Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// AdoptSkippedWithBody Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
 	AdoptSkippedWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// AdoptSkipped Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3623,11 +3632,30 @@ func (c *Client) SuggestFix(ctx context.Context, runId RunId, findingId FindingI
 	return c.Client.Do(req)
 }
 
-// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+// AcceptFixWithBody Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+//
+// Takes any type of body and a specified content type.
 //
 // Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
-func (c *Client) AcceptFix(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAcceptFixRequest(c.Server, runId, findingId)
+func (c *Client) AcceptFixWithBody(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAcceptFixRequestWithBody(c.Server, runId, findingId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
+func (c *Client) AcceptFix(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAcceptFixRequest(c.Server, runId, findingId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3732,7 +3760,7 @@ func (c *Client) ListSkipped(ctx context.Context, reqEditors ...RequestEditorFn)
 	return c.Client.Do(req)
 }
 
-// AdoptSkippedWithBody Write a type into a skipped file, so it becomes a bundle (REQ-001).
+// AdoptSkippedWithBody Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 //
 // Takes any type of body and a specified content type.
 //
@@ -3749,7 +3777,7 @@ func (c *Client) AdoptSkippedWithBody(ctx context.Context, contentType string, b
 	return c.Client.Do(req)
 }
 
-// AdoptSkipped Write a type into a skipped file, so it becomes a bundle (REQ-001).
+// AdoptSkipped Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -8451,8 +8479,19 @@ func NewSuggestFixRequest(server string, runId RunId, findingId FindingId) (*htt
 	return req, nil
 }
 
-// NewAcceptFixRequest constructs an http.Request for the AcceptFix method
-func NewAcceptFixRequest(server string, runId RunId, findingId FindingId) (*http.Request, error) {
+// NewAcceptFixRequest calls the generic AcceptFix builder with application/json body
+func NewAcceptFixRequest(server string, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAcceptFixRequestWithBody(server, runId, findingId, "application/json", bodyReader)
+}
+
+// NewAcceptFixRequestWithBody constructs an http.Request for the AcceptFix method, with any body, and a specified content type
+func NewAcceptFixRequestWithBody(server string, runId RunId, findingId FindingId, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8484,10 +8523,12 @@ func NewAcceptFixRequest(server string, runId RunId, findingId FindingId) (*http
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10194,12 +10235,19 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
 	SuggestFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error)
 
-	// AcceptFixWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	// AcceptFixWithBodyWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
 	//
-	// Returns a wrapper object for the known response body format(s).
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
-	AcceptFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error)
+	AcceptFixWithBodyWithResponse(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error)
+
+	// AcceptFixWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
+	AcceptFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error)
 
 	// ListQuestionsWithResponse List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	//
@@ -10243,14 +10291,14 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /skipped (the `ListSkipped` operationId).
 	ListSkippedWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListSkippedResponse, error)
 
-	// AdoptSkippedWithBodyWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// AdoptSkippedWithBodyWithResponse Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /skipped (the `AdoptSkipped` operationId).
 	AdoptSkippedWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptSkippedResponse, error)
 
-	// AdoptSkippedWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+	// AdoptSkippedWithResponse Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -15614,13 +15662,13 @@ type AcceptFixResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *WriteResult
+	JSON200 *AcceptedFix
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r AcceptFixResponse) GetJSON200() *WriteResult {
+func (r AcceptFixResponse) GetJSON200() *AcceptedFix {
 	return r.JSON200
 }
 
@@ -15910,13 +15958,17 @@ type AdoptSkippedResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *SpecDoc
+	JSON201 *struct {
+		Items []SpecDoc `json:"items"`
+	}
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r AdoptSkippedResponse) GetJSON201() *SpecDoc {
+func (r AdoptSkippedResponse) GetJSON201() *struct {
+	Items []SpecDoc `json:"items"`
+} {
 	return r.JSON201
 }
 
@@ -18356,13 +18408,26 @@ func (c *ClientWithResponses) SuggestFixWithResponse(ctx context.Context, runId 
 	return ParseSuggestFixResponse(rsp)
 }
 
-// AcceptFixWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+// AcceptFixWithBodyWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
 //
-// Returns a wrapper object for the known response body format(s).
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
-func (c *ClientWithResponses) AcceptFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error) {
-	rsp, err := c.AcceptFix(ctx, runId, findingId, reqEditors...)
+func (c *ClientWithResponses) AcceptFixWithBodyWithResponse(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error) {
+	rsp, err := c.AcceptFixWithBody(ctx, runId, findingId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAcceptFixResponse(rsp)
+}
+
+// AcceptFixWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
+func (c *ClientWithResponses) AcceptFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error) {
+	rsp, err := c.AcceptFix(ctx, runId, findingId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -18447,7 +18512,7 @@ func (c *ClientWithResponses) ListSkippedWithResponse(ctx context.Context, reqEd
 	return ParseListSkippedResponse(rsp)
 }
 
-// AdoptSkippedWithBodyWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+// AdoptSkippedWithBodyWithResponse Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -18460,7 +18525,7 @@ func (c *ClientWithResponses) AdoptSkippedWithBodyWithResponse(ctx context.Conte
 	return ParseAdoptSkippedResponse(rsp)
 }
 
-// AdoptSkippedWithResponse Write a type into a skipped file, so it becomes a bundle (REQ-001).
+// AdoptSkippedWithResponse Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -22267,7 +22332,7 @@ func ParseAcceptFixResponse(rsp *http.Response) (*AcceptFixResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest WriteResult
+		var dest AcceptedFix
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -22469,7 +22534,9 @@ func ParseAdoptSkippedResponse(rsp *http.Response) (*AdoptSkippedResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest SpecDoc
+		var dest struct {
+			Items []SpecDoc `json:"items"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

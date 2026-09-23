@@ -1,6 +1,6 @@
 {
   "verdict": "not_build_ready",
-  "score": 88,
+  "score": 89,
   "findings": [
     {
       "check": "lint.required-headings",

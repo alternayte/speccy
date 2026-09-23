@@ -184,15 +184,21 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		s.bySlug[b.Slug] = i
 	}
 	sort.Slice(s.Problems, func(i, j int) bool { return s.Problems[i].Path < s.Problems[j].Path })
-	// What the scan passed over: a markdown file with no type, in no bundle.
-	inBundle := map[string]bool{}
+	// What the scan passed over: a markdown file with no type that is not a spec doc. An asset
+	// of a bundle stays on the list until a person accepts a type or marks it Not a spec, so an
+	// Accept on one doc in a folder never takes the other docs off the list (#73). A carried
+	// file belongs to the doc that references it.
+	taken := map[string]bool{}
 	for _, b := range s.Bundles {
+		taken[path.Join(b.Dir, b.Main.Path)] = true
 		for _, f := range b.Files {
-			inBundle[path.Join(b.Dir, f.Path)] = true
+			if f.Carried() {
+				taken[path.Join(b.Dir, f.Path)] = true
+			}
 		}
 	}
 	for _, m := range markdown {
-		if inBundle[m] {
+		if taken[m] {
 			continue
 		}
 		content, err := fs.ReadFile(r.fsys, m)

@@ -1258,7 +1258,7 @@ export const listSkippedOptions = (options?: Options<ListSkippedData>) => queryO
 });
 
 /**
- * Write a type into a skipped file, so it becomes a bundle (REQ-001).
+ * Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
  */
 export const adoptSkippedMutation = (options?: Partial<Options<AdoptSkippedData>>): UseMutationOptions<AdoptSkippedResponse, AdoptSkippedError, Options<AdoptSkippedData>> => {
     const mutationOptions: UseMutationOptions<AdoptSkippedResponse, AdoptSkippedError, Options<AdoptSkippedData>> = {

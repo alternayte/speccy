@@ -25,7 +25,8 @@ func Markdown(opts ...goldmark.Option) goldmark.Markdown {
 
 // Doc is a parsed markdown file.
 type Doc struct {
-	// Frontmatter is the YAML between the opening and closing --- lines, or nil.
+	// Frontmatter is the YAML between the opening and closing --- lines, or nil. The block may
+	// sit in an HTML comment.
 	Frontmatter []byte
 	// BodyStart is the byte offset where the markdown after the frontmatter starts.
 	BodyStart int
@@ -59,19 +60,81 @@ func (s Section) Own(src []byte) []byte { return src[s.BodyStart:s.OwnEnd] }
 var frontmatterRe = regexp.MustCompile(`\A---[ \t]*\r?\n`)
 var frontmatterEndRe = regexp.MustCompile(`(?m)^(---|\.\.\.)[ \t]*(\r?\n|\z)`)
 
+// A wiki shows an HTML comment as nothing, so a team hides its frontmatter in one: a <!-- line,
+// the --- block, and a --> line, with blank lines around them (#76).
+var wrappedOpenRe = regexp.MustCompile(`\A(?:[ \t]*\r?\n)*<!--[ \t]*\r?\n(?:[ \t]*\r?\n)*---[ \t]*\r?\n`)
+var wrappedCloseRe = regexp.MustCompile(`\A(?:[ \t]*\r?\n)*-->[ \t]*(?:\r?\n|\z)`)
+
+// Form is how a file holds its frontmatter block, so a write keeps it: the text before and
+// after the block, and whether the block is JSON.
+type Form struct {
+	// Open is the text before the block, and Close the text after it, up to the body.
+	Open, Close []byte
+	// Wrapped says the block is inside an HTML comment.
+	Wrapped bool
+	// JSON says the block is a JSON object, and Indent is its indent unit.
+	JSON   bool
+	Indent string
+}
+
+// PlainForm is the form of a new frontmatter block.
+var PlainForm = Form{Open: []byte("---\n"), Close: []byte("---\n")}
+
 // SplitFrontmatter returns the YAML frontmatter and the offset of the body.
-// A file without an opening --- line has no frontmatter.
+// A file without an opening --- line, plain or in an HTML comment, has no frontmatter.
 func SplitFrontmatter(src []byte) (fm []byte, bodyStart int) {
-	open := frontmatterRe.Find(src)
+	fm, bodyStart, _ = Frontmatter(src)
+	return fm, bodyStart
+}
+
+// Frontmatter returns the frontmatter, the offset of the body, and the form of the block. A
+// file with no frontmatter gets PlainForm.
+func Frontmatter(src []byte) (fm []byte, bodyStart int, form Form) {
+	if open := frontmatterRe.Find(src); open != nil {
+		rest := src[len(open):]
+		loc := frontmatterEndRe.FindIndex(rest)
+		if loc == nil {
+			return nil, 0, PlainForm
+		}
+		fm = rest[:loc[0]]
+		form = Form{Open: open, Close: rest[loc[0]:loc[1]]}
+		return fm, len(open) + loc[1], withBody(form, fm)
+	}
+	open := wrappedOpenRe.Find(src)
 	if open == nil {
-		return nil, 0
+		return nil, 0, PlainForm
 	}
 	rest := src[len(open):]
 	loc := frontmatterEndRe.FindIndex(rest)
 	if loc == nil {
-		return nil, 0
+		return nil, 0, PlainForm
 	}
-	return rest[:loc[0]], len(open) + loc[1]
+	end := wrappedCloseRe.Find(rest[loc[1]:])
+	if end == nil {
+		return nil, 0, PlainForm
+	}
+	fm = rest[:loc[0]]
+	form = Form{Open: open, Close: rest[loc[0] : loc[1]+len(end)], Wrapped: true}
+	return fm, len(open) + loc[1] + len(end), withBody(form, fm)
+}
+
+// withBody sets whether the block fm is JSON, and its indent unit.
+func withBody(form Form, fm []byte) Form {
+	t := bytes.TrimSpace(fm)
+	if len(t) == 0 || t[0] != '{' {
+		return form
+	}
+	form.JSON, form.Indent = true, "  "
+	for _, line := range strings.Split(string(fm), "\n")[1:] {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if ind := line[:len(line)-len(strings.TrimLeft(line, " \t"))]; ind != "" {
+			form.Indent = ind
+		}
+		break
+	}
+	return form
 }
 
 // Parse parses src into frontmatter and sections.

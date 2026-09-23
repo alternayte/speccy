@@ -19,7 +19,7 @@ The rule under all four: Speccy never writes to your repo on its own. It propose
 
 The bundles screen lists the markdown files in the served folder that name no type. **Adopt** writes the type into one, and the doc becomes a bundle.
 
-![The markdown files that are not bundles yet, each with a type and an Adopt control](images/guide-adopt.png)
+![The markdown files that are not spec docs yet, each with a type and an Adopt control](images/guide-adopt.png)
 
 `speccy init` does the same in a terminal, and Enter takes the guess.
 

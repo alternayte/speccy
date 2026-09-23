@@ -18,6 +18,24 @@ links:
 ---
 ```
 
+A wiki renders frontmatter as text. To hide it, put the block inside an HTML comment, with `<!--` and `-->` each on its own line at the start of the file. The block can be YAML or JSON. Speccy reads it, and writes it back in the same form:
+
+```markdown
+<!--
+---
+{
+  "type": "sdd",
+  "title": "Payment retries — design",
+  "links": [{ "kind": "implements", "target": "PRD - Payments.md" }]
+}
+---
+-->
+```
+
+When Speccy cannot read the block, `frontmatter.readable` fails and names the cause. `links` must be a list of `kind` and `target` pairs. A map, or a pair with `type` in place of `kind`, is not a link.
+
+On a doc with no upstream link, Suggest fix on `links.has-upstream` lists the docs the link can name. Pick one, and Speccy writes the link. For a doc in a repo source, Speccy keeps the link, and the repo takes no commit.
+
 Three kinds carry the checks in this document:
 
 | Kind | Means | Used by |
@@ -172,6 +190,7 @@ The packet lists each external link with its kind and URL, and the commit of a c
 
 | Check | Level | What it means | What you do |
 |---|---|---|---|
+| `frontmatter.readable` | MUST | Speccy cannot read the frontmatter: it does not parse, it sits in a comment Speccy does not read, or `links` is not a list of `kind` and `target` pairs. | Fix the block. The finding gives the form Speccy reads. |
 | `links.has-upstream` | MUST | The doc's profile requires an upstream link, and the doc has none. | Add a link to the doc it implements, or a `standalone` reason in the sidecar. |
 | `links.has-children` | MUST | A doc of this size covers work that other bundles hold, and it links to none. | Link the bundles it covers, with `references` or `refines`. |
 | `trace.coverage` | MUST | An upstream ID is not referenced in this doc, and not acknowledged. | Reference the ID, or acknowledge it in the sidecar under `trace:`. |
