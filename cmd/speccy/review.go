@@ -502,7 +502,7 @@ func fillRun(ctx context.Context, c *api.ClientWithResponses, runID string, r *r
 			return errors.New(problemText(res.ApplicationproblemJSONDefault))
 		}
 		run = res.JSON200
-		if run.Status == api.Complete || run.Status == api.Failed {
+		if run.Status == api.RunStatusComplete || run.Status == api.RunStatusFailed {
 			break
 		}
 		select {
@@ -515,7 +515,7 @@ func fillRun(ctx context.Context, c *api.ClientWithResponses, runID string, r *r
 	if run.Notes != nil {
 		r.Notes = *run.Notes
 	}
-	if run.Status == api.Failed {
+	if run.Status == api.RunStatusFailed {
 		r.Error = run.Error
 		return nil
 	}

@@ -13,8 +13,50 @@ import (
 	"github.com/google/uuid"
 )
 
+const failVerificationRun = `-- name: FailVerificationRun :exec
+UPDATE verification_run SET status = 'failed', error = $1 WHERE id = $2
+`
+
+type FailVerificationRunParams struct {
+	Error string
+	ID    uuid.UUID
+}
+
+func (q *Queries) FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error {
+	_, err := q.db.ExecContext(ctx, failVerificationRun, arg.Error, arg.ID)
+	return err
+}
+
+const finishVerificationRun = `-- name: FinishVerificationRun :exec
+UPDATE verification_run
+SET status = 'done', base_sha = $1, digest = $2, verdict = $3,
+    counts = $4, notes = $5
+WHERE id = $6
+`
+
+type FinishVerificationRunParams struct {
+	BaseSha string
+	Digest  string
+	Verdict string
+	Counts  dbtype.JSON
+	Notes   dbtype.JSON
+	ID      uuid.UUID
+}
+
+func (q *Queries) FinishVerificationRun(ctx context.Context, arg FinishVerificationRunParams) error {
+	_, err := q.db.ExecContext(ctx, finishVerificationRun,
+		arg.BaseSha,
+		arg.Digest,
+		arg.Verdict,
+		arg.Counts,
+		arg.Notes,
+		arg.ID,
+	)
+	return err
+}
+
 const getVerificationRun = `-- name: GetVerificationRun :one
-SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at FROM verification_run WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = $1 AND id = $2
 `
 
 type GetVerificationRunParams struct {
@@ -41,6 +83,9 @@ func (q *Queries) GetVerificationRun(ctx context.Context, arg GetVerificationRun
 		&i.Stale,
 		&i.StartedBy,
 		&i.CreatedAt,
+		&i.Status,
+		&i.Error,
+		&i.Branch,
 	)
 	return i, err
 }
@@ -83,11 +128,11 @@ func (q *Queries) InsertVerificationOutcome(ctx context.Context, arg InsertVerif
 }
 
 const insertVerificationRun = `-- name: InsertVerificationRun :exec
-INSERT INTO verification_run (id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest,
-                              verdict, counts, notes, started_by, created_at)
+INSERT INTO verification_run (id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
+                              verdict, counts, notes, status, started_by, created_at)
 VALUES ($1, $2, $3, $4, $5,
-        $6, $7, $8, $9, $10, $11,
-        $12, $13, $14)
+        $6, $7, $8, '', '', '', $9, $10, 'queued',
+        $11, $12)
 `
 
 type InsertVerificationRunParams struct {
@@ -98,9 +143,7 @@ type InsertVerificationRunParams struct {
 	HandoffID   uuid.NullUUID
 	Repo        string
 	Sha         string
-	BaseSha     string
-	Digest      string
-	Verdict     string
+	Branch      string
 	Counts      dbtype.JSON
 	Notes       dbtype.JSON
 	StartedBy   string
@@ -116,9 +159,7 @@ func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificat
 		arg.HandoffID,
 		arg.Repo,
 		arg.Sha,
-		arg.BaseSha,
-		arg.Digest,
-		arg.Verdict,
+		arg.Branch,
 		arg.Counts,
 		arg.Notes,
 		arg.StartedBy,
@@ -129,7 +170,7 @@ func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificat
 
 const latestVerificationSHA = `-- name: LatestVerificationSHA :one
 SELECT sha FROM verification_run
-WHERE bundle_id = $1 AND repo = $2 AND sha <> ''
+WHERE bundle_id = $1 AND repo = $2 AND sha <> '' AND status = 'done'
 ORDER BY created_at DESC, id LIMIT 1
 `
 
@@ -185,7 +226,7 @@ func (q *Queries) ListVerificationOutcomes(ctx context.Context, runID uuid.UUID)
 }
 
 const listVerificationRuns = `-- name: ListVerificationRuns :many
-SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at FROM verification_run WHERE bundle_id = $1 ORDER BY created_at DESC, id
+SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE bundle_id = $1 ORDER BY created_at DESC, id
 `
 
 func (q *Queries) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) ([]VerificationRun, error) {
@@ -213,6 +254,9 @@ func (q *Queries) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) 
 			&i.Stale,
 			&i.StartedBy,
 			&i.CreatedAt,
+			&i.Status,
+			&i.Error,
+			&i.Branch,
 		); err != nil {
 			return nil, err
 		}
@@ -228,7 +272,7 @@ func (q *Queries) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) 
 }
 
 const listWorkspaceVerificationRuns = `-- name: ListWorkspaceVerificationRuns :many
-SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at FROM verification_run WHERE workspace_id = $1 ORDER BY created_at DESC
+SELECT id, workspace_id, bundle_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = $1 AND status = 'done' ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error) {
@@ -256,6 +300,9 @@ func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID
 			&i.Stale,
 			&i.StartedBy,
 			&i.CreatedAt,
+			&i.Status,
+			&i.Error,
+			&i.Branch,
 		); err != nil {
 			return nil, err
 		}
@@ -281,5 +328,14 @@ type StaleVerificationRunsParams struct {
 
 func (q *Queries) StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error {
 	_, err := q.db.ExecContext(ctx, staleVerificationRuns, arg.BundleID, arg.VersionID)
+	return err
+}
+
+const startVerificationRun = `-- name: StartVerificationRun :exec
+UPDATE verification_run SET status = 'running' WHERE id = $1
+`
+
+func (q *Queries) StartVerificationRun(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, startVerificationRun, id)
 	return err
 }

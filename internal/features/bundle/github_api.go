@@ -78,7 +78,7 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	}
 	def, err := c.Repo(ctx, ref.Repo)
 	if err != nil {
-		return ref, api.GithubResolved{}, repoUnreadable(ref.Repo, err)
+		return ref, api.GithubResolved{}, github.UnreadableRepo(ref.Repo, err)
 	}
 	if ref.Branch == "" {
 		ref.Branch = def
@@ -91,7 +91,7 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	// guesses and the person confirms (REQ-128).
 	content, ok, err := c.FileAt(ctx, ref.Repo, ref.Branch, ref.Path)
 	if err != nil {
-		return ref, out, repoUnreadable(ref.Repo, err)
+		return ref, out, github.UnreadableRepo(ref.Repo, err)
 	}
 	if !ok {
 		return ref, out, kernel.NotFound("doc_not_found", "%s is not on %s of %s.", ref.Path, ref.Branch, ref.Repo)
@@ -145,15 +145,6 @@ func docTitle(content []byte) string {
 		}
 	}
 	return ""
-}
-
-// repoUnreadable says that the credentials cannot read the repo, which GitHub answers with a
-// 404 for a private repo (REQ-129).
-func repoUnreadable(repo string, err error) error {
-	if github.IsNotFound(err) {
-		return kernel.Invalid("repo_no_access", "The GitHub credentials have no access to %s. It may be private, or the token may not cover it.", repo)
-	}
-	return kernel.Invalid("repo_unreadable", "Speccy cannot read %s: %s.", repo, strings.TrimSuffix(err.Error(), "."))
 }
 
 // ResolveGithubUrl says what a source URL names, before the source is made (REQ-128).

@@ -249,10 +249,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		m.stage = msg.stage
 		switch msg.run.Status {
-		case api.Complete:
+		case api.RunStatusComplete:
 			m.running, m.status = "", "The review finished."
 			return m, tea.Batch(m.refresh(), m.loadBundles())
-		case api.Failed:
+		case api.RunStatusFailed:
 			m.running, m.status = "", msg.run.Error
 			return m, m.refresh()
 		}

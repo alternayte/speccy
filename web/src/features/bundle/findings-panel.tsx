@@ -37,6 +37,7 @@ export function FindingsPanel({
   onOpen,
   onDiscuss,
   onOpenWaiver,
+  onVerify,
 }: {
   runId?: string;
   bundleId: string;
@@ -46,6 +47,8 @@ export function FindingsPanel({
   onOpen: (f: Finding) => void;
   onDiscuss: (f: Finding) => void;
   onOpenWaiver: (w: Waiver) => void;
+  // onVerify opens the verify field at a target, for a drifted code link.
+  onVerify?: (target: string) => void;
 }) {
   const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
   const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
@@ -141,6 +144,17 @@ export function FindingsPanel({
                 ) : null}
                 {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
               </button>
+              {f.verify_target && onVerify ? (
+                <div className="px-4 pb-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onVerify(f.verify_target!)}
+                    className="font-medium text-accent hover:underline"
+                  >
+                    Verify at {f.verify_target.split("/").pop()?.slice(0, 7)}
+                  </button>
+                </div>
+              ) : null}
               {(() => {
                 const w = onFinding(f);
                 if (!w) return null;

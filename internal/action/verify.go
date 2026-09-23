@@ -82,10 +82,10 @@ func RunVerify(ctx context.Context, o Options, bundles []VerifyBundle, files []g
 		switch {
 		case b.Error != "":
 			conclusion, title = "neutral", "The verification failed"
-		case b.Run.Verdict == api.VerificationVerdictNotVerified && o.Blocking:
+		case b.Run.NotVerified() && o.Blocking:
 			conclusion, title = "failure", "Not Verified"
 			res.Failed = true
-		case b.Run.Verdict == api.VerificationVerdictNotVerified:
+		case b.Run.NotVerified():
 			conclusion, title = "neutral", "Not Verified"
 		}
 		if err := o.GitHub.CreateCheckRun(ctx, o.Repo, github.CheckRun{
@@ -155,7 +155,7 @@ func verifySummaryComment(bundles []VerifyBundle, rest map[string][]string) stri
 func verifyTableFor(v VerifyBundle) string {
 	var b strings.Builder
 	verdict := "Verified"
-	if v.Run.Verdict == api.VerificationVerdictNotVerified {
+	if v.Run.NotVerified() {
 		verdict = "Not Verified"
 	}
 	at := v.Run.Sha

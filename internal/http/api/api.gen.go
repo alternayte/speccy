@@ -832,22 +832,22 @@ func (e RunKind) Valid() bool {
 
 // Defines values for RunStatus.
 const (
-	Complete RunStatus = "complete"
-	Failed   RunStatus = "failed"
-	Queued   RunStatus = "queued"
-	Running  RunStatus = "running"
+	RunStatusComplete RunStatus = "complete"
+	RunStatusFailed   RunStatus = "failed"
+	RunStatusQueued   RunStatus = "queued"
+	RunStatusRunning  RunStatus = "running"
 )
 
 // Valid indicates whether the value is a known member of the RunStatus enum.
 func (e RunStatus) Valid() bool {
 	switch e {
-	case Complete:
+	case RunStatusComplete:
 		return true
-	case Failed:
+	case RunStatusFailed:
 		return true
-	case Queued:
+	case RunStatusQueued:
 		return true
-	case Running:
+	case RunStatusRunning:
 		return true
 	default:
 		return false
@@ -1130,6 +1130,30 @@ func (e VerdictResult) Valid() bool {
 	}
 }
 
+// Defines values for VerificationStatus.
+const (
+	VerificationStatusDone    VerificationStatus = "done"
+	VerificationStatusFailed  VerificationStatus = "failed"
+	VerificationStatusQueued  VerificationStatus = "queued"
+	VerificationStatusRunning VerificationStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the VerificationStatus enum.
+func (e VerificationStatus) Valid() bool {
+	switch e {
+	case VerificationStatusDone:
+		return true
+	case VerificationStatusFailed:
+		return true
+	case VerificationStatusQueued:
+		return true
+	case VerificationStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VerificationVerdict.
 const (
 	VerificationVerdictNotVerified VerificationVerdict = "not_verified"
@@ -1142,6 +1166,24 @@ func (e VerificationVerdict) Valid() bool {
 	case VerificationVerdictNotVerified:
 		return true
 	case VerificationVerdictVerified:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for VerificationDefaultFrom.
+const (
+	VerificationDefaultFromLastRun VerificationDefaultFrom = "last_run"
+	VerificationDefaultFromLink    VerificationDefaultFrom = "link"
+)
+
+// Valid indicates whether the value is a known member of the VerificationDefaultFrom enum.
+func (e VerificationDefaultFrom) Valid() bool {
+	switch e {
+	case VerificationDefaultFromLastRun:
+		return true
+	case VerificationDefaultFromLink:
 		return true
 	default:
 		return false
@@ -1258,19 +1300,19 @@ func (e VerificationTargetProvenance) Valid() bool {
 
 // Defines values for Visibility.
 const (
-	Internal Visibility = "internal"
-	Link     Visibility = "link"
-	Private  Visibility = "private"
+	VisibilityInternal Visibility = "internal"
+	VisibilityLink     Visibility = "link"
+	VisibilityPrivate  Visibility = "private"
 )
 
 // Valid indicates whether the value is a known member of the Visibility enum.
 func (e Visibility) Valid() bool {
 	switch e {
-	case Internal:
+	case VisibilityInternal:
 		return true
-	case Link:
+	case VisibilityLink:
 		return true
-	case Private:
+	case VisibilityPrivate:
 		return true
 	default:
 		return false
@@ -1892,6 +1934,9 @@ type Finding struct {
 	Relaxed bool   `json:"relaxed"`
 	Stage   string `json:"stage"`
 
+	// VerifyTarget For a drifted code link, the commit URL a verification run reads to check the code still conforms.
+	VerifyTarget *string `json:"verify_target,omitempty"`
+
 	// Waived A valid waiver covers this finding (REQ-074).
 	Waived bool `json:"waived"`
 }
@@ -2430,6 +2475,20 @@ type RenderResult struct {
 	Html string `json:"html"`
 }
 
+// ResolvedBuild The build a target names. A folder has no SHA.
+type ResolvedBuild struct {
+	// Branch The branch the SHA is the head of. Absent for a commit, a pull request or a folder.
+	Branch *string `json:"branch,omitempty"`
+	Folder bool    `json:"folder"`
+
+	// Pull The pull request whose head the SHA is.
+	Pull *int `json:"pull,omitempty"`
+
+	// Repo owner/name, or the folder path.
+	Repo string `json:"repo"`
+	Sha  string `json:"sha"`
+}
+
 // ReviewStatus defines model for ReviewStatus.
 type ReviewStatus string
 
@@ -2776,13 +2835,19 @@ type VerdictResult string
 // Verification defines model for Verification.
 type Verification struct {
 	// BaseSha The commit the ranking compared against. Empty when the run had no base.
-	BaseSha   *string            `json:"base_sha,omitempty"`
+	BaseSha *string `json:"base_sha,omitempty"`
+
+	// Branch The branch the SHA was the head of, when the target named a branch or a repo.
+	Branch    *string            `json:"branch,omitempty"`
 	BundleId  openapi_types.UUID `json:"bundle_id"`
 	Counts    VerificationCounts `json:"counts"`
 	CreatedAt time.Time          `json:"created_at"`
 
 	// Digest The content digest of a folder run.
-	Digest    *string             `json:"digest,omitempty"`
+	Digest *string `json:"digest,omitempty"`
+
+	// Error Why a failed run failed.
+	Error     *string             `json:"error,omitempty"`
 	HandoffId *openapi_types.UUID `json:"handoff_id,omitempty"`
 	Id        openapi_types.UUID  `json:"id"`
 
@@ -2793,14 +2858,18 @@ type Verification struct {
 	Sha      string                `json:"sha"`
 
 	// Stale The bundle got a new version after this run.
-	Stale     bool    `json:"stale"`
-	StartedBy *string `json:"started_by,omitempty"`
+	Stale     bool               `json:"stale"`
+	StartedBy *string            `json:"started_by,omitempty"`
+	Status    VerificationStatus `json:"status"`
 
-	// Verdict The run's own verdict. It is not the bundle's Build Ready verdict.
-	Verdict VerificationVerdict `json:"verdict"`
+	// Verdict The run's own verdict, when the run is done. It is not the bundle's Build Ready verdict.
+	Verdict *VerificationVerdict `json:"verdict,omitempty"`
 }
 
-// VerificationVerdict The run's own verdict. It is not the bundle's Build Ready verdict.
+// VerificationStatus defines model for Verification.Status.
+type VerificationStatus string
+
+// VerificationVerdict The run's own verdict, when the run is done. It is not the bundle's Build Ready verdict.
 type VerificationVerdict string
 
 // VerificationClaim defines model for VerificationClaim.
@@ -2821,6 +2890,20 @@ type VerificationCounts struct {
 	Unproven int `json:"unproven"`
 	Untested int `json:"untested"`
 	Waived   int `json:"waived"`
+}
+
+// VerificationDefault defines model for VerificationDefault.
+type VerificationDefault struct {
+	From   VerificationDefaultFrom `json:"from"`
+	Target string                  `json:"target"`
+}
+
+// VerificationDefaultFrom defines model for VerificationDefault.From.
+type VerificationDefaultFrom string
+
+// VerificationDefaults defines model for VerificationDefaults.
+type VerificationDefaults struct {
+	Items []VerificationDefault `json:"items"`
 }
 
 // VerificationList defines model for VerificationList.
@@ -2855,7 +2938,7 @@ type VerificationOutcomeOutcome string
 // VerificationOutcomeProvenance defines model for VerificationOutcome.Provenance.
 type VerificationOutcomeProvenance string
 
-// VerificationRequest The code target of one verification run: a GitHub repo and a commit, or a folder on disk.
+// VerificationRequest The code target of one verification run: a pasted target, a GitHub repo and a commit, or a folder on disk. With none, the run reads the bundle's implemented-by link.
 type VerificationRequest struct {
 	// Claims The builder's claims. A claim replaces the derived targets of its trace ID.
 	Claims *[]VerificationClaim `json:"claims,omitempty"`
@@ -2871,6 +2954,9 @@ type VerificationRequest struct {
 
 	// Sha The commit the run reads.
 	Sha *string `json:"sha,omitempty"`
+
+	// Target A GitHub URL of a repo, a branch, a file, a commit or a pull request, or owner/name. In local mode, also an absolute folder path.
+	Target *string `json:"target,omitempty"`
 }
 
 // VerificationTarget defines model for VerificationTarget.
@@ -2896,6 +2982,11 @@ type VerificationTargetKind string
 
 // VerificationTargetProvenance defines model for VerificationTarget.Provenance.
 type VerificationTargetProvenance string
+
+// VerificationTargetInput defines model for VerificationTargetInput.
+type VerificationTargetInput struct {
+	Target string `json:"target"`
+}
 
 // Version defines model for Version.
 type Version struct {
@@ -3320,6 +3411,9 @@ type RequestVerificationWaiverJSONRequestBody RequestVerificationWaiverJSONBody
 // RunVerificationJSONRequestBody defines body for RunVerification for application/json ContentType.
 type RunVerificationJSONRequestBody = VerificationRequest
 
+// ResolveVerificationTargetJSONRequestBody defines body for ResolveVerificationTarget for application/json ContentType.
+type ResolveVerificationTargetJSONRequestBody = VerificationTargetInput
+
 // SetVisibilityJSONRequestBody defines body for SetVisibility for application/json ContentType.
 type SetVisibilityJSONRequestBody SetVisibilityJSONBody
 
@@ -3571,9 +3665,15 @@ type ServerInterface interface {
 	// ListVerifications The verification runs of a bundle, newest first.
 	// (GET /bundles/{bundleId}/verifications)
 	ListVerifications(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// RunVerification Verify one build of this bundle against a code repo at one commit.
+	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
 	// (POST /bundles/{bundleId}/verifications)
 	RunVerification(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+	// (GET /bundles/{bundleId}/verifications/defaults)
+	VerificationDefaults(w http.ResponseWriter, r *http.Request, bundleId BundleId)
+	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	// (POST /bundles/{bundleId}/verifications/resolve)
+	ResolveVerificationTarget(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
@@ -3736,6 +3836,9 @@ type ServerInterface interface {
 	// GetVerification One verification run with the outcome of each trace ID.
 	// (GET /verifications/{runId})
 	GetVerification(w http.ResponseWriter, r *http.Request, runId openapi_types.UUID)
+	// VerificationEvents Follow a verification run's progress by trace ID, as server-sent events.
+	// (GET /verifications/{runId}/events)
+	VerificationEvents(w http.ResponseWriter, r *http.Request, runId openapi_types.UUID)
 	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	// (POST /waivers/{waiverId}/approve)
 	ApproveWaiver(w http.ResponseWriter, r *http.Request, waiverId WaiverId)
@@ -5407,6 +5510,58 @@ func (siw *ServerInterfaceWrapper) RunVerification(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// VerificationDefaults operation middleware
+func (siw *ServerInterfaceWrapper) VerificationDefaults(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VerificationDefaults(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResolveVerificationTarget operation middleware
+func (siw *ServerInterfaceWrapper) ResolveVerificationTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "bundleId" -------------
+	var bundleId BundleId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResolveVerificationTarget(w, r, bundleId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListVersions operation middleware
 func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
 
@@ -6691,6 +6846,32 @@ func (siw *ServerInterfaceWrapper) GetVerification(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// VerificationEvents operation middleware
+func (siw *ServerInterfaceWrapper) VerificationEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VerificationEvents(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ApproveWaiver operation middleware
 func (siw *ServerInterfaceWrapper) ApproveWaiver(w http.ResponseWriter, r *http.Request) {
 
@@ -6875,6 +7056,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/delete-plan", wrapper.DeleteBundlePlan)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/verifications", wrapper.ListVerifications)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verifications", wrapper.RunVerification)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verifications/resolve", wrapper.ResolveVerificationTarget)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/verifications/defaults", wrapper.VerificationDefaults)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}/events", wrapper.VerificationEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}", wrapper.GetVerification)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/adopt", wrapper.AdoptFrontmatter)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/visibility", wrapper.SetVisibility)
@@ -9407,9 +9591,48 @@ type RunVerificationResponseObject interface {
 	VisitRunVerificationResponse(w http.ResponseWriter) error
 }
 
-type RunVerification200JSONResponse Verification
+type RunVerification202JSONResponse Verification
 
-func (response RunVerification200JSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
+func (response RunVerification202JSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunVerificationdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RunVerificationdefaultApplicationProblemPlusJSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerificationDefaultsRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+}
+
+type VerificationDefaultsResponseObject interface {
+	VisitVerificationDefaultsResponse(w http.ResponseWriter) error
+}
+
+type VerificationDefaults200JSONResponse VerificationDefaults
+
+func (response VerificationDefaults200JSONResponse) VisitVerificationDefaultsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -9421,12 +9644,52 @@ func (response RunVerification200JSONResponse) VisitRunVerificationResponse(w ht
 	return err
 }
 
-type RunVerificationdefaultApplicationProblemPlusJSONResponse struct {
+type VerificationDefaultsdefaultApplicationProblemPlusJSONResponse struct {
 	Body       Problem
 	StatusCode int
 }
 
-func (response RunVerificationdefaultApplicationProblemPlusJSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
+func (response VerificationDefaultsdefaultApplicationProblemPlusJSONResponse) VisitVerificationDefaultsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveVerificationTargetRequestObject struct {
+	BundleId BundleId `json:"bundleId"`
+	Body     *ResolveVerificationTargetJSONRequestBody
+}
+
+type ResolveVerificationTargetResponseObject interface {
+	VisitResolveVerificationTargetResponse(w http.ResponseWriter) error
+}
+
+type ResolveVerificationTarget200JSONResponse ResolvedBuild
+
+func (response ResolveVerificationTarget200JSONResponse) VisitResolveVerificationTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveVerificationTargetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ResolveVerificationTargetdefaultApplicationProblemPlusJSONResponse) VisitResolveVerificationTargetResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -11582,6 +11845,74 @@ func (response GetVerificationdefaultApplicationProblemPlusJSONResponse) VisitGe
 	return err
 }
 
+type VerificationEventsRequestObject struct {
+	RunId openapi_types.UUID `json:"runId"`
+}
+
+type VerificationEventsResponseObject interface {
+	VisitVerificationEventsResponse(w http.ResponseWriter) error
+}
+
+type VerificationEvents200TexteventStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response VerificationEvents200TexteventStreamResponse) VisitVerificationEventsResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		// If w doesn't support flushing, fall back to io.Copy.
+		_, err := io.Copy(w, response.Body)
+		return err
+	}
+	// text/event-stream messages are typically small; use a
+	// modest buffer and flush after each chunk so clients see
+	// events immediately instead of waiting on OS buffering.
+	buf := make([]byte, 4096)
+	for {
+		n, err := response.Body.Read(buf)
+		if n > 0 {
+			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
+				return writeErr
+			}
+			flusher.Flush()
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+	}
+}
+
+type VerificationEventsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response VerificationEventsdefaultApplicationProblemPlusJSONResponse) VisitVerificationEventsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ApproveWaiverRequestObject struct {
 	WaiverId WaiverId `json:"waiverId"`
 }
@@ -11846,9 +12177,15 @@ type StrictServerInterface interface {
 	// ListVerifications The verification runs of a bundle, newest first.
 	// (GET /bundles/{bundleId}/verifications)
 	ListVerifications(ctx context.Context, request ListVerificationsRequestObject) (ListVerificationsResponseObject, error)
-	// RunVerification Verify one build of this bundle against a code repo at one commit.
+	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
 	// (POST /bundles/{bundleId}/verifications)
 	RunVerification(ctx context.Context, request RunVerificationRequestObject) (RunVerificationResponseObject, error)
+	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+	// (GET /bundles/{bundleId}/verifications/defaults)
+	VerificationDefaults(ctx context.Context, request VerificationDefaultsRequestObject) (VerificationDefaultsResponseObject, error)
+	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	// (POST /bundles/{bundleId}/verifications/resolve)
+	ResolveVerificationTarget(ctx context.Context, request ResolveVerificationTargetRequestObject) (ResolveVerificationTargetResponseObject, error)
 	// ListVersions List the versions of a bundle, newest first.
 	// (GET /bundles/{bundleId}/versions)
 	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
@@ -12011,6 +12348,9 @@ type StrictServerInterface interface {
 	// GetVerification One verification run with the outcome of each trace ID.
 	// (GET /verifications/{runId})
 	GetVerification(ctx context.Context, request GetVerificationRequestObject) (GetVerificationResponseObject, error)
+	// VerificationEvents Follow a verification run's progress by trace ID, as server-sent events.
+	// (GET /verifications/{runId}/events)
+	VerificationEvents(ctx context.Context, request VerificationEventsRequestObject) (VerificationEventsResponseObject, error)
 	// ApproveWaiver Approve a waiver under the profile's policy (REQ-073, §9.1). A final approval writes it to the doc's sidecar (DEC-009).
 	// (POST /waivers/{waiverId}/approve)
 	ApproveWaiver(ctx context.Context, request ApproveWaiverRequestObject) (ApproveWaiverResponseObject, error)
@@ -13816,6 +14156,65 @@ func (sh *strictHandler) RunVerification(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// VerificationDefaults operation middleware
+func (sh *strictHandler) VerificationDefaults(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request VerificationDefaultsRequestObject
+
+	request.BundleId = bundleId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.VerificationDefaults(ctx, request.(VerificationDefaultsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VerificationDefaults")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(VerificationDefaultsResponseObject); ok {
+		if err := validResponse.VisitVerificationDefaultsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResolveVerificationTarget operation middleware
+func (sh *strictHandler) ResolveVerificationTarget(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
+	var request ResolveVerificationTargetRequestObject
+
+	request.BundleId = bundleId
+
+	var body ResolveVerificationTargetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResolveVerificationTarget(ctx, request.(ResolveVerificationTargetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResolveVerificationTarget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResolveVerificationTargetResponseObject); ok {
+		if err := validResponse.VisitResolveVerificationTargetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListVersions operation middleware
 func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams) {
 	var request ListVersionsRequestObject
@@ -15328,6 +15727,32 @@ func (sh *strictHandler) GetVerification(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetVerificationResponseObject); ok {
 		if err := validResponse.VisitGetVerificationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VerificationEvents operation middleware
+func (sh *strictHandler) VerificationEvents(w http.ResponseWriter, r *http.Request, runId openapi_types.UUID) {
+	var request VerificationEventsRequestObject
+
+	request.RunId = runId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.VerificationEvents(ctx, request.(VerificationEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VerificationEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(VerificationEventsResponseObject); ok {
+		if err := validResponse.VisitVerificationEventsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

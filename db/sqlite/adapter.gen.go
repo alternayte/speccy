@@ -220,12 +220,20 @@ func (a Adapter) DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) 
 	return a.q.DeleteWaiversOfBundle(ctx, bundleID)
 }
 
+func (a Adapter) FailVerificationRun(ctx context.Context, arg pgdb.FailVerificationRunParams) error {
+	return a.q.FailVerificationRun(ctx, FailVerificationRunParams(arg))
+}
+
 func (a Adapter) FinishJob(ctx context.Context, arg pgdb.FinishJobParams) error {
 	return a.q.FinishJob(ctx, FinishJobParams(arg))
 }
 
 func (a Adapter) FinishRun(ctx context.Context, arg pgdb.FinishRunParams) error {
 	return a.q.FinishRun(ctx, FinishRunParams(arg))
+}
+
+func (a Adapter) FinishVerificationRun(ctx context.Context, arg pgdb.FinishVerificationRunParams) error {
+	return a.q.FinishVerificationRun(ctx, FinishVerificationRunParams(arg))
 }
 
 func (a Adapter) GetAssignment(ctx context.Context, arg pgdb.GetAssignmentParams) (pgdb.RoleAssignment, error) {
@@ -1186,6 +1194,10 @@ func (a Adapter) StaleVerificationRuns(ctx context.Context, arg pgdb.StaleVerifi
 
 func (a Adapter) StartRunExecution(ctx context.Context, arg pgdb.StartRunExecutionParams) error {
 	return a.q.StartRunExecution(ctx, StartRunExecutionParams(arg))
+}
+
+func (a Adapter) StartVerificationRun(ctx context.Context, id uuid.UUID) error {
+	return a.q.StartVerificationRun(ctx, id)
 }
 
 func (a Adapter) ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error) {

@@ -437,6 +437,9 @@ type VerificationRun struct {
 	Stale       bool
 	StartedBy   string
 	CreatedAt   time.Time
+	Status      string
+	Error       string
+	Branch      string
 }
 
 type Version struct {

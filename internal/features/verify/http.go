@@ -5,21 +5,24 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/verify"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 )
 
-// RunVerification verifies one build of a bundle against a code repo at one commit.
+// RunVerification queues a verification of one build of a bundle: a pasted target, a repo at
+// one commit, a folder, or with none of these the bundle's implemented-by link.
 func (a *API) RunVerification(ctx context.Context, req api.RunVerificationRequestObject) (api.RunVerificationResponseObject, error) {
 	in := Input{BundleID: req.BundleId}
 	if b := req.Body; b != nil {
-		in.Repo, in.SHA, in.Path = str(b.Repo), str(b.Sha), str(b.Path)
+		in.Target, in.Repo, in.SHA, in.Path = str(b.Target), str(b.Repo), str(b.Sha), str(b.Path)
 		in.HandoffID = b.HandoffId
 		if b.Claims != nil {
 			for _, c := range *b.Claims {
@@ -32,11 +35,81 @@ func (a *API) RunVerification(ctx context.Context, req api.RunVerificationReques
 			}
 		}
 	}
-	run, err := a.Verify(ctx, in)
+	run, err := a.Start(ctx, in)
 	if err != nil {
 		return nil, err
 	}
-	return api.RunVerification200JSONResponse(runAPI(req.BundleId, run, nil, false)), nil
+	return api.RunVerification202JSONResponse(runAPI(req.BundleId, run, in.HandoffID, false)), nil
+}
+
+// ResolveVerificationTarget says which build a pasted target names, before a run starts.
+func (a *API) ResolveVerificationTarget(ctx context.Context, req api.ResolveVerificationTargetRequestObject) (api.ResolveVerificationTargetResponseObject, error) {
+	if _, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.BundleId); err != nil {
+		return nil, err
+	}
+	r, err := a.resolve(ctx, req.Body.Target)
+	if err != nil {
+		return nil, err
+	}
+	out := api.ResolvedBuild{Repo: r.Repo, Sha: r.SHA, Folder: r.Folder}
+	if r.Branch != "" {
+		out.Branch = &r.Branch
+	}
+	if r.Pull > 0 {
+		out.Pull = &r.Pull
+	}
+	return api.ResolveVerificationTarget200JSONResponse(out), nil
+}
+
+// VerificationDefaults returns the targets that prefill the verify field.
+func (a *API) VerificationDefaults(ctx context.Context, req api.VerificationDefaultsRequestObject) (api.VerificationDefaultsResponseObject, error) {
+	q := a.DB.Queries()
+	b, err := version.Bundle(ctx, q, a.Workspace, req.BundleId)
+	if err != nil {
+		return nil, err
+	}
+	cur, err := version.LoadCurrent(ctx, q, b)
+	if err != nil {
+		return nil, err
+	}
+	ds, err := a.defaults(ctx, b, cur.File(b.MainDoc))
+	if err != nil {
+		return nil, err
+	}
+	out := api.VerificationDefaults200JSONResponse{Items: []api.VerificationDefault{}}
+	for _, d := range ds {
+		out.Items = append(out.Items, api.VerificationDefault{Target: d.Target, From: api.VerificationDefaultFrom(d.From)})
+	}
+	return out, nil
+}
+
+// VerificationEvents streams a run's progress by trace ID.
+func (a *API) VerificationEvents(ctx context.Context, req api.VerificationEventsRequestObject) (api.VerificationEventsResponseObject, error) {
+	row, err := a.DB.Queries().GetVerificationRun(ctx, pgdb.GetVerificationRunParams{WorkspaceID: a.Workspace, ID: req.RunId})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, kernel.NotFound("verification_not_found", "No verification run has this ID.")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return eventStream{ctx: ctx, row: row, broker: a.Progress}, nil
+}
+
+type eventStream struct {
+	ctx    context.Context
+	row    pgdb.VerificationRun
+	broker *review.Broker
+}
+
+func (e eventStream) VisitVerificationEventsResponse(w http.ResponseWriter) error {
+	var final *review.Event
+	switch e.row.Status {
+	case StatusDone:
+		final = &review.Event{Type: "done", Stage: StatusDone, Message: e.row.Verdict}
+	case StatusFailed:
+		final = &review.Event{Type: "failed", Stage: StatusRunning, Message: e.row.Error}
+	}
+	return review.WriteEvents(e.ctx, w, e.broker, e.row.ID, final, review.Event{Type: "stage", Stage: e.row.Status})
 }
 
 // GetVerification returns one stored run with the outcome of each trace ID.
@@ -92,7 +165,8 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 		stale = stale || b.CurrentVersionID.UUID != row.VersionID
 	}
 	row.Stale = stale
-	run := Run{ID: row.ID, Verdict: verify.Verdict(row.Verdict), Repo: row.Repo, SHA: row.Sha,
+	run := Run{ID: row.ID, Status: row.Status, Error: row.Error, Branch: row.Branch,
+		Verdict: verify.Verdict(row.Verdict), Repo: row.Repo, SHA: row.Sha,
 		BaseSHA: row.BaseSha, Digest: row.Digest, Stale: row.Stale, At: row.CreatedAt}
 	_ = json.Unmarshal(row.Counts, &run.Counts)
 	_ = json.Unmarshal(row.Notes, &run.Notes)
@@ -115,9 +189,19 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 
 func runAPI(bundle uuid.UUID, run Run, handoff *uuid.UUID, stale bool) api.Verification {
 	out := api.Verification{
-		Id: run.ID, BundleId: bundle, HandoffId: handoff, Verdict: api.VerificationVerdict(run.Verdict),
+		Id: run.ID, BundleId: bundle, HandoffId: handoff, Status: api.VerificationStatus(run.Status),
 		Repo: run.Repo, Sha: run.SHA, Counts: countsAPI(run.Counts), Notes: nonNil(run.Notes),
 		Stale: stale, CreatedAt: run.At, Outcomes: []api.VerificationOutcome{},
+	}
+	if run.Status == StatusDone {
+		v := api.VerificationVerdict(run.Verdict)
+		out.Verdict = &v
+	}
+	if run.Error != "" {
+		out.Error = &run.Error
+	}
+	if run.Branch != "" {
+		out.Branch = &run.Branch
 	}
 	if run.BaseSHA != "" {
 		out.BaseSha = &run.BaseSHA

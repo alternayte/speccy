@@ -124,8 +124,6 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	if err := svc.Sync(ctx); err != nil {
 		return nil, err
 	}
-	// SDD §7.2: one worker runs queued reviews.
-	go reviews.Work(ctx)
 	// REQ-123: both modes keep their GitHub sources in step.
 	go svc.WatchGitHub(ctx, 5*time.Minute)
 	shareAPI := &share.API{DB: db, Workspace: ws}
@@ -137,7 +135,10 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
 	tourAPI := &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
 	verifyAPI := &verify.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway,
-		GitHub: reviews.GitHub, Threads: threadAPI}
+		GitHub: reviews.GitHub, Threads: threadAPI, Progress: reviews.Progress, Wake: reviews.Wake, Local: root != nil}
+	// SDD §7.2: one worker runs queued reviews, and the queued verification runs with them.
+	reviews.Jobs = map[string]func(context.Context, []byte) error{verify.JobKind: verifyAPI.Execute}
+	go reviews.Work(ctx)
 	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
 		Waiting:    waiverAPI.Waiting,
 		FirstPoint: tourAPI.FirstPoint,

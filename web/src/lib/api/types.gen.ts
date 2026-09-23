@@ -292,9 +292,13 @@ export type DeletePlan = {
 };
 
 /**
- * The code target of one verification run: a GitHub repo and a commit, or a folder on disk.
+ * The code target of one verification run: a pasted target, a GitHub repo and a commit, or a folder on disk. With none, the run reads the bundle's implemented-by link.
  */
 export type VerificationRequest = {
+    /**
+     * A GitHub URL of a repo, a branch, a file, a commit or a pull request, or owner/name. In local mode, also an absolute folder path.
+     */
+    target?: string;
     /**
      * The repo, as owner/name.
      */
@@ -315,6 +319,39 @@ export type VerificationRequest = {
      * The builder's claims. A claim replaces the derived targets of its trace ID.
      */
     claims?: Array<VerificationClaim>;
+};
+
+export type VerificationTargetInput = {
+    target: string;
+};
+
+/**
+ * The build a target names. A folder has no SHA.
+ */
+export type ResolvedBuild = {
+    /**
+     * owner/name, or the folder path.
+     */
+    repo: string;
+    sha: string;
+    /**
+     * The branch the SHA is the head of. Absent for a commit, a pull request or a folder.
+     */
+    branch?: string;
+    /**
+     * The pull request whose head the SHA is.
+     */
+    pull?: number;
+    folder: boolean;
+};
+
+export type VerificationDefaults = {
+    items: Array<VerificationDefault>;
+};
+
+export type VerificationDefault = {
+    target: string;
+    from: 'link' | 'last_run';
 };
 
 export type VerificationClaim = {
@@ -382,12 +419,21 @@ export type Verification = {
     id: string;
     bundle_id: string;
     handoff_id?: string;
+    status: 'queued' | 'running' | 'done' | 'failed';
     /**
-     * The run's own verdict. It is not the bundle's Build Ready verdict.
+     * Why a failed run failed.
      */
-    verdict: 'verified' | 'not_verified';
+    error?: string;
+    /**
+     * The run's own verdict, when the run is done. It is not the bundle's Build Ready verdict.
+     */
+    verdict?: 'verified' | 'not_verified';
     repo: string;
     sha: string;
+    /**
+     * The branch the SHA was the head of, when the target named a branch or a repo.
+     */
+    branch?: string;
     /**
      * The commit the ranking compared against. Empty when the run had no base.
      */
@@ -679,6 +725,10 @@ export type Finding = {
      * The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
      */
     layer?: 'ambiguous' | 'unverified' | 'contradicted' | 'risk' | 'slop';
+    /**
+     * For a drifted code link, the commit URL a verification run reads to check the code still conforms.
+     */
+    verify_target?: string;
     /**
      * The anchor in the bundle's current version, re-anchored when the run read an older version.
      */
@@ -1938,12 +1988,93 @@ export type RunVerificationError = RunVerificationErrors[keyof RunVerificationEr
 
 export type RunVerificationResponses = {
     /**
-     * The verification run.
+     * The queued run. Follow its progress at /verifications/{runId}/events, or read it until its status is done or failed.
      */
-    200: Verification;
+    202: Verification;
 };
 
 export type RunVerificationResponse = RunVerificationResponses[keyof RunVerificationResponses];
+
+export type ResolveVerificationTargetData = {
+    body: VerificationTargetInput;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/verifications/resolve';
+};
+
+export type ResolveVerificationTargetErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ResolveVerificationTargetError = ResolveVerificationTargetErrors[keyof ResolveVerificationTargetErrors];
+
+export type ResolveVerificationTargetResponses = {
+    /**
+     * The build the target names.
+     */
+    200: ResolvedBuild;
+};
+
+export type ResolveVerificationTargetResponse = ResolveVerificationTargetResponses[keyof ResolveVerificationTargetResponses];
+
+export type VerificationDefaultsData = {
+    body?: never;
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/verifications/defaults';
+};
+
+export type VerificationDefaultsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type VerificationDefaultsError = VerificationDefaultsErrors[keyof VerificationDefaultsErrors];
+
+export type VerificationDefaultsResponses = {
+    /**
+     * The targets.
+     */
+    200: VerificationDefaults;
+};
+
+export type VerificationDefaultsResponse = VerificationDefaultsResponses[keyof VerificationDefaultsResponses];
+
+export type VerificationEventsData = {
+    body?: never;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/verifications/{runId}/events';
+};
+
+export type VerificationEventsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type VerificationEventsError = VerificationEventsErrors[keyof VerificationEventsErrors];
+
+export type VerificationEventsResponses = {
+    /**
+     * A stream of events. Each data line is a RunEvent. The stream ends when the run ends.
+     */
+    200: string;
+};
+
+export type VerificationEventsResponse = VerificationEventsResponses[keyof VerificationEventsResponses];
 
 export type GetVerificationData = {
     body?: never;

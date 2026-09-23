@@ -121,7 +121,7 @@ It is advisory by default: the verdict shows and the job passes. `enforcement: b
 `speccy mcp` is an MCP server over stdio. An agent can review a doc, read the verdict, take the build packet of a Build Ready bundle, report what it learned while building, and verify what it built:
 
 ```sh
-speccy verify docs/specs/pay --repo acme/pay --sha $(git rev-parse HEAD)
+speccy verify docs/specs/pay https://github.com/acme/pay/pull/12
 ```
 
 Speccy reads the code. It runs no code and no tests, so a cited test is a citation, never a pass.
@@ -168,7 +168,7 @@ Each check carries a level. The doc is **Build Ready** only when no MUST finding
 | ------------------------------------------------------ | ------------------------------------------------------ |
 | `speccy`                                               | The app on 127.0.0.1, on the current folder.           |
 | `speccy review <path…>`                                | Review in a terminal or in CI. Text, JSON or markdown. |
-| `speccy verify <path> --repo <owner/name> --sha <sha>` | Verify one build against the bundle.                   |
+| `speccy verify <path> [<GitHub URL or folder>]`        | Verify one build against the bundle.                   |
 | `speccy add <url>`                                     | Read a repo, a folder or a doc from GitHub.            |
 | `speccy tui`                                           | The terminal UI. `e` opens a finding in `$EDITOR`.     |
 | `speccy mcp`                                           | An MCP server over stdio.                              |

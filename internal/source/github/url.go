@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -29,36 +31,14 @@ func (r Ref) APIURL() string {
 // .../tree/<branch>/<path>, and .../blob/<branch>/<path>/doc.md, with or without a scheme,
 // and the .git suffix of a clone URL (REQ-128).
 func ParseURL(raw string) (Ref, error) {
-	s := strings.TrimSpace(raw)
-	if s == "" {
-		return Ref{}, fmt.Errorf("the address is empty")
+	host, parts, err := split(raw)
+	if err != nil {
+		return Ref{}, err
 	}
 	bad := func() (Ref, error) {
 		return Ref{}, fmt.Errorf("%q is not a GitHub address. Speccy takes owner/name, a repo URL, or the URL of a folder or a doc in it", raw)
 	}
-	s = strings.TrimSuffix(strings.TrimPrefix(s, "git@"), ".git")
-	host := ""
-	rest := s
-	switch {
-	case strings.Contains(s, "://"):
-		u, err := url.Parse(s)
-		if err != nil || u.Host == "" {
-			return bad()
-		}
-		host, rest = u.Host, strings.Trim(u.Path, "/")
-	case strings.Count(s, "/") >= 2 && strings.Contains(strings.SplitN(s, "/", 2)[0], "."):
-		// host/owner/name, with no scheme.
-		host, rest, _ = strings.Cut(s, "/")
-		rest = strings.Trim(rest, "/")
-	}
-	parts := strings.Split(rest, "/")
-	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
-		return bad()
-	}
 	ref := Ref{Host: host, Repo: parts[0] + "/" + parts[1], Path: "."}
-	if !RepoPattern.MatchString(ref.Repo) {
-		return bad()
-	}
 	if len(parts) == 2 {
 		return ref, nil
 	}
@@ -80,4 +60,80 @@ func ParseURL(raw string) (Ref, error) {
 		return bad()
 	}
 	return ref, nil
+}
+
+// split reads the host and the path segments of a GitHub address. The first two segments are
+// the owner and the repo name.
+func split(raw string) (host string, parts []string, err error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", nil, fmt.Errorf("the address is empty")
+	}
+	bad := fmt.Errorf("%q is not a GitHub address. Speccy takes owner/name, a repo URL, or the URL of a folder or a doc in it", raw)
+	s = strings.TrimSuffix(strings.TrimPrefix(s, "git@"), ".git")
+	rest := s
+	switch {
+	case strings.Contains(s, "://"):
+		u, err := url.Parse(s)
+		if err != nil || u.Host == "" {
+			return "", nil, bad
+		}
+		host, rest = u.Host, strings.Trim(u.Path, "/")
+	case strings.Count(s, "/") >= 2 && strings.Contains(strings.SplitN(s, "/", 2)[0], "."):
+		// host/owner/name, with no scheme.
+		host, rest, _ = strings.Cut(s, "/")
+		rest = strings.Trim(rest, "/")
+	}
+	parts = strings.Split(rest, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" || !RepoPattern.MatchString(parts[0]+"/"+parts[1]) {
+		return "", nil, bad
+	}
+	return host, parts, nil
+}
+
+// Build is the code a verification run reads, as a pasted URL names it: a repo, a branch, a
+// commit, or a pull request.
+type Build struct {
+	Ref
+	// SHA is the commit a commit URL names.
+	SHA string
+	// Pull is the number of the pull request a pull request URL names.
+	Pull int
+}
+
+// shaPattern is a full or abbreviated commit SHA.
+var shaPattern = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
+
+// ParseBuildURL reads the address of a build: anything ParseURL takes, plus
+// .../commit/<sha> and .../pull/<n>. The folder or the file in the address names no scope,
+// because the gate reads the whole tree.
+func ParseBuildURL(raw string) (Build, error) {
+	host, parts, err := split(raw)
+	if err != nil {
+		return Build{}, fmt.Errorf("%q is not a GitHub address. Speccy takes a repo URL, or the URL of a branch, a folder, a file, a commit or a pull request", raw)
+	}
+	b := Build{Ref: Ref{Host: host, Repo: parts[0] + "/" + parts[1], Path: "."}}
+	if len(parts) >= 4 {
+		switch parts[2] {
+		case "commit":
+			if !shaPattern.MatchString(parts[3]) {
+				return Build{}, fmt.Errorf("%q is not a commit SHA", parts[3])
+			}
+			b.SHA = parts[3]
+			return b, nil
+		case "pull":
+			n, err := strconv.Atoi(parts[3])
+			if err != nil || n <= 0 {
+				return Build{}, fmt.Errorf("%q is not a pull request number", parts[3])
+			}
+			b.Pull = n
+			return b, nil
+		}
+	}
+	ref, err := ParseURL(raw)
+	if err != nil {
+		return Build{}, fmt.Errorf("%q is not a GitHub address. Speccy takes a repo URL, or the URL of a branch, a folder, a file, a commit or a pull request", raw)
+	}
+	b.Ref = ref
+	return b, nil
 }

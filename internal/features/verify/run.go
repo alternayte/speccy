@@ -13,12 +13,14 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/ears"
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/engine/verify"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/thread"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -38,6 +40,12 @@ type API struct {
 	// Threads opens the blocking thread a MUST missing or a MUST breach becomes. The run
 	// changes no verdict itself: the thread does, through the rule that already exists.
 	Threads *thread.API
+	// Progress receives the events of a running verification, for the bundle page.
+	Progress *review.Broker
+	// Wake tells the worker that a job is queued.
+	Wake func()
+	// Local is true in local mode, where a run may read a folder on disk.
+	Local bool
 	// Now is the clock, for tests.
 	Now func() time.Time
 }
@@ -59,6 +67,11 @@ type Claim struct {
 // Input is one verification run.
 type Input struct {
 	BundleID uuid.UUID
+	// Target is what a person pasted: a GitHub URL, owner/name, or a folder in local mode.
+	// Speccy resolves it into Repo and SHA, or Path, before the run is queued.
+	Target string
+	// Branch is the branch SHA was the head of, when the target named a branch or a repo.
+	Branch string
 	// Repo and SHA name a GitHub repo, or Path names a folder on disk. One of the two.
 	Repo string
 	SHA  string
@@ -74,6 +87,9 @@ type Input struct {
 // Run is one finished verification run.
 type Run struct {
 	ID      uuid.UUID
+	Status  string
+	Error   string
+	Branch  string
 	Verdict verify.Verdict
 	Counts  verify.Counts
 	Notes   []string
@@ -86,6 +102,14 @@ type Run struct {
 	At      time.Time
 }
 
+// name is the repo, or the folder, that a run reads.
+func (in Input) name() string {
+	if in.Path != "" {
+		return in.Path
+	}
+	return in.Repo
+}
+
 // Outcome is one trace ID's result, with the evidence behind it.
 type Outcome struct {
 	verify.Result
@@ -94,8 +118,176 @@ type Outcome struct {
 	Provenance verify.Provenance `json:"provenance"`
 }
 
-// Verify runs the gate and stores the run.
+// JobKind is the kind of a verification job in the job queue.
+const JobKind = "verify"
+
+// The status of a run: it is queued, then running, then done or failed.
+const (
+	StatusQueued  = "queued"
+	StatusRunning = "running"
+	StatusDone    = "done"
+	StatusFailed  = "failed"
+)
+
+// job is the payload of a verification job.
+type job struct {
+	RunID uuid.UUID `json:"run_id"`
+	Input Input     `json:"input"`
+}
+
+// Start checks the request, resolves its target, and queues the run. The checks run here, so
+// a bundle with no trace ID or a repo Speccy cannot read fails at once, not in the worker.
+func (a *API) Start(ctx context.Context, in Input) (Run, error) {
+	if err := a.prepare(ctx, &in); err != nil {
+		return Run{}, err
+	}
+	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, in.BundleID)
+	if err != nil {
+		return Run{}, err
+	}
+	run := Run{ID: kernel.NewID(), Status: StatusQueued, Repo: in.name(), SHA: in.SHA, Branch: in.Branch, At: a.now()}
+	payload, _ := json.Marshal(job{RunID: run.ID, Input: in})
+	err = a.DB.InTx(ctx, func(tx store.Tx) error {
+		if err := a.insert(ctx, tx.Queries(), b, run, in.HandoffID); err != nil {
+			return err
+		}
+		return tx.Queries().InsertJob(ctx, pgdb.InsertJobParams{ID: kernel.NewID(), WorkspaceID: a.Workspace,
+			Kind: JobKind, Payload: dbtype.JSON(payload), CreatedAt: run.At})
+	})
+	if err != nil {
+		return Run{}, err
+	}
+	a.Progress.Publish(run.ID, review.Event{Type: "stage", Stage: StatusQueued})
+	if a.Wake != nil {
+		a.Wake()
+	}
+	return run, nil
+}
+
+// Execute runs one queued job. A run that fails stores its cause on the run, so the job ends
+// either way.
+func (a *API) Execute(ctx context.Context, payload []byte) error {
+	var j job
+	if err := json.Unmarshal(payload, &j); err != nil {
+		return err
+	}
+	q := a.DB.Queries()
+	row, err := q.GetVerificationRun(ctx, pgdb.GetVerificationRunParams{WorkspaceID: a.Workspace, ID: j.RunID})
+	if err != nil {
+		return err
+	}
+	if row.Status == StatusDone || row.Status == StatusFailed {
+		return nil
+	}
+	// The worker has no request, so the run acts as the person who started it: the blocking
+	// thread it opens names them.
+	ctx = kernel.WithActor(ctx, kernel.Actor{UserID: row.StartedBy})
+	if err := q.StartVerificationRun(ctx, j.RunID); err != nil {
+		return err
+	}
+	a.Progress.Publish(j.RunID, review.Event{Type: "stage", Stage: StatusRunning})
+	run, err := a.execute(ctx, j.RunID, j.Input)
+	if err != nil {
+		msg := err.Error()
+		if ke, ok := kernel.AsError(err); ok {
+			msg = ke.Detail
+		}
+		if err := q.FailVerificationRun(context.WithoutCancel(ctx), pgdb.FailVerificationRunParams{ID: j.RunID, Error: msg}); err != nil {
+			return err
+		}
+		a.Progress.Publish(j.RunID, review.Event{Type: "failed", Stage: StatusRunning, Message: msg})
+		return nil
+	}
+	a.Progress.Publish(j.RunID, review.Event{Type: "done", Stage: StatusDone, Message: string(run.Verdict)})
+	return nil
+}
+
+// prepare checks that the bundle can be verified and that the request names code, and fills
+// in the repo and the commit that the target names.
+func (a *API) prepare(ctx context.Context, in *Input) error {
+	q := a.DB.Queries()
+	b, err := version.Bundle(ctx, q, a.Workspace, in.BundleID)
+	if err != nil {
+		return err
+	}
+	cur, err := version.LoadCurrent(ctx, q, b)
+	if err != nil {
+		return err
+	}
+	main := cur.File(b.MainDoc)
+	if len(main) == 0 {
+		return kernel.Invalid("no_main_doc", "This bundle has no main doc to verify against.")
+	}
+	prof, ok := a.Profiles()[b.ProfileKey]
+	if !ok {
+		return kernel.Invalid("no_profile", "No profile is loaded for the doc type %q.", b.ProfileKey)
+	}
+	if reqs, _ := requirements(main, prof.Profile); len(reqs) == 0 {
+		return kernel.Invalid("no_trace_ids",
+			"This bundle defines no trace ID that the gate verifies. Accept the suggested IDs on the bundle page, then run this again.")
+	}
+	for _, role := range []string{model.RoleReviewer, model.RoleJudge} {
+		if _, err := a.Gateway.Assigned(ctx, role); err != nil {
+			return err
+		}
+	}
+	switch {
+	case in.Target != "":
+	case in.Path != "":
+		// A folder goes through the same check as a pasted one: hosted mode reads no disk.
+		in.Target = in.Path
+	case in.Repo != "" && in.SHA != "":
+		return nil
+	case in.Repo != "":
+		in.Target = in.Repo
+	default:
+		defaults, err := a.defaults(ctx, b, main)
+		if err != nil {
+			return err
+		}
+		switch len(defaults) {
+		case 0:
+			return kernel.Invalid("no_code_target",
+				"This doc has no implemented-by link. Paste the URL of the repo, the branch, the commit or the pull request to verify.")
+		case 1:
+			in.Target = defaults[0].Target
+		default:
+			var names []string
+			for _, d := range defaults {
+				names = append(names, d.Target)
+			}
+			return kernel.Invalid("many_code_targets", "This doc links to more than one repo. Name one: %s.", strings.Join(names, ", "))
+		}
+	}
+	r, err := a.resolve(ctx, in.Target)
+	if err != nil {
+		return err
+	}
+	in.Repo, in.SHA, in.Branch, in.Path, in.APIURL = r.Repo, r.SHA, r.Branch, "", r.APIURL
+	if r.Folder {
+		in.Repo, in.Path = "", r.Repo
+	}
+	return nil
+}
+
+// Verify runs the gate at once, outside the queue, and stores the run.
 func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
+	if err := a.prepare(ctx, &in); err != nil {
+		return Run{}, err
+	}
+	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, in.BundleID)
+	if err != nil {
+		return Run{}, err
+	}
+	run := Run{ID: kernel.NewID(), Status: StatusQueued, Repo: in.name(), SHA: in.SHA, Branch: in.Branch, At: a.now()}
+	if err := a.insert(ctx, a.DB.Queries(), b, run, in.HandoffID); err != nil {
+		return Run{}, err
+	}
+	return a.execute(ctx, run.ID, in)
+}
+
+// execute runs the gate for one stored run, and stores its outcomes.
+func (a *API) execute(ctx context.Context, id uuid.UUID, in Input) (Run, error) {
 	q := a.DB.Queries()
 	b, err := version.Bundle(ctx, q, a.Workspace, in.BundleID)
 	if err != nil {
@@ -106,20 +298,17 @@ func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
 		return Run{}, err
 	}
 	main := cur.File(b.MainDoc)
-	if len(main) == 0 {
-		return Run{}, kernel.Invalid("no_main_doc", "This bundle has no main doc to verify against.")
-	}
 	prof, ok := a.Profiles()[b.ProfileKey]
 	if !ok {
 		return Run{}, kernel.Invalid("no_profile", "No profile is loaded for the doc type %q.", b.ProfileKey)
 	}
-
 	reqs, skipped := requirements(main, prof.Profile)
 	if len(reqs) == 0 {
 		return Run{}, kernel.Invalid("no_trace_ids",
 			"This bundle defines no trace ID that the gate verifies. Accept the suggested IDs on the bundle page, then run this again.")
 	}
 
+	a.Progress.Publish(id, review.Event{Type: "stage", Stage: "reading", Message: "Reading " + in.name()})
 	repo, err := a.openRepo(ctx, in, prof.Profile.Verify)
 	if err != nil {
 		return Run{}, err
@@ -133,6 +322,7 @@ func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
 		return Run{}, err
 	}
 
+	a.Progress.Publish(id, review.Event{Type: "stage", Stage: "finding", Total: len(reqs)})
 	targets, provenance, err := a.targetsFor(ctx, repo, reqs, in.Claims, changed, prof.Profile.Verify)
 	if err != nil {
 		return Run{}, err
@@ -143,9 +333,11 @@ func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
 		return Run{}, err
 	}
 
-	run := Run{ID: kernel.NewID(), Repo: repo.Name(), SHA: repo.SHA(), BaseSHA: base,
+	run := Run{ID: id, Status: StatusDone, Repo: repo.Name(), SHA: repo.SHA(), Branch: in.Branch, BaseSHA: base,
 		Digest: repo.Digest(), Notes: repo.Notes(), At: a.now()}
-	for _, r := range reqs {
+	a.Progress.Publish(id, review.Event{Type: "stage", Stage: "judging", Total: len(reqs)})
+	for i, r := range reqs {
+		a.Progress.Publish(id, review.Event{Type: "progress", Stage: "judging", Message: r.ID, Done: i, Total: len(reqs)})
 		out, err := a.outcome(ctx, repo, r, targets[r.ID], provenance[r.ID], waived[r.ID])
 		if err != nil {
 			return Run{}, err
@@ -159,7 +351,7 @@ func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
 	run.Counts = verify.Tally(results)
 	run.Counts.Skipped = skipped
 	run.Verdict = run.Counts.Verdict()
-	if err := a.store(ctx, b, run, in.HandoffID); err != nil {
+	if err := a.store(ctx, b, run); err != nil {
 		return Run{}, err
 	}
 	number := int64(0)
@@ -167,6 +359,15 @@ func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
 		number = v.Number
 	}
 	if _, err := a.openThreads(ctx, b, prof.Profile, main, run, in.HandoffID, number); err != nil {
+		return Run{}, err
+	}
+	// The run reads as done only after its threads exist, so a reader that sees done sees them.
+	counts, _ := json.Marshal(run.Counts)
+	notes, _ := json.Marshal(nonNil(run.Notes))
+	if err := q.FinishVerificationRun(ctx, pgdb.FinishVerificationRunParams{
+		ID: run.ID, BaseSha: run.BaseSHA, Digest: run.Digest, Verdict: string(run.Verdict),
+		Counts: counts, Notes: notes,
+	}); err != nil {
 		return Run{}, err
 	}
 	return run, nil
@@ -213,6 +414,13 @@ func (a *API) outcome(ctx context.Context, repo Repo, r requirement, ts []verify
 		out.Judgement = j
 	}
 	out.Result = verify.Decide(item)
+	if out.Outcome == verify.Missing && out.Note == "" && prov == verify.FromMapper {
+		if len(ts) == 0 {
+			out.Note = "No file in the scan names this requirement, and the mapper picked no file for it."
+		} else {
+			out.Note = "The mapper proposed targets, and none of their anchor quotes is in its file once."
+		}
+	}
 	return out, nil
 }
 
@@ -398,13 +606,51 @@ func allHold(ts []verify.Target) bool {
 	return len(ts) > 0
 }
 
-// mapTargets asks the mapper for the files that hold a requirement with no literal mention.
-// Speccy drops a proposal whose quote is not in the file: a model adds a candidate, never a
-// fact.
+// mapTargets finds the files that hold a requirement with no literal mention, in two calls.
+// The first picks files from the paths. Speccy reads them, and the second quotes a line from
+// each. A proposal whose quote is not in the file stays as a target that does not hold, with
+// its fault: a model adds a candidate, never a fact.
 func (a *API) mapTargets(ctx context.Context, repo Repo, r requirement, files []string) ([]verify.Target, error) {
 	res, err := a.Gateway.Call(ctx, model.Call{
+		Role: model.RoleReviewer, PromptVersion: PromptPick, System: systemMapper,
+		Prompt: pickPrompt(r, files), Schema: pickSchema, MaxTokens: 1000,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var picked struct {
+		Files []struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(res.JSON, &picked); err != nil {
+		return nil, err
+	}
+
+	scanned := map[string]bool{}
+	for _, f := range files {
+		scanned[f] = true
+	}
+	var bodies []citedCode
+	for _, f := range picked.Files {
+		if !scanned[f.Path] {
+			continue // a path the scan did not list is not in the repo
+		}
+		body, ok, err := repo.Read(ctx, f.Path)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			bodies = append(bodies, citedCode{Path: f.Path, Kind: verify.Kind(f.Kind), Body: string(body)})
+		}
+	}
+	if len(bodies) == 0 {
+		return nil, nil
+	}
+	res, err = a.Gateway.Call(ctx, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptMap, System: systemMapper,
-		Prompt: mapPrompt(r, files), Schema: mapSchema, MaxTokens: 2000,
+		Prompt: mapPrompt(r, bodies), Schema: mapSchema, MaxTokens: 2000,
 	})
 	if err != nil {
 		return nil, err
@@ -421,38 +667,70 @@ func (a *API) mapTargets(ctx context.Context, repo Repo, r requirement, files []
 	}
 	var ts []verify.Target
 	for _, t := range out.Targets {
-		body, ok, err := repo.Read(ctx, t.Path)
-		if err != nil {
-			return nil, err
+		var body []byte
+		ok := false
+		for _, c := range bodies {
+			if c.Path == t.Path {
+				body, ok = []byte(c.Body), true
+			}
 		}
 		got := verify.Check(verify.Target{Kind: verify.Kind(t.Kind), Path: t.Path, Quote: t.Quote,
 			Provenance: verify.FromMapper}, body, ok)
-		if !got.Holds {
-			continue // a proposal Speccy could not check is not a candidate
+		if !got.Holds && ok {
+			// A model often joins lines or drops indentation. When one of its lines is one line
+			// of the file, the anchor becomes that line, copied from the file.
+			if line, found := snapLine(string(body), t.Quote); found {
+				got = verify.Check(verify.Target{Kind: verify.Kind(t.Kind), Path: t.Path, Quote: line,
+					Provenance: verify.FromMapper}, body, ok)
+			}
 		}
+		// A proposal that does not hold stays, with its fault, so the run says why a requirement
+		// has no code target. Only a target that holds counts toward an outcome.
 		ts = append(ts, got)
 	}
 	return ts, nil
 }
 
-// store writes the run and its outcomes, and marks every earlier run of another version stale.
-func (a *API) store(ctx context.Context, b pgdb.Bundle, run Run, handoff *uuid.UUID) error {
-	counts, _ := json.Marshal(run.Counts)
-	notes, _ := json.Marshal(nonNil(run.Notes))
+// snapLine returns the one line of body that a line of quote names, compared with the
+// surrounding whitespace trimmed. It takes the first line of quote that matches exactly one line
+// of body, so the anchor Speccy keeps is text from the file, never text from the model.
+func snapLine(body, quote string) (string, bool) {
+	lines := strings.Split(body, "\n")
+	for _, q := range strings.Split(quote, "\n") {
+		q = strings.TrimSpace(q)
+		if len(q) < 8 {
+			continue // a brace or a short keyword names no one place
+		}
+		match, n := "", 0
+		for _, l := range lines {
+			if strings.TrimSpace(l) == q {
+				match, n = l, n+1
+			}
+		}
+		if n == 1 {
+			return match, true
+		}
+	}
+	return "", false
+}
+
+// insert writes a queued run: the bundle version, and the repo and the commit it will read.
+func (a *API) insert(ctx context.Context, q store.Querier, b pgdb.Bundle, run Run, handoff *uuid.UUID) error {
+	var h uuid.NullUUID
+	if handoff != nil {
+		h = uuid.NullUUID{UUID: *handoff, Valid: true}
+	}
+	return q.InsertVerificationRun(ctx, pgdb.InsertVerificationRunParams{
+		ID: run.ID, WorkspaceID: a.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
+		HandoffID: h, Repo: run.Repo, Sha: run.SHA, Branch: run.Branch, Counts: dbtype.JSON("{}"), Notes: dbtype.JSON("[]"),
+		StartedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: run.At,
+	})
+}
+
+// store writes the run's outcomes, and marks every earlier run of another version stale.
+func (a *API) store(ctx context.Context, b pgdb.Bundle, run Run) error {
 	return a.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
-		var h uuid.NullUUID
-		if handoff != nil {
-			h = uuid.NullUUID{UUID: *handoff, Valid: true}
-		}
-		if err := q.InsertVerificationRun(ctx, pgdb.InsertVerificationRunParams{
-			ID: run.ID, WorkspaceID: a.Workspace, BundleID: b.ID, VersionID: b.CurrentVersionID.UUID,
-			HandoffID: h, Repo: run.Repo, Sha: run.SHA, BaseSha: run.BaseSHA, Digest: run.Digest,
-			Verdict: string(run.Verdict), Counts: counts, Notes: notes,
-			StartedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: run.At,
-		}); err != nil {
-			return err
-		}
 		for _, o := range run.Results {
 			targets, _ := json.Marshal(o.Targets)
 			judgement, _ := json.Marshal(o.Judgement)

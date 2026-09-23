@@ -56,7 +56,8 @@ const usage = `Usage:
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
-  speccy verify <path> --repo <owner/name> --sha <sha>   Verify one build against the bundle.
+  speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
+                                                         the repo the doc's implemented-by link names.
   speccy admin invite --role admin|member                Print an invite link (hosted).
   speccy admin reset-link <email>                        Print a password reset link (hosted).
   speccy version                                         Print the version.

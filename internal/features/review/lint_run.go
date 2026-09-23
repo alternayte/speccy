@@ -80,6 +80,9 @@ type Service struct {
 	Parallel func(context.Context) int
 	// ES stores thread events; the AI posts its answers there (REQ-088).
 	ES *es.Store
+	// Jobs runs the queued jobs of other features, by job kind. The one worker runs them in
+	// turn with the reviews, so model calls stay within one queue.
+	Jobs map[string]func(ctx context.Context, payload []byte) error
 
 	mu     sync.Mutex // one lint pass at a time
 	wakeMu sync.Mutex

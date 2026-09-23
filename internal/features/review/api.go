@@ -252,6 +252,13 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		if sugg.Fix != "" {
 			af.Fix = &sugg.Fix
 		}
+		if f.CheckSlug == CodeDriftSlug {
+			var ev map[string]string
+			_ = json.Unmarshal(f.Evidence, &ev)
+			if t := ev["verify"]; t != "" {
+				af.VerifyTarget = &t
+			}
+		}
 		out.Items = append(out.Items, af)
 	}
 	sort.SliceStable(out.Items, func(i, j int) bool {

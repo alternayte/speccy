@@ -67,8 +67,10 @@ type Querier interface {
 	DeleteVersionFilesOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteVersionsOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) error
+	FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
+	FinishVerificationRun(ctx context.Context, arg FinishVerificationRunParams) error
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
 	GetBackend(ctx context.Context, arg GetBackendParams) (ModelBackend, error)
 	GetBlob(ctx context.Context, sha256 string) ([]byte, error)
@@ -220,6 +222,7 @@ type Querier interface {
 	SpendResetLink(ctx context.Context, arg SpendResetLinkParams) (ResetLink, error)
 	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
+	StartVerificationRun(ctx context.Context, id uuid.UUID) error
 	ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error)
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
