@@ -1733,6 +1733,26 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+
+  /inbox/read:
+    post:
+      operationId: markInboxItemRead
+      summary: Mark one inbox item read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+      responses:
+        "204":
+          description: Marked.
+        default:
+          $ref: "#/components/responses/Problem"
   /insights:
     get:
       operationId: getInsights
@@ -4544,7 +4564,7 @@ components:
 
     InboxItem:
       type: object
-      required: [kind, bundle_id, bundle_title, text, at, unread]
+      required: [kind, bundle_id, bundle_title, text, at, unread, key]
       properties:
         kind:
           type: string
@@ -4568,6 +4588,9 @@ components:
           format: date-time
         unread:
           type: boolean
+        key:
+          type: string
+          description: Names the item, so a click marks this one item read.
 
     Insights:
       type: object

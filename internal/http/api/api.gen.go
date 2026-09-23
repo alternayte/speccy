@@ -2122,13 +2122,16 @@ type Inbox struct {
 
 // InboxItem defines model for InboxItem.
 type InboxItem struct {
-	At          time.Time           `json:"at"`
-	BundleId    openapi_types.UUID  `json:"bundle_id"`
-	BundleTitle string              `json:"bundle_title"`
-	Kind        InboxItemKind       `json:"kind"`
-	Text        string              `json:"text"`
-	ThreadId    *openapi_types.UUID `json:"thread_id,omitempty"`
-	Unread      bool                `json:"unread"`
+	At          time.Time          `json:"at"`
+	BundleId    openapi_types.UUID `json:"bundle_id"`
+	BundleTitle string             `json:"bundle_title"`
+
+	// Key Names the item, so a click marks this one item read.
+	Key      string              `json:"key"`
+	Kind     InboxItemKind       `json:"kind"`
+	Text     string              `json:"text"`
+	ThreadId *openapi_types.UUID `json:"thread_id,omitempty"`
+	Unread   bool                `json:"unread"`
 
 	// WaiverId The waiver an item is about. The bundle page opens on the finding it excuses.
 	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
@@ -3354,6 +3357,11 @@ type AdoptSkippedDocsJSONBody struct {
 	} `json:"items"`
 }
 
+// MarkInboxItemReadJSONBody defines parameters for MarkInboxItemRead.
+type MarkInboxItemReadJSONBody struct {
+	Key string `json:"key"`
+}
+
 // CreateProfileJSONBody defines parameters for CreateProfile.
 type CreateProfileJSONBody struct {
 	Key      string `json:"key"`
@@ -3514,6 +3522,9 @@ type AdoptSkippedDocsJSONRequestBody AdoptSkippedDocsJSONBody
 
 // ReportBuildJSONRequestBody defines body for ReportBuild for application/json ContentType.
 type ReportBuildJSONRequestBody = BuildReport
+
+// MarkInboxItemReadJSONRequestBody defines body for MarkInboxItemRead for application/json ContentType.
+type MarkInboxItemReadJSONRequestBody MarkInboxItemReadJSONBody
 
 // SuggestLinksJSONRequestBody defines body for SuggestLinks for application/json ContentType.
 type SuggestLinksJSONRequestBody = LinkSuggestRequest
@@ -3814,6 +3825,9 @@ type ServerInterface interface {
 	// GetInbox The caller's inbox (REQ-091).
 	// (GET /inbox)
 	GetInbox(w http.ResponseWriter, r *http.Request)
+	// MarkInboxItemRead Mark one inbox item read.
+	// (POST /inbox/read)
+	MarkInboxItemRead(w http.ResponseWriter, r *http.Request)
 	// MarkInboxSeen Mark the inbox as read up to now.
 	// (POST /inbox/seen)
 	MarkInboxSeen(w http.ResponseWriter, r *http.Request)
@@ -6113,6 +6127,20 @@ func (siw *ServerInterfaceWrapper) GetInbox(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// MarkInboxItemRead operation middleware
+func (siw *ServerInterfaceWrapper) MarkInboxItemRead(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkInboxItemRead(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // MarkInboxSeen operation middleware
 func (siw *ServerInterfaceWrapper) MarkInboxSeen(w http.ResponseWriter, r *http.Request) {
 
@@ -7275,6 +7303,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/people", wrapper.ListPeople)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/inbox", wrapper.GetInbox)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/inbox/seen", wrapper.MarkInboxSeen)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/inbox/read", wrapper.MarkInboxItemRead)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/insights", wrapper.GetInsights)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/profiles/{key}", wrapper.DeleteProfile)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/profiles/{key}", wrapper.GetProfile)
@@ -10590,6 +10619,39 @@ func (response GetInboxdefaultApplicationProblemPlusJSONResponse) VisitGetInboxR
 	return err
 }
 
+type MarkInboxItemReadRequestObject struct {
+	Body *MarkInboxItemReadJSONRequestBody
+}
+
+type MarkInboxItemReadResponseObject interface {
+	VisitMarkInboxItemReadResponse(w http.ResponseWriter) error
+}
+
+type MarkInboxItemRead204Response struct {
+}
+
+func (response MarkInboxItemRead204Response) VisitMarkInboxItemReadResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type MarkInboxItemReaddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response MarkInboxItemReaddefaultApplicationProblemPlusJSONResponse) VisitMarkInboxItemReadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type MarkInboxSeenRequestObject struct {
 }
 
@@ -12510,6 +12572,9 @@ type StrictServerInterface interface {
 	// GetInbox The caller's inbox (REQ-091).
 	// (GET /inbox)
 	GetInbox(ctx context.Context, request GetInboxRequestObject) (GetInboxResponseObject, error)
+	// MarkInboxItemRead Mark one inbox item read.
+	// (POST /inbox/read)
+	MarkInboxItemRead(ctx context.Context, request MarkInboxItemReadRequestObject) (MarkInboxItemReadResponseObject, error)
 	// MarkInboxSeen Mark the inbox as read up to now.
 	// (POST /inbox/seen)
 	MarkInboxSeen(ctx context.Context, request MarkInboxSeenRequestObject) (MarkInboxSeenResponseObject, error)
@@ -15028,6 +15093,37 @@ func (sh *strictHandler) GetInbox(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetInboxResponseObject); ok {
 		if err := validResponse.VisitGetInboxResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MarkInboxItemRead operation middleware
+func (sh *strictHandler) MarkInboxItemRead(w http.ResponseWriter, r *http.Request) {
+	var request MarkInboxItemReadRequestObject
+
+	var body MarkInboxItemReadJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkInboxItemRead(ctx, request.(MarkInboxItemReadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkInboxItemRead")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkInboxItemReadResponseObject); ok {
+		if err := validResponse.VisitMarkInboxItemReadResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

@@ -5,7 +5,12 @@ import { AtSign, BadgeCheck, MessageSquare, PlayCircle, ShieldAlert, ShieldQuest
 import { Button } from "@/components/ui/button";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { InboxItem } from "@/lib/api";
-import { getInboxOptions, getInboxQueryKey, markInboxSeenMutation } from "@/lib/api/@tanstack/react-query.gen";
+import {
+  getInboxOptions,
+  getInboxQueryKey,
+  markInboxItemReadMutation,
+  markInboxSeenMutation,
+} from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { relativeTime } from "@/features/bundle/time";
 
@@ -81,9 +86,18 @@ export function InboxPage() {
 
 function Row({ item: i }: { item: InboxItem }) {
   const Icon = kindIcon[i.kind];
+  const qc = useQueryClient();
+  // Opening an item marks that one item read; the others stay as they are.
+  const read = useMutation({
+    ...markInboxItemReadMutation(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getInboxQueryKey() }),
+  });
   return (
     <li>
       <Link
+        onClick={() => {
+          if (i.unread) read.mutate({ body: { key: i.key } });
+        }}
         to="/bundles/$bundleId"
         params={{ bundleId: i.bundle_id }}
         search={i.waiver_id ? { waiver: i.waiver_id } : {}}

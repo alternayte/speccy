@@ -232,6 +232,11 @@ function Composer({
             />
             Ask the AI
           </label>
+          {ai ? (
+            <p className="text-xs text-ink-3">
+              The AI reads the part of the doc this thread is on, the whole doc, its assets, and its linked docs.
+            </p>
+          ) : null}
           {!ai ? (
             <label className="flex items-center gap-2">
               <input

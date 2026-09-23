@@ -172,6 +172,7 @@ type Querier interface {
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
 	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
 	ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Handoff, error)
+	ListInboxRead(ctx context.Context, arg ListInboxReadParams) ([]string, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
 	ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]LinkState, error)
 	ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error)
@@ -200,6 +201,7 @@ type Querier interface {
 	ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UUID) ([]Handoff, error)
 	ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error)
 	ListWorkspaceWaivers(ctx context.Context, workspaceID uuid.UUID) ([]WaiverView, error)
+	MarkInboxItemRead(ctx context.Context, arg MarkInboxItemReadParams) error
 	NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error)
 	PeekInvite(ctx context.Context, arg PeekInviteParams) (Invite, error)
 	PeekResetLink(ctx context.Context, arg PeekResetLinkParams) (ResetLink, error)

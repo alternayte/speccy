@@ -801,6 +801,20 @@ type ClientInterface interface {
 	// Corresponds with GET /inbox (the `GetInbox` operationId).
 	GetInbox(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// MarkInboxItemReadWithBody Mark one inbox item read.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+	MarkInboxItemReadWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// MarkInboxItemRead Mark one inbox item read.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+	MarkInboxItemRead(ctx context.Context, body MarkInboxItemReadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// MarkInboxSeen Mark the inbox as read up to now.
 	//
 	// Corresponds with POST /inbox/seen (the `MarkInboxSeen` operationId).
@@ -2995,6 +3009,40 @@ func (c *Client) ReportBuild(ctx context.Context, handoffId HandoffId, body Repo
 // Corresponds with GET /inbox (the `GetInbox` operationId).
 func (c *Client) GetInbox(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetInboxRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// MarkInboxItemReadWithBody Mark one inbox item read.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+func (c *Client) MarkInboxItemReadWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMarkInboxItemReadRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// MarkInboxItemRead Mark one inbox item read.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+func (c *Client) MarkInboxItemRead(ctx context.Context, body MarkInboxItemReadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMarkInboxItemReadRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -7381,6 +7429,46 @@ func NewGetInboxRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewMarkInboxItemReadRequest calls the generic MarkInboxItemRead builder with application/json body
+func NewMarkInboxItemReadRequest(server string, body MarkInboxItemReadJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewMarkInboxItemReadRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewMarkInboxItemReadRequestWithBody constructs an http.Request for the MarkInboxItemRead method, with any body, and a specified content type
+func NewMarkInboxItemReadRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/inbox/read")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewMarkInboxSeenRequest constructs an http.Request for the MarkInboxSeen method
 func NewMarkInboxSeenRequest(server string) (*http.Request, error) {
 	var err error
@@ -9788,6 +9876,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /inbox (the `GetInbox` operationId).
 	GetInboxWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetInboxResponse, error)
+
+	// MarkInboxItemReadWithBodyWithResponse Mark one inbox item read.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+	MarkInboxItemReadWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MarkInboxItemReadResponse, error)
+
+	// MarkInboxItemReadWithResponse Mark one inbox item read.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+	MarkInboxItemReadWithResponse(ctx context.Context, body MarkInboxItemReadJSONRequestBody, reqEditors ...RequestEditorFn) (*MarkInboxItemReadResponse, error)
 
 	// MarkInboxSeenWithResponse Mark the inbox as read up to now.
 	//
@@ -14170,6 +14272,47 @@ func (r GetInboxResponse) ContentType() string {
 	return ""
 }
 
+type MarkInboxItemReadResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r MarkInboxItemReadResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r MarkInboxItemReadResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r MarkInboxItemReadResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r MarkInboxItemReadResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r MarkInboxItemReadResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type MarkInboxSeenResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17617,6 +17760,32 @@ func (c *ClientWithResponses) GetInboxWithResponse(ctx context.Context, reqEdito
 		return nil, err
 	}
 	return ParseGetInboxResponse(rsp)
+}
+
+// MarkInboxItemReadWithBodyWithResponse Mark one inbox item read.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+func (c *ClientWithResponses) MarkInboxItemReadWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MarkInboxItemReadResponse, error) {
+	rsp, err := c.MarkInboxItemReadWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMarkInboxItemReadResponse(rsp)
+}
+
+// MarkInboxItemReadWithResponse Mark one inbox item read.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /inbox/read (the `MarkInboxItemRead` operationId).
+func (c *ClientWithResponses) MarkInboxItemReadWithResponse(ctx context.Context, body MarkInboxItemReadJSONRequestBody, reqEditors ...RequestEditorFn) (*MarkInboxItemReadResponse, error) {
+	rsp, err := c.MarkInboxItemRead(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMarkInboxItemReadResponse(rsp)
 }
 
 // MarkInboxSeenWithResponse Mark the inbox as read up to now.
@@ -21075,6 +21244,35 @@ func ParseGetInboxResponse(rsp *http.Response) (*GetInboxResponse, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseMarkInboxItemReadResponse parses an HTTP response from a MarkInboxItemReadWithResponse call
+func ParseMarkInboxItemReadResponse(rsp *http.Response) (*MarkInboxItemReadResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &MarkInboxItemReadResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

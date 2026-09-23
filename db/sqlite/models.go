@@ -194,6 +194,12 @@ type Handoff struct {
 	CreatedAt    time.Time
 }
 
+type InboxRead struct {
+	UserID  string
+	ItemKey string
+	ReadAt  time.Time
+}
+
 type Invite struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
