@@ -39,7 +39,7 @@ func (a *API) LocalGitHubClient(ctx context.Context, apiURL string) (*github.Cli
 	case errors.Is(ghErr, github.ErrGHMissing):
 		return nil, kernel.Invalid("gh_missing", "The gh CLI is not installed, so Speccy has no GitHub token. Install gh and run \"gh auth login\", or paste a fine-grained token in Admin → GitHub.")
 	case errors.Is(ghErr, github.ErrGHLoggedOut):
-		return nil, kernel.Invalid("gh_logged_out", "gh is not logged in for %s. Run \"gh auth login --hostname %s\", or paste a fine-grained token in Admin → GitHub.", host, host)
+		return nil, kernel.Invalid("gh_logged_out", "The gh login does not cover %s. Run \"gh auth login --hostname %s\", or paste a fine-grained token in Admin → GitHub.", host, host)
 	default:
 		return nil, kernel.Invalid("gh_failed", "Speccy could not get a token from gh: %s. Paste a fine-grained token in Admin → GitHub instead.", sentence(ghErr.Error()))
 	}
