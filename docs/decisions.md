@@ -693,3 +693,33 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 - **Choice:** A source URL makes a GitHub source in local mode and in hosted mode: `owner/name`, a repo URL, a `tree` URL, or a `blob` URL. `POST /github/resolve` says what the URL names before the source exists, and the dialog and `speccy add` both use it. A `blob` URL makes a one-doc source: `github_source` gains `is_file`, `profile`, and `api_url`, and the sync maps that doc so the single-file bundle rule (REQ-131) makes the bundle, with its `<name>.assets/` folder. Local mode gets its token from `gh auth token --hostname <host>` for each call and stores nothing, with a pasted fine-grained token as the fallback; the error says which of gh missing, gh logged out, or no access stopped it. Both modes poll every 5 minutes. A 404 on the repo reads as "no access", not "not found".
 - **Alternative:** Clone the repo to disk in local mode, or read it with `gh api`.
 - **Reason:** A copy on disk with no git behind it becomes a second truth, and the app already reads a repo tree through an `fs.FS`, so the scan rules are the same for a folder and a repo. `gh` gives the credential the machine already holds; using it for more than the token would be a second way to read a repo.
+
+## 2026-09-23 — A verification run starts from a pasted link
+
+- **Choice:** One field takes a GitHub URL of a repo, a branch, a file, a commit or a pull request, or a folder in local mode; with none, the run reads the repo of the doc's `implemented-by` link, else the last run's repo. Speccy shows the repo and the commit before it starts. A run is a job in the review queue: `POST /bundles/{id}/verifications` returns 202, progress streams by trace ID, and the CLI, MCP and the Action wait for it. The run acts as the person who started it, and reads as done only after its blocking threads exist. Hosted mode refuses a folder, for the old `path` field too.
+- **Alternative:** Keep the synchronous request, and require `--repo` and `--sha`.
+- **Reason:** A request that makes model calls for every trace ID outlives a hosted proxy timeout, and the doc already names its code.
+
+## 2026-09-23 — The mapper reads the files it quotes
+
+- **Choice:** For a requirement no file names, the mapper picks up to 4 files from the paths, then quotes one line from the text Speccy read of each. A quote that misses snaps to the one file line it names, when one exists. A judge quote that leaves text out with an ellipsis counts when every piece is in one cited file. A proposal that does not hold stays as a target with its fault.
+- **Alternative:** One call that names files and quotes them from the paths alone.
+- **Reason:** A model cannot quote a file it never saw, so every repo whose code does not name its trace IDs came back missing. Speccy still checks every quote, so a model adds a candidate and never a fact.
+
+## 2026-09-23 — One bundle per spec doc
+
+- **Choice:** A folder with two or more spec docs gives one single-file bundle per doc, in the scan of a folder, a repo source and an import alike. Import lists every markdown file with a profile picker and offers the link from an SDD to the one doc its profile builds on; the person confirms it. An import writes the link into the SDD; a repo source stores an adopted link (`adopted_link`, link origin `adopted`), and a link the repo names replaces it. The bundle page can change a doc's type.
+- **Alternative:** A bundle with more than one reviewed doc; a type-to-profile mapping and a workspace default profile.
+- **Reason:** A verdict, a link and a handoff already belong to one bundle. One profile per doc type stands, and a default would review a doc with a profile nobody chose.
+
+## 2026-09-23 — An inbox item is read on its own
+
+- **Choice:** This extends the 2026-09-19 inbox decision. Each item has a key (its kind, bundle, thread or waiver, and time), and `inbox_read` records the items a person opened. An item is unread when it is newer than `inbox_seen_at` and not opened.
+- **Alternative:** Keep only the "seen up to" time.
+- **Reason:** A click must mark the item it opens, not every older one.
+
+## 2026-09-23 — AI findings survive an edit to other sections
+
+- **Choice:** A lint run carries the AI findings of the last full review whose anchored section is unchanged; a finding with no section carries while the whole doc is unchanged. They count in the verdict and keep their rows and IDs in the full run; the lint verdict stores their IDs, the full run and the number of changed sections, and the reads merge them. The verdict row keeps its scored items, so the AI items carry into the score.
+- **Alternative:** Show old findings without counting them; copy their rows into each lint run.
+- **Reason:** A lint verdict after any edit dropped every AI MUST finding, so an unrelated edit could turn a blocked doc Build Ready. The error now runs one way: a gap an edit answered elsewhere stays until the next review.

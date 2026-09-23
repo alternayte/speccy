@@ -23,11 +23,13 @@ The bundles screen lists the markdown files in the served folder that name no ty
 
 `speccy init` does the same in a terminal, and Enter takes the guess.
 
-**Import** takes a file from anywhere: it guesses the type from the headings, shows the guess, and lets you pick another. It writes one line, `type: <key>`, and changes nothing else.
+**Import** takes a file, a .zip or a dropped folder from anywhere. It lists every markdown file with a doc type picker, prefilled with the type the file names or the profile its headings fit, and a "Not a spec" choice. Each file you give a type becomes its own bundle. Speccy writes one line, `type: <key>`, into it and changes nothing else. A PRD and an SDD side by side get the link between them offered, prechecked, and written into the SDD on import.
 
 ![Import: the file, the guessed doc type, and what Speccy writes](images/guide-import.png)
 
-A drag of a folder or a file onto the bundles screen does the same, and a drop whose type Speccy cannot guess opens that dialog with the file in it.
+A drag of a folder or a file onto the bundles screen does the same. A folder with several markdown files, or a file whose type Speccy cannot guess, opens that dialog with the files in it.
+
+A folder on disk or in a repo that holds two docs with a type gives one bundle per doc. When you accept a type for a doc in a repo source, Speccy offers the link to the one doc in the same folder that it builds on. Speccy keeps that link, as it keeps the type: the repo takes no commit, and a link the repo names itself replaces it.
 
 ### A file that is not a spec
 

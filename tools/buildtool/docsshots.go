@@ -51,6 +51,11 @@ func cmdDocsShots() error {
 	if err := os.CopyFS(dir, os.DirFS(seed)); err != nil {
 		return err
 	}
+	// The seed folder is also the dev server's folder, so it can hold a store. A copy of that
+	// store's key is readable by others, and the server refuses it; the shots start clean.
+	if err := os.RemoveAll(filepath.Join(dir, ".speccy", "state")); err != nil {
+		return err
+	}
 	for _, f := range mustGlob(filepath.Join(dir, "*", "*.golden.json")) {
 		_ = os.Remove(f)
 	}
