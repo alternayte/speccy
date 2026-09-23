@@ -13,24 +13,30 @@ import (
 	"github.com/alternayte/speccy/internal/store"
 )
 
-func newBundle(t *testing.T, db *store.DB, ws uuid.UUID, slug string) pgdb.Bundle {
+// newBundle makes a bundle slug that holds one spec doc, and returns the spec doc.
+func newBundle(t *testing.T, db *store.DB, ws uuid.UUID, slug string) pgdb.SpecDoc {
 	t.Helper()
 	now := time.Now().UTC()
-	b := pgdb.InsertBundleParams{
-		ID: kernel.NewID(), WorkspaceID: ws, Slug: slug, Title: slug, ProfileKey: "sdd", MainDoc: "SPEC.md",
-		SourceKind: "db", SourceRef: dbtype.JSON(`{}`), CreatedAt: now, UpdatedAt: now,
-	}
-	if err := db.Queries().InsertBundle(context.Background(), b); err != nil {
+	folder := pgdb.InsertBundleParams{ID: kernel.NewID(), WorkspaceID: ws, Slug: slug, Title: slug, SourceKind: "db",
+		SourceRef: dbtype.JSON(`{}`), CreatedAt: now, UpdatedAt: now}
+	if err := db.Queries().InsertBundle(context.Background(), folder); err != nil {
 		t.Fatal(err)
 	}
-	return pgdb.Bundle{ID: b.ID, WorkspaceID: ws, Slug: slug}
+	b := pgdb.InsertSpecDocParams{
+		ID: kernel.NewID(), WorkspaceID: ws, BundleID: folder.ID, Slug: slug, Title: slug, ProfileKey: "sdd", DocPath: "SPEC.md",
+		SourceKind: "db", SourceRef: dbtype.JSON(`{}`), CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Queries().InsertSpecDoc(context.Background(), b); err != nil {
+		t.Fatal(err)
+	}
+	return pgdb.SpecDoc{ID: b.ID, WorkspaceID: ws, BundleID: folder.ID, Slug: slug}
 }
 
-func newVersion(t *testing.T, db *store.DB, b pgdb.Bundle, n int64) uuid.UUID {
+func newVersion(t *testing.T, db *store.DB, b pgdb.SpecDoc, n int64) uuid.UUID {
 	t.Helper()
 	id := kernel.NewID()
 	err := db.Queries().InsertVersion(context.Background(), pgdb.InsertVersionParams{
-		ID: id, WorkspaceID: b.WorkspaceID, BundleID: b.ID, Number: n, CreatedBy: "u", Message: "m", CreatedAt: time.Now().UTC(),
+		ID: id, WorkspaceID: b.WorkspaceID, SpecDocID: b.ID, Number: n, CreatedBy: "u", Message: "m", CreatedAt: time.Now().UTC(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -49,8 +55,8 @@ func bundleHeadMovesOnlyFromExpected(t *testing.T, db *store.DB) {
 	b := newBundle(t, db, ws, "pay")
 	v1, v2 := newVersion(t, db, b, 1), newVersion(t, db, b, 2)
 	move := func(to, expected uuid.NullUUID) int64 {
-		n, err := db.Queries().UpdateBundleHead(ctx, pgdb.UpdateBundleHeadParams{
-			ID: b.ID, Title: "t", ProfileKey: "sdd", MainDoc: "SPEC.md", CurrentVersionID: to, ExpectedVersionID: expected, UpdatedAt: time.Now().UTC(),
+		n, err := db.Queries().UpdateSpecDocHead(ctx, pgdb.UpdateSpecDocHeadParams{
+			ID: b.ID, Title: "t", ProfileKey: "sdd", DocPath: "SPEC.md", CurrentVersionID: to, ExpectedVersionID: expected, UpdatedAt: time.Now().UTC(),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -71,7 +77,7 @@ func bundleHeadMovesOnlyFromExpected(t *testing.T, db *store.DB) {
 		t.Errorf("from v1, expecting v1: %d rows, want 1", n)
 	}
 	if err := db.Queries().InsertVersion(ctx, pgdb.InsertVersionParams{
-		ID: kernel.NewID(), WorkspaceID: ws, BundleID: b.ID, Number: 2, CreatedBy: "u", Message: "m", CreatedAt: time.Now().UTC(),
+		ID: kernel.NewID(), WorkspaceID: ws, SpecDocID: b.ID, Number: 2, CreatedBy: "u", Message: "m", CreatedAt: time.Now().UTC(),
 	}); err == nil {
 		t.Error("a second version 2 of one bundle was inserted")
 	}
@@ -100,7 +106,7 @@ func listsPage(t *testing.T, db *store.DB) {
 	for _, s := range []string{"c", "a", "b"} {
 		newBundle(t, db, ws, s)
 	}
-	page, err := db.Queries().ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: ws, AfterSlug: "a", PageSize: 1})
+	page, err := db.Queries().ListSpecDocs(ctx, pgdb.ListSpecDocsParams{WorkspaceID: ws, AfterSlug: "a", PageSize: 1})
 	if err != nil || len(page) != 1 || page[0].Slug != "b" {
 		t.Errorf("bundles after a, 1 per page: %v, %v", page, err)
 	}
@@ -108,7 +114,7 @@ func listsPage(t *testing.T, db *store.DB) {
 	for n := int64(1); n <= 3; n++ {
 		newVersion(t, db, b, n)
 	}
-	vs, err := db.Queries().ListVersions(ctx, pgdb.ListVersionsParams{BundleID: b.ID, BeforeNumber: 3, PageSize: 5})
+	vs, err := db.Queries().ListVersions(ctx, pgdb.ListVersionsParams{SpecDocID: b.ID, BeforeNumber: 3, PageSize: 5})
 	if err != nil || len(vs) != 2 || vs[0].Number != 2 || vs[1].Number != 1 {
 		t.Errorf("versions before 3: %v, %v", vs, err)
 	}
@@ -125,7 +131,7 @@ func jsonDefaultsScan(t *testing.T, db *store.DB) {
 	b := newBundle(t, db, ws, "j")
 	v := newVersion(t, db, b, 1)
 	now := time.Now().UTC()
-	run := pgdb.InsertRunParams{ID: kernel.NewID(), WorkspaceID: ws, BundleID: b.ID, VersionID: v, ProfileKey: "sdd",
+	run := pgdb.InsertRunParams{ID: kernel.NewID(), WorkspaceID: ws, SpecDocID: b.ID, VersionID: v, ProfileKey: "sdd",
 		ProfileVersion: 1, Kind: "lint", Status: "complete", Stage: "lint", StartedAt: now}
 	if err := db.Queries().InsertRun(ctx, run); err != nil {
 		t.Fatal(err)

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
-import type { ImportDoc, SuggestedLink } from "@/lib/api";
+import type { BundleList, ImportDoc, SuggestedLink } from "@/lib/api";
 import {
   importBundleMutation,
   listBundlesQueryKey,
@@ -56,13 +56,21 @@ export function ImportDialog({
   const suggest = useMutation({ ...suggestLinksMutation(), onSuccess: (s) => setLinks(s.items) });
   const qc = useQueryClient();
   const navigate = useNavigate();
+  // made holds an import the dialog does not leave at once: one with problems, or one that made
+  // more than one bundle, so the person sees what the import made (#66).
+  const [made, setMade] = useState<BundleList | null>(null);
+  const openBundle = (id: string) => {
+    setMade(null);
+    onOpenChange(false);
+    navigate({ to: "/bundles/$bundleId", params: { bundleId: id } });
+  };
   const importing = useMutation({
     ...importBundleMutation(),
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: listBundlesQueryKey() });
-      onOpenChange(false);
       const first = res.items[0];
-      if (res.items.length === 1 && first) navigate({ to: "/bundles/$bundleId", params: { bundleId: first.id } });
+      if (res.items.length === 1 && first && res.problems.length === 0) openBundle(first.id);
+      else setMade(res);
     },
   });
 
@@ -109,13 +117,14 @@ export function ImportDialog({
       onOpenChange={(o) => {
         if (!o) {
           importing.reset();
+          setMade(null);
           setUpload(null);
           setDocs([]);
         }
         onOpenChange(o);
       }}
       title="Import"
-      description="Each markdown file you give a doc type becomes its own bundle."
+      description="The markdown files you give a doc type become the spec docs of one bundle per folder."
     >
       <form onSubmit={submit} className="space-y-4">
         {!dropped ? (
@@ -236,12 +245,44 @@ export function ImportDialog({
         </div>
 
         {importing.isError ? <ErrorState message={problemMessage(importing.error)} /> : null}
+        {made ? (
+          <div role="status" className="space-y-2 rounded-md border border-line bg-sunken px-3 py-2 text-sm">
+            <p className="text-ink">
+              Imported {made.items.length} bundle{made.items.length === 1 ? "" : "s"}.
+            </p>
+            <ul className="space-y-1">
+              {made.items.map((b) => (
+                <li key={b.id}>
+                  <button type="button" className="text-accent hover:underline" onClick={() => openBundle(b.id)}>
+                    {b.title}
+                  </button>
+                  <span className="text-ink-3">
+                    {" "}
+                    · {b.docs.length} spec doc{b.docs.length === 1 ? "" : "s"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {made.problems.length > 0 ? (
+              <ul className="space-y-1 text-xs">
+                {made.problems.map((p) => (
+                  <li key={p.path + p.message}>
+                    <span className="font-mono text-ink-2">{p.path}</span>{" "}
+                    <span className="text-warn">{p.message}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex justify-end gap-2">
-          <Button onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" variant="primary" disabled={specs.length === 0 || importing.isPending}>
-            {importing.isPending ? "Importing" : specs.length > 1 ? `Import ${specs.length} bundles` : "Import"}
-          </Button>
+          <Button onClick={() => onOpenChange(false)}>{made ? "Close" : "Cancel"}</Button>
+          {made ? null : (
+            <Button type="submit" variant="primary" disabled={specs.length === 0 || importing.isPending}>
+              {importing.isPending ? "Importing" : specs.length > 1 ? `Import ${specs.length} spec docs` : "Import"}
+            </Button>
+          )}
         </div>
       </form>
     </Dialog>

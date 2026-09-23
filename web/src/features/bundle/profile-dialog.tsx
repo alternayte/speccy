@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
-import type { Bundle } from "@/lib/api";
+import type { SpecDoc } from "@/lib/api";
 import { listProfilesOptions, setBundleProfileMutation } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 
@@ -15,7 +15,7 @@ export function ProfileDialog({
   open,
   onOpenChange,
 }: {
-  bundle: Bundle;
+  bundle: SpecDoc;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -48,7 +48,7 @@ export function ProfileDialog({
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          save.mutate({ path: { bundleId: bundle.id }, body: { profile: key } });
+          save.mutate({ path: { docId: bundle.id }, body: { profile: key } });
         }}
       >
         <div>

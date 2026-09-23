@@ -63,18 +63,18 @@ func services() []struct {
 	return out
 }
 
-func head(t *testing.T, s *Service, slug string) pgdb.Bundle {
+func head(t *testing.T, s *Service, slug string) pgdb.SpecDoc {
 	t.Helper()
-	b, err := s.DB.Queries().GetBundleBySlug(context.Background(), pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: slug})
+	b, err := s.DB.Queries().GetSpecDocBySlug(context.Background(), pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: slug})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return b
 }
 
-func versions(t *testing.T, s *Service, b pgdb.Bundle) int {
+func versions(t *testing.T, s *Service, b pgdb.SpecDoc) int {
 	t.Helper()
-	vs, err := s.DB.Queries().ListVersions(context.Background(), pgdb.ListVersionsParams{BundleID: b.ID, BeforeNumber: 1 << 62, PageSize: 100})
+	vs, err := s.DB.Queries().ListVersions(context.Background(), pgdb.ListVersionsParams{SpecDocID: b.ID, BeforeNumber: 1 << 62, PageSize: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestLocalSync_VersionsFollowDisk(t *testing.T) {
 			ctx := context.Background()
 			s, dir := newLocal(t, svc.open)
 			b := head(t, s, "pay")
-			if versions(t, s, b) != 1 || b.Title != "Payments" || b.ProfileKey != "sdd" || b.MainDoc != "SPEC.md" {
+			if versions(t, s, b) != 1 || b.Title != "Payments" || b.ProfileKey != "sdd" || b.DocPath != "SPEC.md" {
 				t.Fatalf("after the first scan: %d versions, bundle %+v", versions(t, s, b), b)
 			}
 
@@ -213,6 +213,70 @@ func TestChange_EmptyFileSurvivesRename(t *testing.T) {
 			}
 			if _, _, err := s.Change(ctx, b.ID, v.ID, source.Op{Kind: source.OpRename, Path: "a.sql", To: "db/a.sql"}, "u", "Move"); err != nil {
 				t.Fatalf("rename an empty file: %v", err)
+			}
+		})
+	}
+}
+
+// A folder with a PRD and an SDD is one bundle with two spec docs. An edit to one spec doc
+// makes a new version of that doc only; an edit to an asset, through the app or on disk, makes
+// a new version of each.
+func TestLocalSync_FolderHoldsSpecDocs(t *testing.T) {
+	for _, svc := range services() {
+		t.Run(svc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, dir := newLocal(t, svc.open)
+			write := func(rel, content string) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(dir, "pay", rel), []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write("PRD.md", "---\ntype: prd\n---\n# Payments PRD\n")
+			write("flow.txt", "a")
+			if err := s.Sync(ctx); err != nil {
+				t.Fatal(err)
+			}
+			q := s.DB.Queries()
+			folder, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "pay"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			docs, err := q.ListSpecDocsOfBundle(ctx, folder.ID)
+			if err != nil || len(docs) != 2 || docs[0].DocPath != "PRD.md" || docs[1].DocPath != "SPEC.md" {
+				t.Fatalf("spec docs of pay = %+v, %v; want PRD.md and SPEC.md", docs, err)
+			}
+			// The first doc kept its history when the second one took the folder's slug from it.
+			sdd, prd := head(t, s, "pay/SPEC"), head(t, s, "pay/PRD")
+			if n := versions(t, s, sdd); n != 2 {
+				t.Errorf("SPEC.md has %d versions, want 2: the one before PRD.md, and the one with flow.txt", n)
+			}
+			files, _ := version.Files(ctx, q, prd.CurrentVersionID.UUID)
+			if len(files) != 2 {
+				t.Errorf("PRD.md version files = %+v, want PRD.md and flow.txt", files)
+			}
+
+			write("PRD.md", "---\ntype: prd\n---\n# Payments PRD\n\nMore.\n")
+			if err := s.Sync(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if versions(t, s, head(t, s, "pay/PRD")) != 2 || versions(t, s, head(t, s, "pay/SPEC")) != 2 {
+				t.Error("an edit to PRD.md changed the versions of SPEC.md")
+			}
+
+			prd = head(t, s, "pay/PRD")
+			op := source.Op{Kind: source.OpWrite, Path: "flow.txt", Content: []byte("b")}
+			if _, _, err := s.Change(ctx, prd.ID, prd.CurrentVersionID.UUID, op, LocalUser, "Edit flow"); err != nil {
+				t.Fatal(err)
+			}
+			if versions(t, s, head(t, s, "pay/PRD")) != 3 || versions(t, s, head(t, s, "pay/SPEC")) != 3 {
+				t.Error("an edit to flow.txt did not make a new version of each spec doc")
+			}
+
+			sdd = head(t, s, "pay/SPEC")
+			op = source.Op{Kind: source.OpWrite, Path: "PRD.md", Content: []byte("x")}
+			if _, _, err := s.Change(ctx, sdd.ID, sdd.CurrentVersionID.UUID, op, LocalUser, "Overwrite"); err == nil {
+				t.Error("a change through SPEC.md overwrote PRD.md")
 			}
 		})
 	}

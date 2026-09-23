@@ -13,8 +13,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing/fstest"
+
+	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/source/local"
@@ -83,14 +86,24 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 		}
 	}
 
-	var made []pgdb.Bundle
+	var made []pgdb.SpecDoc
 	if s.Local == nil {
+		// The spec docs of one folder make one bundle.
+		byFolder := map[string][]NewDoc{}
+		var folders []string
 		for _, fb := range scan.Bundles {
-			b, err := s.CreateDB(ctx, dbSlug(name, fb.Slug), fb.Files, a.user(ctx))
+			if _, ok := byFolder[fb.Folder]; !ok {
+				folders = append(folders, fb.Folder)
+			}
+			byFolder[fb.Folder] = append(byFolder[fb.Folder], NewDoc{Slug: dbSlug(name, fb.Slug), Main: fb.Main, Files: fb.Files})
+		}
+		sort.Strings(folders)
+		for _, f := range folders {
+			docs, err := s.CreateDBBundle(ctx, dbSlug(name, f), byFolder[f], a.user(ctx))
 			if err != nil {
 				return nil, err
 			}
-			made = append(made, b)
+			made = append(made, docs...)
 		}
 	} else {
 		if _, err := s.createLocal(ctx, name, files); err != nil {
@@ -100,13 +113,32 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 			return nil, err
 		}
 	}
+	// The response holds each bundle the import made, with its spec docs.
+	q := s.DB.Queries()
+	waiting, err := a.waiting(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := api.ImportBundle201JSONResponse{Items: []api.Bundle{}, Problems: []api.BundleProblem{}}
-	for _, b := range made {
-		ab, err := toAPI(ctx, s.DB.Queries(), b)
+	seen := map[uuid.UUID]bool{}
+	for _, d := range made {
+		if seen[d.BundleID] {
+			continue
+		}
+		seen[d.BundleID] = true
+		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: d.BundleID})
 		if err != nil {
 			return nil, err
 		}
-		out.Items = append(out.Items, ab)
+		docs, err := a.specDocs(ctx, q, b, waiting)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, bundleToAPI(b, docs))
+	}
+	// What the scan of the import could not use: the dialog shows it (#66).
+	for _, p := range scan.Problems {
+		out.Problems = append(out.Problems, api.BundleProblem{Path: p.Path, Message: p.Message})
 	}
 	return out, nil
 }

@@ -1,3 +1,4 @@
+import { useBundleId } from "@/features/bundle/params";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { clsx } from "clsx";
@@ -9,7 +10,7 @@ import type { BundleLink, TraceCell, TraceMatrix, TraceView } from "@/lib/api";
 import {
   addTraceIdsMutation,
   getBundleAccessOptions,
-  getBundleOptions,
+  getSpecDocOptions,
   getTraceOptions,
   listVerificationsOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
@@ -41,9 +42,10 @@ const stateStyle = {
 
 // TracePage shows a bundle's links, the traceability matrices it takes part in (REQ-058), and
 // suggested trace IDs for unnumbered items (REQ-052).
-export function TracePage({ bundleId }: { bundleId: string }) {
-  const bundle = useQuery(getBundleOptions({ path: { bundleId } }));
-  const trace = useQuery(getTraceOptions({ path: { bundleId } }));
+export function TracePage({ docId }: { docId: string }) {
+  const bundleId = useBundleId();
+  const bundle = useQuery(getSpecDocOptions({ path: { docId } }));
+  const trace = useQuery(getTraceOptions({ path: { docId } }));
   const hosted = useMe().data?.mode === "hosted";
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
   const canEdit = !hosted || !!access.data?.can_edit;
@@ -52,8 +54,8 @@ export function TracePage({ bundleId }: { bundleId: string }) {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[1200px] px-3 py-6 sm:px-6">
         <Link
-          to="/bundles/$bundleId"
-          params={{ bundleId }}
+          to="/bundles/$bundleId/docs/$docId"
+          params={{ bundleId, docId }}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
         >
           <ArrowLeft aria-hidden className="size-3.5" /> Back to the bundle
@@ -69,7 +71,7 @@ export function TracePage({ bundleId }: { bundleId: string }) {
           </div>
         ) : (
           <>
-            <WhyEmpty trace={trace.data} bundleId={bundleId} />
+            <WhyEmpty trace={trace.data} docId={docId} />
             <section className="mt-6">
               <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Links</h2>
               {trace.data.standalone ? (
@@ -104,7 +106,7 @@ export function TracePage({ bundleId }: { bundleId: string }) {
 
             <ExternalLinks links={trace.data.links.filter((l) => l.target_kind === "external")} />
 
-            <CodeAndTests bundleId={bundleId} />
+            <CodeAndTests docId={docId} />
 
             <section className="mt-8">
               <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">Coverage</h2>
@@ -122,7 +124,7 @@ export function TracePage({ bundleId }: { bundleId: string }) {
             {bundle.data && canEdit ? (
               <Suggestions
                 key={trace.data.suggestions.map((s) => s.id).join()}
-                bundleId={bundleId}
+                docId={docId}
                 baseVersion={bundle.data.current_version.id}
                 items={trace.data.suggestions}
               />
@@ -203,11 +205,7 @@ function LinkRow({ link: l, incoming }: { link: BundleLink; incoming?: boolean }
 
 function BundleName({ id, title, slug }: { id: string; title: string; slug: string }) {
   return (
-    <Link
-      to="/bundles/$bundleId"
-      params={{ bundleId: id }}
-      className="font-medium text-ink underline underline-offset-2"
-    >
+    <Link to="/docs/$docId" params={{ docId: id }} className="font-medium text-ink underline underline-offset-2">
       {title} <span className="font-mono text-xs font-normal text-ink-3">{slug}</span>
     </Link>
   );
@@ -216,8 +214,8 @@ function BundleName({ id, title, slug }: { id: string; title: string; slug: stri
 // CodeAndTests is the code column and the test column of the newest verification run, so one
 // view answers where a requirement is and what tests it. A cited test is a citation, not a
 // pass: Speccy reads the code and runs nothing.
-function CodeAndTests({ bundleId }: { bundleId: string }) {
-  const runs = useQuery(listVerificationsOptions({ path: { bundleId } }));
+function CodeAndTests({ docId }: { docId: string }) {
+  const runs = useQuery(listVerificationsOptions({ path: { docId } }));
   const run = runs.data?.items?.[0];
   if (!run || run.outcomes.length === 0) return null;
   const rows = [...run.outcomes].sort((a, b) => a.trace_id.localeCompare(b.trace_id));
@@ -282,11 +280,7 @@ function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
     <div className="mt-3">
       <p className="text-sm">
         IDs of{" "}
-        <Link
-          to="/bundles/$bundleId"
-          params={{ bundleId: m.upstream.id }}
-          className="font-medium underline underline-offset-2"
-        >
+        <Link to="/docs/$docId" params={{ docId: m.upstream.id }} className="font-medium underline underline-offset-2">
           {m.upstream.title}
         </Link>
         <span className={clsx("ml-2 text-xs", gaps ? "text-bad" : "text-ink-3")}>
@@ -305,7 +299,7 @@ function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
                 </th>
                 {m.columns.map((c) => (
                   <th key={c.id} scope="col" className="px-4 py-2.5 font-medium">
-                    <Link to="/bundles/$bundleId" params={{ bundleId: c.id }} className="hover:underline">
+                    <Link to="/docs/$docId" params={{ docId: c.id }} className="hover:underline">
                       {c.title}
                     </Link>
                   </th>
@@ -357,11 +351,11 @@ function Cell({ cell: c }: { cell: TraceCell }) {
 }
 
 function Suggestions({
-  bundleId,
+  docId,
   baseVersion,
   items,
 }: {
-  bundleId: string;
+  docId: string;
   baseVersion: string;
   items: { id: string; text: string }[];
 }) {
@@ -418,7 +412,7 @@ function Suggestions({
           disabled={picked.size === 0 || add.isPending}
           onClick={() =>
             add.mutate({
-              path: { bundleId },
+              path: { docId },
               query: { base_version: baseVersion },
               body: { ids: [...picked] },
             })
@@ -433,7 +427,8 @@ function Suggestions({
 
 // WhyEmpty explains a traceability page with nothing to trace: what the page shows, which of
 // the three causes left it empty, and the one thing to do next (#55).
-function WhyEmpty({ trace, bundleId }: { trace: TraceView; bundleId: string }) {
+function WhyEmpty({ trace, docId }: { trace: TraceView; docId: string }) {
+  const bundleId = useBundleId();
   const bundleLinks = trace.links.filter((l) => l.target_kind === "bundle");
   if (trace.matrices.length > 0 || trace.standalone) return null;
   const broken = bundleLinks.filter((l) => !l.bundle);
@@ -444,7 +439,7 @@ function WhyEmpty({ trace, bundleId }: { trace: TraceView; bundleId: string }) {
     next = (
       <>
         Change the target under <code>links:</code> to the other bundle&apos;s slug, or a path relative to this doc. The{" "}
-        <Link to="/bundles/$bundleId" params={{ bundleId }} className="text-accent hover:underline">
+        <Link to="/bundles/$bundleId/docs/$docId" params={{ bundleId, docId }} className="text-accent hover:underline">
           findings
         </Link>{" "}
         name the bundles that can match.

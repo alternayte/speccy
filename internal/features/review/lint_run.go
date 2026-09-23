@@ -60,7 +60,7 @@ type Service struct {
 	Profiles func() map[string]profile.Versioned
 	Repo     func() source.RepoConfig
 	// Decisions returns a bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
-	Decisions func(context.Context, pgdb.Bundle) (source.Decisions, error)
+	Decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error)
 	// GitHub returns the client for a GitHub host: the gh token in local mode, the source's
 	// token in hosted mode. Nil when the mode has no GitHub credential.
 	GitHub func(ctx context.Context, apiURL string) (*github.Client, error)
@@ -157,7 +157,7 @@ type evaluation struct {
 
 // input is what every stage reads: the bundle version, its main doc, and the profile.
 type input struct {
-	bundle  pgdb.Bundle
+	bundle  pgdb.SpecDoc
 	version uuid.UUID
 	files   []source.File
 	main    []byte
@@ -178,7 +178,7 @@ type input struct {
 	upstreams []string
 }
 
-func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, p profile.Versioned) (input, error) {
+func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, p profile.Versioned) (input, error) {
 	files, err := version.Files(ctx, s.DB.Queries(), versionID)
 	if err != nil {
 		return input{}, err
@@ -187,11 +187,11 @@ func (s *Service) load(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, 
 }
 
 // loadFiles builds the input from files. versionID is uuid.Nil for content that is not saved.
-func (s *Service) loadFiles(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID, files []source.File, p profile.Versioned) (input, error) {
+func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, files []source.File, p profile.Versioned) (input, error) {
 	var err error
 	in := input{bundle: b, version: versionID, files: files, profile: p, relaxed: map[string]bool{}}
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			in.main = f.Content
 		}
 	}
@@ -243,7 +243,7 @@ func lintStage(in input) evaluation {
 	for i, f := range in.files {
 		paths[i] = f.Path
 	}
-	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.MainDoc, paths, in.relaxed, in.size)
+	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.DocPath, paths, in.relaxed, in.size)
 	cfg.UpstreamIDs = upstreamIDs(in)
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
@@ -332,7 +332,7 @@ func docAnchor(in input) anchor.Anchor {
 			end = i
 		}
 	}
-	return anchor.New(in.bundle.MainDoc, in.main, in.doc, 0, end)
+	return anchor.New(in.bundle.DocPath, in.main, in.doc, 0, end)
 }
 
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
@@ -361,7 +361,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	vin := ev.in
 	waived := applyWaivers(in, &ev)
 	// §8.6 rule 2: an open blocking thread blocks.
-	blocking, err := s.DB.Queries().CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: run.BundleID, Valid: true})
+	blocking, err := s.DB.Queries().CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: run.SpecDocID, Valid: true})
 	if err != nil {
 		return err
 	}
@@ -421,7 +421,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		}
 		// REQ-056: the linked versions this run used.
 		for _, l := range in.linked {
-			if err := q.InsertRunLink(ctx, pgdb.InsertRunLinkParams{RunID: run.ID, BundleID: l.target.ID, VersionID: l.version}); err != nil {
+			if err := q.InsertRunLink(ctx, pgdb.InsertRunLinkParams{RunID: run.ID, SpecDocID: l.target.ID, VersionID: l.version}); err != nil {
 				return err
 			}
 		}
@@ -472,8 +472,12 @@ func (s *Service) EnsureLinted(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	place, err := s.places(ctx)
+	if err != nil {
+		return err
+	}
 	for _, b := range all {
-		if err := s.lintIfNeeded(ctx, b, all); err != nil {
+		if err := s.lintIfNeeded(ctx, b, all, place); err != nil {
 			return fmt.Errorf("lint %s: %w", b.Slug, err)
 		}
 	}
@@ -485,7 +489,7 @@ func (s *Service) EnsureLinted(ctx context.Context) error {
 // rule or a target bundle changes, and lints again when a lint verdict read other linked
 // versions than the current ones (REQ-056). A full verdict stays stale until the next full
 // run, so its model results are not hidden.
-func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bundle) error {
+func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.SpecDoc, place docPlace) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
@@ -496,7 +500,7 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bu
 	}
 	q := s.DB.Queries()
 	latest, err := q.LatestRunFor(ctx, pgdb.LatestRunForParams{
-		BundleID: b.ID, VersionID: b.CurrentVersionID.UUID, ProfileKey: b.ProfileKey, ProfileVersion: pv,
+		SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID, ProfileKey: b.ProfileKey, ProfileVersion: pv,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
@@ -511,7 +515,7 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bu
 	}
 	var main []byte
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			main = f.Content
 		}
 	}
@@ -525,11 +529,11 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.Bundle, all []pgdb.Bu
 			return err
 		}
 	}
-	adopted, err := s.adopted(ctx, b)
+	adopted, err := s.adopted(ctx, b, place)
 	if err != nil {
 		return err
 	}
-	links := resolveLinksIn(all, b, main, adopted, s.linkRules(), s.linkPatterns())
+	links := resolveLinksIn(all, place, b, main, adopted, s.linkRules(), s.linkPatterns(), s.accepts(b))
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
 		return err
@@ -560,7 +564,7 @@ func sameLinks(stored []pgdb.Link, links []link) bool {
 	}
 	a := make([]string, 0, len(stored))
 	for _, l := range stored {
-		a = append(a, key(l.Kind, l.TargetRef, l.Origin, l.TargetKind, l.TargetBundleID))
+		a = append(a, key(l.Kind, l.TargetRef, l.Origin, l.TargetKind, l.TargetSpecDocID))
 	}
 	b := make([]string, 0, len(links))
 	for _, l := range links {
@@ -587,7 +591,7 @@ func sameVersions(used []pgdb.RunLink, links []link) bool {
 		return false
 	}
 	for _, u := range used {
-		if now[u.BundleID] != u.VersionID {
+		if now[u.SpecDocID] != u.VersionID {
 			return false
 		}
 	}
@@ -611,10 +615,10 @@ func (s *Service) noProfile(key string) string {
 }
 
 // Lint runs the lint stage on version v of b and stores the run, its findings, and its verdict.
-func (s *Service) Lint(ctx context.Context, b pgdb.Bundle, versionID uuid.UUID) (pgdb.ReviewRun, error) {
+func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID) (pgdb.ReviewRun, error) {
 	now := time.Now().UTC()
 	run := pgdb.ReviewRun{
-		ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: b.ID, VersionID: versionID,
+		ID: kernel.NewID(), WorkspaceID: s.Workspace, SpecDocID: b.ID, VersionID: versionID,
 		ProfileKey: b.ProfileKey, Kind: "lint", Stage: StageLint, StartedAt: now,
 		Roles: dbtype.JSON(`{}`), PromptVersions: dbtype.JSON(`{}`),
 	}
@@ -652,7 +656,7 @@ func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished 
 		notes = dbtype.JSON(`[]`)
 	}
 	return q.InsertRun(ctx, pgdb.InsertRunParams{
-		ID: r.ID, WorkspaceID: r.WorkspaceID, BundleID: r.BundleID, VersionID: r.VersionID, ProfileKey: r.ProfileKey,
+		ID: r.ID, WorkspaceID: r.WorkspaceID, SpecDocID: r.SpecDocID, VersionID: r.VersionID, ProfileKey: r.ProfileKey,
 		ProfileVersion: r.ProfileVersion, Kind: r.Kind, Status: r.Status, Stage: r.Stage, Error: r.Error,
 		Notes: notes, DecisionsHash: r.DecisionsHash, StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})
@@ -791,7 +795,7 @@ func upstreamMoved(ctx context.Context, q store.Querier, workspace, runID uuid.U
 		return false, err
 	}
 	for _, l := range links {
-		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: workspace, ID: l.BundleID})
+		b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: workspace, ID: l.SpecDocID})
 		if err != nil {
 			return false, err
 		}

@@ -64,12 +64,16 @@ func runAdd(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "speccy add: %s\n", problemText(res.ApplicationproblemJSONDefault))
 		return exitRun
 	}
-	src := *res.JSON200
+	src := res.JSON200.Source
 	what := src.Path
 	if src.Path == "." {
 		what = "the whole repo"
 	}
-	fmt.Fprintf(stdout, "Reading %s on %s, %s.\n", src.Repo, src.Branch, what)
+	if res.JSON200.AlreadyAdded {
+		fmt.Fprintf(stdout, "Already added: Speccy reads %s on %s, %s.\n", src.Repo, src.Branch, what)
+	} else {
+		fmt.Fprintf(stdout, "Reading %s on %s, %s.\n", src.Repo, src.Branch, what)
+	}
 	if src.Error != "" {
 		fmt.Fprintf(stderr, "The first sync failed: %s\n", src.Error)
 		return exitRun
@@ -81,7 +85,7 @@ func runAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	n := 0
 	for _, b := range bundles {
-		if b.SourceKind == api.BundleSourceKindGithub {
+		if b.SourceKind == api.SpecDocSourceKindGithub {
 			fmt.Fprintf(stdout, "  %s\n", b.Slug)
 			n++
 		}

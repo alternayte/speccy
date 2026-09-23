@@ -20,8 +20,8 @@ import (
 	"github.com/alternayte/speccy/internal/kernel"
 )
 
-func (a *API) bundle(ctx context.Context, id [16]byte) (pgdb.Bundle, error) {
-	b, err := a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: id})
+func (a *API) bundle(ctx context.Context, id [16]byte) (pgdb.SpecDoc, error) {
+	b, err := a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: id})
 	if errors.Is(err, sql.ErrNoRows) {
 		return b, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", fmt.Sprintf("%x", id))
 	}
@@ -30,7 +30,7 @@ func (a *API) bundle(ctx context.Context, id [16]byte) (pgdb.Bundle, error) {
 
 // StartRun queues a full review.
 func (a *API) StartRun(ctx context.Context, req api.StartRunRequestObject) (api.StartRunResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (a *API) StartRun(ctx context.Context, req api.StartRunRequestObject) (api.
 
 // EstimateRun estimates a full review's tokens and cost (REQ-104).
 func (a *API) EstimateRun(ctx context.Context, req api.EstimateRunRequestObject) (api.EstimateRunResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (a *API) EstimateRun(ctx context.Context, req api.EstimateRunRequestObject)
 
 // ListAssumptions lists the current main doc's assumption sentences (REQ-033).
 func (a *API) ListAssumptions(ctx context.Context, req api.ListAssumptionsRequestObject) (api.ListAssumptionsResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (a *API) ListAssumptions(ctx context.Context, req api.ListAssumptionsReques
 		return nil, err
 	}
 	for _, f := range files {
-		if f.Path != b.MainDoc {
+		if f.Path != b.DocPath {
 			continue
 		}
 		doc := section.Parse(f.Content)

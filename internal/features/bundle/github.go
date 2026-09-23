@@ -56,7 +56,7 @@ type GitHubState struct {
 }
 
 // GitHubStateOf returns the GitHub state of b, or false for another source.
-func GitHubStateOf(ctx context.Context, q store.Querier, b pgdb.Bundle) (GitHubState, bool) {
+func GitHubStateOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (GitHubState, bool) {
 	if b.SourceKind != KindGitHub {
 		return GitHubState{}, false
 	}
@@ -182,11 +182,6 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 			return fail(fmt.Errorf("%s in the repo is not valid: %w", source.RepoConfigFile, err))
 		}
 	}
-	if src.IsFile {
-		// REQ-128: a one-doc source maps its doc, so the scan makes a single-file bundle. A
-		// type in the doc, or a mapping in the repo, still wins (REQ-130).
-		cfg = mapOneDoc(cfg, src)
-	}
 	// REQ-133: the types a person accepted in the app, for the docs the repo names none for.
 	// The repo wins, so a path the repo now maps drops its row. repoCfg is the repo's own
 	// answer, without the mappings Speccy adds, so a doc does not look mapped to itself.
@@ -265,35 +260,46 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 		}
 		err := s.DB.InTx(ctx, func(tx store.Tx) error {
 			q := tx.Queries()
-			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug})
 			var ref githubRef
-			if errors.Is(err, sql.ErrNoRows) {
-				ref = githubRef{Source: src.ID, Dir: fb.Dir, File: fb.File, Profile: mapped}
-				raw, _ := json.Marshal(ref)
-				b = pgdb.Bundle{ID: kernel.NewID(), WorkspaceID: s.Workspace, Slug: fb.Slug, Title: s.title(fb.Main, fb.Slug),
-					ProfileKey: fb.Main.Frontmatter.Type, MainDoc: fb.Main.Path, SourceKind: KindGitHub, SourceRef: dbtype.JSON(raw),
-					CreatedAt: now, UpdatedAt: now}
-				if err := q.InsertBundle(ctx, insertParams(b)); err != nil {
-					return err
-				}
-				// The admin who added the source is the author of its bundles (SDD §3).
-				if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: b.ID, UserID: src.CreatedBy}); err != nil {
-					return err
-				}
-			} else if err != nil {
-				return err
-			} else if b.SourceKind != KindGitHub {
-				taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
-				return nil
-			} else {
+			if b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug}); err == nil {
 				_ = json.Unmarshal(b.SourceRef, &ref)
-				if ref.Source != src.ID {
+				if b.SourceKind != KindGitHub {
 					taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
 					return nil
 				}
+				if ref.Source != src.ID {
+					// A spec doc of a source that is gone comes back with its history when a
+					// source reads its folder again (#67). A live source keeps its own docs.
+					_, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: ref.Source})
+					if err == nil {
+						taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
+						return nil
+					}
+					if !errors.Is(err, sql.ErrNoRows) {
+						return err
+					}
+					ref.Source = src.ID
+				}
+			} else if !errors.Is(err, sql.ErrNoRows) {
+				return err
 			}
-			if b.ArchivedAt.Valid {
-				if err := q.SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID, UpdatedAt: now}); err != nil {
+			folderRef, _ := json.Marshal(githubRef{Source: src.ID, Dir: fb.Dir})
+			folder, err := s.ensureBundle(ctx, q, fb.Folder, s.folderTitle(fb.Folder), KindGitHub, dbtype.JSON(folderRef), now)
+			if err != nil {
+				return err
+			}
+			if ref.Source == uuid.Nil {
+				ref = githubRef{Source: src.ID, Dir: fb.Dir, File: fb.File, Profile: mapped}
+			}
+			raw, _ := json.Marshal(ref)
+			b, isNew, err := s.ensureSpecDoc(ctx, q, folder, fb.Slug, fb.Main, KindGitHub, dbtype.JSON(raw), now)
+			if err != nil {
+				return err
+			}
+			_ = json.Unmarshal(b.SourceRef, &ref)
+			if isNew {
+				// The admin who added the source is the author of its bundles (SDD §3).
+				if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: folder.ID, UserID: src.CreatedBy}); err != nil {
 					return err
 				}
 			}
@@ -323,14 +329,14 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 				}
 			}
 			ref.Profile = mapped
-			raw, _ := json.Marshal(ref)
-			return q.SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: now})
+			raw, _ = json.Marshal(ref)
+			return q.SetSpecDocSourceRef(ctx, pgdb.SetSpecDocSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: now})
 		})
 		if err != nil {
 			return taken, err
 		}
 	}
-	existing, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
+	existing, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindGitHub})
 	if err != nil {
 		return taken, err
 	}
@@ -338,55 +344,29 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
 		if ref.Source == src.ID && !found[b.Slug] && !b.ArchivedAt.Valid {
-			if err := s.DB.Queries().SetBundleArchived(ctx, pgdb.SetBundleArchivedParams{ID: b.ID,
+			if err := s.DB.Queries().SetSpecDocArchived(ctx, pgdb.SetSpecDocArchivedParams{ID: b.ID,
 				ArchivedAt: sql.NullTime{Time: now, Valid: true}, UpdatedAt: now}); err != nil {
 				return taken, err
 			}
 		}
 	}
-	return taken, nil
+	return taken, s.archiveEmptyBundles(ctx, s.DB.Queries(), KindGitHub, nil, now)
 }
 
-// underSource says whether a repo path belongs to the source: anything in its folder, or the
-// doc of a one-doc source and the files of that doc's assets folder (REQ-128).
+// underSource says whether a repo path belongs to the source: anything in its folder.
 func underSource(src pgdb.GithubSource, p string) bool {
-	if !src.IsFile {
-		return github.Under(p, src.Path)
-	}
-	return p == src.Path || github.Under(p, path.Join(path.Dir(src.Path), source.AssetsDir(path.Base(src.Path))))
+	return github.Under(p, src.Path)
 }
 
-// readable says which paths the scan may read. It is wider than underSource: a bundle carries
-// the files its doc references, and those sit beside the doc or below it. The scan decides
-// what a bundle takes; this decides only what Speccy fetches.
+// readable says which paths the scan may read: the files of the source's folder.
 func readable(src pgdb.GithubSource, p string) bool {
-	if underSource(src, p) {
-		return true
-	}
-	if !src.IsFile {
-		return false
-	}
-	return github.Under(p, path.Dir(src.Path))
+	return underSource(src, p)
 }
 
-// bundleOfSource says whether a scanned bundle belongs to the source.
+// bundleOfSource says whether a scanned spec doc belongs to the source: its bundle folder is in
+// the source's folder.
 func bundleOfSource(src pgdb.GithubSource, b local.Bundle) bool {
-	if !src.IsFile {
-		return github.Under(b.Slug, src.Path) || github.Under(b.Dir, src.Path)
-	}
-	return path.Join(b.Dir, b.File) == src.Path
-}
-
-// mapOneDoc adds the mapping of a one-doc source, unless the repo already maps that doc.
-func mapOneDoc(cfg source.RepoConfig, src pgdb.GithubSource) source.RepoConfig {
-	if src.Profile == "" {
-		return cfg
-	}
-	if key, ok := cfg.MappedProfile(src.Path); ok && key != "" {
-		return cfg
-	}
-	cfg.Map = append(cfg.Map, source.Mapping{Glob: src.Path, Profile: src.Profile})
-	return cfg
+	return github.Under(b.Dir, src.Path)
 }
 
 func short(sha string) string {
@@ -447,8 +427,8 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	if err != nil {
 		return github.PullRequest{}, err
 	}
-	changes := diffChanges(ref.Dir, b.MainDoc, published, current)
-	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: b.CurrentVersionID.UUID})
+	changes := diffChanges(ref.Dir, b.DocPath, published, current)
+	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID})
 	if err != nil {
 		return github.PullRequest{}, err
 	}
@@ -463,7 +443,7 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	}
 	ref.PR, ref.PRNumber = pr.URL, pr.Number
 	raw, _ := json.Marshal(ref)
-	if err := q.SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()}); err != nil {
+	if err := q.SetSpecDocSourceRef(ctx, pgdb.SetSpecDocSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()}); err != nil {
 		return pr, err
 	}
 	return pr, nil
@@ -548,7 +528,7 @@ func (s *Service) DiscardDraft(ctx context.Context, id uuid.UUID, by string) (pg
 		}
 		ref.Published, ref.PR, ref.PRNumber = v.ID, "", 0
 		raw, _ := json.Marshal(ref)
-		return tx.Queries().SetBundleSourceRef(ctx, pgdb.SetBundleSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()})
+		return tx.Queries().SetSpecDocSourceRef(ctx, pgdb.SetSpecDocSourceRefParams{ID: b.ID, SourceRef: dbtype.JSON(raw), UpdatedAt: time.Now().UTC()})
 	})
 	s.mu.Unlock()
 	if err != nil {
@@ -611,14 +591,14 @@ func SkippedUnder(src pgdb.GithubSource, scan *local.Scan) []string {
 	return out
 }
 
-// alreadyHeld names the docs another source holds, and what to do about it.
+// alreadyHeld names the docs another bundle holds under the same slug, and what to do about it.
 func alreadyHeld(taken []string) error {
 	sort.Strings(taken)
 	shown := taken
 	if len(shown) > 3 {
 		shown = append(shown[:3:3], "and more")
 	}
-	return fmt.Errorf("another source already holds %s, so this source makes no bundle for %s. Remove the other source, or point this one at a folder it does not cover",
+	return fmt.Errorf("another bundle already holds %s, so this source makes no bundle for %s. Remove the other bundle or source",
 		strings.Join(shown, ", "), plural2(len(taken), "that doc", "those docs"))
 }
 

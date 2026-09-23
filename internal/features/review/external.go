@@ -161,7 +161,7 @@ func (s *Service) versionTime(ctx context.Context, in input) (time.Time, error) 
 	if in.version == uuid.Nil {
 		return time.Now().UTC(), nil
 	}
-	v, err := s.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{BundleID: in.bundle.ID, ID: in.version})
+	v, err := s.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: in.bundle.ID, ID: in.version})
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -188,7 +188,7 @@ func storeLinkStates(ctx context.Context, q store.Querier, bundleID uuid.UUID, s
 		return err
 	}
 	for _, st := range states {
-		if err := q.InsertLinkState(ctx, pgdb.InsertLinkStateParams{BundleID: bundleID, TargetRef: st.ref,
+		if err := q.InsertLinkState(ctx, pgdb.InsertLinkStateParams{SpecDocID: bundleID, TargetRef: st.ref,
 			State: st.state, Reason: st.reason, CheckedRef: st.checked, CheckedAt: at}); err != nil {
 			return err
 		}
@@ -252,7 +252,7 @@ func (s *Service) conflictStage(ctx context.Context, rc *runCtx, in input, ev *e
 			state.reason = "This doc conflicts with " + t.Ref + "."
 			ev.findings = append(ev.findings, pending{
 				slug: ExternalConflictSlug, level: lvl, stage: StageCoherence,
-				anchor:  anchor.New(in.bundle.MainDoc, in.main, in.doc, ts, te),
+				anchor:  anchor.New(in.bundle.DocPath, in.main, in.doc, ts, te),
 				message: fmt.Sprintf("This conflicts with %s: %s", t.Ref, sentence(c.Explanation)),
 				fix:     fmt.Sprintf("Change this doc, or change %s, so that both say the same thing.", t.Ref),
 				evidence: map[string]any{"target": t.URL, "source": f.Name(), "explanation": c.Explanation,
@@ -295,7 +295,7 @@ func (s *Service) externalConflicts(ctx context.Context, rc *runCtx, in input, f
 	}
 	res, err := rc.call(ctx, s.Gateway, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptContradiction, System: systemPrompt,
-		Prompt: contradictionPrompt("references", bundleData(in.bundle.MainDoc, in.main, textAssets(in)),
+		Prompt: contradictionPrompt("references", bundleData(in.bundle.DocPath, in.main, textAssets(in)),
 			data("The linked artifact "+t.Ref, content)),
 		Schema: contradictionSchema, MaxTokens: 4000,
 	})

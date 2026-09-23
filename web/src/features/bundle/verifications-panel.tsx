@@ -21,15 +21,15 @@ import { relativeTime } from "./time";
 // makes it stale because the requirements moved. A run carries its own verdict and never the
 // bundle's. prefill is a target another control asked for, such as the commit of a drifted link.
 export function VerificationsPanel({
-  bundleId,
+  docId,
   canVerify,
   prefill,
 }: {
-  bundleId: string;
+  docId: string;
   canVerify: boolean;
   prefill?: string;
 }) {
-  const runs = useQuery({ ...listVerificationsOptions({ path: { bundleId } }), refetchInterval: 15_000 });
+  const runs = useQuery({ ...listVerificationsOptions({ path: { docId } }), refetchInterval: 15_000 });
   const items = runs.data?.items ?? [];
   if (runs.isPending) return <Loading label="Loading verification runs" />;
   if (runs.isError)
@@ -45,9 +45,9 @@ export function VerificationsPanel({
         Verification
       </h3>
       {active ? (
-        <RunProgress bundleId={bundleId} run={active} />
+        <RunProgress docId={docId} run={active} />
       ) : canVerify ? (
-        <VerifyForm key={prefill ?? ""} bundleId={bundleId} prefill={prefill} />
+        <VerifyForm key={prefill ?? ""} docId={docId} prefill={prefill} />
       ) : null}
       {items.length === 0 ? null : (
         <ul className="divide-y divide-line border-t border-line">
@@ -106,9 +106,9 @@ function runState(v: Verification) {
 // VerifyForm takes one pasted target. It prefills from the doc's implemented-by link, else from
 // the repo of the last run. Speccy says which repo and commit the target names before the run
 // starts, because a run makes model calls for every trace ID.
-function VerifyForm({ bundleId, prefill }: { bundleId: string; prefill?: string }) {
+function VerifyForm({ docId, prefill }: { docId: string; prefill?: string }) {
   const qc = useQueryClient();
-  const defaults = useQuery(verificationDefaultsOptions({ path: { bundleId } }));
+  const defaults = useQuery(verificationDefaultsOptions({ path: { docId } }));
   const options = defaults.data?.items ?? [];
   const [typed, setTyped] = useState<string>();
   const target = typed ?? prefill ?? options[0]?.target ?? "";
@@ -116,7 +116,7 @@ function VerifyForm({ bundleId, prefill }: { bundleId: string; prefill?: string 
   const resolve = useMutation({ ...resolveVerificationTargetMutation(), onSuccess: setFound });
   const run = useMutation({
     ...runVerificationMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: listVerificationsQueryKey({ path: { bundleId } }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: listVerificationsQueryKey({ path: { docId } }) }),
   });
   const change = (t: string) => {
     setTyped(t);
@@ -130,8 +130,8 @@ function VerifyForm({ bundleId, prefill }: { bundleId: string; prefill?: string 
       onSubmit={(e) => {
         e.preventDefault();
         if (!target.trim()) return;
-        if (!found) resolve.mutate({ path: { bundleId }, body: { target } });
-        else run.mutate({ path: { bundleId }, body: { target } });
+        if (!found) resolve.mutate({ path: { docId }, body: { target } });
+        else run.mutate({ path: { docId }, body: { target } });
       }}
     >
       <Label htmlFor="verify-target">Code to verify</Label>
@@ -197,7 +197,7 @@ function describe(r: ResolvedBuild): string {
 }
 
 // RunProgress follows a queued or running verification, by trace ID.
-function RunProgress({ bundleId, run }: { bundleId: string; run: Verification }) {
+function RunProgress({ docId, run }: { docId: string; run: Verification }) {
   const qc = useQueryClient();
   const [last, setLast] = useState<RunEvent>();
   useEffect(() => {
@@ -207,11 +207,11 @@ function RunProgress({ bundleId, run }: { bundleId: string; run: Verification })
       setLast(ev);
       if (ev.type === "done" || ev.type === "failed") {
         es.close();
-        qc.invalidateQueries({ queryKey: listVerificationsQueryKey({ path: { bundleId } }) });
+        qc.invalidateQueries({ queryKey: listVerificationsQueryKey({ path: { docId } }) });
       }
     };
     return () => es.close();
-  }, [run.id, bundleId, qc]);
+  }, [run.id, docId, qc]);
   const at = run.sha ? run.sha.slice(0, 7) : "a folder";
   let text = "Waiting to start";
   if (last?.stage === "reading") text = `Reading ${run.repo}`;

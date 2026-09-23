@@ -18,7 +18,7 @@ import (
 // GetFileContent returns the bytes of one file in a version.
 func (a *API) GetFileContent(ctx context.Context, req api.GetFileContentRequestObject) (api.GetFileContentResponseObject, error) {
 	q := a.Service.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}

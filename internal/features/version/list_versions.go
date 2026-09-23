@@ -22,7 +22,7 @@ type API struct {
 // ListVersions returns one page of versions, newest first. The cursor is a version number.
 func (a *API) ListVersions(ctx context.Context, req api.ListVersionsRequestObject) (api.ListVersionsResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := Bundle(ctx, q, a.Workspace, req.BundleId)
+	b, err := Bundle(ctx, q, a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (a *API) ListVersions(ctx context.Context, req api.ListVersionsRequestObjec
 		}
 		before = n
 	}
-	rows, err := q.ListVersions(ctx, pgdb.ListVersionsParams{BundleID: b.ID, BeforeNumber: before, PageSize: limit + 1})
+	rows, err := q.ListVersions(ctx, pgdb.ListVersionsParams{SpecDocID: b.ID, BeforeNumber: before, PageSize: limit + 1})
 	if err != nil {
 		return nil, err
 	}

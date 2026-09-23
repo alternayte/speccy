@@ -31,8 +31,9 @@ func form(t *testing.T, fields map[string]string, files map[string]string) *mult
 	return multipart.NewReader(&buf, w.Boundary())
 }
 
-// A dropped folder with a PRD and an SDD that name no type gives one bundle per doc, with the
-// profile the person picked for each, and the SDD links the PRD when the person confirms it.
+// A dropped folder with a PRD and an SDD that name no type gives one bundle with two spec docs,
+// with the profile the person picked for each, and the SDD links the PRD when the person
+// confirms it.
 func TestImportSplitsAFolderAndLinksTheDocs(t *testing.T) {
 	for _, eng := range storetest.Engines() {
 		t.Run(eng.Name, func(t *testing.T) {
@@ -59,15 +60,18 @@ func TestImportSplitsAFolderAndLinksTheDocs(t *testing.T) {
 				t.Fatal(err)
 			}
 			items := res.(api.ImportBundle201JSONResponse).Items
-			slugs := map[string]string{}
-			for _, b := range items {
-				slugs[b.ProfileKey] = b.Slug
+			if len(items) != 1 || len(items[0].Docs) != 2 {
+				t.Fatalf("bundles = %+v, want one bundle with two spec docs", items)
 			}
-			if len(items) != 2 || slugs["prd"] != "feature-x-prd-x" || slugs["sdd"] != "feature-x-sdd-x" {
-				t.Fatalf("bundles = %+v, want one PRD and one SDD bundle", slugs)
+			slugs := map[string]string{}
+			for _, d := range items[0].Docs {
+				slugs[d.ProfileKey] = d.Slug
+			}
+			if slugs["prd"] != "feature-x-prd-x" || slugs["sdd"] != "feature-x-sdd-x" {
+				t.Fatalf("spec docs = %+v, want one PRD and one SDD", slugs)
 			}
 			q := env.app.Bundles.DB.Queries()
-			sdd, err := q.GetBundleBySlug(context.Background(), pgdb.GetBundleBySlugParams{WorkspaceID: env.app.Workspace, Slug: slugs["sdd"]})
+			sdd, err := q.GetSpecDocBySlug(context.Background(), pgdb.GetSpecDocBySlugParams{WorkspaceID: env.app.Workspace, Slug: slugs["sdd"]})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,7 +79,7 @@ func TestImportSplitsAFolderAndLinksTheDocs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(links) != 1 || links[0].Kind != "implements" || !links[0].TargetBundleID.Valid {
+			if len(links) != 1 || links[0].Kind != "implements" || !links[0].TargetSpecDocID.Valid {
 				t.Errorf("SDD links = %+v, want one resolved implements link", links)
 			}
 		})

@@ -103,7 +103,7 @@ func (q *Queries) GetProfileVersion(ctx context.Context, arg GetProfileVersionPa
 }
 
 const getRun = `-- name: GetRun :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE workspace_id = $1 AND id = $2
 `
 
 type GetRunParams struct {
@@ -117,7 +117,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, erro
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.ProfileKey,
 		&i.ProfileVersion,
@@ -291,7 +291,7 @@ func (q *Queries) InsertProfileVersion(ctx context.Context, arg InsertProfileVer
 }
 
 const insertRun = `-- name: InsertRun :exec
-INSERT INTO review_run (id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage,
+INSERT INTO review_run (id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage,
                         error, notes, decisions_hash, started_at, finished_at)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10,
@@ -301,7 +301,7 @@ VALUES ($1, $2, $3, $4, $5,
 type InsertRunParams struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID
-	BundleID       uuid.UUID
+	SpecDocID      uuid.UUID
 	VersionID      uuid.UUID
 	ProfileKey     string
 	ProfileVersion int64
@@ -319,7 +319,7 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) error {
 	_, err := q.db.ExecContext(ctx, insertRun,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.VersionID,
 		arg.ProfileKey,
 		arg.ProfileVersion,
@@ -375,26 +375,26 @@ func (q *Queries) InsertVerdict(ctx context.Context, arg InsertVerdictParams) er
 }
 
 const latestCompleteRun = `-- name: LatestCompleteRun :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
-WHERE bundle_id = $1 AND version_id = $2 AND status = 'complete' AND kind = $3
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = $1 AND version_id = $2 AND status = 'complete' AND kind = $3
 ORDER BY started_at DESC, id DESC
 LIMIT 1
 `
 
 type LatestCompleteRunParams struct {
-	BundleID  uuid.UUID
+	SpecDocID uuid.UUID
 	VersionID uuid.UUID
 	Kind      string
 }
 
 // REQ-007: the latest finished run of a kind on a version.
 func (q *Queries) LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error) {
-	row := q.db.QueryRowContext(ctx, latestCompleteRun, arg.BundleID, arg.VersionID, arg.Kind)
+	row := q.db.QueryRowContext(ctx, latestCompleteRun, arg.SpecDocID, arg.VersionID, arg.Kind)
 	var i ReviewRun
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.ProfileKey,
 		&i.ProfileVersion,
@@ -418,19 +418,19 @@ func (q *Queries) LatestCompleteRun(ctx context.Context, arg LatestCompleteRunPa
 }
 
 const latestRun = `-- name: LatestRun :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
-WHERE bundle_id = $1
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = $1
 ORDER BY started_at DESC, id DESC
 LIMIT 1
 `
 
-func (q *Queries) LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error) {
-	row := q.db.QueryRowContext(ctx, latestRun, bundleID)
+func (q *Queries) LatestRun(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error) {
+	row := q.db.QueryRowContext(ctx, latestRun, specDocID)
 	var i ReviewRun
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.ProfileKey,
 		&i.ProfileVersion,
@@ -454,15 +454,15 @@ func (q *Queries) LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun,
 }
 
 const latestRunFor = `-- name: LatestRunFor :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
-WHERE bundle_id = $1 AND version_id = $2
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = $1 AND version_id = $2
   AND profile_key = $3 AND profile_version = $4
 ORDER BY started_at DESC, id DESC
 LIMIT 1
 `
 
 type LatestRunForParams struct {
-	BundleID       uuid.UUID
+	SpecDocID      uuid.UUID
 	VersionID      uuid.UUID
 	ProfileKey     string
 	ProfileVersion int64
@@ -470,7 +470,7 @@ type LatestRunForParams struct {
 
 func (q *Queries) LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error) {
 	row := q.db.QueryRowContext(ctx, latestRunFor,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.VersionID,
 		arg.ProfileKey,
 		arg.ProfileVersion,
@@ -479,7 +479,7 @@ func (q *Queries) LatestRunFor(ctx context.Context, arg LatestRunForParams) (Rev
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.ProfileKey,
 		&i.ProfileVersion,
@@ -575,20 +575,20 @@ func (q *Queries) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Pr
 }
 
 const listRuns = `-- name: ListRuns :many
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
-WHERE bundle_id = $1 AND started_at < $2
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = $1 AND started_at < $2
 ORDER BY started_at DESC, id DESC
 LIMIT $3::bigint
 `
 
 type ListRunsParams struct {
-	BundleID uuid.UUID
-	Before   time.Time
-	PageSize int64
+	SpecDocID uuid.UUID
+	Before    time.Time
+	PageSize  int64
 }
 
 func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error) {
-	rows, err := q.db.QueryContext(ctx, listRuns, arg.BundleID, arg.Before, arg.PageSize)
+	rows, err := q.db.QueryContext(ctx, listRuns, arg.SpecDocID, arg.Before, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -599,7 +599,7 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.ProfileKey,
 			&i.ProfileVersion,

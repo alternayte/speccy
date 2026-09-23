@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
-import type { GithubResolved } from "@/lib/api";
+import type { AddedSource, GithubResolved } from "@/lib/api";
 import {
   addGithubSourceMutation,
   listBundlesQueryKey,
@@ -14,13 +15,25 @@ import {
 import { problemMessage } from "@/lib/problem";
 
 // GitHubDialog takes a source URL, shows what it names, and makes the source on confirm
-// (REQ-128). Speccy resolves before it acts, so a person sees the branch, the doc and the
-// profile before a source exists.
+// (REQ-128). Speccy resolves before it acts, so a person sees the branch, the folder and the
+// profile before a source exists. A source always reads a folder: the URL of one doc reads the
+// doc's folder and opens that doc.
 export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [url, setUrl] = useState("");
   const [found, setFound] = useState<GithubResolved | null>(null);
   const [profile, setProfile] = useState("");
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  // done holds an add that did not open a page: a folder another source reads, or a first sync
+  // that failed (#67).
+  const [done, setDone] = useState<AddedSource | null>(null);
+
+  const open_ = (r: AddedSource) => {
+    close(false);
+    if (r.doc_id && r.bundle_id)
+      navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId: r.bundle_id, docId: r.doc_id } });
+    else if (r.bundle_id) navigate({ to: "/bundles/$bundleId", params: { bundleId: r.bundle_id } });
+  };
 
   const resolve = useMutation({
     ...resolveGithubUrlMutation(),
@@ -31,10 +44,11 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   });
   const add = useMutation({
     ...addGithubSourceMutation(),
-    onSuccess: () => {
+    onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: listBundlesQueryKey() });
       qc.invalidateQueries({ queryKey: listGithubSourcesQueryKey() });
-      close(false);
+      if (r.already_added || r.source.error) setDone(r);
+      else open_(r);
     },
   });
 
@@ -43,13 +57,15 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
       setUrl("");
       setFound(null);
       setProfile("");
+      setDone(null);
       resolve.reset();
       add.reset();
     }
     onOpenChange(o);
   };
 
-  const what = (r: GithubResolved) => (r.file ? r.path : r.path === "." ? "the whole repo" : r.path + "/");
+  const folderOf = (r: GithubResolved) => (r.file ? r.path.split("/").slice(0, -1).join("/") || "." : r.path);
+  const what = (r: GithubResolved) => (folderOf(r) === "." ? "the whole repo" : folderOf(r) + "/");
 
   return (
     <Dialog
@@ -79,6 +95,7 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             onChange={(e) => {
               setUrl(e.target.value);
               setFound(null);
+              setDone(null);
               resolve.reset();
               add.reset();
             }}
@@ -99,9 +116,15 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <dd className="font-mono text-ink">{found.branch}</dd>
             </div>
             <div className="flex gap-2">
-              <dt className="w-16 shrink-0 text-ink-3">{found.file ? "Doc" : "Folder"}</dt>
+              <dt className="w-16 shrink-0 text-ink-3">Folder</dt>
               <dd className="min-w-0 font-mono break-all text-ink">{what(found)}</dd>
             </div>
+            {found.file ? (
+              <div className="flex gap-2">
+                <dt className="w-16 shrink-0 text-ink-3">Opens</dt>
+                <dd className="min-w-0 font-mono break-all text-ink">{found.path}</dd>
+              </div>
+            ) : null}
             {found.title ? (
               <div className="flex gap-2">
                 <dt className="w-16 shrink-0 text-ink-3">Title</dt>
@@ -137,20 +160,34 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
 
         {resolve.isError ? <ErrorState message={problemMessage(resolve.error)} /> : null}
         {add.isError ? <ErrorState message={problemMessage(add.error)} /> : null}
+        {done?.source.error ? (
+          <ErrorState message={`Speccy added the source, and its first sync failed: ${done.source.error}`} />
+        ) : done?.already_added ? (
+          <p role="status" className="rounded-md border border-line bg-sunken px-3 py-2 text-sm text-ink">
+            Already added. The source for {done.source.path === "." ? "the whole repo" : `${done.source.path}/`} reads
+            this {found?.file ? "doc" : "folder"}.
+          </p>
+        ) : null}
 
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={() => close(false)}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={
-              resolve.isPending || add.isPending || url.trim() === "" || (found?.file === true && profile === "")
-            }
-          >
-            {!found ? (resolve.isPending ? "Looking" : "Look") : add.isPending ? "Reading" : "Add"}
-          </Button>
+          {done ? (
+            <Button type="button" variant="primary" disabled={!done.bundle_id} onClick={() => open_(done)}>
+              Open
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={
+                resolve.isPending || add.isPending || url.trim() === "" || (found?.file === true && profile === "")
+              }
+            >
+              {!found ? (resolve.isPending ? "Looking" : "Look") : add.isPending ? "Reading" : "Add"}
+            </Button>
+          )}
         </div>
       </form>
     </Dialog>

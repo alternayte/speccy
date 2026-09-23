@@ -189,23 +189,23 @@ func TestGuest_Restrictions(t *testing.T) {
 			if s != 201 && s != 200 {
 				t.Fatalf("create a bundle: %d %v", s, b)
 			}
-			id := b["id"].(string)
+			id, bid := b["id"].(string), b["bundle_id"].(string)
 			version := b["current_version"].(map[string]any)["id"].(string)
-			s, b = author.call("POST", "/api/v1/bundles/"+id+"/share", map[string]any{})
+			s, b = author.call("POST", "/api/v1/bundles/"+bid+"/share", map[string]any{})
 			if s != 200 {
 				t.Fatalf("create a share link: %d %v", s, b)
 			}
 			shareToken := b["url"].(string)[strings.LastIndex(b["url"].(string), "/")+1:]
 
 			guest := e.client(t)
-			if s, b := guest.call("POST", "/api/v1/share/"+shareToken, map[string]string{"display_name": "Robin"}); s != 200 || b["bundle_id"] != id {
+			if s, b := guest.call("POST", "/api/v1/share/"+shareToken, map[string]string{"display_name": "Robin"}); s != 200 || b["bundle_id"] != bid {
 				t.Fatalf("join as a guest: %d %v", s, b)
 			}
 			if s, b := guest.call("GET", "/api/v1/me", nil); s != 200 || b["signed_in"] != false || b["guest"] == nil {
 				t.Errorf("me as a guest: %d %v", s, b)
 			}
 			// A guest reads the shared bundle.
-			for _, p := range []string{"/api/v1/bundles/" + id, "/api/v1/bundles/" + id + "/files", "/api/v1/bundles/" + id + "/runs"} {
+			for _, p := range []string{"/api/v1/bundles/" + bid, "/api/v1/docs/" + id, "/api/v1/docs/" + id + "/files", "/api/v1/docs/" + id + "/runs"} {
 				if s, b := guest.call("GET", p, nil); s != 200 {
 					t.Errorf("guest GET %s: %d %v", p, s, b)
 				}
@@ -213,12 +213,12 @@ func TestGuest_Restrictions(t *testing.T) {
 			// A guest cannot edit, ask the AI, change access, or see other bundles. Waivers and
 			// approvals arrive at M9 with the same role table.
 			for _, c := range []struct{ method, path string }{
-				{"PUT", "/api/v1/bundles/" + id + "/files/content?path=SPEC.md&base_version=" + version},
-				{"POST", "/api/v1/bundles/" + id + "/runs"},
-				{"GET", "/api/v1/bundles/" + id + "/runs/estimate"},
-				{"PUT", "/api/v1/bundles/" + id + "/visibility"},
-				{"POST", "/api/v1/bundles/" + id + "/share"},
-				{"POST", "/api/v1/bundles/" + id + "/trace/ids?base_version=" + version},
+				{"PUT", "/api/v1/docs/" + id + "/files/content?path=SPEC.md&base_version=" + version},
+				{"POST", "/api/v1/docs/" + id + "/runs"},
+				{"GET", "/api/v1/docs/" + id + "/runs/estimate"},
+				{"PUT", "/api/v1/bundles/" + bid + "/visibility"},
+				{"POST", "/api/v1/bundles/" + bid + "/share"},
+				{"POST", "/api/v1/docs/" + id + "/trace/ids?base_version=" + version},
 				{"GET", "/api/v1/bundles"},
 				{"POST", "/api/v1/bundles"},
 			} {
@@ -227,10 +227,10 @@ func TestGuest_Restrictions(t *testing.T) {
 				}
 			}
 			// Revoking the link ends the guest at once (REQ-085).
-			if s, b := author.call("DELETE", "/api/v1/bundles/"+id+"/share", nil); s != 200 {
+			if s, b := author.call("DELETE", "/api/v1/bundles/"+bid+"/share", nil); s != 200 {
 				t.Fatalf("revoke: %d %v", s, b)
 			}
-			if s, _ := guest.call("GET", "/api/v1/bundles/"+id, nil); s != 401 {
+			if s, _ := guest.call("GET", "/api/v1/bundles/"+bid, nil); s != 401 {
 				t.Errorf("guest after revoke: %d, want 401", s)
 			}
 			if s, _ := guest.call("GET", "/api/v1/share/"+shareToken, nil); s != 404 {
@@ -294,7 +294,7 @@ func TestSecrets_TokensHashedAtRest(t *testing.T) {
 	_, b := admin.call("POST", "/api/v1/admin/reset-links", map[string]string{"email": "admin@x.test"})
 	reset := b["url"].(string)
 	_, b = admin.call("POST", "/api/v1/bundles", map[string]string{"profile": "sdd", "name": "pay"})
-	_, b = admin.call("POST", "/api/v1/bundles/"+b["id"].(string)+"/share", map[string]any{})
+	_, b = admin.call("POST", "/api/v1/bundles/"+b["bundle_id"].(string)+"/share", map[string]any{})
 	share := b["url"].(string)
 	plain := []string{token(adminLink), token(pending), token(reset), share[strings.LastIndex(share, "/")+1:]}
 	for _, q := range []string{"SELECT token_hash FROM invite", "SELECT token_hash FROM reset_link", "SELECT share_token_hash FROM bundle WHERE share_token_hash IS NOT NULL"} {

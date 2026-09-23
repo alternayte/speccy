@@ -42,15 +42,16 @@ INSERT INTO bundle_author (bundle_id, user_id) VALUES (sqlc.arg(bundle_id), sqlc
 -- name: ListBundleAuthors :many
 SELECT user_id FROM bundle_author WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY user_id;
 
--- name: ListBundleReviewers :many
-SELECT user_id FROM bundle_reviewer WHERE bundle_id = sqlc.arg(bundle_id) ORDER BY user_id;
+-- name: ListSpecDocReviewers :many
+SELECT user_id FROM spec_doc_reviewer WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY user_id;
 
 -- name: IsBundleMember :one
--- An author or a named member (reviewer) of the bundle.
+-- An author of the bundle, or a named member (reviewer) of a spec doc in it.
 SELECT EXISTS (
     SELECT 1 FROM bundle_author WHERE bundle_author.bundle_id = sqlc.arg(bundle_id) AND bundle_author.user_id = sqlc.arg(user_id)
     UNION ALL
-    SELECT 1 FROM bundle_reviewer WHERE bundle_reviewer.bundle_id = sqlc.arg(bundle_id) AND bundle_reviewer.user_id = sqlc.arg(user_id)
+    SELECT 1 FROM spec_doc_reviewer r JOIN spec_doc d ON d.id = r.spec_doc_id
+    WHERE d.bundle_id = sqlc.arg(bundle_id) AND r.user_id = sqlc.arg(user_id)
 ) AS member;
 
 -- name: IsBundleAuthor :one

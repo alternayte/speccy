@@ -36,8 +36,8 @@ type API struct {
 	People    kernel.Directory
 	Change    Change
 	// Decisions reads a bundle's sidecar, and SetDecisions writes it (DEC-009).
-	Decisions    func(ctx context.Context, b pgdb.Bundle) (source.Decisions, error)
-	SetDecisions func(ctx context.Context, b pgdb.Bundle, d source.Decisions, by, message string) error
+	Decisions    func(ctx context.Context, b pgdb.SpecDoc) (source.Decisions, error)
+	SetDecisions func(ctx context.Context, b pgdb.SpecDoc, d source.Decisions, by, message string) error
 }
 
 // PolicyFor is the waiver policy of a check at a level (§9.1): the check's own policy when it
@@ -54,15 +54,15 @@ func PolicyFor(p profile.Profile, check string, level kernel.Level) profile.Poli
 	return p.Waivers.Should
 }
 
-func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.Bundle, error) {
-	return a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: id})
+func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.SpecDoc, error) {
+	return a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: id})
 }
 
 // approver is the actor as an approver of a waiver on b.
-func (a *API) approver(ctx context.Context, b pgdb.Bundle) (Approver, error) {
+func (a *API) approver(ctx context.Context, b pgdb.SpecDoc) (Approver, error) {
 	act := kernel.ActorFrom(ctx)
 	q := a.DB.Queries()
-	author, err := q.IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: b.ID, UserID: act.UserID})
+	author, err := q.IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: b.BundleID, UserID: act.UserID})
 	if err != nil {
 		return Approver{}, err
 	}
@@ -74,13 +74,13 @@ func (a *API) approver(ctx context.Context, b pgdb.Bundle) (Approver, error) {
 }
 
 // mainDoc returns the current main doc of b, parsed.
-func (a *API) mainDoc(ctx context.Context, b pgdb.Bundle) ([]byte, section.Doc, error) {
+func (a *API) mainDoc(ctx context.Context, b pgdb.SpecDoc) ([]byte, section.Doc, error) {
 	files, err := version.Files(ctx, a.DB.Queries(), b.CurrentVersionID.UUID)
 	if err != nil {
 		return nil, section.Doc{}, err
 	}
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			return f.Content, section.Parse(f.Content), nil
 		}
 	}
@@ -90,7 +90,7 @@ func (a *API) mainDoc(ctx context.Context, b pgdb.Bundle) ([]byte, section.Doc, 
 // RequestWaiver asks for a waiver of one finding (REQ-072).
 func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObject) (api.RequestWaiverResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 		return nil, kernel.NotFound("finding_not_found", "No finding has this ID.")
 	}
 	run, err := q.GetRunByID(ctx, f.RunID)
-	if err != nil || run.BundleID != b.ID {
+	if err != nil || run.SpecDocID != b.ID {
 		return nil, kernel.NotFound("finding_not_found", "This bundle has no such finding.")
 	}
 	if kernel.Level(f.Level) == kernel.Info {
@@ -171,7 +171,7 @@ func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObj
 
 // writeSidecar writes the approved waiver to the doc's sidecar (DEC-009). The doc text does
 // not change, so no version of the doc is made here.
-func (a *API) writeSidecar(ctx context.Context, b pgdb.Bundle, s State, approvedBy string) error {
+func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approvedBy string) error {
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func (a *API) RejectWaiver(ctx context.Context, req api.RejectWaiverRequestObjec
 
 // ListWaivers lists a bundle's waivers.
 func (a *API) ListWaivers(ctx context.Context, req api.ListWaiversRequestObject) (api.ListWaiversResponseObject, error) {
-	rows, err := a.DB.Queries().ListBundleWaivers(ctx, req.BundleId)
+	rows, err := a.DB.Queries().ListSpecDocWaivers(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -280,17 +280,17 @@ func (a *API) DecidedSince(ctx context.Context, t time.Time) ([]Decided, error) 
 	return out, nil
 }
 
-func (a *API) load(ctx context.Context, id uuid.UUID) (State, pgdb.Bundle, error) {
+func (a *API) load(ctx context.Context, id uuid.UUID) (State, pgdb.SpecDoc, error) {
 	snap, err := a.ES.Load(ctx, id)
 	if errors.Is(err, es.ErrNotFound) {
-		return State{}, pgdb.Bundle{}, kernel.NotFound("waiver_not_found", "No waiver has this ID.")
+		return State{}, pgdb.SpecDoc{}, kernel.NotFound("waiver_not_found", "No waiver has this ID.")
 	}
 	if err != nil {
-		return State{}, pgdb.Bundle{}, err
+		return State{}, pgdb.SpecDoc{}, err
 	}
 	var s State
 	if err := json.Unmarshal(snap.State, &s); err != nil {
-		return State{}, pgdb.Bundle{}, err
+		return State{}, pgdb.SpecDoc{}, err
 	}
 	b, err := a.bundle(ctx, s.BundleID)
 	return s, b, err
@@ -330,7 +330,7 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		path = []string{}
 	}
 	w := api.Waiver{
-		Id: s.ID, BundleId: s.BundleID, CheckSlug: s.Check, Level: string(s.Level), Section: path, Reason: s.Reason,
+		Id: s.ID, DocId: s.BundleID, CheckSlug: s.Check, Level: string(s.Level), Section: path, Reason: s.Reason,
 		Status: api.WaiverStatus(s.Status), RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(),
 		Approvals: approvals, Policy: s.Policy.Name, Needed: need, CanApprove: can, CreatedAt: v.CreatedAt.UTC(),
 	}
@@ -347,11 +347,11 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 
 // Invalidate ends each approved waiver of b whose section changed (REQ-074, T-010). It runs
 // after every new version.
-func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.Bundle) error {
+func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
-	rows, err := db.Queries().ListBundleWaivers(ctx, b.ID)
+	rows, err := db.Queries().ListSpecDocWaivers(ctx, b.ID)
 	if err != nil {
 		return err
 	}
@@ -368,7 +368,7 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.Bundle) 
 				return err
 			}
 			for _, f := range files {
-				if f.Path == b.MainDoc {
+				if f.Path == b.DocPath {
 					main = f.Content
 				}
 			}
@@ -389,7 +389,7 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.Bundle) 
 // no self-approval, and an end when the requirement's section changes. It never goes in the
 // doc's sidecar, because the sidecar travels with the doc into every build of it.
 func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVerificationWaiverRequestObject) (api.RequestVerificationWaiverResponseObject, error) {
-	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +411,7 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	found := false
 	for _, d := range lint.Definitions(main, prefixes) {
 		if strings.EqualFold(d.ID, traceID) {
-			an := anchor.New(b.MainDoc, main, doc, d.Start, d.End)
+			an := anchor.New(b.DocPath, main, doc, d.Start, d.End)
 			path, found = an.HeadingPath, true
 			break
 		}

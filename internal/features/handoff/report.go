@@ -29,7 +29,7 @@ func (a *API) ReportBuild(ctx context.Context, req api.ReportBuildRequestObject)
 	if err != nil {
 		return nil, err
 	}
-	b, err := version.Bundle(ctx, q, a.Workspace, h.BundleID)
+	b, err := version.Bundle(ctx, q, a.Workspace, h.SpecDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (a *API) ReportBuild(ctx context.Context, req api.ReportBuildRequestObject)
 	// it, so the answer may be in the doc already.
 	stale := h.VersionID != b.CurrentVersionID.UUID
 	blocking := req.Body.Kind == api.Blocked && !stale
-	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: h.VersionID})
+	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: h.VersionID})
 	number := int64(0)
 	if err == nil {
 		number = ver.Number
@@ -84,7 +84,7 @@ func title(r api.BuildReport, stale bool) string {
 
 // anchorFor points the thread at the text the report is about: the section it names, where the
 // doc defines the trace ID it names, or the doc.
-func (a *API) anchorFor(ctx context.Context, b pgdb.Bundle, r api.BuildReport) (api.OpenThreadAnchorKind, map[string]any, error) {
+func (a *API) anchorFor(ctx context.Context, b pgdb.SpecDoc, r api.BuildReport) (api.OpenThreadAnchorKind, map[string]any, error) {
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return "", nil, err
@@ -93,7 +93,7 @@ func (a *API) anchorFor(ctx context.Context, b pgdb.Bundle, r api.BuildReport) (
 		id := strings.TrimSpace(*r.TraceId)
 		for _, d := range lint.Definitions(main, a.prefixes(b)) {
 			if strings.EqualFold(d.ID, id) {
-				an := anchor.New(b.MainDoc, main, doc, d.Start, d.End)
+				an := anchor.New(b.DocPath, main, doc, d.Start, d.End)
 				return api.OpenThreadAnchorKindText, toMap(an), nil
 			}
 		}
@@ -106,15 +106,15 @@ func (a *API) anchorFor(ctx context.Context, b pgdb.Bundle, r api.BuildReport) (
 			return "", nil, kernel.Invalid("section_not_found", "The doc has no section %q. Name a heading of the doc, or leave the section out.",
 				strings.Join(path, " › "))
 		}
-		an := anchor.New(b.MainDoc, main, doc, start, end)
+		an := anchor.New(b.DocPath, main, doc, start, end)
 		return api.OpenThreadAnchorKindText, toMap(an), nil
 	}
-	an := anchor.New(b.MainDoc, main, doc, doc.BodyStart, doc.BodyStart)
+	an := anchor.New(b.DocPath, main, doc, doc.BodyStart, doc.BodyStart)
 	return api.OpenThreadAnchorKindText, toMap(an), nil
 }
 
 // mainDoc reads and parses the main doc of b's current version.
-func (a *API) mainDoc(ctx context.Context, b pgdb.Bundle) ([]byte, section.Doc, error) {
+func (a *API) mainDoc(ctx context.Context, b pgdb.SpecDoc) ([]byte, section.Doc, error) {
 	if !b.CurrentVersionID.Valid {
 		return nil, section.Doc{}, kernel.NotFound("no_version", "The bundle has no version.")
 	}
@@ -123,7 +123,7 @@ func (a *API) mainDoc(ctx context.Context, b pgdb.Bundle) ([]byte, section.Doc, 
 		return nil, section.Doc{}, err
 	}
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			return f.Content, section.Parse(f.Content), nil
 		}
 	}

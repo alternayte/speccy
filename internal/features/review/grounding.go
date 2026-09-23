@@ -145,7 +145,7 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 	now := time.Now().UTC()
 	for i, c := range claims {
 		l := labels[i]
-		an := anchor.New(in.bundle.MainDoc, in.main, in.doc, c.start, c.end)
+		an := anchor.New(in.bundle.DocPath, in.main, in.doc, c.start, c.end)
 		class, sources, policyReason := s.applyPolicy(ctx, rc, pol, resolverOn, l, an, now)
 		if policyReason != "" {
 			l.Label, l.Reason = "unverified", policyReason

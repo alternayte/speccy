@@ -33,7 +33,7 @@ func runActionVerify(ctx context.Context, fl reviewFlags, gh *github.Client, rep
 		fmt.Fprintf(stderr, "speccy action --verify: %v.\n", problemText(err))
 		return exitRun
 	}
-	bySlug := map[string]api.Bundle{}
+	bySlug := map[string]api.SpecDoc{}
 	for _, b := range bundles {
 		bySlug[b.Slug] = b
 	}

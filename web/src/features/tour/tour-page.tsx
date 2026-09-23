@@ -1,3 +1,4 @@
+import { useBundleId } from "@/features/bundle/params";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
@@ -11,7 +12,7 @@ import { levelStyle } from "@/features/bundle/verdict";
 import { type Finding, getFileContent, type TourPoint } from "@/lib/api";
 import {
   approveWaiverMutation,
-  getBundleOptions,
+  getSpecDocOptions,
   getTourOptions,
   getTourQueryKey,
   listFindingsOptions,
@@ -36,23 +37,24 @@ type Mode = "decide" | "waive" | "comment";
 // TourPage steps through the points that need a human decision (SDD §13.3). The section of the
 // current point is in focus; the rest of the doc is dimmed. Keys: j and k move, d decides,
 // w waives, c comments, Esc leaves.
-export function TourPage({ bundleId }: { bundleId: string }) {
+export function TourPage({ docId }: { docId: string }) {
+  const bundleId = useBundleId();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const bundle = useQuery(getBundleOptions({ path: { bundleId } }));
-  const tour = useQuery(getTourOptions({ path: { bundleId } }));
+  const bundle = useQuery(getSpecDocOptions({ path: { docId } }));
+  const tour = useQuery(getTourOptions({ path: { docId } }));
   const runId = tour.data?.run_id;
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
   // Reviewer mode keeps the points a reviewer can act on. Findings and waivers are an author's job.
-  const reviewer = useReviewerMode(bundleId).reviewer;
-  const main = bundle.data?.main_doc;
+  const reviewer = useReviewerMode().reviewer;
+  const main = bundle.data?.path;
   const version = bundle.data?.current_version.id;
   const doc = useQuery({
-    queryKey: ["tour-doc", bundleId, version],
+    queryKey: ["tour-doc", docId, version],
     enabled: !!main && !!version,
     queryFn: async () => {
       const res = await getFileContent({
-        path: { bundleId },
+        path: { docId },
         query: { path: main!, version: version! },
         parseAs: "text",
         throwOnError: true,
@@ -75,7 +77,10 @@ export function TourPage({ bundleId }: { bundleId: string }) {
     },
     [points.length, index],
   );
-  const leave = useCallback(() => navigate({ to: "/bundles/$bundleId", params: { bundleId } }), [navigate, bundleId]);
+  const leave = useCallback(
+    () => navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId, docId } }),
+    [navigate, bundleId, docId],
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -114,8 +119,8 @@ export function TourPage({ bundleId }: { bundleId: string }) {
 
   const done = () => {
     setMode(undefined);
-    qc.invalidateQueries({ queryKey: getTourQueryKey({ path: { bundleId } }) });
-    qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+    qc.invalidateQueries({ queryKey: getTourQueryKey({ path: { docId } }) });
+    qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
   };
 
   if (tour.isPending || bundle.isPending) return <Loading label="Loading the tour" />;
@@ -130,8 +135,8 @@ export function TourPage({ bundleId }: { bundleId: string }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-3 py-2 sm:px-4">
         <Link
-          to="/bundles/$bundleId"
-          params={{ bundleId }}
+          to="/bundles/$bundleId/docs/$docId"
+          params={{ bundleId, docId }}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
         >
           <ArrowLeft aria-hidden className="size-3.5" /> {bundle.data.title}
@@ -168,7 +173,7 @@ export function TourPage({ bundleId }: { bundleId: string }) {
           <div className="min-h-0 flex-1 border-t border-line lg:border-t-0 lg:border-r">
             {doc.data !== undefined ? (
               <FocusedDoc
-                bundleId={bundleId}
+                docId={docId}
                 path={main!}
                 markdown={doc.data}
                 point={point}
@@ -185,7 +190,7 @@ export function TourPage({ bundleId }: { bundleId: string }) {
           <aside className="max-h-[55%] shrink-0 overflow-y-auto bg-surface lg:max-h-none lg:w-[400px]">
             <PointCard
               key={point.key}
-              bundleId={bundleId}
+              docId={docId}
               point={point}
               mode={mode}
               setMode={setMode}
@@ -244,13 +249,13 @@ function Kbd({ children }: { children: React.ReactNode }) {
 
 // FocusedDoc renders the main doc and dims every block outside the point's section.
 function FocusedDoc({
-  bundleId,
+  docId,
   path,
   markdown,
   point,
   findings,
 }: {
-  bundleId: string;
+  docId: string;
   path: string;
   markdown: string;
   point: TourPoint;
@@ -299,20 +304,20 @@ function FocusedDoc({
 
   return (
     <div ref={ref} className="h-full">
-      <Preview markdown={markdown} bundleId={bundleId} path={path} onOpenPath={() => {}} findings={findings} />
+      <Preview markdown={markdown} docId={docId} path={path} onOpenPath={() => {}} findings={findings} />
     </div>
   );
 }
 
 function PointCard({
-  bundleId,
+  docId,
   point,
   mode,
   setMode,
   reviewer,
   onDone,
 }: {
-  bundleId: string;
+  docId: string;
   point: TourPoint;
   mode?: Mode;
   setMode: (m?: Mode) => void;
@@ -419,7 +424,7 @@ function PointCard({
           </Button>
         </div>
       ) : (
-        <Act bundleId={bundleId} point={point} mode={mode} onCancel={() => setMode(undefined)} onDone={onDone} />
+        <Act docId={docId} point={point} mode={mode} onCancel={() => setMode(undefined)} onDone={onDone} />
       )}
     </div>
   );
@@ -444,13 +449,13 @@ const prompts: Record<Mode, { label: string; placeholder: string; submit: string
 // Act writes the decision, the waiver request, or the comment. A decision or a comment goes to
 // the point's thread, or to a new thread on the finding.
 function Act({
-  bundleId,
+  docId,
   point,
   mode,
   onCancel,
   onDone,
 }: {
-  bundleId: string;
+  docId: string;
   point: TourPoint;
   mode: Mode;
   onCancel: () => void;
@@ -468,7 +473,7 @@ function Act({
 
   const submit = async () => {
     if (mode === "waive") {
-      await waive.mutateAsync({ path: { bundleId }, body: { finding_id: point.finding_id!, reason: text } });
+      await waive.mutateAsync({ path: { docId }, body: { finding_id: point.finding_id!, reason: text } });
     } else {
       let thread;
       if (point.thread_id) {
@@ -478,7 +483,7 @@ function Act({
           ? { anchor_kind: "finding" as const, anchor: { finding_id: point.finding_id, check_slug: point.check_slug } }
           : { anchor_kind: "section" as const, anchor: { heading_path: point.anchor?.heading_path ?? [] } };
         thread = await open.mutateAsync({
-          path: { bundleId },
+          path: { docId },
           body: { ...anchor, addressed_to: "humans", title: point.ask, body: text },
         });
       }

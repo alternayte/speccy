@@ -72,7 +72,7 @@ func (en *env) latest(t *testing.T, slug string) (pgdb.ReviewRun, []pgdb.Finding
 	t.Helper()
 	ctx := context.Background()
 	q := en.bundles.DB.Queries()
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: slug})
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: en.bundles.Workspace, Slug: slug})
 	if err != nil {
 		t.Fatalf("bundle %s: %v", slug, err)
 	}

@@ -102,7 +102,7 @@ func (m *model) bundlePreview(w int) []string {
 		return out
 	}
 	b := m.bundles[m.cursor]
-	out[2] = "  " + bold.Render(truncate(b.Title, max(10, w-30))) + faint.Render("  "+b.MainDoc)
+	out[2] = "  " + bold.Render(truncate(b.Title, max(10, w-30))) + faint.Render("  "+b.Path)
 	out[3] = "  " + verdictStyled(b.Verdict) + countsText(b.Verdict)
 	status := "draft"
 	if b.Status != nil {

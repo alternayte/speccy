@@ -75,12 +75,12 @@ func TestVerifyFolderRun(t *testing.T) {
 			if threads == 0 {
 				t.Fatal("a MUST missing outcome opens a blocking thread")
 			}
-			if result, _ := env.verdict(t); result == string(api.BuildReady) {
+			if result, _ := env.verdict(t); result == string(api.VerdictResultBuildReady) {
 				t.Error("a blocking thread makes the bundle Not Build Ready")
 			}
 
 			// A second run of the same bundle lists both.
-			list, err := env.app.API.ListVerifications(as("member"), api.ListVerificationsRequestObject{BundleId: env.b.ID})
+			list, err := env.app.API.ListVerifications(as("member"), api.ListVerificationsRequestObject{DocId: env.b.ID})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,8 +99,8 @@ func TestVerifyRefusesABundleWithNoVerifiableTraceID(t *testing.T) {
 			fakeModels(t, env)
 			env.edit(t, "---\ntype: note\ntitle: Pay\n---\n\n# Pay\n\nThe gateway rejects a request with no token.\n")
 			_, err := env.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{
-				BundleId: env.b.ID,
-				Body:     &api.RunVerificationJSONRequestBody{Path: ptr(t.TempDir())},
+				DocId: env.b.ID,
+				Body:  &api.RunVerificationJSONRequestBody{Path: ptr(t.TempDir())},
 			})
 			if err == nil {
 				t.Fatal("a bundle with no verifiable trace ID refuses the run")
@@ -187,7 +187,7 @@ func TestVerifyWaiverStopsTheBlockUntilTheSectionChanges(t *testing.T) {
 			write(t, repo, "gateway.go", "package gateway\n\n// REQ-001: reject a request with no token.\nfunc Reject() bool { return true }\n")
 
 			res, err := env.app.API.RequestVerificationWaiver(as("author"), api.RequestVerificationWaiverRequestObject{
-				BundleId: env.b.ID,
+				DocId: env.b.ID,
 				Body: &api.RequestVerificationWaiverJSONRequestBody{
 					TraceId: "REQ-002", Repo: repo,
 					Reason: "The retry lives in the client library, which this repo does not hold.",
@@ -234,7 +234,7 @@ func runVerify(t *testing.T, e *env, repo string) api.Verification {
 	// A folder run is local mode only; the test env serves hosted mode otherwise.
 	e.app.API.Local = true
 	res, err := e.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{
-		BundleId: e.b.ID, Body: &api.RunVerificationJSONRequestBody{Target: ptr(repo)}})
+		DocId: e.b.ID, Body: &api.RunVerificationJSONRequestBody{Target: ptr(repo)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +342,7 @@ func TestVerifyRefusesAFolderInHostedMode(t *testing.T) {
 			fakeModels(t, env)
 			tracePrefixes(t, env)
 			for _, body := range []api.RunVerificationJSONRequestBody{{Target: ptr(t.TempDir())}, {Path: ptr(t.TempDir())}} {
-				_, err := env.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{BundleId: env.b.ID, Body: &body})
+				_, err := env.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{DocId: env.b.ID, Body: &body})
 				ke, ok := kernel.AsError(err)
 				if !ok || ke.Detail != "Paste a GitHub URL. The server cannot read your disk." {
 					t.Errorf("err = %v, want the hosted refusal", err)
@@ -360,7 +360,7 @@ func TestVerifyDefaultsComeFromTheImplementedByLink(t *testing.T) {
 			env := newEnv(t, eng)
 			env.edit(t, "---\ntype: note\ntitle: Pay\nlinks:\n  - kind: implemented-by\n    target: github:acme/pay#internal/pay\n"+
 				"  - kind: implemented-by\n    target: github:acme/pay#cmd\n  - kind: implemented-by\n    target: github:acme/web@1a2b3c4\n---\n\n# Pay\n")
-			res, err := env.app.API.VerificationDefaults(as("member"), api.VerificationDefaultsRequestObject{BundleId: env.b.ID})
+			res, err := env.app.API.VerificationDefaults(as("member"), api.VerificationDefaultsRequestObject{DocId: env.b.ID})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -390,7 +390,7 @@ func TestVerifyRunGoesStaleWithANewVersion(t *testing.T) {
 			first := runVerify(t, env, repo)
 
 			env.edit(t, specDoc+"\nThe gateway also logs the refusal.\n")
-			list, err := env.app.API.ListVerifications(as("member"), api.ListVerificationsRequestObject{BundleId: env.b.ID})
+			list, err := env.app.API.ListVerifications(as("member"), api.ListVerificationsRequestObject{DocId: env.b.ID})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -426,17 +426,17 @@ func TestDeleteBundleRemovesEverything(t *testing.T) {
 			id := env.b.ID
 
 			if _, err := env.app.API.DeleteBundle(as("author"), api.DeleteBundleRequestObject{
-				BundleId: id, Params: api.DeleteBundleParams{Slug: "wrong"}}); err == nil {
+				BundleId: env.b.BundleID, Params: api.DeleteBundleParams{Slug: "wrong"}}); err == nil {
 				t.Fatal("a wrong slug must not delete a bundle")
 			}
 			if _, err := env.app.API.DeleteBundle(as("author"), api.DeleteBundleRequestObject{
-				BundleId: id, Params: api.DeleteBundleParams{Slug: env.b.Slug}}); err != nil {
+				BundleId: env.b.BundleID, Params: api.DeleteBundleParams{Slug: env.b.Slug}}); err != nil {
 				t.Fatal(err)
 			}
 
 			ctx := context.Background()
 			q := env.app.Bundles.DB.Queries()
-			if _, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: env.app.Workspace, ID: id}); err == nil {
+			if _, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: env.app.Workspace, ID: id}); err == nil {
 				t.Error("the bundle row is still there")
 			}
 			if n, err := q.CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: id, Valid: true}); err != nil || n != 0 {
@@ -445,7 +445,7 @@ func TestDeleteBundleRemovesEverything(t *testing.T) {
 			if rows, err := q.ListVerificationRuns(ctx, id); err != nil || len(rows) != 0 {
 				t.Errorf("verification runs = %d (%v), want none", len(rows), err)
 			}
-			if rows, err := q.ListBundleWaivers(ctx, id); err != nil || len(rows) != 0 {
+			if rows, err := q.ListSpecDocWaivers(ctx, id); err != nil || len(rows) != 0 {
 				t.Errorf("waivers = %d (%v), want none", len(rows), err)
 			}
 		})

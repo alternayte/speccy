@@ -32,7 +32,7 @@ func TestSuggestFix_RequiresAccept(t *testing.T) {
 			}
 			a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews, Change: pe.bundles.Change}
 			q := pe.bundles.DB.Queries()
-			before, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+			before, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -46,7 +46,7 @@ func TestSuggestFix_RequiresAccept(t *testing.T) {
 			if s.Old != "at 999 kilobytes for every endpoint" || s.VersionId != before.CurrentVersionID.UUID {
 				t.Fatalf("suggestion = %+v", s)
 			}
-			after, _ := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+			after, _ := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
 			disk, _ := os.ReadFile(path)
 			if after.CurrentVersionID != before.CurrentVersionID || string(disk) != groundedSDD {
 				t.Fatal("a suggestion changed the doc before an accept")

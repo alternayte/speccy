@@ -26,7 +26,7 @@ func Projection(ctx context.Context, tx store.Tx, snap es.Stream, _ []es.Recorde
 		approvals = []Approval{}
 	}
 	raw, _ := json.Marshal(approvals)
-	p := pgdb.UpsertBundleStatusViewParams{BundleID: snap.ID, Status: s.Current(), Approvals: dbtype.JSON(raw), UpdatedAt: snap.UpdatedAt}
+	p := pgdb.UpsertSpecDocStatusViewParams{SpecDocID: snap.ID, Status: s.Current(), Approvals: dbtype.JSON(raw), UpdatedAt: snap.UpdatedAt}
 	if s.ApprovedVersion != nil {
 		p.ApprovedVersion = uuid.NullUUID{UUID: *s.ApprovedVersion, Valid: true}
 	}
@@ -36,11 +36,11 @@ func Projection(ctx context.Context, tx store.Tx, snap es.Stream, _ []es.Recorde
 	if s.ApprovedAt != nil {
 		p.ApprovedAt = sql.NullTime{Time: *s.ApprovedAt, Valid: true}
 	}
-	if err := q.UpsertBundleStatusView(ctx, p); err != nil {
+	if err := q.UpsertSpecDocStatusView(ctx, p); err != nil {
 		return err
 	}
 	for _, r := range s.Reviewers {
-		if err := q.InsertBundleReviewer(ctx, pgdb.InsertBundleReviewerParams{BundleID: snap.ID, UserID: r}); err != nil {
+		if err := q.InsertSpecDocReviewer(ctx, pgdb.InsertSpecDocReviewerParams{SpecDocID: snap.ID, UserID: r}); err != nil {
 			return err
 		}
 	}

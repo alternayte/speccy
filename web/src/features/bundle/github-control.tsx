@@ -6,18 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
-import type { Bundle } from "@/lib/api";
-import { discardDraftMutation, getBundleOptions, publishBundleMutation } from "@/lib/api/@tanstack/react-query.gen";
+import type { SpecDoc } from "@/lib/api";
+import { discardDraftMutation, getSpecDocOptions, publishBundleMutation } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 
 // GitHubControl shows where a GitHub bundle comes from, and publishes its draft as a pull
 // request (REQ-123). Speccy never changes the branch itself.
-export function GitHubControl({ bundle, canEdit }: { bundle: Bundle; canEdit: boolean }) {
+export function GitHubControl({ bundle, canEdit }: { bundle: SpecDoc; canEdit: boolean }) {
   const gh = bundle.github;
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
-  const done = () => qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId: bundle.id } }).queryKey });
+  const done = () => qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId: bundle.id } }).queryKey });
   const publish = useMutation({ ...publishBundleMutation(), onSuccess: done });
   const discard = useMutation({
     ...discardDraftMutation(),
@@ -95,7 +95,7 @@ export function GitHubControl({ bundle, canEdit }: { bundle: Bundle; canEdit: bo
               className="space-y-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                publish.mutate({ path: { bundleId: bundle.id }, body: { message: message || undefined } });
+                publish.mutate({ path: { docId: bundle.id }, body: { message: message || undefined } });
               }}
             >
               <div>
@@ -117,7 +117,7 @@ export function GitHubControl({ bundle, canEdit }: { bundle: Bundle; canEdit: bo
                         "Discard the unpublished changes? The text from GitHub becomes current again, as a new version.",
                       )
                     )
-                      discard.mutate({ path: { bundleId: bundle.id } });
+                      discard.mutate({ path: { docId: bundle.id } });
                   }}
                   disabled={discard.isPending}
                 >

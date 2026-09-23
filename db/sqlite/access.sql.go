@@ -15,7 +15,7 @@ import (
 )
 
 const bundleByShareToken = `-- name: BundleByShareToken :one
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle
+SELECT id, workspace_id, slug, title, source_kind, source_ref, visibility, share_token_hash, share_expires_at, archived_at, created_at, updated_at FROM bundle
 WHERE share_token_hash = ?1 AND visibility = 'link' AND archived_at IS NULL
   AND (share_expires_at IS NULL OR share_expires_at > ?2)
 `
@@ -33,17 +33,14 @@ func (q *Queries) BundleByShareToken(ctx context.Context, arg BundleByShareToken
 		&i.WorkspaceID,
 		&i.Slug,
 		&i.Title,
-		&i.ProfileKey,
-		&i.MainDoc,
 		&i.SourceKind,
 		&i.SourceRef,
-		&i.CurrentVersionID,
-		&i.ArchivedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.Visibility,
 		&i.ShareTokenHash,
 		&i.ShareExpiresAt,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -194,7 +191,8 @@ const isBundleMember = `-- name: IsBundleMember :one
 SELECT EXISTS (
     SELECT 1 FROM bundle_author WHERE bundle_author.bundle_id = ?1 AND bundle_author.user_id = ?2
     UNION ALL
-    SELECT 1 FROM bundle_reviewer WHERE bundle_reviewer.bundle_id = ?1 AND bundle_reviewer.user_id = ?2
+    SELECT 1 FROM spec_doc_reviewer r JOIN spec_doc d ON d.id = r.spec_doc_id
+    WHERE d.bundle_id = ?1 AND r.user_id = ?2
 ) AS member
 `
 
@@ -203,7 +201,7 @@ type IsBundleMemberParams struct {
 	UserID   string
 }
 
-// An author or a named member (reviewer) of the bundle.
+// An author of the bundle, or a named member (reviewer) of a spec doc in it.
 func (q *Queries) IsBundleMember(ctx context.Context, arg IsBundleMemberParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, isBundleMember, arg.BundleID, arg.UserID)
 	var member bool
@@ -217,33 +215,6 @@ SELECT user_id FROM bundle_author WHERE bundle_id = ?1 ORDER BY user_id
 
 func (q *Queries) ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listBundleAuthors, bundleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var user_id string
-		if err := rows.Scan(&user_id); err != nil {
-			return nil, err
-		}
-		items = append(items, user_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listBundleReviewers = `-- name: ListBundleReviewers :many
-SELECT user_id FROM bundle_reviewer WHERE bundle_id = ?1 ORDER BY user_id
-`
-
-func (q *Queries) ListBundleReviewers(ctx context.Context, bundleID uuid.UUID) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listBundleReviewers, bundleID)
 	if err != nil {
 		return nil, err
 	}
@@ -293,6 +264,33 @@ func (q *Queries) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Inv
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocReviewers = `-- name: ListSpecDocReviewers :many
+SELECT user_id FROM spec_doc_reviewer WHERE spec_doc_id = ?1 ORDER BY user_id
+`
+
+func (q *Queries) ListSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocReviewers, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

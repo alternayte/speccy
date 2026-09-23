@@ -37,12 +37,12 @@ Three ways to start one:
 A doc you wrote before Speccy takes a different way in. [adoption.md](adoption.md) covers all of them; the short version:
 
 - **New bundle** writes the profile's template.
-- Drag a folder or a file from Finder or Explorer onto the bundles screen. A folder with one markdown file becomes one bundle. A folder with a PRD and an SDD opens the import dialog: give each file a doc type, and each becomes its own bundle. Speccy offers the link from the SDD to the PRD, and writes it once you confirm.
-- A folder on disk with two docs that name a `type` gives one bundle per doc, in the same way.
+- Drag a folder or a file from Finder or Explorer onto the bundles screen. A folder with one markdown file becomes one bundle. A folder with a PRD and an SDD opens the import dialog: give each file a doc type, and the folder becomes one bundle with two spec docs. Each spec doc has its own profile, review and verdict. Speccy offers the link from the SDD to the PRD, and writes it once you confirm.
+- A folder on disk with two docs that name a `type` is one bundle with two spec docs, in the same way. The file tree marks each spec doc with its profile and verdict, and a click on one opens it.
 - `speccy init --github` in a repo that holds specs already. It maps the docs it recognises, relaxes the checks that fail today, and writes the Action's workflow. One pull request adopts the repo, and the first review names the checks your team opted into. See [configuration.md](configuration.md).
-- **From GitHub** on the bundles screen, or `speccy add <url>`. Paste the address of a repo, a folder in one, or a single doc. Speccy shows the repo, the branch, the doc and the doc type before it reads anything. It reads through the GitHub API and writes no file into your folder. Local mode uses the token of your `gh` login; run `gh auth login` first, or paste a token in Admin → GitHub.
+- **From GitHub** on the bundles screen, or `speccy add <url>`. Paste the address of a repo, a folder in one, or a single doc. A source always reads a folder: the address of one doc reads the doc's folder and opens that doc. Speccy shows the repo, the branch, the folder and the doc type before it reads anything. An address whose folder a source already reads says "Already added" and opens that bundle. It reads through the GitHub API and writes no file into your folder. Local mode uses the token of your `gh` login; run `gh auth login` first, or paste a token in Admin → GitHub.
 
-A doc written before Speccy names no type. **Import** takes it anyway. It lists every markdown file in the upload with a doc type picker, prefilled with the type the file names or the profile its headings fit, and a "Not a spec" choice. Each file you give a type becomes its own bundle, and Speccy writes one line, `type: <key>`, into it and changes nothing else. When the files include an SDD and the one PRD it builds on, Speccy offers the link, and writes it into the SDD once you confirm. A drop of a folder with several markdown files, or of a file whose type Speccy cannot guess, opens the same dialog.
+A doc written before Speccy names no type. **Import** takes it anyway. It lists every markdown file in the upload with a doc type picker, prefilled with the type the file names or the profile its headings fit, and a "Not a spec" choice. Each file you give a type becomes a spec doc of the folder's bundle, and Speccy writes one line, `type: <key>`, into it and changes nothing else. When the files include an SDD and the one PRD it builds on, Speccy offers the link, and writes it into the SDD once you confirm. A drop of a folder with several markdown files, or of a file whose type Speccy cannot guess, opens the same dialog.
 
 **More → Change doc type** changes a doc's type later. Speccy writes the new type into a doc it holds, and keeps it in Speccy for a doc in a repo.
 
@@ -165,11 +165,11 @@ Two linked docs also have to agree with each other. [linked-docs.md](linked-docs
 
 ![The traceability matrix](images/guide-trace.png)
 
-A bundle reaches `approved` when it has a current Build Ready verdict and the approvals its profile requires. An author cannot approve their own bundle. Any change to the main doc or its assets revokes the approvals, and the bundle returns to `in_review`.
+A bundle reaches `approved` when it has a current Build Ready verdict and the approvals its profile requires. An author cannot approve their own bundle. Any change to the spec doc or the bundle's assets revokes the approvals, and the bundle returns to `in_review`.
 
 ## 11. Hand it to a builder
 
-A build packet is the main doc, its assets, the linked bundles' main docs, the trace IDs, and the build questions with their agreed answers. A coding agent takes the packet, and Speccy records the handoff with the verdict at that moment. `HANDOFF.md`, the re-entry prompt, lets the agent resume after it loses its context.
+A build packet is the spec doc, the bundle's assets, the linked spec docs, the trace IDs, and the build questions with their agreed answers. A coding agent takes the packet, and Speccy records the handoff with the verdict at that moment. `HANDOFF.md`, the re-entry prompt, lets the agent resume after it loses its context.
 
 ![History: the versions of the bundle, and the handoffs a builder took](images/guide-handoff.png)
 

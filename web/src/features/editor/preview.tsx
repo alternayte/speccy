@@ -31,7 +31,7 @@ export const Preview = forwardRef<
   HTMLDivElement,
   {
     markdown: string;
-    bundleId: string;
+    docId: string;
     path: string;
     onOpenPath: (path: string) => void;
     onScroll?: () => void;
@@ -44,10 +44,7 @@ export const Preview = forwardRef<
     findings?: Finding[];
     onOpenFinding?: (f: Finding) => void;
   }
->(function Preview(
-  { markdown, bundleId, path, onOpenPath, onScroll, onChange, onTarget, findings, onOpenFinding },
-  ref,
-) {
+>(function Preview({ markdown, docId, path, onOpenPath, onScroll, onChange, onTarget, findings, onOpenFinding }, ref) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [article, setArticle] = useState<HTMLElement | null>(null);
@@ -68,7 +65,7 @@ export const Preview = forwardRef<
   useEffect(() => {
     const ctrl = new AbortController();
     const timer = setTimeout(async () => {
-      const res = await renderMarkdown({ body: { markdown, bundle_id: bundleId, path }, signal: ctrl.signal });
+      const res = await renderMarkdown({ body: { markdown, doc_id: docId, path }, signal: ctrl.signal });
       if (ctrl.signal.aborted) return;
       if (res.error || !res.data) {
         setError(problemMessage(res.error));
@@ -81,7 +78,7 @@ export const Preview = forwardRef<
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [markdown, bundleId, path]);
+  }, [markdown, docId, path]);
 
   // REQ-004: Mermaid loads only when a doc has a diagram.
   useEffect(() => {

@@ -30,7 +30,7 @@ type Deps struct {
 
 // brief names the next action from the signals a list already reads: the verdict, the waivers
 // that wait for this person, and the status. It carries no target.
-func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.Bundle, out *api.Bundle, waiting []api.Waiver) error {
+func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *api.SpecDoc, waiting []api.Waiver) error {
 	canEdit, err := share.CanEdit(ctx, q, kernel.ActorFrom(ctx), b)
 	if err != nil {
 		return err
@@ -46,7 +46,7 @@ func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.Bundle, out *ap
 	if out.Status != nil {
 		in.Status = *out.Status
 	}
-	if in.Hosted && a.Deps.Approvals != nil && in.Verdict != nil && in.Verdict.Result == api.BuildReady {
+	if in.Hosted && a.Deps.Approvals != nil && in.Verdict != nil && in.Verdict.Result == api.VerdictResultBuildReady {
 		needed, given, err := a.Deps.Approvals(ctx, b.ID)
 		if err != nil {
 			return err
@@ -59,7 +59,7 @@ func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.Bundle, out *ap
 
 // full names the next action of one bundle. It adds what the list is too big to read: the tour
 // point, the first MUST finding, and the handoffs, so the action carries a target.
-func (a *API) full(ctx context.Context, q store.Querier, b pgdb.Bundle, out *api.Bundle) error {
+func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *api.SpecDoc) error {
 	canEdit, err := share.CanEdit(ctx, q, kernel.ActorFrom(ctx), b)
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ func (a *API) full(ctx context.Context, q store.Querier, b pgdb.Bundle, out *api
 		}
 		in.Finding = f
 	}
-	if canEdit && out.Verdict != nil && out.Verdict.Result == api.BuildReady {
+	if canEdit && out.Verdict != nil && out.Verdict.Result == api.VerdictResultBuildReady {
 		if in.Hosted && a.Deps.Approvals != nil {
 			needed, given, err := a.Deps.Approvals(ctx, b.ID)
 			if err != nil {

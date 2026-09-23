@@ -30,8 +30,8 @@ type API struct {
 
 // Summary returns the verdict to show for a bundle, and the error of the latest run when it
 // failed. The verdict is stale when its run is not on the current version (SDD §8.6).
-func Summary(ctx context.Context, q store.Querier, b pgdb.Bundle) (*api.BundleVerdict, *string, error) {
-	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{BundleID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: 20})
+func Summary(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (*api.BundleVerdict, *string, error) {
+	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{SpecDocID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: 20})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,7 +74,7 @@ func Summary(ctx context.Context, q store.Querier, b pgdb.Bundle) (*api.BundleVe
 	return nil, runErr, nil
 }
 
-func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.ReviewRun) (*api.BundleVerdict, error) {
+func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.ReviewRun) (*api.BundleVerdict, error) {
 	vd, err := q.GetVerdict(ctx, run.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -82,7 +82,7 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.Re
 	if err != nil {
 		return nil, err
 	}
-	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: run.VersionID})
+	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: run.VersionID})
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.Re
 	}
 	if vd.CarriedRunID.Valid {
 		if full, err := q.GetRunByID(ctx, vd.CarriedRunID.UUID); err == nil && full.VersionID != run.VersionID {
-			if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: full.VersionID}); err == nil {
+			if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: full.VersionID}); err == nil {
 				n, changed := fv.Number, int(vd.SectionsChanged)
 				out.AiRunId, out.AiVersionNumber, out.SectionsChanged = &full.ID, &n, &changed
 			}
@@ -140,27 +140,27 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.Bundle, run pgdb.Re
 	return out, nil
 }
 
-func (a *API) run(ctx context.Context, id uuid.UUID) (pgdb.ReviewRun, pgdb.Bundle, error) {
+func (a *API) run(ctx context.Context, id uuid.UUID) (pgdb.ReviewRun, pgdb.SpecDoc, error) {
 	q := a.DB.Queries()
 	run, err := q.GetRun(ctx, pgdb.GetRunParams{WorkspaceID: a.Workspace, ID: id})
 	if errors.Is(err, sql.ErrNoRows) {
-		return run, pgdb.Bundle{}, kernel.NotFound("run_not_found", "No review run has the ID %s.", id)
+		return run, pgdb.SpecDoc{}, kernel.NotFound("run_not_found", "No review run has the ID %s.", id)
 	}
 	if err != nil {
-		return run, pgdb.Bundle{}, err
+		return run, pgdb.SpecDoc{}, err
 	}
-	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: run.BundleID})
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: run.SpecDocID})
 	return run, b, err
 }
 
-func (a *API) toAPI(ctx context.Context, b pgdb.Bundle, run pgdb.ReviewRun) (api.Run, error) {
+func (a *API) toAPI(ctx context.Context, b pgdb.SpecDoc, run pgdb.ReviewRun) (api.Run, error) {
 	q := a.DB.Queries()
-	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: run.VersionID})
+	ver, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: run.VersionID})
 	if err != nil {
 		return api.Run{}, err
 	}
 	out := api.Run{
-		Id: run.ID, BundleId: run.BundleID, VersionId: run.VersionID, VersionNumber: ver.Number,
+		Id: run.ID, DocId: run.SpecDocID, VersionId: run.VersionID, VersionNumber: ver.Number,
 		ProfileKey: run.ProfileKey, ProfileVersion: run.ProfileVersion, Kind: api.RunKind(run.Kind),
 		Status: api.RunStatus(run.Status), Stage: run.Stage, Error: run.Error, StartedAt: run.StartedAt.UTC(),
 	}
@@ -185,9 +185,9 @@ func (a *API) toAPI(ctx context.Context, b pgdb.Bundle, run pgdb.ReviewRun) (api
 // ListRuns lists the runs of a bundle, newest first.
 func (a *API) ListRuns(ctx context.Context, req api.ListRunsRequestObject) (api.ListRunsResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.DocId})
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", req.BundleId)
+		return nil, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", req.DocId)
 	}
 	if err != nil {
 		return nil, err
@@ -196,7 +196,7 @@ func (a *API) ListRuns(ctx context.Context, req api.ListRunsRequestObject) (api.
 	if req.Params.Limit != nil {
 		limit = int64(*req.Params.Limit)
 	}
-	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{BundleID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: limit})
+	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{SpecDocID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: limit})
 	if err != nil {
 		return nil, err
 	}

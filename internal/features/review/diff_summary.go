@@ -36,7 +36,7 @@ type diffSummary struct {
 // and the change in findings, from the stored runs (REQ-007). The summary is cached by the
 // content of both versions.
 func (a *API) SummarizeDiff(ctx context.Context, req api.SummarizeDiffRequestObject) (api.SummarizeDiffResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (a *API) SummarizeDiff(ctx context.Context, req api.SummarizeDiffRequestObj
 		return nil, err
 	}
 
-	text := diffText(b.MainDoc, fromFiles, toFiles)
+	text := diffText(b.DocPath, fromFiles, toFiles)
 	if text == "" {
 		out.Summary = "The two versions have the same content."
 		return api.SummarizeDiff200JSONResponse(out), nil
@@ -103,10 +103,10 @@ func (a *API) SummarizeDiff(ctx context.Context, req api.SummarizeDiffRequestObj
 
 // verdictChange compares the findings of the two versions: those of their full reviews when
 // both have one, and otherwise those of their lint runs.
-func (a *API) verdictChange(ctx context.Context, b pgdb.Bundle, from, to uuid.UUID, out *api.DiffSummary) error {
+func (a *API) verdictChange(ctx context.Context, b pgdb.SpecDoc, from, to uuid.UUID, out *api.DiffSummary) error {
 	q := a.DB.Queries()
 	latest := func(v uuid.UUID, kind string) (*pgdb.ReviewRun, error) {
-		r, err := q.LatestCompleteRun(ctx, pgdb.LatestCompleteRunParams{BundleID: b.ID, VersionID: v, Kind: kind})
+		r, err := q.LatestCompleteRun(ctx, pgdb.LatestCompleteRunParams{SpecDocID: b.ID, VersionID: v, Kind: kind})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}

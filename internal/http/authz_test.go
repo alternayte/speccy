@@ -111,7 +111,7 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 				for _, n := range allowed[table[op.id]] {
 					want = want || n == a.name
 				}
-				status, code := env.call(t, op, a.actor(env.bundle.ID))
+				status, code := env.call(t, op, a.actor(env.bundle.BundleID))
 				denied := code == "sign_in_required" || code == "forbidden" || code == "guest_not_allowed" || code == "not_author" || code == "not_maintainer" ||
 					(status == 404 && code == "bundle_not_found")
 				if denied == want {
@@ -125,7 +125,7 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 // A member who is not an author cannot see a private bundle; an admin can (REQ-084).
 func TestAuthz_PrivateBundle(t *testing.T) {
 	env := newHosted(t, storetest.Engines()[0])
-	if err := env.app.Bundles.DB.Queries().SetBundleVisibility(context.Background(), pgdb.SetBundleVisibilityParams{ID: env.bundle.ID, Visibility: "private", UpdatedAt: time.Now()}); err != nil {
+	if err := env.app.Bundles.DB.Queries().SetBundleVisibility(context.Background(), pgdb.SetBundleVisibilityParams{ID: env.bundle.BundleID, Visibility: "private", UpdatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	get := operation{id: "getBundle", method: "GET", path: "/bundles/{bundleId}"}
@@ -154,7 +154,7 @@ func TestAuthz_PrivateBundle(t *testing.T) {
 type hostedEnv struct {
 	app     *app.App
 	handler nethttp.Handler
-	bundle  pgdb.Bundle
+	bundle  pgdb.SpecDoc
 	run     pgdb.ReviewRun
 	thread  string
 	waiver  string
@@ -178,7 +178,7 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 		t.Fatal(err)
 	}
 	q := db.Queries()
-	if err := q.SetBundleVisibility(ctx, pgdb.SetBundleVisibilityParams{ID: b.ID, Visibility: "link", UpdatedAt: time.Now()}); err != nil {
+	if err := q.SetBundleVisibility(ctx, pgdb.SetBundleVisibilityParams{ID: b.BundleID, Visibility: "link", UpdatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	run, err := q.LatestRun(ctx, b.ID)
@@ -196,7 +196,7 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 	env := &hostedEnv{app: a, handler: h, bundle: b, run: run}
 	// A thread and a waiver request, made by the admin, for the thread and waiver paths.
 	admin := kernel.Actor{UserID: "user-admin", Role: kernel.RoleAdmin}
-	_, body := env.post(t, "/bundles/"+b.ID.String()+"/threads", `{"anchor_kind":"section","anchor":{"heading_path":[]},"addressed_to":"humans","body":"Who owns retries?"}`, admin)
+	_, body := env.post(t, "/docs/"+b.ID.String()+"/threads", `{"anchor_kind":"section","anchor":{"heading_path":[]},"addressed_to":"humans","body":"Who owns retries?"}`, admin)
 	var th struct{ ID string }
 	_ = json.Unmarshal(body, &th)
 	env.thread = th.ID
@@ -204,7 +204,7 @@ func newHosted(t *testing.T, e storetest.Engine) *hostedEnv {
 	if err != nil || len(fs) == 0 {
 		t.Fatalf("the fixture run has no finding to waive: %v", err)
 	}
-	_, body = env.post(t, "/bundles/"+b.ID.String()+"/waivers", `{"finding_id":"`+fs[0].ID.String()+`","reason":"The provider owns this part of the design."}`, admin)
+	_, body = env.post(t, "/docs/"+b.ID.String()+"/waivers", `{"finding_id":"`+fs[0].ID.String()+`","reason":"The provider owns this part of the design."}`, admin)
 	var w struct{ ID string }
 	_ = json.Unmarshal(body, &w)
 	env.waiver = w.ID
@@ -228,7 +228,7 @@ func (env *hostedEnv) post(t *testing.T, path, body string, a kernel.Actor) (int
 func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byte) {
 	t.Helper()
 	path := strings.NewReplacer(
-		"{bundleId}", env.bundle.ID.String(), "{runId}", env.run.ID.String(), "{token}", "not-a-token",
+		"{bundleId}", env.bundle.BundleID.String(), "{docId}", env.bundle.ID.String(), "{runId}", env.run.ID.String(), "{token}", "not-a-token",
 		"{connectionId}", uuid.NewString(), "{backendId}", uuid.NewString(), "{inviteId}", uuid.NewString(), "{role}", "reviewer",
 		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding, "{sourceId}", uuid.NewString(), "{reviewId}", uuid.NewString(), "{handoffId}", uuid.NewString(),
 	).Replace(op.path)

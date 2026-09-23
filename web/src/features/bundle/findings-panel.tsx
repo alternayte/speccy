@@ -10,7 +10,7 @@ import type { Finding, FixSuggestion, Waiver } from "@/lib/api";
 import {
   acceptFixMutation,
   approveWaiverMutation,
-  getBundleOptions,
+  getSpecDocOptions,
   listBundleThreadsOptions,
   listFindingsOptions,
   listWaiversOptions,
@@ -30,7 +30,7 @@ const order = { MUST: 0, SHOULD: 1, INFO: 2 } as const;
 // findings, then the detached findings and threads (SDD §8.8).
 export function FindingsPanel({
   runId,
-  bundleId,
+  docId,
   member,
   canEdit,
   selected,
@@ -41,7 +41,7 @@ export function FindingsPanel({
   orderKey,
 }: {
   runId?: string;
-  bundleId: string;
+  docId: string;
   member: boolean;
   canEdit: boolean;
   selected?: string;
@@ -66,11 +66,11 @@ export function FindingsPanel({
     enabled: !!runId,
     placeholderData: keepPreviousData,
   });
-  const requests = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
-  const decide = useDecide(bundleId);
+  const requests = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
+  const decide = useDecide(docId);
   // A GitHub bundle's sidecar reaches the repo through a pull request, so an approval here is
   // not final until that pull request merges (REQ-123, DEC-009).
-  const bundle = useQuery(getBundleOptions({ path: { bundleId } }));
+  const bundle = useQuery(getSpecDocOptions({ path: { docId } }));
   const viaPullRequest = bundle.data?.source_kind === "github";
   // decided holds the waivers this person decided here, so the card stays on its finding
   // and shows what happened, instead of vanishing on the refetch.
@@ -88,8 +88,8 @@ export function FindingsPanel({
   if (!runId) return <Empty title="No review yet" />;
   const waivers = (
     <>
-      <WaiversList bundleId={bundleId} findings={findings.data?.items ?? []} onAskAgain={setWaiving} />
-      <DetachedList bundleId={bundleId} findings={findings.data?.items ?? []} />
+      <WaiversList docId={docId} findings={findings.data?.items ?? []} onAskAgain={setWaiving} />
+      <DetachedList docId={docId} findings={findings.data?.items ?? []} />
     </>
   );
   if (findings.isPending) return <Loading label="Loading findings" />;
@@ -206,13 +206,13 @@ export function FindingsPanel({
                   ) : null}
                 </div>
               ) : null}
-              {canEdit && !f.waived ? <SuggestFix runId={f.run_id} bundleId={bundleId} finding={f} /> : null}
+              {canEdit && !f.waived ? <SuggestFix runId={f.run_id} docId={docId} finding={f} /> : null}
             </li>
           );
         })}
       </ul>
       {waivers}
-      <WaiverDialog bundleId={bundleId} ask={waiving} onClose={() => setWaiving(undefined)} />
+      <WaiverDialog docId={docId} ask={waiving} onClose={() => setWaiving(undefined)} />
     </>
   );
 }
@@ -220,11 +220,11 @@ export function FindingsPanel({
 // WaiverDialog asks for a waiver of one finding, with a reason (REQ-072). An ended waiver
 // opens it with the old reason, because the edit often does not change what it was for.
 function WaiverDialog({
-  bundleId,
+  docId,
   ask,
   onClose,
 }: {
-  bundleId: string;
+  docId: string;
   ask?: { finding: Finding; reason?: string };
   onClose: () => void;
 }) {
@@ -236,7 +236,7 @@ function WaiverDialog({
     ...requestWaiverMutation(),
     onSuccess: () => {
       setReason("");
-      qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { bundleId } }) });
+      qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { docId } }) });
       onClose();
     },
   });
@@ -257,7 +257,7 @@ function WaiverDialog({
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            request.mutate({ path: { bundleId }, body: { finding_id: finding.id, reason } });
+            request.mutate({ path: { docId }, body: { finding_id: finding.id, reason } });
           }}
         >
           <p className="text-sm">
@@ -292,11 +292,11 @@ function WaiverDialog({
 }
 
 // useDecide approves or rejects a waiver from the finding it excuses (SDD §9.1).
-function useDecide(bundleId: string) {
+function useDecide(docId: string) {
   const qc = useQueryClient();
   const done = () => {
-    qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { bundleId } }) });
-    qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+    qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { docId } }) });
+    qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
   };
   const approve = useMutation({ ...approveWaiverMutation(), onSuccess: done });
   const reject = useMutation({ ...rejectWaiverMutation(), onSuccess: done });
@@ -480,15 +480,15 @@ const waiverStatus = {
 // WaiversList is the record of the bundle's decided waivers. A request sits on its finding
 // above, so this list never needs approve or reject (§9.1).
 function WaiversList({
-  bundleId,
+  docId,
   findings,
   onAskAgain,
 }: {
-  bundleId: string;
+  docId: string;
   findings: Finding[];
   onAskAgain: (ask: { finding: Finding; reason?: string }) => void;
 }) {
-  const waivers = useQuery(listWaiversOptions({ path: { bundleId } }));
+  const waivers = useQuery(listWaiversOptions({ path: { docId } }));
   const items = (waivers.data?.items ?? []).filter((w) => w.status !== "requested");
   if (items.length === 0) return null;
   return (
@@ -540,7 +540,7 @@ function WaiversList({
 
 // SuggestFix asks the AI for a patch for one finding and shows it. The doc changes only when
 // the author accepts the patch (REQ-025, T-092).
-function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: string; finding: Finding }) {
+function SuggestFix({ runId, docId, finding }: { runId: string; docId: string; finding: Finding }) {
   const qc = useQueryClient();
   const [patch, setPatch] = useState<FixSuggestion>();
   const [accepted, setAccepted] = useState<number>();
@@ -554,7 +554,7 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
     onSuccess: (r) => {
       setPatch(undefined);
       setAccepted(r.version.number);
-      qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+      qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
     },
   });
   if (accepted)
@@ -616,8 +616,8 @@ function SuggestFix({ runId, bundleId, finding }: { runId: string; bundleId: str
 
 // DetachedList lists findings and threads whose text changed so that Speccy cannot find it
 // again (SDD §8.8). They are never shown at a wrong place.
-function DetachedList({ bundleId, findings }: { bundleId: string; findings: Finding[] }) {
-  const threads = useQuery(listBundleThreadsOptions({ path: { bundleId } }));
+function DetachedList({ docId, findings }: { docId: string; findings: Finding[] }) {
+  const threads = useQuery(listBundleThreadsOptions({ path: { docId } }));
   const lost = findings.filter((f) => f.anchor.detached);
   const lostThreads = (threads.data?.items ?? []).filter(
     (t) => t.status === "open" && t.anchor_kind === "text" && t.anchor.detached,

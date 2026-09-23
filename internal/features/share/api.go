@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -159,17 +161,32 @@ func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.Bundle, error) {
 	return a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: id})
 }
 
+// access is who can see bundle b: its authors, the reviewers of its spec docs, and its
+// visibility and share link.
 func (a *API) access(ctx context.Context, b pgdb.Bundle) (api.BundleAccess, error) {
 	q := a.DB.Queries()
 	authors, err := q.ListBundleAuthors(ctx, b.ID)
 	if err != nil {
 		return api.BundleAccess{}, err
 	}
-	reviewers, err := q.ListBundleReviewers(ctx, b.ID)
+	docs, err := q.ListSpecDocsOfBundle(ctx, b.ID)
 	if err != nil {
 		return api.BundleAccess{}, err
 	}
-	canEdit, err := CanEdit(ctx, q, kernel.ActorFrom(ctx), b)
+	var reviewers []string
+	for _, d := range docs {
+		rs, err := q.ListSpecDocReviewers(ctx, d.ID)
+		if err != nil {
+			return api.BundleAccess{}, err
+		}
+		for _, r := range rs {
+			if !slices.Contains(reviewers, r) {
+				reviewers = append(reviewers, r)
+			}
+		}
+	}
+	sort.Strings(reviewers)
+	canEdit, err := CanEditBundle(ctx, q, kernel.ActorFrom(ctx), b.ID)
 	if err != nil {
 		return api.BundleAccess{}, err
 	}

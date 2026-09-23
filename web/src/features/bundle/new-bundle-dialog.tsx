@@ -24,7 +24,7 @@ export function NewBundleDialog({ open, onOpenChange }: { open: boolean; onOpenC
     onSuccess: (b) => {
       qc.invalidateQueries({ queryKey: listBundlesQueryKey() });
       onOpenChange(false);
-      navigate({ to: "/bundles/$bundleId", params: { bundleId: b.id } });
+      navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId: b.bundle_id, docId: b.id } });
     },
   });
   const chosen = key || profiles.data?.items[0]?.key || "";

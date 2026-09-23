@@ -9,7 +9,6 @@ import {
   Link2,
   MoreHorizontal,
   Pencil,
-  Star,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -19,34 +18,45 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { Menu, MenuItem } from "@/components/ui/menu";
 import { ErrorState } from "@/components/ui/states";
-import type { BundleFile } from "@/lib/api";
+import type { BundleFile, SpecDoc } from "@/lib/api";
 import { deleteFile, putFileContent, renameFile } from "@/lib/api";
 import { type Dropped, filesFromDrop, keepBothName } from "./drop";
 import { problemMessage } from "@/lib/problem";
 import { buildTree, markdownLink, type TreeNode } from "./file-tree";
+import { DocStateIcon } from "./verdict";
 
 type Pending = { kind: "new" } | { kind: "rename"; path: string } | { kind: "delete"; path: string } | null;
 
 // Explorer lists the files of a bundle and changes them (REQ-002). Every change creates a version.
+// It marks each spec doc with its profile and its verdict; a click on another spec doc opens it.
 export function Explorer({
-  bundleId,
+  docId,
   baseVersion,
   files,
+  specDocs = [],
+  onOpenDoc,
   selected,
   onSelect,
   onChanged,
   readOnly = false,
 }: {
-  bundleId: string;
+  docId: string;
   baseVersion: string;
   files: BundleFile[];
+  specDocs?: SpecDoc[];
+  onOpenDoc?: (id: string) => void;
   selected: string;
   onSelect: (path: string) => void;
   onChanged: (select?: string) => void;
   readOnly?: boolean;
 }) {
-  const tree = useMemo(() => buildTree(files.map((f) => f.path)), [files]);
   const main = files.find((f) => f.is_main_doc)?.path;
+  // The other spec docs of the bundle are not in this doc's version, so the tree adds them.
+  const docAt = useMemo(() => new Map(specDocs.map((d) => [d.path, d])), [specDocs]);
+  const tree = useMemo(
+    () => buildTree([...new Set([...files.map((f) => f.path), ...specDocs.map((d) => d.path)])]),
+    [files, specDocs],
+  );
   // A carried file is in the bundle because a doc references it. Speccy renders it and never
   // writes it back, so the explorer offers no change to it.
   const carriedBy = new Map(files.filter((f) => f.carried_by).map((f) => [f.path, f.carried_by!]));
@@ -80,7 +90,7 @@ export function Explorer({
       run(
         () =>
           putFileContent({
-            path: { bundleId },
+            path: { docId },
             query: { path, base_version: baseVersion },
             body: new Blob([""]),
           }),
@@ -89,11 +99,11 @@ export function Explorer({
     } else if (pending.kind === "rename") {
       const to = name.trim();
       run(
-        () => renameFile({ path: { bundleId }, body: { from: pending.path, to, base_version: baseVersion } }),
+        () => renameFile({ path: { docId }, body: { from: pending.path, to, base_version: baseVersion } }),
         selected === pending.path ? to : undefined,
       );
     } else {
-      run(() => deleteFile({ path: { bundleId }, query: { path: pending.path, base_version: baseVersion } }), main);
+      run(() => deleteFile({ path: { docId }, query: { path: pending.path, base_version: baseVersion } }), main);
     }
   };
 
@@ -109,7 +119,7 @@ export function Explorer({
         if (keepBoth && taken.has(path)) path = keepBothName(path, taken);
         taken.add(path);
         last = path;
-        const res = await putFileContent({ path: { bundleId }, query: { path, base_version: base }, body: item.file });
+        const res = await putFileContent({ path: { docId }, query: { path, base_version: base }, body: item.file });
         if (res.error) throw res.error;
         base = res.data!.version.id;
       }
@@ -143,7 +153,7 @@ export function Explorer({
       for (const f of picked) {
         last = folder + f.name;
         const res = await putFileContent({
-          path: { bundleId },
+          path: { docId },
           query: { path: last, base_version: base },
           body: f,
         });
@@ -184,12 +194,14 @@ export function Explorer({
       );
     }
     const active = n.path === selected;
+    const spec = docAt.get(n.path);
+    const other = !!spec && spec.id !== docId;
     return (
       <li key={n.path} className="group relative">
         <button
           type="button"
           aria-current={active ? "true" : undefined}
-          onClick={() => onSelect(n.path)}
+          onClick={() => (other ? onOpenDoc?.(spec.id) : onSelect(n.path))}
           className={clsx(
             "flex h-7 w-full items-center gap-1.5 pr-8 text-left text-sm",
             active ? "bg-accent-soft text-ink" : "text-ink-2 hover:bg-sunken hover:text-ink",
@@ -200,7 +212,14 @@ export function Explorer({
           <span title={n.path || n.name} className="truncate">
             {n.name}
           </span>
-          {n.path === main ? <Star aria-label="Main doc" className="size-3 shrink-0 fill-accent text-accent" /> : null}
+          {spec ? (
+            <>
+              <span className="shrink-0 rounded-sm border border-line px-1 font-mono text-2xs tracking-wide text-ink-2 uppercase">
+                {spec.profile_key}
+              </span>
+              <DocStateIcon doc={spec} />
+            </>
+          ) : null}
           {carriedBy.has(n.path) ? (
             <Link2
               aria-label={`Carried: ${carriedBy.get(n.path)} references it`}
@@ -209,7 +228,12 @@ export function Explorer({
           ) : null}
           {copied === n.path ? <span className="ml-auto text-2xs text-accent">Copied</span> : null}
         </button>
-        <div className="absolute top-0.5 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+        <div
+          className={clsx(
+            "absolute top-0.5 right-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+            other && "hidden",
+          )}
+        >
           <Menu
             trigger={
               <button

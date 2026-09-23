@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -18,7 +19,9 @@ import (
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
+	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
@@ -67,6 +70,15 @@ func (f *fakeGitHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		send(map[string]string{"login": "ada"})
 	case p == "" && r.Method == "GET":
 		send(map[string]string{"default_branch": "main"})
+	case strings.HasPrefix(p, "/contents/") && r.Method == "GET":
+		name, _ := url.PathUnescape(strings.TrimPrefix(p, "/contents/"))
+		files := f.commits[f.refs[r.URL.Query().Get("ref")]]
+		content, ok := files[name]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		send(map[string]string{"content": base64.StdEncoding.EncodeToString([]byte(content)), "encoding": "base64"})
 	case strings.HasPrefix(p, "/git/ref/heads/"):
 		c, ok := f.refs[strings.TrimPrefix(p, "/git/ref/heads/")]
 		if !ok {
@@ -168,11 +180,11 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, false); err != nil {
 				t.Fatal(err)
 			}
-			b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if err != nil {
 				t.Fatalf("the bundle under docs was not read: %v", err)
 			}
-			if _, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "other/x"}); err == nil {
+			if _, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "other/x"}); err == nil {
 				t.Error("a bundle outside the source path was read")
 			}
 			files, _ := version.Files(ctx, q, b.CurrentVersionID.UUID)
@@ -193,7 +205,7 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, true); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if state, _ = GitHubStateOf(ctx, q, b); !state.Draft || b.CurrentVersionID.UUID != v.ID {
 				t.Fatalf("the draft was lost: %+v", state)
 			}
@@ -218,7 +230,7 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, false); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if state, _ = GitHubStateOf(ctx, q, b); state.Draft || state.PR != "" || b.CurrentVersionID.UUID != v.ID {
 				t.Fatalf("after the merge: %+v, version changed %v", state, b.CurrentVersionID.UUID != v.ID)
 			}
@@ -234,14 +246,14 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 			if err := s.SyncSource(ctx, src.ID, false); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			if state, _ = GitHubStateOf(ctx, q, b); !state.Draft || !state.Ahead {
 				t.Fatalf("GitHub moved under a draft: %+v", state)
 			}
 			if _, err := s.DiscardDraft(ctx, b.ID, "user-1"); err != nil {
 				t.Fatal(err)
 			}
-			b, _ = q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
 			files, _ = version.Files(ctx, q, b.CurrentVersionID.UUID)
 			state, _ = GitHubStateOf(ctx, q, b)
 			var spec string
@@ -257,16 +269,36 @@ func TestGitHubSource_DraftAndPublish(t *testing.T) {
 	}
 }
 
-// REQ-128: a source URL that names one doc makes a single-file bundle, with its assets, and
-// with the profile the person picked when the doc names none.
+// as is ctx with a signed-in member.
+func as(ctx context.Context, user string) context.Context {
+	return kernel.WithActor(ctx, kernel.Actor{UserID: user, Role: kernel.RoleMember})
+}
+
+// sourceAPI is the bundle API over s, with the built-in profiles.
+func sourceAPI(t *testing.T, s *Service) *API {
+	t.Helper()
+	loaded, err := profile.Builtins()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps := map[string]profile.Versioned{}
+	for _, l := range loaded {
+		ps[l.Profile.Key] = profile.Versioned{Loaded: l, Version: 1}
+	}
+	return &API{Service: s, Profiles: func() map[string]profile.Versioned { return ps }}
+}
+
+// REQ-128: a source URL that names one doc makes a source for the doc's folder. The profile the
+// person picked becomes the doc's adopted type, and the response names the doc to open. A second
+// URL in the same folder makes no source: it says "Already added".
 func TestGitHubSource_OneDoc(t *testing.T) {
-	ctx := context.Background()
+	ctx := as(context.Background(), "user-1")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
 	gh.refs["main"] = gh.commit(map[string]string{
 		"docs/prd-payments.md":               "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n",
 		"docs/prd-payments.assets/limits.md": "Limits.\n",
-		"docs/prd-refunds.md":                "# Refunds\n",
+		"docs/sdd-payments.md":               mainDoc,
 		"docs/pay/SPEC.md":                   mainDoc,
 	})
 	srv := httptest.NewServer(gh)
@@ -274,31 +306,46 @@ func TestGitHubSource_OneDoc(t *testing.T) {
 	s.GitHub = func(context.Context, string) (*github.Client, error) {
 		return &github.Client{API: srv.URL, Token: "t"}, nil
 	}
-	q := s.DB.Queries()
-	src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
-		Path: "docs/prd-payments.md", IsFile: true, Profile: "prd", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
-	if err := q.InsertGithubSource(ctx, src); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.SyncSource(ctx, src.ID, false); err != nil {
-		t.Fatal(err)
-	}
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	a := sourceAPI(t, s)
+	prd := "prd"
+	res, err := a.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{
+		Url: srv.URL + "/acme/specs/blob/main/docs/prd-payments.md", Profile: &prd}})
 	if err != nil {
-		t.Fatalf("the one doc did not become a bundle: %v", err)
+		t.Fatal(err)
 	}
-	if b.ProfileKey != "prd" || b.MainDoc != "prd-payments.md" {
-		t.Errorf("bundle profile %q, main doc %q", b.ProfileKey, b.MainDoc)
+	added := res.(api.AddGithubSource200JSONResponse)
+	if added.AlreadyAdded || added.Source.Path != "docs" || added.Source.Error != "" {
+		t.Fatalf("source = %+v, want a new source for docs with no error", added)
 	}
-	files, _ := version.Files(ctx, q, b.CurrentVersionID.UUID)
-	if len(files) != 2 {
-		t.Errorf("files %+v, want the doc and its asset", files)
+	q := s.DB.Queries()
+	d, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	if err != nil {
+		t.Fatalf("the doc did not become a spec doc: %v", err)
 	}
-	// No other doc of the folder comes with it.
-	for _, slug := range []string{"docs/prd-refunds", "docs/pay"} {
-		if _, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: slug}); err == nil {
-			t.Errorf("%s came with a one-doc source", slug)
-		}
+	if d.ProfileKey != "prd" || added.DocId == nil || *added.DocId != d.ID || added.BundleId == nil || *added.BundleId != d.BundleID {
+		t.Errorf("spec doc %+v, response %+v; want the prd doc to open", d, added)
+	}
+	// The folder is one bundle with both spec docs; its subfolder with its own doc is another.
+	docs, _ := q.ListSpecDocsOfBundle(ctx, d.BundleID)
+	if len(docs) != 2 {
+		t.Errorf("the docs bundle holds %d spec docs, want 2", len(docs))
+	}
+	if _, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"}); err != nil {
+		t.Errorf("docs/pay is not a bundle of the source: %v", err)
+	}
+
+	res, err = a.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{
+		Url: srv.URL + "/acme/specs/blob/main/docs/sdd-payments.md"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := res.(api.AddGithubSource200JSONResponse)
+	if !again.AlreadyAdded || again.Source.Id != added.Source.Id || again.DocId == nil {
+		t.Errorf("second URL = %+v, want Already added with the SDD to open", again)
+	}
+	srcs, _ := q.ListGithubSources(ctx, s.Workspace)
+	if len(srcs) != 1 {
+		t.Errorf("%d sources, want 1", len(srcs))
 	}
 }
 
@@ -345,7 +392,7 @@ func TestGitHubSource_AdoptedType(t *testing.T) {
 	if err := s.SyncSource(ctx, src.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
 	if err != nil {
 		t.Fatalf("the accepted doc did not become a bundle: %v", err)
 	}
@@ -368,7 +415,7 @@ func TestGitHubSource_AdoptedType(t *testing.T) {
 	if err := s.SyncSource(ctx, src.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	again, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
+	again, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/prd-payments"})
 	if err != nil || again.ID != b.ID {
 		t.Fatalf("the bundle changed when the repo named the type: %v", err)
 	}
@@ -444,54 +491,52 @@ func TestDismissedDoc(t *testing.T) {
 	}
 }
 
-// A second source that covers a doc another source already owns must say so. It used to make
-// no bundle and report no problem, so a person accepted a type, Speccy answered "accepted",
-// and nothing appeared.
-func TestGitHubSource_OverlapSaysSo(t *testing.T) {
-	ctx := context.Background()
+// #67: a source that is deleted and added again brings its bundles back, with their history,
+// and a source for a parent folder takes over the one it covers.
+func TestGitHubSource_AddedAgainTakesOver(t *testing.T) {
+	ctx := as(context.Background(), "user-1")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
-	gh.refs["main"] = gh.commit(map[string]string{
-		"docs/prd-payments.md": "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n",
-		"docs/reference.md":    "# Reference\n",
-	})
+	gh.refs["main"] = gh.commit(map[string]string{"docs/pay/SPEC.md": mainDoc})
 	srv := httptest.NewServer(gh)
 	defer srv.Close()
 	s.GitHub = func(context.Context, string) (*github.Client, error) {
 		return &github.Client{API: srv.URL, Token: "t"}, nil
 	}
+	a := sourceAPI(t, s)
 	q := s.DB.Queries()
+	add := func(u string) api.AddedSource {
+		t.Helper()
+		res, err := a.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: srv.URL + u}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := api.AddedSource(res.(api.AddGithubSource200JSONResponse))
+		if out.Source.Error != "" {
+			t.Fatalf("add %s: %s", u, out.Source.Error)
+		}
+		return out
+	}
+	first := add("/acme/specs/tree/main/docs/pay")
+	d := head(t, s, "docs/pay")
+	if _, err := a.DeleteGithubSource(ctx, api.DeleteGithubSourceRequestObject{SourceId: first.Source.Id}); err != nil {
+		t.Fatal(err)
+	}
+	again := add("/acme/specs/tree/main/docs/pay")
+	back := head(t, s, "docs/pay")
+	if back.ID != d.ID || back.ArchivedAt.Valid || again.BundleId == nil || *again.BundleId != d.BundleID {
+		t.Errorf("after the source came back: doc %+v, response %+v; want the same live doc", back, again)
+	}
 
-	// The doc URL first: a one-doc source makes the bundle.
-	one := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
-		Path: "docs/prd-payments.md", IsFile: true, Profile: "prd", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
-	if err := q.InsertGithubSource(ctx, one); err != nil {
-		t.Fatal(err)
+	parent := add("/acme/specs/tree/main/docs")
+	if parent.AlreadyAdded {
+		t.Fatal("a parent folder is not already added")
 	}
-	if err := s.SyncSource(ctx, one.ID, false); err != nil {
-		t.Fatal(err)
+	srcs, _ := q.ListGithubSources(ctx, s.Workspace)
+	if len(srcs) != 1 || srcs[0].ID != parent.Source.Id {
+		t.Errorf("sources = %+v, want only the parent", srcs)
 	}
-
-	// Then the folder that holds the same doc, where a person accepts a type for it.
-	folder := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main",
-		Path: "docs", CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
-	if err := q.InsertGithubSource(ctx, folder); err != nil {
-		t.Fatal(err)
-	}
-	_ = s.SyncSource(ctx, folder.ID, false)
-	if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: folder.ID, Path: "docs/prd-payments.md", Profile: "prd"}); err != nil {
-		t.Fatal(err)
-	}
-	_ = s.SyncSource(ctx, folder.ID, true)
-
-	row, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: folder.ID})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if row.Error == "" {
-		t.Fatal("the accepted type made no bundle and the source said nothing; it must name the doc another source holds")
-	}
-	if !strings.Contains(row.Error, "docs/prd-payments.md") {
-		t.Errorf("the message must name the doc, got %q", row.Error)
+	if moved := head(t, s, "docs/pay"); moved.ID != d.ID || moved.ArchivedAt.Valid {
+		t.Errorf("the parent did not take over docs/pay: %+v", moved)
 	}
 }

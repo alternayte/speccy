@@ -32,8 +32,8 @@ func (a Adapter) ClaimJob(ctx context.Context, arg pgdb.ClaimJobParams) (pgdb.Jo
 	return pgdb.Job(r), err
 }
 
-func (a Adapter) ClearBundleHead(ctx context.Context, id uuid.UUID) error {
-	return a.q.ClearBundleHead(ctx, id)
+func (a Adapter) ClearSpecDocHead(ctx context.Context, id uuid.UUID) error {
+	return a.q.ClearSpecDocHead(ctx, id)
 }
 
 func (a Adapter) CountAssignmentsForBackend(ctx context.Context, arg pgdb.CountAssignmentsForBackendParams) (int64, error) {
@@ -42,10 +42,6 @@ func (a Adapter) CountAssignmentsForBackend(ctx context.Context, arg pgdb.CountA
 
 func (a Adapter) CountAuthorMessagesSince(ctx context.Context, arg pgdb.CountAuthorMessagesSinceParams) (int64, error) {
 	return a.q.CountAuthorMessagesSince(ctx, CountAuthorMessagesSinceParams(arg))
-}
-
-func (a Adapter) CountBundlesUsingProfile(ctx context.Context, arg pgdb.CountBundlesUsingProfileParams) (int64, error) {
-	return a.q.CountBundlesUsingProfile(ctx, CountBundlesUsingProfileParams(arg))
 }
 
 func (a Adapter) CountFindingsByCheck(ctx context.Context, arg pgdb.CountFindingsByCheckParams) ([]pgdb.CountFindingsByCheckRow, error) {
@@ -60,8 +56,16 @@ func (a Adapter) CountFindingsByCheck(ctx context.Context, arg pgdb.CountFinding
 	return out, nil
 }
 
-func (a Adapter) CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error) {
-	return a.q.CountOpenBlockingThreads(ctx, bundleID)
+func (a Adapter) CountOpenBlockingThreads(ctx context.Context, specDocID uuid.NullUUID) (int64, error) {
+	return a.q.CountOpenBlockingThreads(ctx, specDocID)
+}
+
+func (a Adapter) CountSpecDocsInBundle(ctx context.Context, bundleID uuid.UUID) (int64, error) {
+	return a.q.CountSpecDocsInBundle(ctx, bundleID)
+}
+
+func (a Adapter) CountSpecDocsUsingProfile(ctx context.Context, arg pgdb.CountSpecDocsUsingProfileParams) (int64, error) {
+	return a.q.CountSpecDocsUsingProfile(ctx, CountSpecDocsUsingProfileParams(arg))
 }
 
 func (a Adapter) DeleteAdoptedLink(ctx context.Context, arg pgdb.DeleteAdoptedLinkParams) error {
@@ -72,8 +76,8 @@ func (a Adapter) DeleteAdoptedType(ctx context.Context, arg pgdb.DeleteAdoptedTy
 	return a.q.DeleteAdoptedType(ctx, DeleteAdoptedTypeParams(arg))
 }
 
-func (a Adapter) DeleteAnswersOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteAnswersOfBundle(ctx, bundleID)
+func (a Adapter) DeleteAnswersOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteAnswersOfSpecDoc(ctx, specDocID)
 }
 
 func (a Adapter) DeleteAssignment(ctx context.Context, arg pgdb.DeleteAssignmentParams) error {
@@ -88,20 +92,12 @@ func (a Adapter) DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) er
 	return a.q.DeleteBundleAuthors(ctx, bundleID)
 }
 
-func (a Adapter) DeleteBundleReviewers(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteBundleReviewers(ctx, bundleID)
-}
-
 func (a Adapter) DeleteBundleRow(ctx context.Context, arg pgdb.DeleteBundleRowParams) error {
 	return a.q.DeleteBundleRow(ctx, DeleteBundleRowParams(arg))
 }
 
-func (a Adapter) DeleteBundleStatusView(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteBundleStatusView(ctx, bundleID)
-}
-
-func (a Adapter) DeleteClaimsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteClaimsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteClaimsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteClaimsOfSpecDoc(ctx, specDocID)
 }
 
 func (a Adapter) DeleteContentReviewsBefore(ctx context.Context, arg pgdb.DeleteContentReviewsBeforeParams) error {
@@ -116,8 +112,8 @@ func (a Adapter) DeleteEventsOfStream(ctx context.Context, streamID uuid.UUID) e
 	return a.q.DeleteEventsOfStream(ctx, streamID)
 }
 
-func (a Adapter) DeleteFindingsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteFindingsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteFindingsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteFindingsOfSpecDoc(ctx, specDocID)
 }
 
 func (a Adapter) DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error {
@@ -128,24 +124,24 @@ func (a Adapter) DeleteGithubSource(ctx context.Context, arg pgdb.DeleteGithubSo
 	return a.q.DeleteGithubSource(ctx, DeleteGithubSourceParams(arg))
 }
 
-func (a Adapter) DeleteHandoffsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteHandoffsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteHandoffsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteHandoffsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteLinkStates(ctx, bundleID)
+func (a Adapter) DeleteLinkStates(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteLinkStates(ctx, specDocID)
 }
 
-func (a Adapter) DeleteLinkStatesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteLinkStatesOfBundle(ctx, bundleID)
+func (a Adapter) DeleteLinkStatesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteLinkStatesOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
-	return a.q.DeleteLinksFrom(ctx, fromBundleID)
+func (a Adapter) DeleteLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) error {
+	return a.q.DeleteLinksFrom(ctx, fromSpecDocID)
 }
 
-func (a Adapter) DeleteLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteLinksOfBundle(ctx, bundleID)
+func (a Adapter) DeleteLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteLinksOfSpecDoc(ctx, specDocID)
 }
 
 func (a Adapter) DeleteMCPConnection(ctx context.Context, arg pgdb.DeleteMCPConnectionParams) error {
@@ -172,56 +168,72 @@ func (a Adapter) DeleteProfileVersionsOf(ctx context.Context, profileID uuid.UUI
 	return a.q.DeleteProfileVersionsOf(ctx, profileID)
 }
 
-func (a Adapter) DeleteQuestionResultsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteQuestionResultsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteQuestionResultsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteQuestionResultsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteQuestionsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteQuestionsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteQuestionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteQuestionsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteReviewRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteReviewRunsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteReviewRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteReviewRunsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteRunLinksOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteRunLinksOfBundle(ctx, bundleID)
+func (a Adapter) DeleteRunLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteRunLinksOfSpecDoc(ctx, specDocID)
+}
+
+func (a Adapter) DeleteShareGuestsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
+	return a.q.DeleteShareGuestsOfBundle(ctx, bundleID)
+}
+
+func (a Adapter) DeleteSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteSpecDocReviewers(ctx, specDocID)
+}
+
+func (a Adapter) DeleteSpecDocRow(ctx context.Context, arg pgdb.DeleteSpecDocRowParams) error {
+	return a.q.DeleteSpecDocRow(ctx, DeleteSpecDocRowParams(arg))
+}
+
+func (a Adapter) DeleteSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteSpecDocStatusView(ctx, specDocID)
 }
 
 func (a Adapter) DeleteStream(ctx context.Context, streamID uuid.UUID) error {
 	return a.q.DeleteStream(ctx, streamID)
 }
 
-func (a Adapter) DeleteThreadMessagesOfBundle(ctx context.Context, bundleID uuid.NullUUID) error {
-	return a.q.DeleteThreadMessagesOfBundle(ctx, bundleID)
+func (a Adapter) DeleteThreadMessagesOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error {
+	return a.q.DeleteThreadMessagesOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteThreadsOfBundle(ctx context.Context, bundleID uuid.NullUUID) error {
-	return a.q.DeleteThreadsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteThreadsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error {
+	return a.q.DeleteThreadsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteVerdictsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteVerdictsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteVerdictsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteVerdictsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteVerificationOutcomesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteVerificationOutcomesOfBundle(ctx, bundleID)
+func (a Adapter) DeleteVerificationOutcomesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteVerificationOutcomesOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteVerificationRunsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteVerificationRunsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteVerificationRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteVerificationRunsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteVersionFilesOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteVersionFilesOfBundle(ctx, bundleID)
+func (a Adapter) DeleteVersionFilesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteVersionFilesOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteVersionsOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteVersionsOfBundle(ctx, bundleID)
+func (a Adapter) DeleteVersionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteVersionsOfSpecDoc(ctx, specDocID)
 }
 
-func (a Adapter) DeleteWaiversOfBundle(ctx context.Context, bundleID uuid.UUID) error {
-	return a.q.DeleteWaiversOfBundle(ctx, bundleID)
+func (a Adapter) DeleteWaiversOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteWaiversOfSpecDoc(ctx, specDocID)
 }
 
 func (a Adapter) FailVerificationRun(ctx context.Context, arg pgdb.FailVerificationRunParams) error {
@@ -267,11 +279,6 @@ func (a Adapter) GetBundle(ctx context.Context, arg pgdb.GetBundleParams) (pgdb.
 func (a Adapter) GetBundleBySlug(ctx context.Context, arg pgdb.GetBundleBySlugParams) (pgdb.Bundle, error) {
 	r, err := a.q.GetBundleBySlug(ctx, GetBundleBySlugParams(arg))
 	return pgdb.Bundle(r), err
-}
-
-func (a Adapter) GetBundleStatusView(ctx context.Context, bundleID uuid.UUID) (pgdb.BundleStatusView, error) {
-	r, err := a.q.GetBundleStatusView(ctx, bundleID)
-	return pgdb.BundleStatusView(r), err
 }
 
 func (a Adapter) GetCache(ctx context.Context, keyHash string) (dbtype.JSON, error) {
@@ -336,6 +343,26 @@ func (a Adapter) GetRunByID(ctx context.Context, id uuid.UUID) (pgdb.ReviewRun, 
 func (a Adapter) GetShareGuest(ctx context.Context, id uuid.UUID) (pgdb.ShareGuest, error) {
 	r, err := a.q.GetShareGuest(ctx, id)
 	return pgdb.ShareGuest(r), err
+}
+
+func (a Adapter) GetSpecDoc(ctx context.Context, arg pgdb.GetSpecDocParams) (pgdb.SpecDoc, error) {
+	r, err := a.q.GetSpecDoc(ctx, GetSpecDocParams(arg))
+	return pgdb.SpecDoc(r), err
+}
+
+func (a Adapter) GetSpecDocByPath(ctx context.Context, arg pgdb.GetSpecDocByPathParams) (pgdb.SpecDoc, error) {
+	r, err := a.q.GetSpecDocByPath(ctx, GetSpecDocByPathParams(arg))
+	return pgdb.SpecDoc(r), err
+}
+
+func (a Adapter) GetSpecDocBySlug(ctx context.Context, arg pgdb.GetSpecDocBySlugParams) (pgdb.SpecDoc, error) {
+	r, err := a.q.GetSpecDocBySlug(ctx, GetSpecDocBySlugParams(arg))
+	return pgdb.SpecDoc(r), err
+}
+
+func (a Adapter) GetSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) (pgdb.SpecDocStatusView, error) {
+	r, err := a.q.GetSpecDocStatusView(ctx, specDocID)
+	return pgdb.SpecDocStatusView(r), err
 }
 
 func (a Adapter) GetStream(ctx context.Context, streamID uuid.UUID) (pgdb.EsStream, error) {
@@ -405,10 +432,6 @@ func (a Adapter) InsertBundle(ctx context.Context, arg pgdb.InsertBundleParams) 
 
 func (a Adapter) InsertBundleAuthor(ctx context.Context, arg pgdb.InsertBundleAuthorParams) error {
 	return a.q.InsertBundleAuthor(ctx, InsertBundleAuthorParams(arg))
-}
-
-func (a Adapter) InsertBundleReviewer(ctx context.Context, arg pgdb.InsertBundleReviewerParams) error {
-	return a.q.InsertBundleReviewer(ctx, InsertBundleReviewerParams(arg))
 }
 
 func (a Adapter) InsertClaim(ctx context.Context, arg pgdb.InsertClaimParams) error {
@@ -495,6 +518,14 @@ func (a Adapter) InsertShareGuest(ctx context.Context, arg pgdb.InsertShareGuest
 	return a.q.InsertShareGuest(ctx, InsertShareGuestParams(arg))
 }
 
+func (a Adapter) InsertSpecDoc(ctx context.Context, arg pgdb.InsertSpecDocParams) error {
+	return a.q.InsertSpecDoc(ctx, InsertSpecDocParams(arg))
+}
+
+func (a Adapter) InsertSpecDocReviewer(ctx context.Context, arg pgdb.InsertSpecDocReviewerParams) error {
+	return a.q.InsertSpecDocReviewer(ctx, InsertSpecDocReviewerParams(arg))
+}
+
 func (a Adapter) InsertStream(ctx context.Context, arg pgdb.InsertStreamParams) (int64, error) {
 	return a.q.InsertStream(ctx, InsertStreamParams(arg))
 }
@@ -553,8 +584,8 @@ func (a Adapter) LatestCompleteRun(ctx context.Context, arg pgdb.LatestCompleteR
 	return pgdb.ReviewRun(r), err
 }
 
-func (a Adapter) LatestRun(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
-	r, err := a.q.LatestRun(ctx, bundleID)
+func (a Adapter) LatestRun(ctx context.Context, specDocID uuid.UUID) (pgdb.ReviewRun, error) {
+	r, err := a.q.LatestRun(ctx, specDocID)
 	return pgdb.ReviewRun(r), err
 }
 
@@ -659,46 +690,6 @@ func (a Adapter) ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]s
 	return a.q.ListBundleAuthors(ctx, bundleID)
 }
 
-func (a Adapter) ListBundleReviewers(ctx context.Context, bundleID uuid.UUID) ([]string, error) {
-	return a.q.ListBundleReviewers(ctx, bundleID)
-}
-
-func (a Adapter) ListBundleStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.BundleStatusView, error) {
-	rows, err := a.q.ListBundleStatusViews(ctx, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.BundleStatusView, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.BundleStatusView(r)
-	}
-	return out, nil
-}
-
-func (a Adapter) ListBundleThreads(ctx context.Context, bundleID uuid.NullUUID) ([]pgdb.ThreadView, error) {
-	rows, err := a.q.ListBundleThreads(ctx, bundleID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.ThreadView, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.ThreadView(r)
-	}
-	return out, nil
-}
-
-func (a Adapter) ListBundleWaivers(ctx context.Context, bundleID uuid.UUID) ([]pgdb.WaiverView, error) {
-	rows, err := a.q.ListBundleWaivers(ctx, bundleID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.WaiverView, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.WaiverView(r)
-	}
-	return out, nil
-}
-
 func (a Adapter) ListBundles(ctx context.Context, arg pgdb.ListBundlesParams) ([]pgdb.Bundle, error) {
 	rows, err := a.q.ListBundles(ctx, ListBundlesParams(arg))
 	if err != nil {
@@ -719,18 +710,6 @@ func (a Adapter) ListBundlesBySource(ctx context.Context, arg pgdb.ListBundlesBy
 	out := make([]pgdb.Bundle, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Bundle(r)
-	}
-	return out, nil
-}
-
-func (a Adapter) ListBundlesUsingProfile(ctx context.Context, arg pgdb.ListBundlesUsingProfileParams) ([]pgdb.ListBundlesUsingProfileRow, error) {
-	rows, err := a.q.ListBundlesUsingProfile(ctx, ListBundlesUsingProfileParams(arg))
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.ListBundlesUsingProfileRow, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.ListBundlesUsingProfileRow(r)
 	}
 	return out, nil
 }
@@ -807,8 +786,8 @@ func (a Adapter) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) (
 	return out, nil
 }
 
-func (a Adapter) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]pgdb.Handoff, error) {
-	rows, err := a.q.ListHandoffs(ctx, bundleID)
+func (a Adapter) ListHandoffs(ctx context.Context, specDocID uuid.UUID) ([]pgdb.Handoff, error) {
+	rows, err := a.q.ListHandoffs(ctx, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -835,8 +814,8 @@ func (a Adapter) ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]pgdb
 	return out, nil
 }
 
-func (a Adapter) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]pgdb.LinkState, error) {
-	rows, err := a.q.ListLinkStates(ctx, bundleID)
+func (a Adapter) ListLinkStates(ctx context.Context, specDocID uuid.UUID) ([]pgdb.LinkState, error) {
+	rows, err := a.q.ListLinkStates(ctx, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -847,8 +826,8 @@ func (a Adapter) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]pgdb
 	return out, nil
 }
 
-func (a Adapter) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]pgdb.Link, error) {
-	rows, err := a.q.ListLinksFrom(ctx, fromBundleID)
+func (a Adapter) ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([]pgdb.Link, error) {
+	rows, err := a.q.ListLinksFrom(ctx, fromSpecDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -859,8 +838,8 @@ func (a Adapter) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]p
 	return out, nil
 }
 
-func (a Adapter) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]pgdb.Link, error) {
-	rows, err := a.q.ListLinksTo(ctx, targetBundleID)
+func (a Adapter) ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID) ([]pgdb.Link, error) {
+	rows, err := a.q.ListLinksTo(ctx, targetSpecDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -971,8 +950,8 @@ func (a Adapter) ListQuestionsByInput(ctx context.Context, arg pgdb.ListQuestion
 	return out, nil
 }
 
-func (a Adapter) ListReviewerBundles(ctx context.Context, userID string) ([]uuid.UUID, error) {
-	return a.q.ListReviewerBundles(ctx, userID)
+func (a Adapter) ListReviewerSpecDocs(ctx context.Context, userID string) ([]uuid.UUID, error) {
+	return a.q.ListReviewerSpecDocs(ctx, userID)
 }
 
 func (a Adapter) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]pgdb.RunLink, error) {
@@ -995,6 +974,106 @@ func (a Adapter) ListRuns(ctx context.Context, arg pgdb.ListRunsParams) ([]pgdb.
 	out := make([]pgdb.ReviewRun, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.ReviewRun(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) ([]string, error) {
+	return a.q.ListSpecDocReviewers(ctx, specDocID)
+}
+
+func (a Adapter) ListSpecDocStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.SpecDocStatusView, error) {
+	rows, err := a.q.ListSpecDocStatusViews(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.SpecDocStatusView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.SpecDocStatusView(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocThreads(ctx context.Context, specDocID uuid.NullUUID) ([]pgdb.ThreadView, error) {
+	rows, err := a.q.ListSpecDocThreads(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ThreadView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ThreadView(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocWaivers(ctx context.Context, specDocID uuid.UUID) ([]pgdb.WaiverView, error) {
+	rows, err := a.q.ListSpecDocWaivers(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.WaiverView, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.WaiverView(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocs(ctx context.Context, arg pgdb.ListSpecDocsParams) ([]pgdb.SpecDoc, error) {
+	rows, err := a.q.ListSpecDocs(ctx, ListSpecDocsParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.SpecDoc, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.SpecDoc(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocsBySource(ctx context.Context, arg pgdb.ListSpecDocsBySourceParams) ([]pgdb.SpecDoc, error) {
+	rows, err := a.q.ListSpecDocsBySource(ctx, ListSpecDocsBySourceParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.SpecDoc, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.SpecDoc(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]pgdb.SpecDoc, error) {
+	rows, err := a.q.ListSpecDocsOfBundle(ctx, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.SpecDoc, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.SpecDoc(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocsOfBundles(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.SpecDoc, error) {
+	rows, err := a.q.ListSpecDocsOfBundles(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.SpecDoc, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.SpecDoc(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListSpecDocsUsingProfile(ctx context.Context, arg pgdb.ListSpecDocsUsingProfileParams) ([]pgdb.ListSpecDocsUsingProfileRow, error) {
+	rows, err := a.q.ListSpecDocsUsingProfile(ctx, ListSpecDocsUsingProfileParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ListSpecDocsUsingProfileRow, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ListSpecDocsUsingProfileRow(r)
 	}
 	return out, nil
 }
@@ -1035,8 +1114,8 @@ func (a Adapter) ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) 
 	return out, nil
 }
 
-func (a Adapter) ListVerificationRuns(ctx context.Context, bundleID uuid.UUID) ([]pgdb.VerificationRun, error) {
-	rows, err := a.q.ListVerificationRuns(ctx, bundleID)
+func (a Adapter) ListVerificationRuns(ctx context.Context, specDocID uuid.UUID) ([]pgdb.VerificationRun, error) {
+	rows, err := a.q.ListVerificationRuns(ctx, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -1123,8 +1202,16 @@ func (a Adapter) MarkInboxItemRead(ctx context.Context, arg pgdb.MarkInboxItemRe
 	return a.q.MarkInboxItemRead(ctx, MarkInboxItemReadParams(arg))
 }
 
-func (a Adapter) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error) {
-	return a.q.NextVersionNumber(ctx, bundleID)
+func (a Adapter) MoveAdoptedLinks(ctx context.Context, arg pgdb.MoveAdoptedLinksParams) error {
+	return a.q.MoveAdoptedLinks(ctx, MoveAdoptedLinksParams(arg))
+}
+
+func (a Adapter) MoveAdoptedTypes(ctx context.Context, arg pgdb.MoveAdoptedTypesParams) error {
+	return a.q.MoveAdoptedTypes(ctx, MoveAdoptedTypesParams(arg))
+}
+
+func (a Adapter) NextVersionNumber(ctx context.Context, specDocID uuid.UUID) (int64, error) {
+	return a.q.NextVersionNumber(ctx, specDocID)
 }
 
 func (a Adapter) PeekInvite(ctx context.Context, arg pgdb.PeekInviteParams) (pgdb.Invite, error) {
@@ -1145,8 +1232,8 @@ func (a Adapter) RevokeInvite(ctx context.Context, arg pgdb.RevokeInviteParams) 
 	return a.q.RevokeInvite(ctx, RevokeInviteParams(arg))
 }
 
-func (a Adapter) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
-	r, err := a.q.RunningRunFor(ctx, bundleID)
+func (a Adapter) RunningRunFor(ctx context.Context, specDocID uuid.UUID) (pgdb.ReviewRun, error) {
+	r, err := a.q.RunningRunFor(ctx, specDocID)
 	return pgdb.ReviewRun(r), err
 }
 
@@ -1168,10 +1255,6 @@ func (a Adapter) SetBundleArchived(ctx context.Context, arg pgdb.SetBundleArchiv
 
 func (a Adapter) SetBundleShare(ctx context.Context, arg pgdb.SetBundleShareParams) error {
 	return a.q.SetBundleShare(ctx, SetBundleShareParams(arg))
-}
-
-func (a Adapter) SetBundleSourceRef(ctx context.Context, arg pgdb.SetBundleSourceRefParams) error {
-	return a.q.SetBundleSourceRef(ctx, SetBundleSourceRefParams(arg))
 }
 
 func (a Adapter) SetBundleVisibility(ctx context.Context, arg pgdb.SetBundleVisibilityParams) error {
@@ -1202,6 +1285,18 @@ func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersi
 	return a.q.SetProfileVersion(ctx, SetProfileVersionParams(arg))
 }
 
+func (a Adapter) SetSpecDocArchived(ctx context.Context, arg pgdb.SetSpecDocArchivedParams) error {
+	return a.q.SetSpecDocArchived(ctx, SetSpecDocArchivedParams(arg))
+}
+
+func (a Adapter) SetSpecDocBundle(ctx context.Context, arg pgdb.SetSpecDocBundleParams) error {
+	return a.q.SetSpecDocBundle(ctx, SetSpecDocBundleParams(arg))
+}
+
+func (a Adapter) SetSpecDocSourceRef(ctx context.Context, arg pgdb.SetSpecDocSourceRefParams) error {
+	return a.q.SetSpecDocSourceRef(ctx, SetSpecDocSourceRefParams(arg))
+}
+
 func (a Adapter) SetWorkspaceSettings(ctx context.Context, arg pgdb.SetWorkspaceSettingsParams) error {
 	return a.q.SetWorkspaceSettings(ctx, SetWorkspaceSettingsParams(arg))
 }
@@ -1228,8 +1323,8 @@ func (a Adapter) StartVerificationRun(ctx context.Context, id uuid.UUID) error {
 	return a.q.StartVerificationRun(ctx, id)
 }
 
-func (a Adapter) ThreadIDsOfBundle(ctx context.Context, bundleID uuid.NullUUID) ([]uuid.UUID, error) {
-	return a.q.ThreadIDsOfBundle(ctx, bundleID)
+func (a Adapter) ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error) {
+	return a.q.ThreadIDsOfSpecDoc(ctx, specDocID)
 }
 
 func (a Adapter) UnspendInvite(ctx context.Context, id uuid.UUID) error {
@@ -1240,8 +1335,8 @@ func (a Adapter) UpdateBackend(ctx context.Context, arg pgdb.UpdateBackendParams
 	return a.q.UpdateBackend(ctx, UpdateBackendParams(arg))
 }
 
-func (a Adapter) UpdateBundleHead(ctx context.Context, arg pgdb.UpdateBundleHeadParams) (int64, error) {
-	return a.q.UpdateBundleHead(ctx, UpdateBundleHeadParams(arg))
+func (a Adapter) UpdateBundle(ctx context.Context, arg pgdb.UpdateBundleParams) error {
+	return a.q.UpdateBundle(ctx, UpdateBundleParams(arg))
 }
 
 func (a Adapter) UpdateMCPConnection(ctx context.Context, arg pgdb.UpdateMCPConnectionParams) error {
@@ -1252,6 +1347,10 @@ func (a Adapter) UpdateRunProgress(ctx context.Context, arg pgdb.UpdateRunProgre
 	return a.q.UpdateRunProgress(ctx, UpdateRunProgressParams(arg))
 }
 
+func (a Adapter) UpdateSpecDocHead(ctx context.Context, arg pgdb.UpdateSpecDocHeadParams) (int64, error) {
+	return a.q.UpdateSpecDocHead(ctx, UpdateSpecDocHeadParams(arg))
+}
+
 func (a Adapter) UpdateStream(ctx context.Context, arg pgdb.UpdateStreamParams) (int64, error) {
 	return a.q.UpdateStream(ctx, UpdateStreamParams(arg))
 }
@@ -1260,12 +1359,12 @@ func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignment
 	return a.q.UpsertAssignment(ctx, UpsertAssignmentParams(arg))
 }
 
-func (a Adapter) UpsertBundleStatusView(ctx context.Context, arg pgdb.UpsertBundleStatusViewParams) error {
-	return a.q.UpsertBundleStatusView(ctx, UpsertBundleStatusViewParams(arg))
-}
-
 func (a Adapter) UpsertGithubConnection(ctx context.Context, arg pgdb.UpsertGithubConnectionParams) error {
 	return a.q.UpsertGithubConnection(ctx, UpsertGithubConnectionParams(arg))
+}
+
+func (a Adapter) UpsertSpecDocStatusView(ctx context.Context, arg pgdb.UpsertSpecDocStatusViewParams) error {
+	return a.q.UpsertSpecDocStatusView(ctx, UpsertSpecDocStatusViewParams(arg))
 }
 
 func (a Adapter) UpsertThreadView(ctx context.Context, arg pgdb.UpsertThreadViewParams) error {
@@ -1276,6 +1375,6 @@ func (a Adapter) UpsertWaiverView(ctx context.Context, arg pgdb.UpsertWaiverView
 	return a.q.UpsertWaiverView(ctx, UpsertWaiverViewParams(arg))
 }
 
-func (a Adapter) WaiverIDsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]uuid.UUID, error) {
-	return a.q.WaiverIDsOfBundle(ctx, bundleID)
+func (a Adapter) WaiverIDsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]uuid.UUID, error) {
+	return a.q.WaiverIDsOfSpecDoc(ctx, specDocID)
 }

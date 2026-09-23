@@ -70,7 +70,7 @@ func (a *API) SuggestLinks(ctx context.Context, req api.SuggestLinksRequestObjec
 	}
 	var existing []DocChoice
 	if req.Body.SourceId != nil || (req.Body.Local != nil && *req.Body.Local) {
-		bundles, err := a.Service.DB.Queries().ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: a.Service.Workspace, PageSize: 10000})
+		bundles, err := a.Service.DB.Queries().ListSpecDocs(ctx, pgdb.ListSpecDocsParams{WorkspaceID: a.Service.Workspace, PageSize: 10000})
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,7 @@ func (a *API) SuggestLinks(ctx context.Context, req api.SuggestLinksRequestObjec
 			case req.Body.SourceId == nil && b.SourceKind != KindLocal:
 				continue
 			}
-			existing = append(existing, DocChoice{Path: path.Join(ref.Dir, b.MainDoc), Profile: b.ProfileKey})
+			existing = append(existing, DocChoice{Path: path.Join(ref.Dir, b.DocPath), Profile: b.ProfileKey})
 		}
 	}
 	out := api.SuggestLinks200JSONResponse{Items: []api.SuggestedLink{}}

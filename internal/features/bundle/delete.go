@@ -2,13 +2,14 @@ package bundle
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
-	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -17,14 +18,14 @@ import (
 // DeleteBundlePlan returns what the Delete control offers for this bundle.
 func (a *API) DeleteBundlePlan(ctx context.Context, req api.DeleteBundlePlanRequestObject) (api.DeleteBundlePlanResponseObject, error) {
 	s := a.Service
-	b, err := version.Bundle(ctx, s.DB.Queries(), s.Workspace, req.BundleId)
+	b, err := s.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
 	out := api.DeletePlan{Kind: api.DeletePlanKind(b.SourceKind), Slug: b.Slug}
 	switch b.SourceKind {
 	case KindDB:
-		out.Message = "This bundle and everything about it goes: its versions, its reviews, its threads, its waivers, its handoffs and its verification runs."
+		out.Message = "This bundle and everything about it goes: each spec doc with its versions, its reviews, its threads, its waivers, its handoffs and its verification runs."
 	case KindGitHub:
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
@@ -51,8 +52,7 @@ func (a *API) DeleteBundlePlan(ctx context.Context, req api.DeleteBundlePlanRequ
 // DeleteBundle removes a bundle whose text Speccy holds, and everything that hangs off it.
 func (a *API) DeleteBundle(ctx context.Context, req api.DeleteBundleRequestObject) (api.DeleteBundleResponseObject, error) {
 	s := a.Service
-	q := s.DB.Queries()
-	b, err := version.Bundle(ctx, q, s.Workspace, req.BundleId)
+	b, err := s.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -68,10 +68,29 @@ func (a *API) DeleteBundle(ctx context.Context, req api.DeleteBundleRequestObjec
 	if req.Params.Slug != b.Slug {
 		return nil, kernel.Invalid("slug_mismatch", "Type the bundle's slug, %s, to confirm.", b.Slug)
 	}
-	if err := s.DeleteBundleData(ctx, b.ID); err != nil {
+	docs, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindDB})
+	if err != nil {
 		return nil, err
 	}
+	// The last spec doc takes the bundle row with it.
+	for _, d := range docs {
+		if d.BundleID != b.ID {
+			continue
+		}
+		if err := s.DeleteBundleData(ctx, d.ID); err != nil {
+			return nil, err
+		}
+	}
 	return api.DeleteBundle204Response{}, nil
+}
+
+// bundle returns the live bundle with id.
+func (s *Service) bundle(ctx context.Context, id uuid.UUID) (pgdb.Bundle, error) {
+	b, err := s.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: id})
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && b.ArchivedAt.Valid) {
+		return b, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", id)
+	}
+	return b, err
 }
 
 // mayDelete allows an author of the bundle or an admin. A guest never deletes.
@@ -95,7 +114,8 @@ func (a *API) mayDelete(ctx context.Context, b pgdb.Bundle) error {
 	return kernel.Forbidden("not_an_author", "An author of this bundle or an admin deletes it.")
 }
 
-// DeleteBundleData removes the bundle and everything that hangs off it, in one transaction.
+// DeleteBundleData removes spec doc id and everything that hangs off it, in one transaction.
+// The last spec doc of a bundle takes the bundle with it.
 // The order is children first, because the foreign keys do not cascade. A blob stays while
 // another version still names it: blobs are shared by content.
 func (s *Service) DeleteBundleData(ctx context.Context, id uuid.UUID) error {
@@ -103,51 +123,50 @@ func (s *Service) DeleteBundleData(ctx context.Context, id uuid.UUID) error {
 	defer s.mu.Unlock()
 	return s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
-		threads, err := q.ThreadIDsOfBundle(ctx, uuid.NullUUID{UUID: id, Valid: true})
+		threads, err := q.ThreadIDsOfSpecDoc(ctx, uuid.NullUUID{UUID: id, Valid: true})
 		if err != nil {
 			return err
 		}
-		waivers, err := q.WaiverIDsOfBundle(ctx, id)
+		waivers, err := q.WaiverIDsOfSpecDoc(ctx, id)
 		if err != nil {
 			return err
 		}
 		for _, step := range []func(context.Context, uuid.UUID) error{
-			q.DeleteVerificationOutcomesOfBundle,
-			q.DeleteVerificationRunsOfBundle,
-			q.DeleteHandoffsOfBundle,
-			q.DeleteVerdictsOfBundle,
-			q.DeleteAnswersOfBundle,
-			q.DeleteQuestionResultsOfBundle,
-			q.DeleteQuestionsOfBundle,
-			q.DeleteFindingsOfBundle,
-			q.DeleteClaimsOfBundle,
-			q.DeleteRunLinksOfBundle,
-			q.DeleteReviewRunsOfBundle,
-			q.DeleteLinkStatesOfBundle,
-			q.DeleteWaiversOfBundle,
-			q.DeleteBundleStatusView,
-			q.DeleteBundleReviewers,
-			q.DeleteBundleAuthors,
-			q.DeleteVersionFilesOfBundle,
+			q.DeleteVerificationOutcomesOfSpecDoc,
+			q.DeleteVerificationRunsOfSpecDoc,
+			q.DeleteHandoffsOfSpecDoc,
+			q.DeleteVerdictsOfSpecDoc,
+			q.DeleteAnswersOfSpecDoc,
+			q.DeleteQuestionResultsOfSpecDoc,
+			q.DeleteQuestionsOfSpecDoc,
+			q.DeleteFindingsOfSpecDoc,
+			q.DeleteClaimsOfSpecDoc,
+			q.DeleteRunLinksOfSpecDoc,
+			q.DeleteReviewRunsOfSpecDoc,
+			q.DeleteLinkStatesOfSpecDoc,
+			q.DeleteWaiversOfSpecDoc,
+			q.DeleteSpecDocStatusView,
+			q.DeleteSpecDocReviewers,
+			q.DeleteVersionFilesOfSpecDoc,
 		} {
 			if err := step(ctx, id); err != nil {
 				return err
 			}
 		}
-		if err := q.DeleteLinksOfBundle(ctx, id); err != nil {
+		if err := q.DeleteLinksOfSpecDoc(ctx, id); err != nil {
 			return err
 		}
 		nb := uuid.NullUUID{UUID: id, Valid: true}
-		if err := q.DeleteThreadMessagesOfBundle(ctx, nb); err != nil {
+		if err := q.DeleteThreadMessagesOfSpecDoc(ctx, nb); err != nil {
 			return err
 		}
-		if err := q.DeleteThreadsOfBundle(ctx, nb); err != nil {
+		if err := q.DeleteThreadsOfSpecDoc(ctx, nb); err != nil {
 			return err
 		}
-		if err := q.ClearBundleHead(ctx, id); err != nil {
+		if err := q.ClearSpecDocHead(ctx, id); err != nil {
 			return err
 		}
-		if err := q.DeleteVersionsOfBundle(ctx, id); err != nil {
+		if err := q.DeleteVersionsOfSpecDoc(ctx, id); err != nil {
 			return err
 		}
 		// The event streams behind the threads, the waivers and the bundle status.
@@ -161,8 +180,28 @@ func (s *Service) DeleteBundleData(ctx context.Context, id uuid.UUID) error {
 				return err
 			}
 		}
-		if err := q.DeleteBundleRow(ctx, pgdb.DeleteBundleRowParams{WorkspaceID: s.Workspace, ID: id}); err != nil {
+		d, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: s.Workspace, ID: id})
+		if err != nil {
 			return err
+		}
+		if err := q.DeleteSpecDocRow(ctx, pgdb.DeleteSpecDocRowParams{WorkspaceID: s.Workspace, ID: id}); err != nil {
+			return err
+		}
+		// The last spec doc takes its bundle with it: the authors, the guests and the row.
+		left, err := q.CountSpecDocsInBundle(ctx, d.BundleID)
+		if err != nil {
+			return err
+		}
+		if left == 0 {
+			if err := q.DeleteBundleAuthors(ctx, d.BundleID); err != nil {
+				return err
+			}
+			if err := q.DeleteShareGuestsOfBundle(ctx, d.BundleID); err != nil {
+				return err
+			}
+			if err := q.DeleteBundleRow(ctx, pgdb.DeleteBundleRowParams{WorkspaceID: s.Workspace, ID: d.BundleID}); err != nil {
+				return err
+			}
 		}
 		// A blob with no version_file left is content nothing names any more.
 		return q.DeleteOrphanBlobs(ctx)

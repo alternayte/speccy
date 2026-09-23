@@ -17,7 +17,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle } from "@/lib/api";
-import type { ConfirmedLink, Profile } from "@/lib/api";
+import type { Bundle, ConfirmedLink, Profile } from "@/lib/api";
 import { useLinkOffer } from "./adopt-link";
 import { listBundlesQueryKey } from "@/lib/api/@tanstack/react-query.gen";
 import { type DroppedBundle, bundlesFromDrop, filesFromDrop, isMarkdown, isZip } from "./drop";
@@ -26,7 +26,7 @@ import { SourceDocs } from "./source-docs";
 import { ImportDialog } from "./import-dialog";
 import { NewBundleDialog } from "./new-bundle-dialog";
 import { relativeTime } from "./time";
-import { VerdictPill } from "./verdict";
+import { BundleStatePill } from "./verdict";
 
 export function BundlesPage() {
   const bundles = useQuery({ ...listBundlesOptions({ query: { limit: 100 } }), refetchInterval: 3000 });
@@ -101,9 +101,7 @@ export function BundlesPage() {
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Bundles</h1>
             <p className="mt-1 text-sm text-ink-2">
-              {hosted
-                ? "Each bundle is one spec: a main doc and its assets."
-                : "Each bundle is one spec doc and its assets."}
+              Each bundle is a folder with one or more spec docs and their assets.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -151,7 +149,7 @@ export function BundlesPage() {
                 <>No bundle is visible to you yet. Create a bundle from a template, or import a file.</>
               ) : (
                 <>
-                  Speccy found no folder with a main doc. A main doc is a markdown file with a <code>type</code> field
+                  Speccy found no folder with a spec doc. A spec doc is a markdown file with a <code>type</code> field
                   in its frontmatter. Create a bundle from a template, add one on disk, or import a file.
                 </>
               )}
@@ -163,32 +161,37 @@ export function BundlesPage() {
                   <Link
                     to="/bundles/$bundleId"
                     params={{ bundleId: b.id }}
-                    className="flex flex-col gap-1.5 px-4 py-3 transition-colors hover:bg-sunken sm:grid sm:grid-cols-[1fr_11rem_4rem_14rem_3rem_6rem] sm:items-center sm:gap-x-4 sm:gap-y-1"
+                    className="flex flex-col gap-1.5 px-4 py-3 transition-colors hover:bg-sunken sm:grid sm:grid-cols-[1fr_11rem_12rem_14rem_6rem] sm:items-center sm:gap-x-4 sm:gap-y-1"
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium text-ink">{b.title}</span>
                       <span className="block truncate font-mono text-xs text-ink-3">{b.slug}</span>
                     </span>
-                    {/* The title leads the row. Below it, the state and the type sit on one
-                        line, so a narrow screen keeps the same order as a wide one. */}
+                    {/* The title leads the row. Below it, the state and the spec docs sit on
+                        one line, so a narrow screen keeps the same order as a wide one. */}
                     <span className="flex items-center gap-2 sm:contents">
                       <span className="whitespace-nowrap">
-                        {b.run_error ? (
+                        {b.state !== "not_build_ready" && b.docs.some((d) => d.run_error) ? (
                           <span className="text-xs text-bad">Cannot review</span>
                         ) : (
-                          <VerdictPill verdict={b.verdict} />
+                          <BundleStatePill state={b.state} />
                         )}
                       </span>
-                      <span className="whitespace-nowrap">
-                        <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-2xs tracking-wide text-ink-2 uppercase">
-                          {b.profile_key}
-                        </span>
+                      <span className="min-w-0 truncate">
+                        {b.docs.length === 1 ? (
+                          <span className="rounded-sm border border-line px-1.5 py-0.5 font-mono text-2xs tracking-wide text-ink-2 uppercase">
+                            {b.docs[0]!.profile_key}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-ink-3">
+                            {b.docs.length} spec docs: {b.docs.map((d) => d.profile_key.toUpperCase()).join(", ")}
+                          </span>
+                        )}
                       </span>
                     </span>
                     <span className="col-start-1 hidden truncate text-xs text-ink-2 sm:col-start-auto sm:block">
-                      {b.next_action?.sentence ?? ""}
+                      {rowAction(b)}
                     </span>
-                    <span className="hidden text-xs text-ink-2 sm:block">v{b.current_version.number}</span>
                     <span className="hidden text-xs text-ink-3 sm:block">{relativeTime(b.updated_at)}</span>
                   </Link>
                 </li>
@@ -253,7 +256,7 @@ function SkippedDocs() {
     ...adoptSkippedMutation(),
     onSuccess: async (b) => {
       await qc.invalidateQueries();
-      navigate({ to: "/bundles/$bundleId", params: { bundleId: b.id } });
+      navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId: b.bundle_id, docId: b.id } });
     },
   });
   const items = skipped.data?.items ?? [];
@@ -373,4 +376,11 @@ function LocalSkippedRow({
       {offer.view}
     </li>
   );
+}
+
+// rowAction is the next action a bundle row shows: the one of the spec doc that makes the
+// row's state, so a Not Build Ready row never says to hand the bundle over.
+function rowAction(b: Bundle): string {
+  const worst = b.docs.find((d) => d.next_action && d.verdict?.result === "not_build_ready");
+  return (worst ?? b.docs.find((d) => d.next_action))?.next_action?.sentence ?? "";
 }

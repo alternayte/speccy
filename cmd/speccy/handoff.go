@@ -135,22 +135,22 @@ func writePacket(dir string, p api.BuildPacket) error {
 }
 
 // oneBundle resolves the paths to exactly one saved bundle, in an open local session.
-func oneBundle(ctx context.Context, cmd string, paths []string, stderr io.Writer) (api.Bundle, *session, int) {
+func oneBundle(ctx context.Context, cmd string, paths []string, stderr io.Writer) (api.SpecDoc, *session, int) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %v.\n", cmd, err)
-		return api.Bundle{}, nil, exitUsage
+		return api.SpecDoc{}, nil, exitUsage
 	}
 	rootDir := findRoot(cwd)
 	cfg, err := source.LoadRepoConfig(rootDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %s is not valid: %v.\n", cmd, source.RepoConfigFile, err)
-		return api.Bundle{}, nil, exitUsage
+		return api.SpecDoc{}, nil, exitUsage
 	}
 	root, err := local.Open(rootDir)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %v.\n", cmd, err)
-		return api.Bundle{}, nil, exitUsage
+		return api.SpecDoc{}, nil, exitUsage
 	}
 	if c, err := filepath.EvalSymlinks(cwd); err == nil {
 		cwd = c
@@ -158,30 +158,30 @@ func oneBundle(ctx context.Context, cmd string, paths []string, stderr io.Writer
 	scan, err := root.Scan(cfg)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %v.\n", cmd, err)
-		return api.Bundle{}, nil, exitRun
+		return api.SpecDoc{}, nil, exitRun
 	}
 	selected, err := selectBundles(scan, root.Dir(), cwd, paths)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %v.\n", cmd, err)
-		return api.Bundle{}, nil, exitUsage
+		return api.SpecDoc{}, nil, exitUsage
 	}
 	if len(selected) != 1 {
 		fmt.Fprintf(stderr, "speccy %s: %s holds %d bundles. Name one bundle.\n", cmd, paths[0], len(selected))
-		return api.Bundle{}, nil, exitUsage
+		return api.SpecDoc{}, nil, exitUsage
 	}
 	if selected[0].Unnamed {
 		fmt.Fprintf(stderr, "speccy %s: %s is in no bundle. Review it first, so Speccy saves it.\n", cmd, paths[0])
-		return api.Bundle{}, nil, exitUsage
+		return api.SpecDoc{}, nil, exitUsage
 	}
 	s, err := openSession(ctx, root.Dir())
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %v.\n", cmd, problemText(err))
-		return api.Bundle{}, nil, exitRun
+		return api.SpecDoc{}, nil, exitRun
 	}
 	bundles, err := listAll(ctx, s.client)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy %s: %v.\n", cmd, problemText(err))
-		return api.Bundle{}, nil, exitRun
+		return api.SpecDoc{}, nil, exitRun
 	}
 	for _, b := range bundles {
 		if b.Slug == selected[0].Slug {
@@ -189,5 +189,5 @@ func oneBundle(ctx context.Context, cmd string, paths []string, stderr io.Writer
 		}
 	}
 	fmt.Fprintf(stderr, "speccy %s: Speccy did not load %s. Run speccy in the folder to see why.\n", cmd, selected[0].Slug)
-	return api.Bundle{}, nil, exitRun
+	return api.SpecDoc{}, nil, exitRun
 }

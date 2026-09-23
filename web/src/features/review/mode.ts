@@ -1,3 +1,4 @@
+import { useBundleId } from "@/features/bundle/params";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "@tanstack/react-router";
 import { useMe } from "@/features/account/me";
@@ -5,8 +6,9 @@ import { getBundleAccessOptions } from "@/lib/api/@tanstack/react-query.gen";
 
 // useReviewerMode derives reviewer mode: a person who cannot edit the bundle gets the reduced
 // surface, and a person who can edit asks for it with ?as=reviewer. Speccy stores nothing.
-export function useReviewerMode(bundleId: string): { pending: boolean; reviewer: boolean } {
+export function useReviewerMode(): { pending: boolean; reviewer: boolean } {
   const me = useMe();
+  const bundleId = useBundleId();
   const hosted = me.data?.mode === "hosted";
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
   const asked = new URLSearchParams(useLocation().searchStr).get("as") === "reviewer";

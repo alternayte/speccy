@@ -98,8 +98,8 @@ function Row({ item: i }: { item: InboxItem }) {
         onClick={() => {
           if (i.unread) read.mutate({ body: { key: i.key } });
         }}
-        to="/bundles/$bundleId"
-        params={{ bundleId: i.bundle_id }}
+        to="/bundles/$bundleId/docs/$docId"
+        params={{ bundleId: i.bundle_id, docId: i.doc_id }}
         search={i.waiver_id ? { waiver: i.waiver_id } : {}}
         className={clsx("flex gap-3 px-4 py-3 transition-colors hover:bg-sunken", i.unread && "bg-accent-soft/40")}
       >

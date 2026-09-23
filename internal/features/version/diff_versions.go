@@ -17,7 +17,7 @@ import (
 // DiffVersions compares two versions by file and by section of the main doc (REQ-006).
 func (a *API) DiffVersions(ctx context.Context, req api.DiffVersionsRequestObject) (api.DiffVersionsResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := Bundle(ctx, q, a.Workspace, req.BundleId)
+	b, err := Bundle(ctx, q, a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}

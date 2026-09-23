@@ -42,7 +42,7 @@ type suggestion struct {
 	Patch *patch `json:"patch,omitempty"`
 }
 
-func (a *API) finding(ctx context.Context, runID, id uuid.UUID) (pgdb.ReviewRun, pgdb.Bundle, pgdb.Finding, error) {
+func (a *API) finding(ctx context.Context, runID, id uuid.UUID) (pgdb.ReviewRun, pgdb.SpecDoc, pgdb.Finding, error) {
 	run, b, err := a.run(ctx, runID)
 	if err != nil {
 		return run, b, pgdb.Finding{}, err

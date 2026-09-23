@@ -64,7 +64,7 @@ func TestGolden_FixtureBundles(t *testing.T) {
 	if err := bundles.Sync(ctx); err != nil {
 		t.Fatal(err)
 	}
-	list, err := db.Queries().ListBundles(ctx, pgdb.ListBundlesParams{WorkspaceID: ws, PageSize: 100})
+	list, err := db.Queries().ListSpecDocs(ctx, pgdb.ListSpecDocsParams{WorkspaceID: ws, PageSize: 100})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -121,7 +121,7 @@ type Default struct {
 // defaults returns the targets that prefill the verify field: the repo of each implemented-by
 // link, else the repo of the last run. A pasted target writes nothing into the doc, so the
 // doc's link stays the record of where its code lives.
-func (a *API) defaults(ctx context.Context, b pgdb.Bundle, main []byte) ([]Default, error) {
+func (a *API) defaults(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]Default, error) {
 	var out []Default
 	seen := map[string]bool{}
 	fm, _, _ := source.ReadFrontmatter(main)

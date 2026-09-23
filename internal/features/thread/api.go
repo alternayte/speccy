@@ -117,11 +117,11 @@ func titleFrom(body string) string {
 
 // ListBundleThreads lists a bundle's threads, open first.
 func (a *API) ListBundleThreads(ctx context.Context, req api.ListBundleThreadsRequestObject) (api.ListBundleThreadsResponseObject, error) {
-	rows, err := a.DB.Queries().ListBundleThreads(ctx, uuid.NullUUID{UUID: req.BundleId, Valid: true})
+	rows, err := a.DB.Queries().ListSpecDocThreads(ctx, uuid.NullUUID{UUID: req.DocId, Valid: true})
 	if err != nil {
 		return nil, err
 	}
-	b, err := a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	b, err := a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.DocId})
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (a *API) OpenBundleThread(ctx context.Context, req api.OpenBundleThreadRequ
 	if req.Body.AnchorKind == api.OpenThreadAnchorKindCheck {
 		return nil, kernel.Invalid("bad_anchor", "A thread on a profile check belongs to the profile.")
 	}
-	id := req.BundleId
+	id := req.DocId
 	d, err := a.open(ctx, &id, "", *req.Body)
 	if err != nil {
 		return nil, err
@@ -296,8 +296,8 @@ func (a *API) detail(ctx context.Context, id uuid.UUID) (api.ThreadDetail, error
 		return api.ThreadDetail{}, err
 	}
 	base := threadAPI(t)
-	if t.BundleID.Valid && t.AnchorKind == AnchorText {
-		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: t.BundleID.UUID})
+	if t.SpecDocID.Valid && t.AnchorKind == AnchorText {
+		b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: t.SpecDocID.UUID})
 		if err != nil {
 			return api.ThreadDetail{}, err
 		}
@@ -308,7 +308,7 @@ func (a *API) detail(ctx context.Context, id uuid.UUID) (api.ThreadDetail, error
 		follow(&base, cur)
 	}
 	d := api.ThreadDetail{
-		Id: base.Id, BundleId: base.BundleId, ProfileKey: base.ProfileKey, AnchorKind: api.ThreadDetailAnchorKind(base.AnchorKind),
+		Id: base.Id, DocId: base.DocId, ProfileKey: base.ProfileKey, AnchorKind: api.ThreadDetailAnchorKind(base.AnchorKind),
 		Anchor: base.Anchor, AddressedTo: api.ThreadDetailAddressedTo(base.AddressedTo), Title: base.Title, Blocking: base.Blocking,
 		Status: api.ThreadDetailStatus(base.Status), CreatedBy: base.CreatedBy, CreatedAt: base.CreatedAt,
 		LastMessageAt: base.LastMessageAt, MessageCount: base.MessageCount, Messages: []api.ThreadMessage{},
@@ -335,8 +335,8 @@ func threadAPI(t pgdb.ThreadView) api.Thread {
 		Title: t.Title, Blocking: t.Blocking, Status: api.ThreadStatus(t.Status), CreatedBy: t.CreatedBy,
 		CreatedAt: t.CreatedAt.UTC(), LastMessageAt: t.LastMessageAt.UTC(), MessageCount: int(t.MessageCount),
 	}
-	if t.BundleID.Valid {
-		out.BundleId = &t.BundleID.UUID
+	if t.SpecDocID.Valid {
+		out.DocId = &t.SpecDocID.UUID
 	}
 	if t.ProfileKey != "" {
 		out.ProfileKey = &t.ProfileKey
@@ -358,7 +358,7 @@ func (a *API) textAnchor(ctx context.Context, bundleID uuid.UUID, raw map[string
 	if file == "" || !ok1 || !ok2 || start < 0 || end <= start {
 		return anchor.Anchor{}, kernel.Invalid("bad_anchor", "A text anchor needs a file and a range of text. Select some text first.")
 	}
-	b, err := a.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: bundleID})
+	b, err := a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: bundleID})
 	if err != nil {
 		return anchor.Anchor{}, err
 	}
@@ -375,7 +375,7 @@ func (a *API) textAnchor(ctx context.Context, bundleID uuid.UUID, raw map[string
 			return anchor.Anchor{}, kernel.Invalid("bad_anchor", "The selected text is not in the current version. Reload the file, then select again.")
 		}
 		doc := section.Doc{}
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			doc = section.Parse(f.Content)
 		}
 		return anchor.New(file, f.Content, doc, s, e), nil

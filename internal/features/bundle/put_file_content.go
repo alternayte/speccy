@@ -19,7 +19,7 @@ func (a *API) PutFileContent(ctx context.Context, req api.PutFileContentRequestO
 	if lim := a.Service.limits(ctx); int64(len(content)) > lim.FileBytes {
 		return nil, kernel.TooLarge("file_too_large", "The file is larger than %d MB, which is the limit for one file.", lim.FileBytes>>20)
 	}
-	v, changed, err := a.Service.Change(ctx, req.BundleId, req.Params.BaseVersion,
+	v, changed, err := a.Service.Change(ctx, req.DocId, req.Params.BaseVersion,
 		source.Op{Kind: source.OpWrite, Path: req.Params.Path, Content: content}, a.user(ctx), "Saved "+req.Params.Path)
 	if err != nil {
 		return nil, err

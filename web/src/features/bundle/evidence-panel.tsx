@@ -16,18 +16,18 @@ const labelStyle = {
 // EvidencePanel lists the claims of the last full review with their labels (REQ-031), and
 // the doc's assumptions, which claim checks skip (REQ-033).
 export function EvidencePanel({
-  bundleId,
+  docId,
   runId,
   version,
   onOpen,
 }: {
-  bundleId: string;
+  docId: string;
   runId?: string;
   version: string;
   onOpen: (a: Anchor) => void;
 }) {
   const claims = useQuery({ ...listClaimsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
-  const assumptions = useQuery(listAssumptionsOptions({ path: { bundleId } }));
+  const assumptions = useQuery(listAssumptionsOptions({ path: { docId } }));
   const { refetch } = assumptions;
   useEffect(() => {
     refetch();

@@ -129,7 +129,7 @@ func (s *Service) divergenceStage(ctx context.Context, rc *runCtx, in input, ev 
 
 	// REQ-042: each reader answers alone. A reader's prompt holds the bundle and the
 	// questions only.
-	bundle := bundleData(in.bundle.MainDoc, in.main, textAssets(in))
+	bundle := bundleData(in.bundle.DocPath, in.main, textAssets(in))
 	raw := make([][]readerAnswer, len(roles))
 	errs := make([]error, len(roles))
 	total := len(qs) * len(roles)
@@ -283,7 +283,7 @@ func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 	if len(rows) == 0 {
 		// A version with the same input as an earlier one (a waiver approval) reuses its
 		// questions, copied to this version.
-		earlier, err := q.ListQuestionsByInput(ctx, pgdb.ListQuestionsByInputParams{BundleID: in.bundle.ID, InputHash: inputHash})
+		earlier, err := q.ListQuestionsByInput(ctx, pgdb.ListQuestionsByInputParams{SpecDocID: in.bundle.ID, InputHash: inputHash})
 		if err != nil {
 			return nil, err
 		}
@@ -291,7 +291,7 @@ func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 			err = s.DB.InTx(ctx, func(tx store.Tx) error {
 				for _, e := range earlier {
 					if err := tx.Queries().InsertQuestion(ctx, pgdb.InsertQuestionParams{
-						ID: kernel.NewID(), WorkspaceID: s.Workspace, BundleID: in.bundle.ID, VersionID: in.version, Number: e.Number,
+						ID: kernel.NewID(), WorkspaceID: s.Workspace, SpecDocID: in.bundle.ID, VersionID: in.version, Number: e.Number,
 						Text: e.Text, Level: e.Level, Cites: e.Cites, Anchor: e.Anchor, InputHash: inputHash,
 					}); err != nil {
 						return err
@@ -330,7 +330,7 @@ func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 			cites, _ := json.Marshal(bq.cites)
 			an, _ := json.Marshal(bq.anchor)
 			if err := q.InsertQuestion(ctx, pgdb.InsertQuestionParams{
-				ID: bq.id, WorkspaceID: s.Workspace, BundleID: in.bundle.ID, VersionID: in.version,
+				ID: bq.id, WorkspaceID: s.Workspace, SpecDocID: in.bundle.ID, VersionID: in.version,
 				Number: int64(bq.number), Text: bq.text, Level: string(bq.level), Cites: dbtype.JSON(cites), Anchor: dbtype.JSON(an),
 				InputHash: inputHash,
 			}); err != nil {
@@ -500,7 +500,7 @@ func (s *Service) judge(ctx context.Context, rc *runCtx, question string, answer
 func bundleTexts(in input) [][]byte {
 	out := [][]byte{in.main}
 	for _, f := range in.files {
-		if f.Path != in.bundle.MainDoc && utf8.Valid(f.Content) {
+		if f.Path != in.bundle.DocPath && utf8.Valid(f.Content) {
 			out = append(out, f.Content)
 		}
 	}
@@ -605,10 +605,10 @@ func (idx citeIndex) anchor(cites []cite) anchor.Anchor {
 		switch c.Kind {
 		case "trace":
 			if d, ok := idx.defs[c.ID]; ok {
-				return anchor.New(in.bundle.MainDoc, in.main, in.doc, d.Start, d.End)
+				return anchor.New(in.bundle.DocPath, in.main, in.doc, d.Start, d.End)
 			}
 			if i := bytes.Index(in.main, []byte(c.ID)); i >= 0 {
-				return anchor.New(in.bundle.MainDoc, in.main, in.doc, i, i+len(c.ID))
+				return anchor.New(in.bundle.DocPath, in.main, in.doc, i, i+len(c.ID))
 			}
 		case "section":
 			if sec, ok := idx.sections[strings.ToLower(strings.Join(c.Path, " > "))]; ok {
@@ -626,7 +626,7 @@ func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 	res, err := rc.call(ctx, s.Gateway, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptQuestions, System: systemPrompt,
 		Prompt: questionsPrompt(in.profile.Profile.Name, d.Questions.Min, d.Questions.Max, d.Themes, idx.paths,
-			bundleData(in.bundle.MainDoc, in.main, textAssets(in))),
+			bundleData(in.bundle.DocPath, in.main, textAssets(in))),
 		Schema: questionsSchema(d.Questions.Min, d.Questions.Max), Files: snapshot(in), MaxTokens: 8000,
 	})
 	if err != nil {

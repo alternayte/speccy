@@ -20,7 +20,7 @@ import (
 // RunVerification queues a verification of one build of a bundle: a pasted target, a repo at
 // one commit, a folder, or with none of these the bundle's implemented-by link.
 func (a *API) RunVerification(ctx context.Context, req api.RunVerificationRequestObject) (api.RunVerificationResponseObject, error) {
-	in := Input{BundleID: req.BundleId}
+	in := Input{BundleID: req.DocId}
 	if b := req.Body; b != nil {
 		in.Target, in.Repo, in.SHA, in.Path = str(b.Target), str(b.Repo), str(b.Sha), str(b.Path)
 		in.HandoffID = b.HandoffId
@@ -39,12 +39,12 @@ func (a *API) RunVerification(ctx context.Context, req api.RunVerificationReques
 	if err != nil {
 		return nil, err
 	}
-	return api.RunVerification202JSONResponse(runAPI(req.BundleId, run, in.HandoffID, false)), nil
+	return api.RunVerification202JSONResponse(runAPI(req.DocId, run, in.HandoffID, false)), nil
 }
 
 // ResolveVerificationTarget says which build a pasted target names, before a run starts.
 func (a *API) ResolveVerificationTarget(ctx context.Context, req api.ResolveVerificationTargetRequestObject) (api.ResolveVerificationTargetResponseObject, error) {
-	if _, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.BundleId); err != nil {
+	if _, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.DocId); err != nil {
 		return nil, err
 	}
 	r, err := a.resolve(ctx, req.Body.Target)
@@ -64,7 +64,7 @@ func (a *API) ResolveVerificationTarget(ctx context.Context, req api.ResolveVeri
 // VerificationDefaults returns the targets that prefill the verify field.
 func (a *API) VerificationDefaults(ctx context.Context, req api.VerificationDefaultsRequestObject) (api.VerificationDefaultsResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (a *API) VerificationDefaults(ctx context.Context, req api.VerificationDefa
 	if err != nil {
 		return nil, err
 	}
-	ds, err := a.defaults(ctx, b, cur.File(b.MainDoc))
+	ds, err := a.defaults(ctx, b, cur.File(b.DocPath))
 	if err != nil {
 		return nil, err
 	}
@@ -132,10 +132,10 @@ func (a *API) GetVerification(ctx context.Context, req api.GetVerificationReques
 // ListVerifications lists the runs of a bundle, newest first.
 func (a *API) ListVerifications(ctx context.Context, req api.ListVerificationsRequestObject) (api.ListVerificationsResponseObject, error) {
 	q := a.DB.Queries()
-	if _, err := version.Bundle(ctx, q, a.Workspace, req.BundleId); err != nil {
+	if _, err := version.Bundle(ctx, q, a.Workspace, req.DocId); err != nil {
 		return nil, err
 	}
-	rows, err := q.ListVerificationRuns(ctx, req.BundleId)
+	rows, err := q.ListVerificationRuns(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 		return api.Verification{}, err
 	}
 	stale := row.Stale
-	if b, err := version.Bundle(ctx, q, a.Workspace, row.BundleID); err == nil {
+	if b, err := version.Bundle(ctx, q, a.Workspace, row.SpecDocID); err == nil {
 		stale = stale || b.CurrentVersionID.UUID != row.VersionID
 	}
 	row.Stale = stale
@@ -182,14 +182,14 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 	if row.HandoffID.Valid {
 		handoff = &row.HandoffID.UUID
 	}
-	v := runAPI(row.BundleID, run, handoff, row.Stale)
+	v := runAPI(row.SpecDocID, run, handoff, row.Stale)
 	v.StartedBy = &row.StartedBy
 	return v, nil
 }
 
 func runAPI(bundle uuid.UUID, run Run, handoff *uuid.UUID, stale bool) api.Verification {
 	out := api.Verification{
-		Id: run.ID, BundleId: bundle, HandoffId: handoff, Status: api.VerificationStatus(run.Status),
+		Id: run.ID, DocId: bundle, HandoffId: handoff, Status: api.VerificationStatus(run.Status),
 		Repo: run.Repo, Sha: run.SHA, Counts: countsAPI(run.Counts), Notes: nonNil(run.Notes),
 		Stale: stale, CreatedAt: run.At, Outcomes: []api.VerificationOutcome{},
 	}

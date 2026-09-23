@@ -9,8 +9,8 @@ import (
 	"github.com/alternayte/speccy/internal/kernel"
 )
 
-// ListBundles returns one page of bundles sorted by slug, and the folders that are not valid
-// bundles (REQ-001). The cursor is the last slug of the previous page.
+// ListBundles returns one page of bundles sorted by slug, each with its spec docs, and the
+// folders that are not valid bundles (REQ-001). The cursor is the last slug of the previous page.
 func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject) (api.ListBundlesResponseObject, error) {
 	s := a.Service
 	q := s.DB.Queries()
@@ -32,7 +32,7 @@ func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject)
 			return nil, err
 		}
 		for _, b := range page {
-			ok, err := share.CanRead(ctx, q, actor, b)
+			ok, err := share.CanReadBundle(ctx, q, actor, b)
 			if err != nil {
 				return nil, err
 			}
@@ -45,14 +45,9 @@ func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject)
 		}
 		after = page[len(page)-1].Slug
 	}
-	// One read of the waivers that wait for this person serves every row.
-	var waiting []api.Waiver
-	if a.Deps.Waiting != nil {
-		w, err := a.Deps.Waiting(ctx)
-		if err != nil {
-			return nil, err
-		}
-		waiting = w
+	waiting, err := a.waiting(ctx)
+	if err != nil {
+		return nil, err
 	}
 	out := api.BundleList{Items: []api.Bundle{}, Problems: []api.BundleProblem{}}
 	for i, b := range rows {
@@ -61,14 +56,14 @@ func (a *API) ListBundles(ctx context.Context, req api.ListBundlesRequestObject)
 			out.NextCursor = &next
 			break
 		}
-		ab, err := toAPI(ctx, q, b)
+		docs, err := a.specDocs(ctx, q, b, waiting)
 		if err != nil {
 			return nil, err
 		}
-		if err := a.brief(ctx, q, b, &ab, waiting); err != nil {
-			return nil, err
+		if len(docs) == 0 {
+			continue
 		}
-		out.Items = append(out.Items, ab)
+		out.Items = append(out.Items, bundleToAPI(b, docs))
 	}
 	for _, p := range s.Problems() {
 		out.Problems = append(out.Problems, api.BundleProblem{Path: p.Path, Message: p.Message})

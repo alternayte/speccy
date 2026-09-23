@@ -14,13 +14,13 @@ const stages = ["lint", "rubric", "grounding", "divergence", "coherence", "verdi
 
 // RunReviewButton starts a full review after it shows the estimated cost (REQ-104).
 export function RunReviewButton({
-  bundleId,
+  docId,
   active,
   onStarted,
   register,
   button = true,
 }: {
-  bundleId: string;
+  docId: string;
   active: boolean;
   onStarted: (run: Run) => void;
   // register hands the opener to the control row, so the More menu and the next action open
@@ -33,7 +33,7 @@ export function RunReviewButton({
   useEffect(() => {
     register?.(() => setOpen(true));
   }, [register]);
-  const estimate = useQuery({ ...estimateRunOptions({ path: { bundleId } }), enabled: open, staleTime: 0 });
+  const estimate = useQuery({ ...estimateRunOptions({ path: { docId } }), enabled: open, staleTime: 0 });
   const start = useMutation({
     ...startRunMutation(),
     onSuccess: (run) => {
@@ -105,7 +105,7 @@ export function RunReviewButton({
           <Button
             variant="primary"
             disabled={estimate.isPending || estimate.isError || start.isPending}
-            onClick={() => start.mutate({ path: { bundleId } })}
+            onClick={() => start.mutate({ path: { docId } })}
           >
             {start.isPending ? "Starting" : "Run review"}
           </Button>
@@ -117,9 +117,9 @@ export function RunReviewButton({
 
 // useActiveRun finds a queued or running full review of the bundle and follows its events
 // (REQ-026). It calls onEnd when the run ends.
-export function useActiveRun(bundleId: string, onEnd: () => void) {
+export function useActiveRun(docId: string, onEnd: () => void) {
   const qc = useQueryClient();
-  const runs = useQuery({ ...listRunsOptions({ path: { bundleId }, query: { limit: 5 } }), refetchInterval: 5000 });
+  const runs = useQuery({ ...listRunsOptions({ path: { docId }, query: { limit: 5 } }), refetchInterval: 5000 });
   const latest = runs.data?.items.find((r) => r.kind === "full");
   const active = latest && (latest.status === "queued" || latest.status === "running") ? latest : undefined;
   const [events, setEvents] = useState<RunEvent[]>([]);
@@ -134,14 +134,14 @@ export function useActiveRun(bundleId: string, onEnd: () => void) {
       setEvents((prev) => [...prev, ev]);
       if (ev.type === "done" || ev.type === "failed") {
         es.close();
-        qc.invalidateQueries({ queryKey: listRunsOptions({ path: { bundleId }, query: { limit: 5 } }).queryKey });
+        qc.invalidateQueries({ queryKey: listRunsOptions({ path: { docId }, query: { limit: 5 } }).queryKey });
         onEnd();
       }
     };
     return () => es.close();
     // onEnd is stable enough: it only refreshes queries.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, bundleId, qc]);
+  }, [runId, docId, qc]);
 
   return { active, events, refetch: runs.refetch };
 }

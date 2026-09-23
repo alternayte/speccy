@@ -25,7 +25,7 @@ var ErrConflict = kernel.Conflict("version_conflict",
 
 // Change is one new state of a bundle's files.
 type Change struct {
-	Bundle    pgdb.Bundle
+	Bundle    pgdb.SpecDoc
 	Files     []source.File
 	Title     string
 	Profile   string
@@ -56,8 +56,8 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 				break
 			}
 		}
-		if same && b.Title == c.Title && b.ProfileKey == c.Profile && b.MainDoc == c.MainDoc {
-			v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: b.CurrentVersionID.UUID})
+		if same && b.Title == c.Title && b.ProfileKey == c.Profile && b.DocPath == c.MainDoc {
+			v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID})
 			return v, false, err
 		}
 	}
@@ -76,7 +76,7 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 		return pgdb.Version{}, false, err
 	}
 	v := pgdb.Version{
-		ID: kernel.NewID(), WorkspaceID: b.WorkspaceID, BundleID: b.ID, Number: number,
+		ID: kernel.NewID(), WorkspaceID: b.WorkspaceID, SpecDocID: b.ID, Number: number,
 		CreatedBy: c.CreatedBy, Message: c.Message, CreatedAt: now,
 	}
 	if err := q.InsertVersion(ctx, pgdb.InsertVersionParams(v)); err != nil {
@@ -88,8 +88,8 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 			return pgdb.Version{}, false, err
 		}
 	}
-	n, err := q.UpdateBundleHead(ctx, pgdb.UpdateBundleHeadParams{
-		ID: b.ID, Title: c.Title, ProfileKey: c.Profile, MainDoc: c.MainDoc,
+	n, err := q.UpdateSpecDocHead(ctx, pgdb.UpdateSpecDocHeadParams{
+		ID: b.ID, Title: c.Title, ProfileKey: c.Profile, DocPath: c.MainDoc,
 		CurrentVersionID:  uuid.NullUUID{UUID: v.ID, Valid: true},
 		ExpectedVersionID: b.CurrentVersionID, UpdatedAt: now,
 	})
@@ -126,23 +126,23 @@ func Files(ctx context.Context, q store.Querier, versionID uuid.UUID) ([]source.
 }
 
 // Bundle returns a bundle of the workspace, or a not-found error.
-func Bundle(ctx context.Context, q store.Querier, workspace, id uuid.UUID) (pgdb.Bundle, error) {
-	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: workspace, ID: id})
+func Bundle(ctx context.Context, q store.Querier, workspace, id uuid.UUID) (pgdb.SpecDoc, error) {
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: workspace, ID: id})
 	if errors.Is(err, sql.ErrNoRows) {
-		return pgdb.Bundle{}, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", id)
+		return pgdb.SpecDoc{}, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", id)
 	}
 	return b, err
 }
 
 // Get returns version id of bundle b, or the current version when id is nil.
-func Get(ctx context.Context, q store.Querier, b pgdb.Bundle, id *uuid.UUID) (pgdb.Version, error) {
+func Get(ctx context.Context, q store.Querier, b pgdb.SpecDoc, id *uuid.UUID) (pgdb.Version, error) {
 	vid := b.CurrentVersionID.UUID
 	if id != nil {
 		vid = *id
 	} else if !b.CurrentVersionID.Valid {
 		return pgdb.Version{}, kernel.NotFound("version_not_found", "The bundle has no version yet.")
 	}
-	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{BundleID: b.ID, ID: vid})
+	v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: vid})
 	if errors.Is(err, sql.ErrNoRows) {
 		return pgdb.Version{}, kernel.NotFound("version_not_found", "The bundle has no version with the ID %s.", vid)
 	}

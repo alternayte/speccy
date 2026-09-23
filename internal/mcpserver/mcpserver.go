@@ -79,31 +79,31 @@ type bundleArg struct {
 }
 
 // bundle finds a bundle by ID or slug.
-func bundle(ctx context.Context, c *api.ClientWithResponses, ref string) (api.Bundle, error) {
+func bundle(ctx context.Context, c *api.ClientWithResponses, ref string) (api.SpecDoc, error) {
 	if id, err := uuid.Parse(ref); err == nil {
-		res, err := c.GetBundleWithResponse(ctx, id)
+		res, err := c.GetSpecDocWithResponse(ctx, id)
 		if err != nil {
-			return api.Bundle{}, err
+			return api.SpecDoc{}, err
 		}
 		if res.JSON200 == nil {
-			return api.Bundle{}, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+			return api.SpecDoc{}, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 		}
 		return *res.JSON200, nil
 	}
 	all, err := listAll(ctx, c)
 	if err != nil {
-		return api.Bundle{}, err
+		return api.SpecDoc{}, err
 	}
 	for _, b := range all {
 		if b.Slug == ref {
 			return b, nil
 		}
 	}
-	return api.Bundle{}, fmt.Errorf("no bundle has the slug or ID %q; list_bundles lists them", ref)
+	return api.SpecDoc{}, fmt.Errorf("no bundle has the slug or ID %q; list_bundles lists them", ref)
 }
 
-func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.Bundle, error) {
-	var out []api.Bundle
+func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.SpecDoc, error) {
+	var out []api.SpecDoc
 	var cursor *api.Cursor
 	limit := api.Limit(100)
 	for {
@@ -114,7 +114,9 @@ func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.Bundle, err
 		if res.JSON200 == nil {
 			return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 		}
-		out = append(out, res.JSON200.Items...)
+		for _, b := range res.JSON200.Items {
+			out = append(out, b.Docs...)
+		}
 		if res.JSON200.NextCursor == nil || *res.JSON200.NextCursor == "" {
 			return out, nil
 		}
@@ -143,12 +145,12 @@ func (tools) getBundle(ctx context.Context, c *api.ClientWithResponses, in bundl
 	if files.JSON200 == nil {
 		return nil, problem(files.ApplicationproblemJSONDefault, files.StatusCode())
 	}
-	text, err := c.GetFileContentWithResponse(ctx, b.Id, &api.GetFileContentParams{Path: b.MainDoc})
+	text, err := c.GetFileContentWithResponse(ctx, b.Id, &api.GetFileContentParams{Path: b.Path})
 	if err != nil {
 		return nil, err
 	}
 	if text.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("the main doc %s does not read: status %d", b.MainDoc, text.StatusCode())
+		return nil, fmt.Errorf("the main doc %s does not read: status %d", b.Path, text.StatusCode())
 	}
 	return map[string]any{"bundle": b, "files": files.JSON200.Items, "main_doc_text": string(text.Body)}, nil
 }

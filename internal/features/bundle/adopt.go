@@ -17,7 +17,7 @@ import (
 
 // adoptOf is the frontmatter keys the main doc does not name, with the values a review uses
 // for them (REQ-135). It is nil when the doc names both, so the UI offers nothing.
-func adoptOf(ctx context.Context, q store.Querier, b pgdb.Bundle, profiles map[string]profile.Versioned) *api.Adopt {
+func adoptOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc, profiles map[string]profile.Versioned) *api.Adopt {
 	main, err := mainDocContent(ctx, q, b)
 	if err != nil {
 		return nil
@@ -49,7 +49,7 @@ func adoptOf(ctx context.Context, q store.Querier, b pgdb.Bundle, profiles map[s
 }
 
 // mainDocContent reads the main doc of the bundle's current version.
-func mainDocContent(ctx context.Context, q store.Querier, b pgdb.Bundle) ([]byte, error) {
+func mainDocContent(ctx context.Context, q store.Querier, b pgdb.SpecDoc) ([]byte, error) {
 	if !b.CurrentVersionID.Valid {
 		return nil, kernel.NotFound("no_version", "The bundle has no version.")
 	}
@@ -58,7 +58,7 @@ func mainDocContent(ctx context.Context, q store.Querier, b pgdb.Bundle) ([]byte
 		return nil, err
 	}
 	for _, f := range files {
-		if f.Path == b.MainDoc {
+		if f.Path == b.DocPath {
 			return f.Content, nil
 		}
 	}
@@ -70,7 +70,7 @@ func mainDocContent(ctx context.Context, q store.Querier, b pgdb.Bundle) ([]byte
 // review needs no guess.
 func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequestObject) (api.AdoptFrontmatterResponseObject, error) {
 	q := a.Service.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequ
 		return nil, kernel.Invalid("bad_frontmatter", "%s", err.Error())
 	}
 	v, changed, err := a.Service.Change(ctx, b.ID, b.CurrentVersionID.UUID,
-		source.Op{Kind: source.OpWrite, Path: b.MainDoc, Content: next},
+		source.Op{Kind: source.OpWrite, Path: b.DocPath, Content: next},
 		kernel.ActorFrom(ctx).UserID, "Wrote the type and the size into the frontmatter")
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequ
 func (a *API) SetBundleProfile(ctx context.Context, req api.SetBundleProfileRequestObject) (api.SetBundleProfileResponseObject, error) {
 	s := a.Service
 	q := s.DB.Queries()
-	b, err := version.Bundle(ctx, q, s.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, s.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (a *API) SetBundleProfile(ctx context.Context, req api.SetBundleProfileRequ
 		}
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
-		if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: ref.Source, Path: path.Join(ref.Dir, b.MainDoc), Profile: key}); err != nil {
+		if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: ref.Source, Path: path.Join(ref.Dir, b.DocPath), Profile: key}); err != nil {
 			return nil, err
 		}
 		if err := s.SyncSource(ctx, ref.Source, true); err != nil {
@@ -142,7 +142,7 @@ func (a *API) SetBundleProfile(ctx context.Context, req api.SetBundleProfileRequ
 			return nil, kernel.Invalid("bad_frontmatter", "%s", err.Error())
 		}
 		if _, _, err := s.Change(ctx, b.ID, b.CurrentVersionID.UUID,
-			source.Op{Kind: source.OpWrite, Path: b.MainDoc, Content: next},
+			source.Op{Kind: source.OpWrite, Path: b.DocPath, Content: next},
 			kernel.ActorFrom(ctx).UserID, "Changed the doc type to "+key); err != nil {
 			return nil, err
 		}

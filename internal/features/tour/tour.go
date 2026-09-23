@@ -38,7 +38,7 @@ var decisionChecks = map[string]bool{
 // threads, MUST findings that need a decision, pending waivers, then open decisions.
 func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.GetTourResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.DocId})
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 		if path == nil {
 			path = []string{}
 		}
-		return &api.Anchor{File: b.MainDoc, HeadingPath: path}
+		return &api.Anchor{File: b.DocPath, HeadingPath: path}
 	}
 
 	// The findings of the run behind the verdict, with anchors in the current version.
@@ -91,7 +91,7 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 		}
 	}
 
-	tres, err := a.Threads.ListBundleThreads(ctx, api.ListBundleThreadsRequestObject{BundleId: b.ID})
+	tres, err := a.Threads.ListBundleThreads(ctx, api.ListBundleThreadsRequestObject{DocId: b.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 	}
 	out.Points = append(out.Points, findingPoints...)
 
-	wres, err := a.Waivers.ListWaivers(ctx, api.ListWaiversRequestObject{BundleId: b.ID})
+	wres, err := a.Waivers.ListWaivers(ctx, api.ListWaiversRequestObject{DocId: b.ID})
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +203,7 @@ func findingAsk(f api.Finding, e map[string]any) (ask, why string) {
 // FirstPoint returns the first point of a bundle's tour, or nil when nothing needs a person.
 // The next action reads it (SDD §13.4).
 func (a *API) FirstPoint(ctx context.Context, bundleID uuid.UUID) (*api.TourPoint, error) {
-	res, err := a.GetTour(ctx, api.GetTourRequestObject{BundleId: bundleID})
+	res, err := a.GetTour(ctx, api.GetTourRequestObject{DocId: bundleID})
 	if err != nil {
 		return nil, err
 	}

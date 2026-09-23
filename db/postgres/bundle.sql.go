@@ -26,7 +26,7 @@ func (q *Queries) GetBlob(ctx context.Context, sha256 string) ([]byte, error) {
 }
 
 const getBundle = `-- name: GetBundle :one
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, slug, title, source_kind, source_ref, visibility, share_token_hash, share_expires_at, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = $1 AND id = $2
 `
 
 type GetBundleParams struct {
@@ -42,23 +42,20 @@ func (q *Queries) GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, e
 		&i.WorkspaceID,
 		&i.Slug,
 		&i.Title,
-		&i.ProfileKey,
-		&i.MainDoc,
 		&i.SourceKind,
 		&i.SourceRef,
-		&i.CurrentVersionID,
-		&i.ArchivedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.Visibility,
 		&i.ShareTokenHash,
 		&i.ShareExpiresAt,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getBundleBySlug = `-- name: GetBundleBySlug :one
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle WHERE workspace_id = $1 AND slug = $2
+SELECT id, workspace_id, slug, title, source_kind, source_ref, visibility, share_token_hash, share_expires_at, archived_at, created_at, updated_at FROM bundle WHERE workspace_id = $1 AND slug = $2
 `
 
 type GetBundleBySlugParams struct {
@@ -74,17 +71,14 @@ func (q *Queries) GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams
 		&i.WorkspaceID,
 		&i.Slug,
 		&i.Title,
-		&i.ProfileKey,
-		&i.MainDoc,
 		&i.SourceKind,
 		&i.SourceRef,
-		&i.CurrentVersionID,
-		&i.ArchivedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 		&i.Visibility,
 		&i.ShareTokenHash,
 		&i.ShareExpiresAt,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -106,7 +100,7 @@ func (q *Queries) GetFirstWorkspace(ctx context.Context) (Workspace, error) {
 }
 
 const getHandoff = `-- name: GetHandoff :one
-SELECT id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, spec_doc_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE workspace_id = $1 AND id = $2
 `
 
 type GetHandoffParams struct {
@@ -120,7 +114,7 @@ func (q *Queries) GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.Verdict,
 		&i.Acknowledged,
@@ -131,22 +125,112 @@ func (q *Queries) GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff
 	return i, err
 }
 
+const getSpecDoc = `-- name: GetSpecDoc :one
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE workspace_id = $1 AND id = $2
+`
+
+type GetSpecDocParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetSpecDoc(ctx context.Context, arg GetSpecDocParams) (SpecDoc, error) {
+	row := q.db.QueryRowContext(ctx, getSpecDoc, arg.WorkspaceID, arg.ID)
+	var i SpecDoc
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Slug,
+		&i.Title,
+		&i.ProfileKey,
+		&i.DocPath,
+		&i.SourceKind,
+		&i.SourceRef,
+		&i.CurrentVersionID,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BundleID,
+	)
+	return i, err
+}
+
+const getSpecDocByPath = `-- name: GetSpecDocByPath :one
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE bundle_id = $1 AND doc_path = $2
+`
+
+type GetSpecDocByPathParams struct {
+	BundleID uuid.UUID
+	DocPath  string
+}
+
+func (q *Queries) GetSpecDocByPath(ctx context.Context, arg GetSpecDocByPathParams) (SpecDoc, error) {
+	row := q.db.QueryRowContext(ctx, getSpecDocByPath, arg.BundleID, arg.DocPath)
+	var i SpecDoc
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Slug,
+		&i.Title,
+		&i.ProfileKey,
+		&i.DocPath,
+		&i.SourceKind,
+		&i.SourceRef,
+		&i.CurrentVersionID,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BundleID,
+	)
+	return i, err
+}
+
+const getSpecDocBySlug = `-- name: GetSpecDocBySlug :one
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE workspace_id = $1 AND slug = $2
+`
+
+type GetSpecDocBySlugParams struct {
+	WorkspaceID uuid.UUID
+	Slug        string
+}
+
+func (q *Queries) GetSpecDocBySlug(ctx context.Context, arg GetSpecDocBySlugParams) (SpecDoc, error) {
+	row := q.db.QueryRowContext(ctx, getSpecDocBySlug, arg.WorkspaceID, arg.Slug)
+	var i SpecDoc
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Slug,
+		&i.Title,
+		&i.ProfileKey,
+		&i.DocPath,
+		&i.SourceKind,
+		&i.SourceRef,
+		&i.CurrentVersionID,
+		&i.ArchivedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BundleID,
+	)
+	return i, err
+}
+
 const getVersion = `-- name: GetVersion :one
-SELECT id, workspace_id, bundle_id, number, created_by, message, created_at FROM version WHERE bundle_id = $1 AND id = $2
+SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at FROM version WHERE spec_doc_id = $1 AND id = $2
 `
 
 type GetVersionParams struct {
-	BundleID uuid.UUID
-	ID       uuid.UUID
+	SpecDocID uuid.UUID
+	ID        uuid.UUID
 }
 
 func (q *Queries) GetVersion(ctx context.Context, arg GetVersionParams) (Version, error) {
-	row := q.db.QueryRowContext(ctx, getVersion, arg.BundleID, arg.ID)
+	row := q.db.QueryRowContext(ctx, getVersion, arg.SpecDocID, arg.ID)
 	var i Version
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.Number,
 		&i.CreatedBy,
 		&i.Message,
@@ -156,21 +240,21 @@ func (q *Queries) GetVersion(ctx context.Context, arg GetVersionParams) (Version
 }
 
 const getVersionByNumber = `-- name: GetVersionByNumber :one
-SELECT id, workspace_id, bundle_id, number, created_by, message, created_at FROM version WHERE bundle_id = $1 AND number = $2
+SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at FROM version WHERE spec_doc_id = $1 AND number = $2
 `
 
 type GetVersionByNumberParams struct {
-	BundleID uuid.UUID
-	Number   int64
+	SpecDocID uuid.UUID
+	Number    int64
 }
 
 func (q *Queries) GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error) {
-	row := q.db.QueryRowContext(ctx, getVersionByNumber, arg.BundleID, arg.Number)
+	row := q.db.QueryRowContext(ctx, getVersionByNumber, arg.SpecDocID, arg.Number)
 	var i Version
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.Number,
 		&i.CreatedBy,
 		&i.Message,
@@ -196,9 +280,9 @@ func (q *Queries) InsertBlob(ctx context.Context, arg InsertBlobParams) error {
 }
 
 const insertBundle = `-- name: InsertBundle :exec
-INSERT INTO bundle (id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, created_at, updated_at)
+INSERT INTO bundle (id, workspace_id, slug, title, source_kind, source_ref, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10)
+        $7, $8)
 `
 
 type InsertBundleParams struct {
@@ -206,8 +290,6 @@ type InsertBundleParams struct {
 	WorkspaceID uuid.UUID
 	Slug        string
 	Title       string
-	ProfileKey  string
-	MainDoc     string
 	SourceKind  string
 	SourceRef   dbtype.JSON
 	CreatedAt   time.Time
@@ -220,8 +302,6 @@ func (q *Queries) InsertBundle(ctx context.Context, arg InsertBundleParams) erro
 		arg.WorkspaceID,
 		arg.Slug,
 		arg.Title,
-		arg.ProfileKey,
-		arg.MainDoc,
 		arg.SourceKind,
 		arg.SourceRef,
 		arg.CreatedAt,
@@ -231,7 +311,7 @@ func (q *Queries) InsertBundle(ctx context.Context, arg InsertBundleParams) erro
 }
 
 const insertHandoff = `-- name: InsertHandoff :exec
-INSERT INTO handoff (id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at)
+INSERT INTO handoff (id, workspace_id, spec_doc_id, version_id, verdict, acknowledged, label, taken_by, created_at)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9)
 `
@@ -239,7 +319,7 @@ VALUES ($1, $2, $3, $4, $5,
 type InsertHandoffParams struct {
 	ID           uuid.UUID
 	WorkspaceID  uuid.UUID
-	BundleID     uuid.UUID
+	SpecDocID    uuid.UUID
 	VersionID    uuid.UUID
 	Verdict      string
 	Acknowledged bool
@@ -252,7 +332,7 @@ func (q *Queries) InsertHandoff(ctx context.Context, arg InsertHandoffParams) er
 	_, err := q.db.ExecContext(ctx, insertHandoff,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.VersionID,
 		arg.Verdict,
 		arg.Acknowledged,
@@ -263,8 +343,45 @@ func (q *Queries) InsertHandoff(ctx context.Context, arg InsertHandoffParams) er
 	return err
 }
 
+const insertSpecDoc = `-- name: InsertSpecDoc :exec
+INSERT INTO spec_doc (id, workspace_id, bundle_id, slug, title, profile_key, doc_path, source_kind, source_ref, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11)
+`
+
+type InsertSpecDocParams struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	BundleID    uuid.UUID
+	Slug        string
+	Title       string
+	ProfileKey  string
+	DocPath     string
+	SourceKind  string
+	SourceRef   dbtype.JSON
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) InsertSpecDoc(ctx context.Context, arg InsertSpecDocParams) error {
+	_, err := q.db.ExecContext(ctx, insertSpecDoc,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.BundleID,
+		arg.Slug,
+		arg.Title,
+		arg.ProfileKey,
+		arg.DocPath,
+		arg.SourceKind,
+		arg.SourceRef,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const insertVersion = `-- name: InsertVersion :exec
-INSERT INTO version (id, workspace_id, bundle_id, number, created_by, message, created_at)
+INSERT INTO version (id, workspace_id, spec_doc_id, number, created_by, message, created_at)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7)
 `
@@ -272,7 +389,7 @@ VALUES ($1, $2, $3, $4, $5,
 type InsertVersionParams struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	Number      int64
 	CreatedBy   string
 	Message     string
@@ -283,7 +400,7 @@ func (q *Queries) InsertVersion(ctx context.Context, arg InsertVersionParams) er
 	_, err := q.db.ExecContext(ctx, insertVersion,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.Number,
 		arg.CreatedBy,
 		arg.Message,
@@ -336,7 +453,7 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 }
 
 const listBundles = `-- name: ListBundles :many
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle
+SELECT id, workspace_id, slug, title, source_kind, source_ref, visibility, share_token_hash, share_expires_at, archived_at, created_at, updated_at FROM bundle
 WHERE workspace_id = $1 AND archived_at IS NULL AND slug > $2
 ORDER BY slug
 LIMIT $3::bigint
@@ -362,17 +479,14 @@ func (q *Queries) ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bun
 			&i.WorkspaceID,
 			&i.Slug,
 			&i.Title,
-			&i.ProfileKey,
-			&i.MainDoc,
 			&i.SourceKind,
 			&i.SourceRef,
-			&i.CurrentVersionID,
-			&i.ArchivedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Visibility,
 			&i.ShareTokenHash,
 			&i.ShareExpiresAt,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -388,7 +502,7 @@ func (q *Queries) ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bun
 }
 
 const listBundlesBySource = `-- name: ListBundlesBySource :many
-SELECT id, workspace_id, slug, title, profile_key, main_doc, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, visibility, share_token_hash, share_expires_at FROM bundle
+SELECT id, workspace_id, slug, title, source_kind, source_ref, visibility, share_token_hash, share_expires_at, archived_at, created_at, updated_at FROM bundle
 WHERE workspace_id = $1 AND source_kind = $2
 ORDER BY slug
 `
@@ -412,17 +526,14 @@ func (q *Queries) ListBundlesBySource(ctx context.Context, arg ListBundlesBySour
 			&i.WorkspaceID,
 			&i.Slug,
 			&i.Title,
-			&i.ProfileKey,
-			&i.MainDoc,
 			&i.SourceKind,
 			&i.SourceRef,
-			&i.CurrentVersionID,
-			&i.ArchivedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Visibility,
 			&i.ShareTokenHash,
 			&i.ShareExpiresAt,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -438,11 +549,11 @@ func (q *Queries) ListBundlesBySource(ctx context.Context, arg ListBundlesBySour
 }
 
 const listHandoffs = `-- name: ListHandoffs :many
-SELECT id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE bundle_id = $1 ORDER BY created_at DESC
+SELECT id, workspace_id, spec_doc_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE spec_doc_id = $1 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Handoff, error) {
-	rows, err := q.db.QueryContext(ctx, listHandoffs, bundleID)
+func (q *Queries) ListHandoffs(ctx context.Context, specDocID uuid.UUID) ([]Handoff, error) {
+	rows, err := q.db.QueryContext(ctx, listHandoffs, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -453,13 +564,195 @@ func (q *Queries) ListHandoffs(ctx context.Context, bundleID uuid.UUID) ([]Hando
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.Verdict,
 			&i.Acknowledged,
 			&i.Label,
 			&i.TakenBy,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocs = `-- name: ListSpecDocs :many
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc
+WHERE workspace_id = $1 AND archived_at IS NULL AND slug > $2
+ORDER BY slug
+LIMIT $3::bigint
+`
+
+type ListSpecDocsParams struct {
+	WorkspaceID uuid.UUID
+	AfterSlug   string
+	PageSize    int64
+}
+
+func (q *Queries) ListSpecDocs(ctx context.Context, arg ListSpecDocsParams) ([]SpecDoc, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocs, arg.WorkspaceID, arg.AfterSlug, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpecDoc
+	for rows.Next() {
+		var i SpecDoc
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Slug,
+			&i.Title,
+			&i.ProfileKey,
+			&i.DocPath,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.CurrentVersionID,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BundleID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocsBySource = `-- name: ListSpecDocsBySource :many
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc
+WHERE workspace_id = $1 AND source_kind = $2
+ORDER BY slug
+`
+
+type ListSpecDocsBySourceParams struct {
+	WorkspaceID uuid.UUID
+	SourceKind  string
+}
+
+func (q *Queries) ListSpecDocsBySource(ctx context.Context, arg ListSpecDocsBySourceParams) ([]SpecDoc, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocsBySource, arg.WorkspaceID, arg.SourceKind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpecDoc
+	for rows.Next() {
+		var i SpecDoc
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Slug,
+			&i.Title,
+			&i.ProfileKey,
+			&i.DocPath,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.CurrentVersionID,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BundleID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocsOfBundle = `-- name: ListSpecDocsOfBundle :many
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE bundle_id = $1 AND archived_at IS NULL ORDER BY doc_path
+`
+
+func (q *Queries) ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]SpecDoc, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocsOfBundle, bundleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpecDoc
+	for rows.Next() {
+		var i SpecDoc
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Slug,
+			&i.Title,
+			&i.ProfileKey,
+			&i.DocPath,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.CurrentVersionID,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BundleID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSpecDocsOfBundles = `-- name: ListSpecDocsOfBundles :many
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc
+WHERE workspace_id = $1 AND archived_at IS NULL
+ORDER BY bundle_id, doc_path
+`
+
+func (q *Queries) ListSpecDocsOfBundles(ctx context.Context, workspaceID uuid.UUID) ([]SpecDoc, error) {
+	rows, err := q.db.QueryContext(ctx, listSpecDocsOfBundles, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SpecDoc
+	for rows.Next() {
+		var i SpecDoc
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Slug,
+			&i.Title,
+			&i.ProfileKey,
+			&i.DocPath,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.CurrentVersionID,
+			&i.ArchivedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BundleID,
 		); err != nil {
 			return nil, err
 		}
@@ -517,20 +810,20 @@ func (q *Queries) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]
 }
 
 const listVersions = `-- name: ListVersions :many
-SELECT id, workspace_id, bundle_id, number, created_by, message, created_at FROM version
-WHERE bundle_id = $1 AND number < $2
+SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at FROM version
+WHERE spec_doc_id = $1 AND number < $2
 ORDER BY number DESC
 LIMIT $3::bigint
 `
 
 type ListVersionsParams struct {
-	BundleID     uuid.UUID
+	SpecDocID    uuid.UUID
 	BeforeNumber int64
 	PageSize     int64
 }
 
 func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]Version, error) {
-	rows, err := q.db.QueryContext(ctx, listVersions, arg.BundleID, arg.BeforeNumber, arg.PageSize)
+	rows, err := q.db.QueryContext(ctx, listVersions, arg.SpecDocID, arg.BeforeNumber, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -541,7 +834,7 @@ func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]V
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.Number,
 			&i.CreatedBy,
 			&i.Message,
@@ -561,7 +854,7 @@ func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]V
 }
 
 const listWorkspaceHandoffs = `-- name: ListWorkspaceHandoffs :many
-SELECT id, workspace_id, bundle_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE workspace_id = $1
+SELECT id, workspace_id, spec_doc_id, version_id, verdict, acknowledged, label, taken_by, created_at FROM handoff WHERE workspace_id = $1
 `
 
 func (q *Queries) ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UUID) ([]Handoff, error) {
@@ -576,7 +869,7 @@ func (q *Queries) ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UU
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.Verdict,
 			&i.Acknowledged,
@@ -598,11 +891,11 @@ func (q *Queries) ListWorkspaceHandoffs(ctx context.Context, workspaceID uuid.UU
 }
 
 const nextVersionNumber = `-- name: NextVersionNumber :one
-SELECT CAST(COALESCE(MAX(number), 0) + 1 AS BIGINT) AS next FROM version WHERE bundle_id = $1
+SELECT CAST(COALESCE(MAX(number), 0) + 1 AS BIGINT) AS next FROM version WHERE spec_doc_id = $1
 `
 
-func (q *Queries) NextVersionNumber(ctx context.Context, bundleID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, nextVersionNumber, bundleID)
+func (q *Queries) NextVersionNumber(ctx context.Context, specDocID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextVersionNumber, specDocID)
 	var next int64
 	err := row.Scan(&next)
 	return next, err
@@ -623,17 +916,82 @@ func (q *Queries) SetBundleArchived(ctx context.Context, arg SetBundleArchivedPa
 	return err
 }
 
-const updateBundleHead = `-- name: UpdateBundleHead :execrows
-UPDATE bundle
-SET title = $1, profile_key = $2, main_doc = $3, current_version_id = $4,
+const setSpecDocArchived = `-- name: SetSpecDocArchived :exec
+UPDATE spec_doc SET archived_at = $1, updated_at = $2 WHERE id = $3
+`
+
+type SetSpecDocArchivedParams struct {
+	ArchivedAt sql.NullTime
+	UpdatedAt  time.Time
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetSpecDocArchived(ctx context.Context, arg SetSpecDocArchivedParams) error {
+	_, err := q.db.ExecContext(ctx, setSpecDocArchived, arg.ArchivedAt, arg.UpdatedAt, arg.ID)
+	return err
+}
+
+const setSpecDocBundle = `-- name: SetSpecDocBundle :exec
+UPDATE spec_doc SET bundle_id = $1, slug = $2, source_ref = $3,
+    updated_at = $4
+WHERE id = $5
+`
+
+type SetSpecDocBundleParams struct {
+	BundleID  uuid.UUID
+	Slug      string
+	SourceRef dbtype.JSON
+	UpdatedAt time.Time
+	ID        uuid.UUID
+}
+
+// A scan keeps a spec doc in the bundle of its folder, with its slug: a second spec doc in the
+// folder changes the slug of the first.
+func (q *Queries) SetSpecDocBundle(ctx context.Context, arg SetSpecDocBundleParams) error {
+	_, err := q.db.ExecContext(ctx, setSpecDocBundle,
+		arg.BundleID,
+		arg.Slug,
+		arg.SourceRef,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const updateBundle = `-- name: UpdateBundle :exec
+UPDATE bundle SET title = $1, source_ref = $2, archived_at = NULL, updated_at = $3
+WHERE id = $4
+`
+
+type UpdateBundleParams struct {
+	Title     string
+	SourceRef dbtype.JSON
+	UpdatedAt time.Time
+	ID        uuid.UUID
+}
+
+// A scan keeps the title and the source of a bundle in step, and un-archives it.
+func (q *Queries) UpdateBundle(ctx context.Context, arg UpdateBundleParams) error {
+	_, err := q.db.ExecContext(ctx, updateBundle,
+		arg.Title,
+		arg.SourceRef,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const updateSpecDocHead = `-- name: UpdateSpecDocHead :execrows
+UPDATE spec_doc
+SET title = $1, profile_key = $2, doc_path = $3, current_version_id = $4,
     archived_at = NULL, updated_at = $5
 WHERE id = $6 AND current_version_id IS NOT DISTINCT FROM $7
 `
 
-type UpdateBundleHeadParams struct {
+type UpdateSpecDocHeadParams struct {
 	Title             string
 	ProfileKey        string
-	MainDoc           string
+	DocPath           string
 	CurrentVersionID  uuid.NullUUID
 	UpdatedAt         time.Time
 	ID                uuid.UUID
@@ -641,11 +999,11 @@ type UpdateBundleHeadParams struct {
 }
 
 // The head moves only from the version the change was based on.
-func (q *Queries) UpdateBundleHead(ctx context.Context, arg UpdateBundleHeadParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateBundleHead,
+func (q *Queries) UpdateSpecDocHead(ctx context.Context, arg UpdateSpecDocHeadParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateSpecDocHead,
 		arg.Title,
 		arg.ProfileKey,
-		arg.MainDoc,
+		arg.DocPath,
 		arg.CurrentVersionID,
 		arg.UpdatedAt,
 		arg.ID,

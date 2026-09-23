@@ -280,7 +280,7 @@ func (pe *pipelineEnv) run(t *testing.T, slug string) (pgdb.ReviewRun, []pgdb.Fi
 	t.Helper()
 	ctx := context.Background()
 	q := pe.bundles.DB.Queries()
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -523,7 +523,7 @@ func TestRun_FailureNamesStage(t *testing.T) {
 		return model.Raw{}, &model.StatusError{Status: 401, Message: "invalid x-api-key"}
 	})
 	q := pe.bundles.DB.Queries()
-	b, _ := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	b, _ := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
 	started, err := pe.reviews.StartRun(ctx, b, nil)
 	if err != nil {
 		t.Fatal(err)

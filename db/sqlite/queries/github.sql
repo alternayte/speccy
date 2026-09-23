@@ -17,9 +17,9 @@ SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY
 SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 
 -- name: InsertGithubSource :exec
-INSERT INTO github_source (id, workspace_id, repo, branch, path, is_file, profile, api_url, created_by, created_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(repo), sqlc.arg(branch), sqlc.arg(path), sqlc.arg(is_file),
-        sqlc.arg(profile), sqlc.arg(api_url), sqlc.arg(created_by), sqlc.arg(created_at));
+INSERT INTO github_source (id, workspace_id, repo, branch, path, api_url, created_by, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(repo), sqlc.arg(branch), sqlc.arg(path),
+        sqlc.arg(api_url), sqlc.arg(created_by), sqlc.arg(created_at));
 
 -- name: DeleteGithubSource :exec
 DELETE FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
@@ -28,8 +28,8 @@ DELETE FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND id = s
 UPDATE github_source SET head_commit = sqlc.arg(head_commit), synced_at = sqlc.arg(synced_at), error = sqlc.arg(error)
 WHERE id = sqlc.arg(id);
 
--- name: SetBundleSourceRef :exec
-UPDATE bundle SET source_ref = sqlc.arg(source_ref), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
+-- name: SetSpecDocSourceRef :exec
+UPDATE spec_doc SET source_ref = sqlc.arg(source_ref), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
 
 -- name: ListAdoptedTypes :many
 SELECT * FROM adopted_type WHERE source_id = sqlc.arg(source_id) ORDER BY path;
@@ -67,3 +67,10 @@ ON CONFLICT (source_id, path, kind) DO UPDATE SET target = excluded.target;
 
 -- name: DeleteAdoptedLink :exec
 DELETE FROM adopted_link WHERE source_id = sqlc.arg(source_id) AND path = sqlc.arg(path) AND kind = sqlc.arg(kind);
+
+-- name: MoveAdoptedTypes :exec
+-- A source that covers another takes over its adopted types.
+UPDATE adopted_type SET source_id = sqlc.arg(to_source) WHERE source_id = sqlc.arg(from_source);
+
+-- name: MoveAdoptedLinks :exec
+UPDATE adopted_link SET source_id = sqlc.arg(to_source) WHERE source_id = sqlc.arg(from_source);

@@ -63,7 +63,7 @@ func (pe *pipelineEnv) current(t *testing.T, slug string) ([]string, api.BundleV
 	t.Helper()
 	ctx := context.Background()
 	q := pe.bundles.DB.Queries()
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: slug})
 	if err != nil {
 		t.Fatal(err)
 	}

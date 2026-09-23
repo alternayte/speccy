@@ -180,11 +180,11 @@ func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws u
 	}
 	seen := map[uuid.UUID]bool{}
 	for _, w := range rows {
-		if w.Status != waiver.StatusApproved || seen[w.BundleID] {
+		if w.Status != waiver.StatusApproved || seen[w.SpecDocID] {
 			continue
 		}
-		seen[w.BundleID] = true
-		b, err := db.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: ws, ID: w.BundleID})
+		seen[w.SpecDocID] = true
+		b, err := db.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: ws, ID: w.SpecDocID})
 		if err != nil {
 			return err
 		}

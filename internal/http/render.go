@@ -17,10 +17,10 @@ func (Core) RenderMarkdown(_ context.Context, req api.RenderMarkdownRequestObjec
 		dir = path.Dir(*req.Body.Path)
 	}
 	links := render.Links{Dir: dir}
-	if b := req.Body.BundleId; b != nil {
+	if d := req.Body.DocId; d != nil {
 		links.MarkFiles = true
 		links.Image = func(p string) string {
-			return "/api/v1/bundles/" + b.String() + "/files/content?path=" + url.QueryEscape(p)
+			return "/api/v1/docs/" + d.String() + "/files/content?path=" + url.QueryEscape(p)
 		}
 	}
 	out, err := render.HTML([]byte(req.Body.Markdown), links)

@@ -20,9 +20,9 @@ VALUES (sqlc.arg(profile_id), sqlc.arg(version), sqlc.arg(yaml), sqlc.arg(templa
 SELECT * FROM profile_version WHERE profile_id = sqlc.arg(profile_id) AND version = sqlc.arg(version);
 
 -- name: InsertRun :exec
-INSERT INTO review_run (id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage,
+INSERT INTO review_run (id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage,
                         error, notes, decisions_hash, started_at, finished_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(bundle_id), sqlc.arg(version_id), sqlc.arg(profile_key),
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), sqlc.arg(version_id), sqlc.arg(profile_key),
         sqlc.arg(profile_version), sqlc.arg(kind), sqlc.arg(status), sqlc.arg(stage), sqlc.arg(error),
         sqlc.arg(notes), sqlc.arg(decisions_hash), sqlc.arg(started_at), sqlc.narg(finished_at));
 
@@ -31,13 +31,13 @@ SELECT * FROM review_run WHERE workspace_id = sqlc.arg(workspace_id) AND id = sq
 
 -- name: LatestRun :one
 SELECT * FROM review_run
-WHERE bundle_id = sqlc.arg(bundle_id)
+WHERE spec_doc_id = sqlc.arg(spec_doc_id)
 ORDER BY started_at DESC, id DESC
 LIMIT 1;
 
 -- name: LatestRunFor :one
 SELECT * FROM review_run
-WHERE bundle_id = sqlc.arg(bundle_id) AND version_id = sqlc.arg(version_id)
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND version_id = sqlc.arg(version_id)
   AND profile_key = sqlc.arg(profile_key) AND profile_version = sqlc.arg(profile_version)
 ORDER BY started_at DESC, id DESC
 LIMIT 1;
@@ -45,13 +45,13 @@ LIMIT 1;
 -- name: LatestCompleteRun :one
 -- REQ-007: the latest finished run of a kind on a version.
 SELECT * FROM review_run
-WHERE bundle_id = sqlc.arg(bundle_id) AND version_id = sqlc.arg(version_id) AND status = 'complete' AND kind = sqlc.arg(kind)
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND version_id = sqlc.arg(version_id) AND status = 'complete' AND kind = sqlc.arg(kind)
 ORDER BY started_at DESC, id DESC
 LIMIT 1;
 
 -- name: ListRuns :many
 SELECT * FROM review_run
-WHERE bundle_id = sqlc.arg(bundle_id) AND started_at < sqlc.arg(before)
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND started_at < sqlc.arg(before)
 ORDER BY started_at DESC, id DESC
 LIMIT sqlc.arg(page_size)::bigint;
 

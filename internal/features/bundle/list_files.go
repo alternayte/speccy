@@ -12,7 +12,7 @@ import (
 // ListFiles returns the files of a version, sorted by path, and marks the main doc.
 func (a *API) ListFiles(ctx context.Context, req api.ListFilesRequestObject) (api.ListFilesResponseObject, error) {
 	q := a.Service.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func (a *API) ListFiles(ctx context.Context, req api.ListFilesRequestObject) (ap
 	if err != nil {
 		return nil, err
 	}
-	main := b.MainDoc
+	main := b.DocPath
 	if v.ID != b.CurrentVersionID.UUID {
 		// An older version can have another main doc. Read only its top-level markdown files.
 		var candidates []source.File

@@ -22,17 +22,17 @@ export function isMarkdown(path: string) {
   return /\.(md|markdown)$/i.test(path);
 }
 
-export function contentUrl(bundleId: string, path: string, version?: string) {
+export function contentUrl(docId: string, path: string, version?: string) {
   const q = new URLSearchParams({ path });
   if (version) q.set("version", version);
-  return `/api/v1/bundles/${bundleId}/files/content?${q}`;
+  return `/api/v1/docs/${docId}/files/content?${q}`;
 }
 
 type Loaded = { kind: "text"; text: string } | { kind: "binary" };
 
-async function loadFile(bundleId: string, path: string, version: string): Promise<Loaded> {
+async function loadFile(docId: string, path: string, version: string): Promise<Loaded> {
   const res = await getFileContent({
-    path: { bundleId },
+    path: { docId },
     query: { path, version },
     parseAs: "blob",
     throwOnError: true,
@@ -46,7 +46,7 @@ async function loadFile(bundleId: string, path: string, version: string): Promis
 }
 
 export function EditorPane({
-  bundleId,
+  docId,
   path,
   version,
   sha,
@@ -62,7 +62,7 @@ export function EditorPane({
   findings,
   onOpenFinding,
 }: {
-  bundleId: string;
+  docId: string;
   path: string;
   // The current version of the bundle, and the hash of this file in it.
   version: { id: string; number: number };
@@ -128,8 +128,8 @@ export function EditorPane({
   };
 
   const file = useQuery({
-    queryKey: ["file", bundleId, path, loadVersion.id],
-    queryFn: () => loadFile(bundleId, path, loadVersion.id),
+    queryKey: ["file", docId, path, loadVersion.id],
+    queryFn: () => loadFile(docId, path, loadVersion.id),
     staleTime: Infinity,
   });
 
@@ -164,7 +164,7 @@ export function EditorPane({
   const save = useMutation({
     mutationFn: async (body: string) => {
       const res = await putFileContent({
-        path: { bundleId },
+        path: { docId },
         query: { path, base_version: base.id },
         body: new Blob([body]),
         throwOnError: true,
@@ -175,7 +175,7 @@ export function EditorPane({
       setSaved(body);
       setBase({ id: res.version.id, number: res.version.number });
       setKnownSha(undefined);
-      qc.setQueryData(["file", bundleId, path, res.version.id], { kind: "text", text: body });
+      qc.setQueryData(["file", docId, path, res.version.id], { kind: "text", text: body });
       onSaved();
     },
   });
@@ -189,7 +189,7 @@ export function EditorPane({
     setStale(false);
     setKnownSha(sha);
     setLoadVersion({ ...version });
-    qc.invalidateQueries({ queryKey: ["file", bundleId, path, version.id] });
+    qc.invalidateQueries({ queryKey: ["file", docId, path, version.id] });
   };
 
   const onEditorScroll = useCallback(() => {
@@ -248,7 +248,7 @@ export function EditorPane({
     return (
       <Frame path={path}>
         <div className="flex h-full items-center justify-center overflow-auto bg-sunken p-6">
-          <img src={contentUrl(bundleId, path, version.id)} alt={path} className="max-h-full max-w-full" />
+          <img src={contentUrl(docId, path, version.id)} alt={path} className="max-h-full max-w-full" />
         </div>
       </Frame>
     );
@@ -265,7 +265,7 @@ export function EditorPane({
       <Frame path={path}>
         <div className="p-6 text-sm text-ink-2">
           This file is not text.{" "}
-          <a className="text-accent underline" href={contentUrl(bundleId, path, version.id)} download>
+          <a className="text-accent underline" href={contentUrl(docId, path, version.id)} download>
             Download it
           </a>
           .
@@ -412,7 +412,7 @@ export function EditorPane({
             <Preview
               ref={previewRef}
               markdown={text ?? file.data.text}
-              bundleId={bundleId}
+              docId={docId}
               path={path}
               onOpenPath={onOpenPath}
               onScroll={onPreviewScroll}

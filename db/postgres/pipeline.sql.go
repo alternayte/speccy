@@ -51,20 +51,20 @@ func (q *Queries) ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 }
 
 const deleteLinkStates = `-- name: DeleteLinkStates :exec
-DELETE FROM link_state WHERE bundle_id = $1
+DELETE FROM link_state WHERE spec_doc_id = $1
 `
 
-func (q *Queries) DeleteLinkStates(ctx context.Context, bundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteLinkStates, bundleID)
+func (q *Queries) DeleteLinkStates(ctx context.Context, specDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLinkStates, specDocID)
 	return err
 }
 
 const deleteLinksFrom = `-- name: DeleteLinksFrom :exec
-DELETE FROM link WHERE from_bundle_id = $1
+DELETE FROM link WHERE from_spec_doc_id = $1
 `
 
-func (q *Queries) DeleteLinksFrom(ctx context.Context, fromBundleID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteLinksFrom, fromBundleID)
+func (q *Queries) DeleteLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteLinksFrom, fromSpecDocID)
 	return err
 }
 
@@ -184,7 +184,7 @@ func (q *Queries) GetMCPConnection(ctx context.Context, arg GetMCPConnectionPara
 }
 
 const getRunByID = `-- name: GetRunByID :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE id = $1
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE id = $1
 `
 
 func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error) {
@@ -193,7 +193,7 @@ func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, erro
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.ProfileKey,
 		&i.ProfileVersion,
@@ -300,31 +300,31 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
 }
 
 const insertLink = `-- name: InsertLink :exec
-INSERT INTO link (id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url)
+INSERT INTO link (id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9)
 `
 
 type InsertLinkParams struct {
-	ID             uuid.UUID
-	WorkspaceID    uuid.UUID
-	FromBundleID   uuid.UUID
-	Kind           string
-	TargetKind     string
-	TargetBundleID uuid.NullUUID
-	TargetRef      string
-	Origin         string
-	TargetUrl      string
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	FromSpecDocID   uuid.UUID
+	Kind            string
+	TargetKind      string
+	TargetSpecDocID uuid.NullUUID
+	TargetRef       string
+	Origin          string
+	TargetUrl       string
 }
 
 func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
 	_, err := q.db.ExecContext(ctx, insertLink,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.FromBundleID,
+		arg.FromSpecDocID,
 		arg.Kind,
 		arg.TargetKind,
-		arg.TargetBundleID,
+		arg.TargetSpecDocID,
 		arg.TargetRef,
 		arg.Origin,
 		arg.TargetUrl,
@@ -333,12 +333,12 @@ func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
 }
 
 const insertLinkState = `-- name: InsertLinkState :exec
-INSERT INTO link_state (bundle_id, target_ref, state, reason, checked_ref, checked_at)
+INSERT INTO link_state (spec_doc_id, target_ref, state, reason, checked_ref, checked_at)
 VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertLinkStateParams struct {
-	BundleID   uuid.UUID
+	SpecDocID  uuid.UUID
 	TargetRef  string
 	State      string
 	Reason     string
@@ -348,7 +348,7 @@ type InsertLinkStateParams struct {
 
 func (q *Queries) InsertLinkState(ctx context.Context, arg InsertLinkStateParams) error {
 	_, err := q.db.ExecContext(ctx, insertLinkState,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.TargetRef,
 		arg.State,
 		arg.Reason,
@@ -402,7 +402,7 @@ func (q *Queries) InsertMCPConnection(ctx context.Context, arg InsertMCPConnecti
 }
 
 const insertQuestion = `-- name: InsertQuestion :exec
-INSERT INTO question (id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor, input_hash)
+INSERT INTO question (id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8, $9, $10)
 `
@@ -410,7 +410,7 @@ VALUES ($1, $2, $3, $4, $5,
 type InsertQuestionParams struct {
 	ID          uuid.UUID
 	WorkspaceID uuid.UUID
-	BundleID    uuid.UUID
+	SpecDocID   uuid.UUID
 	VersionID   uuid.UUID
 	Number      int64
 	Text        string
@@ -424,7 +424,7 @@ func (q *Queries) InsertQuestion(ctx context.Context, arg InsertQuestionParams) 
 	_, err := q.db.ExecContext(ctx, insertQuestion,
 		arg.ID,
 		arg.WorkspaceID,
-		arg.BundleID,
+		arg.SpecDocID,
 		arg.VersionID,
 		arg.Number,
 		arg.Text,
@@ -459,17 +459,17 @@ func (q *Queries) InsertQuestionResult(ctx context.Context, arg InsertQuestionRe
 }
 
 const insertRunLink = `-- name: InsertRunLink :exec
-INSERT INTO run_link (run_id, bundle_id, version_id) VALUES ($1, $2, $3)
+INSERT INTO run_link (run_id, spec_doc_id, version_id) VALUES ($1, $2, $3)
 `
 
 type InsertRunLinkParams struct {
 	RunID     uuid.UUID
-	BundleID  uuid.UUID
+	SpecDocID uuid.UUID
 	VersionID uuid.UUID
 }
 
 func (q *Queries) InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error {
-	_, err := q.db.ExecContext(ctx, insertRunLink, arg.RunID, arg.BundleID, arg.VersionID)
+	_, err := q.db.ExecContext(ctx, insertRunLink, arg.RunID, arg.SpecDocID, arg.VersionID)
 	return err
 }
 
@@ -545,11 +545,11 @@ func (q *Queries) ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, err
 }
 
 const listLinkStates = `-- name: ListLinkStates :many
-SELECT bundle_id, target_ref, state, reason, checked_ref, checked_at FROM link_state WHERE bundle_id = $1 ORDER BY target_ref
+SELECT spec_doc_id, target_ref, state, reason, checked_ref, checked_at FROM link_state WHERE spec_doc_id = $1 ORDER BY target_ref
 `
 
-func (q *Queries) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]LinkState, error) {
-	rows, err := q.db.QueryContext(ctx, listLinkStates, bundleID)
+func (q *Queries) ListLinkStates(ctx context.Context, specDocID uuid.UUID) ([]LinkState, error) {
+	rows, err := q.db.QueryContext(ctx, listLinkStates, specDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ func (q *Queries) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]Lin
 	for rows.Next() {
 		var i LinkState
 		if err := rows.Scan(
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.TargetRef,
 			&i.State,
 			&i.Reason,
@@ -579,11 +579,11 @@ func (q *Queries) ListLinkStates(ctx context.Context, bundleID uuid.UUID) ([]Lin
 }
 
 const listLinksFrom = `-- name: ListLinksFrom :many
-SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url FROM link WHERE from_bundle_id = $1 ORDER BY kind, target_ref
+SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url FROM link WHERE from_spec_doc_id = $1 ORDER BY kind, target_ref
 `
 
-func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]Link, error) {
-	rows, err := q.db.QueryContext(ctx, listLinksFrom, fromBundleID)
+func (q *Queries) ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([]Link, error) {
+	rows, err := q.db.QueryContext(ctx, listLinksFrom, fromSpecDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -594,10 +594,10 @@ func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.FromBundleID,
+			&i.FromSpecDocID,
 			&i.Kind,
 			&i.TargetKind,
-			&i.TargetBundleID,
+			&i.TargetSpecDocID,
 			&i.TargetRef,
 			&i.Origin,
 			&i.TargetUrl,
@@ -616,11 +616,11 @@ func (q *Queries) ListLinksFrom(ctx context.Context, fromBundleID uuid.UUID) ([]
 }
 
 const listLinksTo = `-- name: ListLinksTo :many
-SELECT id, workspace_id, from_bundle_id, kind, target_kind, target_bundle_id, target_ref, origin, target_url FROM link WHERE target_bundle_id = $1 ORDER BY kind, from_bundle_id
+SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url FROM link WHERE target_spec_doc_id = $1 ORDER BY kind, from_spec_doc_id
 `
 
-func (q *Queries) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID) ([]Link, error) {
-	rows, err := q.db.QueryContext(ctx, listLinksTo, targetBundleID)
+func (q *Queries) ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID) ([]Link, error) {
+	rows, err := q.db.QueryContext(ctx, listLinksTo, targetSpecDocID)
 	if err != nil {
 		return nil, err
 	}
@@ -631,10 +631,10 @@ func (q *Queries) ListLinksTo(ctx context.Context, targetBundleID uuid.NullUUID)
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.FromBundleID,
+			&i.FromSpecDocID,
 			&i.Kind,
 			&i.TargetKind,
-			&i.TargetBundleID,
+			&i.TargetSpecDocID,
 			&i.TargetRef,
 			&i.Origin,
 			&i.TargetUrl,
@@ -726,7 +726,7 @@ func (q *Queries) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]Q
 }
 
 const listQuestions = `-- name: ListQuestions :many
-SELECT id, workspace_id, bundle_id, version_id, number, text, level, cites, anchor, input_hash FROM question WHERE version_id = $1 ORDER BY number
+SELECT id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash FROM question WHERE version_id = $1 ORDER BY number
 `
 
 func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error) {
@@ -741,7 +741,7 @@ func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Que
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.Number,
 			&i.Text,
@@ -764,21 +764,21 @@ func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Que
 }
 
 const listQuestionsByInput = `-- name: ListQuestionsByInput :many
-SELECT q.id, q.workspace_id, q.bundle_id, q.version_id, q.number, q.text, q.level, q.cites, q.anchor, q.input_hash FROM question q
-WHERE q.bundle_id = $1 AND q.input_hash = $2 AND q.input_hash <> ''
-  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.bundle_id = $1
+SELECT q.id, q.workspace_id, q.spec_doc_id, q.version_id, q.number, q.text, q.level, q.cites, q.anchor, q.input_hash FROM question q
+WHERE q.spec_doc_id = $1 AND q.input_hash = $2 AND q.input_hash <> ''
+  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.spec_doc_id = $1
                       AND q2.input_hash = $2 LIMIT 1)
 ORDER BY q.number
 `
 
 type ListQuestionsByInputParams struct {
-	BundleID  uuid.UUID
+	SpecDocID uuid.UUID
 	InputHash string
 }
 
 // REQ-047: the questions of an earlier version of the bundle with the same content.
 func (q *Queries) ListQuestionsByInput(ctx context.Context, arg ListQuestionsByInputParams) ([]Question, error) {
-	rows, err := q.db.QueryContext(ctx, listQuestionsByInput, arg.BundleID, arg.InputHash)
+	rows, err := q.db.QueryContext(ctx, listQuestionsByInput, arg.SpecDocID, arg.InputHash)
 	if err != nil {
 		return nil, err
 	}
@@ -789,7 +789,7 @@ func (q *Queries) ListQuestionsByInput(ctx context.Context, arg ListQuestionsByI
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
-			&i.BundleID,
+			&i.SpecDocID,
 			&i.VersionID,
 			&i.Number,
 			&i.Text,
@@ -812,7 +812,7 @@ func (q *Queries) ListQuestionsByInput(ctx context.Context, arg ListQuestionsByI
 }
 
 const listRunLinks = `-- name: ListRunLinks :many
-SELECT run_id, bundle_id, version_id FROM run_link WHERE run_id = $1 ORDER BY bundle_id
+SELECT run_id, spec_doc_id, version_id FROM run_link WHERE run_id = $1 ORDER BY spec_doc_id
 `
 
 func (q *Queries) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink, error) {
@@ -824,7 +824,7 @@ func (q *Queries) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink,
 	var items []RunLink
 	for rows.Next() {
 		var i RunLink
-		if err := rows.Scan(&i.RunID, &i.BundleID, &i.VersionID); err != nil {
+		if err := rows.Scan(&i.RunID, &i.SpecDocID, &i.VersionID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -855,19 +855,19 @@ func (q *Queries) PutCache(ctx context.Context, arg PutCacheParams) error {
 }
 
 const runningRunFor = `-- name: RunningRunFor :one
-SELECT id, workspace_id, bundle_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
-WHERE bundle_id = $1 AND kind = 'full' AND status IN ('queued', 'running')
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = $1 AND kind = 'full' AND status IN ('queued', 'running')
 ORDER BY started_at DESC
 LIMIT 1
 `
 
-func (q *Queries) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error) {
-	row := q.db.QueryRowContext(ctx, runningRunFor, bundleID)
+func (q *Queries) RunningRunFor(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error) {
+	row := q.db.QueryRowContext(ctx, runningRunFor, specDocID)
 	var i ReviewRun
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceID,
-		&i.BundleID,
+		&i.SpecDocID,
 		&i.VersionID,
 		&i.ProfileKey,
 		&i.ProfileVersion,
