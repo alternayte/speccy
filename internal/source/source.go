@@ -4,7 +4,6 @@
 package source
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"path"
@@ -236,15 +235,26 @@ func IsMarkdown(p string) bool {
 
 // ReadFrontmatter returns the frontmatter of a markdown file. ok is false when the file has
 // no frontmatter block.
+// A links value in a form Speccy does not read leaves Links empty and keeps the other keys:
+// the frontmatter.readable check names the problem, and the doc keeps its type (#76).
 func ReadFrontmatter(content []byte) (fm Frontmatter, ok bool, err error) {
 	raw, _ := section.SplitFrontmatter(content)
 	if raw == nil {
 		return Frontmatter{}, false, nil
 	}
-	if err := yaml.Unmarshal(raw, &fm); err != nil {
+	var loose struct {
+		Type  string    `yaml:"type"`
+		Size  string    `yaml:"size"`
+		Title string    `yaml:"title"`
+		Links yaml.Node `yaml:"links"`
+	}
+	if err := yaml.Unmarshal(raw, &loose); err != nil {
 		return Frontmatter{}, true, err
 	}
-	fm.Type = strings.TrimSpace(fm.Type)
+	fm = Frontmatter{Type: strings.TrimSpace(loose.Type), Size: loose.Size, Title: loose.Title}
+	if loose.Links.Kind != 0 && loose.Links.Decode(&fm.Links) != nil {
+		fm.Links = nil
+	}
 	return fm, true, nil
 }
 
@@ -324,10 +334,17 @@ var NeverASpec = map[string]bool{"readme.md": true, "changelog.md": true, "licen
 // AddTypeLine returns content with type: key in its frontmatter. It writes the frontmatter when
 // the doc has none, and it changes nothing else. Every way into Speccy writes the same line.
 func AddTypeLine(content []byte, key string) []byte {
-	if fm, _ := section.SplitFrontmatter(content); fm == nil {
+	fm, _, form := section.Frontmatter(content)
+	if fm == nil {
 		return append([]byte("---\ntype: "+key+"\n---\n\n"), content...)
 	}
-	open := bytes.IndexByte(content, '\n') + 1
+	// A JSON block takes the key as JSON, so it stays a block a wiki and Speccy both read (#76).
+	if form.JSON {
+		if out, err := SetKeys(content, [][2]string{{"type", key}}); err == nil {
+			return out
+		}
+	}
+	open := len(form.Open)
 	return append(append(append([]byte{}, content[:open]...), []byte("type: "+key+"\n")...), content[open:]...)
 }
 

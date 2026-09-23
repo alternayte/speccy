@@ -501,7 +501,14 @@ export const suggestFix = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
  */
-export const acceptFix = <ThrowOnError extends boolean = false>(options: Options<AcceptFixData, ThrowOnError>): RequestResult<AcceptFixResponses, AcceptFixErrors, ThrowOnError> => (options.client ?? client).post<AcceptFixResponses, AcceptFixErrors, ThrowOnError>({ url: '/runs/{runId}/findings/{findingId}/fix/accept', ...options });
+export const acceptFix = <ThrowOnError extends boolean = false>(options: Options<AcceptFixData, ThrowOnError>): RequestResult<AcceptFixResponses, AcceptFixErrors, ThrowOnError> => (options.client ?? client).post<AcceptFixResponses, AcceptFixErrors, ThrowOnError>({
+    url: '/runs/{runId}/findings/{findingId}/fix/accept',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * List the findings of a run, in document order.
@@ -514,7 +521,7 @@ export const listFindings = <ThrowOnError extends boolean = false>(options: Opti
 export const listSkipped = <ThrowOnError extends boolean = false>(options?: Options<ListSkippedData, ThrowOnError>): RequestResult<ListSkippedResponses, ListSkippedErrors, ThrowOnError> => (options?.client ?? client).get<ListSkippedResponses, ListSkippedErrors, ThrowOnError>({ url: '/skipped', ...options });
 
 /**
- * Write a type into a skipped file, so it becomes a bundle (REQ-001).
+ * Write a type into skipped files, so they become spec docs (REQ-001). One request takes every picked doc, so the order of the picks does not matter (#73).
  */
 export const adoptSkipped = <ThrowOnError extends boolean = false>(options: Options<AdoptSkippedData, ThrowOnError>): RequestResult<AdoptSkippedResponses, AdoptSkippedErrors, ThrowOnError> => (options.client ?? client).post<AdoptSkippedResponses, AdoptSkippedErrors, ThrowOnError>({
     url: '/skipped',

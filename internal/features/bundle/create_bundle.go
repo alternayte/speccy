@@ -1,12 +1,9 @@
 package bundle
 
 import (
-	"bytes"
 	"context"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -65,28 +62,19 @@ func (a *API) CreateBundle(ctx context.Context, req api.CreateBundleRequestObjec
 }
 
 // fromTemplate returns the template without its required markers, with the profile's type
-// and the title in the frontmatter, and the title in the first level-1 heading.
+// and the title in the frontmatter, and the title in the first level-1 heading. The block keeps
+// the template's form, so a template that hides it in an HTML comment makes docs that do (#76).
 func fromTemplate(p profile.Versioned, title string) []byte {
 	doc := profile.StripMarks(p.TemplateText)
-	fmRaw, bodyStart := section.SplitFrontmatter(doc)
-	body := doc[bodyStart:]
-
-	var fm yaml.Node
-	if fmRaw != nil && yaml.Unmarshal(fmRaw, &fm) == nil && len(fm.Content) == 1 && fm.Content[0].Kind == yaml.MappingNode {
-		setKey(fm.Content[0], "title", title)
-		setKey(fm.Content[0], "type", p.Profile.Key)
-	} else {
-		fm = yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode}}}
-		setKey(fm.Content[0], "type", p.Profile.Key)
-		setKey(fm.Content[0], "title", title)
+	keys := [][2]string{{"type", p.Profile.Key}, {"title", title}}
+	out, err := source.SetKeys(doc, keys)
+	if err != nil {
+		// A template block that does not parse gives way to a new one.
+		_, bodyStart := section.SplitFrontmatter(doc)
+		out, _ = source.SetKeys(doc[bodyStart:], keys)
 	}
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	_ = enc.Encode(&fm)
-	_ = enc.Close()
-	out := buf.Bytes()
-
+	_, bodyStart := section.SplitFrontmatter(out)
+	body := out[bodyStart:]
 	for _, sec := range section.Parse(body).Sections {
 		if sec.Level == 1 {
 			rest := body[sec.BodyStart:]
@@ -94,16 +82,5 @@ func fromTemplate(p profile.Versioned, title string) []byte {
 			break
 		}
 	}
-	return append(append([]byte("---\n"), out...), append([]byte("---\n"), body...)...)
-}
-
-// setKey sets key to value in a YAML mapping, keeping its place when it exists.
-func setKey(m *yaml.Node, key, value string) {
-	for i := 0; i+1 < len(m.Content); i += 2 {
-		if m.Content[i].Value == key {
-			m.Content[i+1] = &yaml.Node{Kind: yaml.ScalarNode, Value: value}
-			return
-		}
-	}
-	m.Content = append(m.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, &yaml.Node{Kind: yaml.ScalarNode, Value: value})
+	return append(append([]byte{}, out[:bodyStart]...), body...)
 }

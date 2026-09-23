@@ -416,6 +416,7 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 	for _, p := range paths {
 		known[p] = true
 	}
+	// Every item is checked before one is stored, so a bad item changes nothing (#73).
 	for _, it := range req.Body.Items {
 		if _, ok := a.Profiles()[it.Profile]; !ok {
 			return nil, kernel.Invalid("no_profile", "There is no doc type %q.", it.Profile)
@@ -423,14 +424,16 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 		if !known[it.Path] {
 			return nil, kernel.Invalid("not_skipped", "%s is not a file the scan passed over.", it.Path)
 		}
+		if l := it.Link; l != nil && !checkLinkKind(l.Kind) {
+			return nil, kernel.Invalid("bad_link", "There is no link kind %q.", l.Kind)
+		}
+	}
+	for _, it := range req.Body.Items {
 		if err := s.DB.Queries().SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
 			return nil, err
 		}
 		// A confirmed link stays in Speccy, as the type does: the repo takes no commit.
 		if l := it.Link; l != nil {
-			if !checkLinkKind(l.Kind) {
-				return nil, kernel.Invalid("bad_link", "There is no link kind %q.", l.Kind)
-			}
 			if err := s.DB.Queries().SetAdoptedLink(ctx, pgdb.SetAdoptedLinkParams{SourceID: src.ID, Path: it.Path,
 				Kind: l.Kind, Target: path.Clean(l.Target)}); err != nil {
 				return nil, err

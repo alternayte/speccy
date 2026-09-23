@@ -859,6 +859,43 @@ export type FixSuggestion = {
      * The version the patch was written for.
      */
     version_id: string;
+    /**
+     * For a missing upstream link, the docs the link can name. The patch is empty; the person picks one, and Speccy writes the link (#75).
+     */
+    link_choices?: Array<LinkChoice>;
+};
+
+export type LinkChoice = {
+    doc_id: string;
+    title: string;
+    /**
+     * The doc's path relative to the root of its source.
+     */
+    path: string;
+    profile: string;
+};
+
+export type AcceptFixRequest = {
+    /**
+     * For a missing upstream link, the spec doc the link names. It must be one of the suggestion's link choices.
+     */
+    link_to?: string;
+};
+
+export type AcceptedFix = {
+    version?: Version;
+    /**
+     * False when the fix left the doc unchanged, so no version was created.
+     */
+    changed: boolean;
+    /**
+     * For a lint finding, whether the lint of the result still gives it. An AI finding needs a new review to check.
+     */
+    result: 'fixed' | 'still_fails' | 'review_again';
+    /**
+     * For still_fails, the finding the lint still gives.
+     */
+    message?: string;
 };
 
 export type DiffSummary = {
@@ -3666,7 +3703,7 @@ export type SuggestFixResponses = {
 export type SuggestFixResponse = SuggestFixResponses[keyof SuggestFixResponses];
 
 export type AcceptFixData = {
-    body?: never;
+    body?: AcceptFixRequest;
     path: {
         runId: string;
         findingId: string;
@@ -3686,9 +3723,9 @@ export type AcceptFixError = AcceptFixErrors[keyof AcceptFixErrors];
 
 export type AcceptFixResponses = {
     /**
-     * The new version.
+     * The result, with the new version when the fix made one.
      */
-    200: WriteResult;
+    200: AcceptedFix;
 };
 
 export type AcceptFixResponse = AcceptFixResponses[keyof AcceptFixResponses];
@@ -3749,9 +3786,11 @@ export type ListSkippedResponse = ListSkippedResponses[keyof ListSkippedResponse
 
 export type AdoptSkippedData = {
     body: {
-        path: string;
-        profile: string;
-        link?: ConfirmedLink;
+        items: Array<{
+            path: string;
+            profile: string;
+            link?: ConfirmedLink;
+        }>;
     };
     path?: never;
     query?: never;
@@ -3769,9 +3808,11 @@ export type AdoptSkippedError = AdoptSkippedErrors[keyof AdoptSkippedErrors];
 
 export type AdoptSkippedResponses = {
     /**
-     * The new bundle.
+     * The new spec docs, in the order of the request.
      */
-    201: SpecDoc;
+    201: {
+        items: Array<SpecDoc>;
+    };
 };
 
 export type AdoptSkippedResponse = AdoptSkippedResponses[keyof AdoptSkippedResponses];

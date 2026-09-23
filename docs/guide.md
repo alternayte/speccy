@@ -50,7 +50,7 @@ A doc written before Speccy names no type. **Import** takes it anyway. It lists 
 
 The bundles screen also lists the markdown files in the served folder that name no type. **Adopt** writes the type into one, and the doc becomes a bundle. `speccy init` does the same in a terminal, and Enter takes the guess.
 
-![The markdown files that are not bundles yet, each with a type and an Adopt control](images/guide-adopt.png)
+![The markdown files that are not spec docs yet, each with a type and an Adopt control](images/guide-adopt.png)
 
 A doc in a GitHub source still needs the type in the repo. Speccy makes no commit there, and the source says which files need one.
 

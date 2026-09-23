@@ -107,6 +107,10 @@ const HasUpstreamSlug = "links.has-upstream"
 // covers (REQ-134).
 const HasChildrenSlug = "links.has-children"
 
+// FrontmatterReadableSlug is the check that Speccy reads the doc's frontmatter: the block
+// parses, sits where Speccy looks, and holds links in the form Speccy reads (#76).
+const FrontmatterReadableSlug = "frontmatter.readable"
+
 // ExternalTargetSlug is the check that every external link target parses (DEC-021).
 const ExternalTargetSlug = "links.external-target"
 
@@ -254,6 +258,16 @@ func lintStage(in input) evaluation {
 	for slug, lvl := range res.Rules {
 		ev.items = append(ev.items, verdict.Item{Slug: slug, Category: categories[slug], Level: lvl, Passed: !failed[slug], Applicable: true})
 	}
+	// An unread frontmatter hides the type, the size and the links, so the author hears why
+	// before any link check says a link is missing.
+	unread, unreadFix := source.FrontmatterProblem(in.main)
+	{
+		level := in.level(FrontmatterReadableSlug, checkLevel(in.profile.Profile, FrontmatterReadableSlug, kernel.Must))
+		ev.items = append(ev.items, verdict.Item{Slug: FrontmatterReadableSlug, Category: verdict.Structure, Level: level, Passed: unread == "", Applicable: true})
+		if unread != "" {
+			ev.findings = append(ev.findings, pending{slug: FrontmatterReadableSlug, level: level, stage: StageLint, anchor: docAnchor(in), message: unread, fix: unreadFix})
+		}
+	}
 	if ch := in.profile.Profile.Links.Children; ch != nil && childrenRequired(*ch, in.size) {
 		level := in.level(HasChildrenSlug, checkLevel(in.profile.Profile, HasChildrenSlug, kernel.Must))
 		n := childLinks(in, ch.Kinds)
@@ -281,7 +295,11 @@ func lintStage(in input) evaluation {
 					strings.ToUpper(in.profile.Profile.Key), strings.Join(up.Kinds, " or "), strings.ToUpper(strings.Join(up.Types, " or "))),
 				fix: "Add a link under links: in the frontmatter, or a standalone: entry with the reason in the sidecar.",
 			})
-			if missing != "" {
+			if unread != "" {
+				f := &ev.findings[len(ev.findings)-1]
+				f.message = fmt.Sprintf("Speccy cannot read the frontmatter of this %s, so it cannot see its links. %s", strings.ToUpper(in.profile.Profile.Key), unread)
+				f.fix = unreadFix
+			} else if missing != "" {
 				f := &ev.findings[len(ev.findings)-1]
 				f.message = fmt.Sprintf("No bundle matches the link target %q, so this %s has no upstream doc.", missing, strings.ToUpper(in.profile.Profile.Key))
 				f.fix = "Use the target bundle's slug, or a path relative to this doc, or add a standalone: entry with the reason."
@@ -338,7 +356,7 @@ func docAnchor(in input) anchor.Anchor {
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
 func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
 	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, DivergenceAmbiguous: true, DivergenceGap: true,
-		RestatementSlug: true, ContradictionSlug: true, ExternalTargetSlug: true}
+		RestatementSlug: true, ContradictionSlug: true, ExternalTargetSlug: true, FrontmatterReadableSlug: true}
 	for _, r := range lint.Rules {
 		known[r.Slug] = true
 	}

@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/states";
-import type { ConfirmedLink, GithubSource, Profile, SourceSkippedDoc } from "@/lib/api";
-import { useLinkOffer } from "./adopt-link";
+import type { GithubSource, Profile, SourceSkippedDoc } from "@/lib/api";
+import { useLinkOffers } from "./adopt-link";
 import {
   adoptSkippedDocsMutation,
   dismissDocMutation,
@@ -45,6 +45,24 @@ function SourceSection({ source }: { source: GithubSource }) {
   const marked = (dismissed.data?.items ?? []).filter((d) => d.source_id === source.id);
   const items = skipped.data?.items ?? [];
   const total = skipped.data?.total ?? 0;
+  const keyOf = (it: SourceSkippedDoc) => picked[it.path] || it.adopted || it.guess || "";
+  const offers = useLinkOffers(
+    items.map((it) => ({ path: it.path, profile: keyOf(it) })),
+    { source_id: source.id },
+  );
+  // Accept all sends every doc with a type in one request, so the order of the Accept clicks
+  // does not matter (#73).
+  const ready = items.filter((it) => keyOf(it) && keyOf(it) !== it.adopted);
+  const acceptAll = () =>
+    adopt.mutate({
+      path: { sourceId: source.id },
+      body: {
+        items: ready.map((it) => {
+          const link = offers.link(it.path);
+          return { path: it.path, profile: keyOf(it), ...(link ? { link } : {}) };
+        }),
+      },
+    });
   if (items.length === 0 && marked.length === 0) return null;
   const where = `${source.repo} · ${source.branch}${source.path === "." ? "" : ` · ${source.path}`}`;
   return (
@@ -73,23 +91,31 @@ function SourceSection({ source }: { source: GithubSource }) {
           {items.map((it) => (
             <SourceSkippedRow
               key={it.path}
-              sourceId={source.id}
               doc={it}
-              profileKey={picked[it.path] || it.adopted || it.guess || ""}
+              profileKey={keyOf(it)}
               profiles={profiles.data?.items ?? []}
               onPick={(k) => setPicked({ ...picked, [it.path]: k })}
               onDismiss={() => dismiss.mutate({ body: { path: it.path, source_id: source.id } })}
               dismissing={dismiss.isPending}
-              onAdopt={(profile, link) =>
+              link={offers.view(it.path)}
+              onAdopt={(profile) => {
+                const link = offers.link(it.path);
                 adopt.mutate({
                   path: { sourceId: source.id },
                   body: { items: [{ path: it.path, profile, ...(link ? { link } : {}) }] },
-                })
-              }
+                });
+              }}
               adopting={adopt.isPending}
             />
           ))}
         </ul>
+      ) : null}
+      {items.length > 1 ? (
+        <div className="mt-2 flex justify-end">
+          <Button size="sm" variant="primary" disabled={ready.length === 0 || adopt.isPending} onClick={acceptAll}>
+            Accept all picked types{ready.length > 0 ? ` (${ready.length})` : ""}
+          </Button>
+        </div>
       ) : null}
       {marked.length > 0 ? (
         <div className="mt-2 text-xs text-ink-3">
@@ -144,27 +170,26 @@ function SourceSection({ source }: { source: GithubSource }) {
 // SourceSkippedRow is one doc in a repo that names no type, with the link Speccy offers when a
 // person accepts a type. Speccy keeps the type and the link; the repo takes no commit.
 function SourceSkippedRow({
-  sourceId,
   doc,
   profileKey,
   profiles,
   onPick,
   onDismiss,
   dismissing,
+  link,
   onAdopt,
   adopting,
 }: {
-  sourceId: string;
   doc: SourceSkippedDoc;
   profileKey: string;
   profiles: Profile[];
   onPick: (key: string) => void;
   onDismiss: () => void;
   dismissing: boolean;
-  onAdopt: (profile: string, link?: ConfirmedLink) => void;
+  link: ReactNode;
+  onAdopt: (profile: string) => void;
   adopting: boolean;
 }) {
-  const offer = useLinkOffer(doc.path, profileKey, { source_id: sourceId });
   return (
     <li className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2 last:border-b-0">
       <span title={doc.path} className="w-full min-w-0 truncate font-mono text-xs text-ink-2 sm:w-auto sm:flex-1">
@@ -187,10 +212,10 @@ function SourceSkippedRow({
       <Button size="sm" variant="ghost" disabled={dismissing} onClick={onDismiss}>
         Not a spec
       </Button>
-      <Button size="sm" disabled={!profileKey || adopting} onClick={() => onAdopt(profileKey, offer.link)}>
+      <Button size="sm" disabled={!profileKey || adopting} onClick={() => onAdopt(profileKey)}>
         {doc.adopted ? "Change" : "Accept"}
       </Button>
-      {offer.view}
+      {link}
     </li>
   );
 }

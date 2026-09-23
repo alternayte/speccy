@@ -1,5 +1,5 @@
 import { useBundleId } from "./params";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
 import { ListChecks } from "lucide-react";
@@ -59,15 +59,18 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   const files = useQuery({
     ...listFilesOptions({ path: { docId }, query: { version: version?.id } }),
     enabled: !!version,
-    // Keep the old list while a new version loads, so the editor stays mounted.
-    placeholderData: keepPreviousData,
+    // Keep the old list while a new version of the same doc loads, so the editor stays
+    // mounted. Another doc's files never stand in for this doc's (#74).
+    placeholderData: (prev, q) => (q?.queryKey[0].path.docId === docId ? prev : undefined),
   });
   const [dirty, setDirty] = useState(false);
   const [panel, setPanel] = useState<Panel>(null);
   const [tab, setTab] = useState<RailTab>("findings");
   // The build a drifted code link asked to verify, which prefills the verify field.
   const [verifyAt, setVerifyAt] = useState<string>();
-  const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
+  // focus names the doc it belongs to: an anchor in another spec doc waits until that doc's
+  // files are on screen, so one doc's offsets never move another doc's editor (#74).
+  const [focus, setFocus] = useState<{ start: number; end: number; seq: number; docId: string }>();
   const [deleting, setDeleting] = useState(false);
   const [retyping, setRetyping] = useState(false);
   // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
@@ -110,9 +113,15 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   };
 
   const openAnchor = (a: Anchor) => {
+    const other = specDocs.find((d) => d.path === a.file && d.id !== docId);
+    if (other) {
+      if (!openDoc(other.id)) return;
+      setFocus((prev) => ({ start: a.start, end: a.end, seq: (prev?.seq ?? 0) + 1, docId: other.id }));
+      return;
+    }
     if (!select(a.file)) return;
     setPanel(null);
-    setFocus((prev) => ({ start: a.start, end: a.end, seq: (prev?.seq ?? 0) + 1 }));
+    setFocus((prev) => ({ start: a.start, end: a.end, seq: (prev?.seq ?? 0) + 1, docId }));
   };
   const openFinding = (f: Finding) => openAnchor(f.anchor);
 
@@ -130,11 +139,12 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   const folder = useQuery({ ...getBundleOptions({ path: { bundleId } }), refetchInterval: 5000 });
   const specDocs = folder.data?.docs ?? [];
   const openDoc = (id: string) => {
-    if (id === docId) return;
-    if (dirty && !window.confirm("This file has unsaved edits. Leave it and discard them?")) return;
+    if (id === docId) return true;
+    if (dirty && !window.confirm("This file has unsaved edits. Leave it and discard them?")) return false;
     setDirty(false);
     setPanel(null);
     navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId, docId: id }, search: { view: search.view } });
+    return true;
   };
   // Waivers that wait for this person: the next action opens the first one.
   const waivers = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
@@ -150,9 +160,9 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
       const range = w.section_range;
       if (!range || !mainDoc) return;
       setSearch({ ...search, file: mainDoc, waiver: undefined });
-      setFocus((prev) => ({ start: range.start, end: range.end, seq: (prev?.seq ?? 0) + 1 }));
+      setFocus((prev) => ({ start: range.start, end: range.end, seq: (prev?.seq ?? 0) + 1, docId }));
     },
-    [findings.data, mainDoc, search, setSearch],
+    [findings.data, mainDoc, search, setSearch, docId],
   );
   // A waiver link from the inbox names the waiver in the URL. Open it once, then drop the param.
   const opened = useRef<string>(undefined);
@@ -357,7 +367,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
               onOpenPath={select}
               onSaved={refresh}
               onDirtyChange={setDirty}
-              focus={focus}
+              focus={focus?.docId === docId && !files.isPlaceholderData ? focus : undefined}
               readOnly={!canEdit}
               findings={findings.data?.items}
               onOpenFinding={(f) => {
@@ -430,6 +440,8 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
             <div className="min-h-0 flex-1 overflow-y-auto">
               {shownTab === "findings" ? (
                 <FindingsPanel
+                  // One rail per doc: the list of the doc before never stands in for this one (#74).
+                  key={docId}
                   runId={b.verdict?.run_id}
                   orderKey={b.verdict?.ai_run_id}
                   selected={selectedFinding}
