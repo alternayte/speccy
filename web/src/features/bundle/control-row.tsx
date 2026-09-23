@@ -14,6 +14,7 @@ import {
   Printer,
   Trash2,
   Wrench,
+  Tags,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem } from "@/components/ui/menu";
@@ -39,6 +40,7 @@ export function ControlRow({
   busy,
   onFiles,
   onDelete,
+  onProfile,
   onRunReview,
   onRequestReview,
   onExport,
@@ -53,6 +55,8 @@ export function ControlRow({
   onFiles: () => void;
   // onDelete opens the delete dialog. It is absent for a person who may not delete.
   onDelete?: () => void;
+  // onProfile opens the doc type dialog. It is absent for a person who may not edit.
+  onProfile?: () => void;
   onRunReview: () => void;
   // onRequestReview asks for the reviews the profile needs. Hosted mode only.
   onRequestReview?: () => void;
@@ -146,6 +150,11 @@ export function ControlRow({
         <MenuItem icon={<Download className="size-3.5" />} onSelect={() => onExport("zip")}>
           Bundle as .zip
         </MenuItem>
+        {onProfile ? (
+          <MenuItem icon={<Tags className="size-3.5" />} onSelect={onProfile}>
+            Change doc type ({bundle.profile_key.toUpperCase()})
+          </MenuItem>
+        ) : null}
         {onDelete ? (
           <MenuItem icon={<Trash2 className="size-3.5" />} onSelect={onDelete}>
             Delete

@@ -22,6 +22,7 @@ import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
 import type { Anchor, Finding, NextAction, Waiver } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 import { EvidencePanel } from "./evidence-panel";
+import { ProfileDialog } from "./profile-dialog";
 import { QuestionsPanel } from "./questions-panel";
 import { Explorer } from "./explorer";
 import { FindingsPanel, waiverCovers } from "./findings-panel";
@@ -65,6 +66,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const [verifyAt, setVerifyAt] = useState<string>();
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number }>();
   const [deleting, setDeleting] = useState(false);
+  const [retyping, setRetyping] = useState(false);
   // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
   const [selectedFinding, setSelectedFinding] = useState<string>();
   // newThread is the anchor of a thread the user is starting (REQ-087).
@@ -232,6 +234,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         onNext={() => doNext(b.next_action)}
         onFiles={() => setPanel(panel === "files" ? null : "files")}
         onDelete={guest ? undefined : () => setDeleting(true)}
+        onProfile={canEdit && !guest ? () => setRetyping(true) : undefined}
         onRunReview={() => runReview.current?.()}
         onRequestReview={hosted ? () => askReview.current?.() : undefined}
         onExport={(format) =>
@@ -266,6 +269,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
       />
 
       <DeleteBundleDialog bundleId={bundleId} open={deleting} onOpenChange={setDeleting} />
+      <ProfileDialog bundle={b} open={retyping} onOpenChange={setRetyping} />
 
       <div className="no-print">{run.active ? <RunProgress events={run.events} /> : null}</div>
 

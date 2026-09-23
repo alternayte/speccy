@@ -26,6 +26,7 @@ type Querier interface {
 	// For insights: failing checks in the latest completed run of each bundle.
 	CountFindingsByCheck(ctx context.Context, arg CountFindingsByCheckParams) ([]CountFindingsByCheckRow, error)
 	CountOpenBlockingThreads(ctx context.Context, bundleID uuid.NullUUID) (int64, error)
+	DeleteAdoptedLink(ctx context.Context, arg DeleteAdoptedLinkParams) error
 	DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypeParams) error
 	DeleteAnswersOfBundle(ctx context.Context, bundleID uuid.UUID) error
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
@@ -147,6 +148,7 @@ type Querier interface {
 	LatestRun(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)
+	ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]AdoptedLink, error)
 	ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error)
 	// For insights: every finished run of the workspace, oldest first.
 	ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]ListAllRunsRow, error)
@@ -204,6 +206,7 @@ type Querier interface {
 	PutCache(ctx context.Context, arg PutCacheParams) error
 	RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error)
 	RunningRunFor(ctx context.Context, bundleID uuid.UUID) (ReviewRun, error)
+	SetAdoptedLink(ctx context.Context, arg SetAdoptedLinkParams) error
 	SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) error
 	SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error
 	SetBundleArchived(ctx context.Context, arg SetBundleArchivedParams) error

@@ -28,6 +28,7 @@ func TestScan(t *testing.T) {
 	write(t, dir, "docs/prd/.hidden", "x")
 	write(t, dir, "docs/dup/a.md", "---\ntype: prd\n---\n")
 	write(t, dir, "docs/dup/b.md", "---\ntype: sdd\n---\n")
+	write(t, dir, "docs/dup/notes.md", "# Notes, not a spec\n")
 	write(t, dir, "README.md", "# Not a bundle\n")
 	write(t, dir, "node_modules/x/SPEC.md", "---\ntype: prd\n---\n")
 	write(t, dir, ".speccy/state/SPEC.md", "---\ntype: prd\n---\n")
@@ -48,12 +49,17 @@ func TestScan(t *testing.T) {
 		}
 		got = append(got, b.Slug+"="+strings.Join(paths, ","))
 	}
-	want := []string{"docs/prd=PRD.md,assets/a.png", "docs/prd/child=SDD.md"}
+	// A folder with two spec docs gives one single-file bundle per doc, and its untyped
+	// markdown is a skipped doc, not a bundle.
+	want := []string{"docs/dup/a=a.md", "docs/dup/b=b.md", "docs/prd=PRD.md,assets/a.png", "docs/prd/child=SDD.md"}
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("bundles = %v, want %v", got, want)
 	}
-	if len(s.Problems) != 1 || s.Problems[0].Path != "docs/dup" || !strings.Contains(s.Problems[0].Message, "a.md, b.md") {
-		t.Errorf("problems = %+v, want one for docs/dup naming a.md and b.md", s.Problems)
+	if len(s.Problems) != 0 {
+		t.Errorf("problems = %+v, want none", s.Problems)
+	}
+	if !strings.Contains(strings.Join(s.Skipped, " "), "docs/dup/notes.md") {
+		t.Errorf("skipped = %v, want docs/dup/notes.md", s.Skipped)
 	}
 }
 

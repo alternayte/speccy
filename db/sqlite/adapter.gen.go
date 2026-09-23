@@ -64,6 +64,10 @@ func (a Adapter) CountOpenBlockingThreads(ctx context.Context, bundleID uuid.Nul
 	return a.q.CountOpenBlockingThreads(ctx, bundleID)
 }
 
+func (a Adapter) DeleteAdoptedLink(ctx context.Context, arg pgdb.DeleteAdoptedLinkParams) error {
+	return a.q.DeleteAdoptedLink(ctx, DeleteAdoptedLinkParams(arg))
+}
+
 func (a Adapter) DeleteAdoptedType(ctx context.Context, arg pgdb.DeleteAdoptedTypeParams) error {
 	return a.q.DeleteAdoptedType(ctx, DeleteAdoptedTypeParams(arg))
 }
@@ -561,6 +565,18 @@ func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) 
 
 func (a Adapter) LatestVerificationSHA(ctx context.Context, arg pgdb.LatestVerificationSHAParams) (string, error) {
 	return a.q.LatestVerificationSHA(ctx, LatestVerificationSHAParams(arg))
+}
+
+func (a Adapter) ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]pgdb.AdoptedLink, error) {
+	rows, err := a.q.ListAdoptedLinks(ctx, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.AdoptedLink, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.AdoptedLink(r)
+	}
+	return out, nil
 }
 
 func (a Adapter) ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]pgdb.AdoptedType, error) {
@@ -1124,6 +1140,10 @@ func (a Adapter) RevokeInvite(ctx context.Context, arg pgdb.RevokeInviteParams) 
 func (a Adapter) RunningRunFor(ctx context.Context, bundleID uuid.UUID) (pgdb.ReviewRun, error) {
 	r, err := a.q.RunningRunFor(ctx, bundleID)
 	return pgdb.ReviewRun(r), err
+}
+
+func (a Adapter) SetAdoptedLink(ctx context.Context, arg pgdb.SetAdoptedLinkParams) error {
+	return a.q.SetAdoptedLink(ctx, SetAdoptedLinkParams(arg))
 }
 
 func (a Adapter) SetAdoptedType(ctx context.Context, arg pgdb.SetAdoptedTypeParams) error {

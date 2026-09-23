@@ -250,7 +250,7 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 	switch op.id {
 	case "putFileContent":
 		contentType = "application/octet-stream"
-	case "importBundle":
+	case "importBundle", "previewImport":
 		// A valid form, so the body decodes and the role check decides.
 		var buf bytes.Buffer
 		mw := multipart.NewWriter(&buf)

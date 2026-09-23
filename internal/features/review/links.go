@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"path"
 	"slices"
 	"strings"
@@ -22,7 +23,15 @@ import (
 const (
 	originFrontmatter = "frontmatter"
 	originRule        = "rule"
+	originAdopted     = "adopted"
 )
+
+// adoptedLink is a link a person confirmed in Speccy for a doc in a repo source. target is the
+// root-relative path of the doc it links to.
+type adoptedLink struct {
+	kind   string
+	target string
+}
 
 // link is one link of a bundle's version (REQ-050, REQ-132). target is nil for an external
 // target and for a bundle target that no bundle matches.
@@ -47,10 +56,33 @@ type linked struct {
 	doc     section.Doc
 }
 
-// bundleRef is a local bundle's place on disk (the bundle feature writes it).
+// bundleRef is a bundle's place on disk or in a repo (the bundle feature writes it). Source is
+// set for a bundle of a GitHub source.
 type bundleRef struct {
-	Dir  string `json:"dir"`
-	File string `json:"file,omitempty"`
+	Source uuid.UUID `json:"source_id"`
+	Dir    string    `json:"dir"`
+	File   string    `json:"file,omitempty"`
+}
+
+// adopted returns the adopted links of b's main doc, when b belongs to a GitHub source.
+func (s *Service) adopted(ctx context.Context, b pgdb.Bundle) ([]adoptedLink, error) {
+	// A bundle that is not in a GitHub source, or whose ref does not parse, has no source id.
+	var r bundleRef
+	_ = json.Unmarshal(b.SourceRef, &r)
+	if r.Source == uuid.Nil {
+		return nil, nil
+	}
+	rows, err := s.DB.Queries().ListAdoptedLinks(ctx, r.Source)
+	if err != nil {
+		return nil, err
+	}
+	var out []adoptedLink
+	for _, row := range rows {
+		if row.Path == mainDocPath(b) {
+			out = append(out, adoptedLink{kind: row.Kind, target: row.Target})
+		}
+	}
+	return out, nil
 }
 
 // bundlePath is what link rules and relative targets match: a single-file bundle's file, or
@@ -97,7 +129,11 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.Bundle, main []byte) 
 	if err != nil {
 		return nil, err
 	}
-	return resolveLinksIn(all, b, main, s.linkRules(), s.linkPatterns()), nil
+	adopted, err := s.adopted(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	return resolveLinksIn(all, b, main, adopted, s.linkRules(), s.linkPatterns()), nil
 }
 
 // linkRules returns the valid link rules of .speccy.yaml. The scan reports a bad rule.
@@ -122,10 +158,11 @@ func (s *Service) linkPatterns() map[string]string {
 	return s.Repo().LinkPatterns
 }
 
-// resolveLinksIn resolves b's links against all bundles: frontmatter links first, then link
-// rules. A rule creates a link only when its target bundle exists (REQ-132). A link to the
-// same bundle with the same kind appears once.
-func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []source.LinkRule, patterns map[string]string) []link {
+// resolveLinksIn resolves b's links against all bundles: frontmatter links first, then the
+// adopted links, then link rules. An adopted link stands only while the doc names no link of
+// its kind itself. A rule creates a link only when its target bundle exists (REQ-132). A link
+// to the same bundle with the same kind appears once.
+func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, adopted []adoptedLink, rules []source.LinkRule, patterns map[string]string) []link {
 	var out []link
 	seen := map[string]bool{}
 	add := func(l link) {
@@ -165,6 +202,27 @@ func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []sourc
 		}
 		add(l)
 	}
+	named := map[string]bool{}
+	for _, fl := range fm.Links {
+		named[fl.Kind] = true
+	}
+	var src bundleRef
+	_ = json.Unmarshal(b.SourceRef, &src)
+	for _, a := range adopted {
+		if named[a.kind] {
+			continue // the repo names its own link of this kind, so it replaces the adopted one
+		}
+		l := link{kind: a.kind, targetKind: "bundle", ref: a.target, origin: originAdopted}
+		for i := range all {
+			var r bundleRef
+			_ = json.Unmarshal(all[i].SourceRef, &r)
+			if r.Source == src.Source && mainDocPath(all[i]) == a.target && !all[i].ArchivedAt.Valid {
+				l.target = &all[i]
+				break
+			}
+		}
+		add(l)
+	}
 	from := bundlePath(b)
 	for _, rule := range rules {
 		to, ok := rule.Target(from)
@@ -184,6 +242,10 @@ func resolveLinksIn(all []pgdb.Bundle, b pgdb.Bundle, main []byte, rules []sourc
 // findTarget resolves a frontmatter target (SDD §10.2): a bundle slug, or in local mode a
 // path relative to the main doc's folder, to a bundle folder or a main doc file.
 func findTarget(all []pgdb.Bundle, from pgdb.Bundle, target string) *pgdb.Bundle {
+	// A target copied from a markdown link is often percent-encoded, as lint and render read it.
+	if decoded, err := url.PathUnescape(target); err == nil {
+		target = decoded
+	}
 	live := func(yield func(*pgdb.Bundle) bool) {
 		for i := range all {
 			if !all[i].ArchivedAt.Valid && !yield(&all[i]) {

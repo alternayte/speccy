@@ -56,3 +56,14 @@ ON CONFLICT DO NOTHING;
 DELETE FROM dismissed_doc WHERE workspace_id = sqlc.arg(workspace_id)
   AND coalesce(source_id, '00000000-0000-0000-0000-000000000000') = coalesce(sqlc.narg(source_id), '00000000-0000-0000-0000-000000000000')
   AND path = sqlc.arg(path);
+
+-- name: ListAdoptedLinks :many
+SELECT * FROM adopted_link WHERE source_id = sqlc.arg(source_id) ORDER BY path, kind;
+
+-- name: SetAdoptedLink :exec
+INSERT INTO adopted_link (source_id, path, kind, target)
+VALUES (sqlc.arg(source_id), sqlc.arg(path), sqlc.arg(kind), sqlc.arg(target))
+ON CONFLICT (source_id, path, kind) DO UPDATE SET target = excluded.target;
+
+-- name: DeleteAdoptedLink :exec
+DELETE FROM adopted_link WHERE source_id = sqlc.arg(source_id) AND path = sqlc.arg(path) AND kind = sqlc.arg(kind);

@@ -526,7 +526,7 @@ export type BundleRef = {
 
 export type BundleLink = {
     kind: 'implements' | 'refines' | 'references' | 'supersedes' | 'implemented-by';
-    origin: 'frontmatter' | 'rule';
+    origin: 'frontmatter' | 'rule' | 'adopted';
     target_kind: 'bundle' | 'external';
     /**
      * The target as written. For an incoming link, the source bundle's slug.
@@ -961,6 +961,44 @@ export type DismissedDoc = {
      * The source the file belongs to. Absent for a file of the served folder.
      */
     source_id?: string;
+};
+
+/**
+ * A link a person confirmed. target is the root-relative path of the doc it links to.
+ */
+export type ConfirmedLink = {
+    kind: string;
+    target: string;
+};
+
+export type DocChoice = {
+    path: string;
+    /**
+     * The doc type. Empty means not a spec.
+     */
+    profile: string;
+};
+
+export type LinkSuggestRequest = {
+    docs: Array<DocChoice>;
+    source_id?: string;
+    local?: boolean;
+};
+
+export type SuggestedLink = {
+    /**
+     * The path of the doc that links.
+     */
+    from: string;
+    /**
+     * The path of the doc it links to.
+     */
+    to: string;
+    kind: string;
+};
+
+export type LinkSuggestions = {
+    items: Array<SuggestedLink>;
 };
 
 export type SourceSkippedDoc = {
@@ -1562,6 +1600,36 @@ export type ImportRequest = {
      * The doc type for a file that names none. Speccy writes the type line into the frontmatter of the imported file.
      */
     profile?: string;
+    /**
+     * The files of a dropped folder. Each part's file name is its path in the folder.
+     */
+    files?: Array<Blob | File>;
+    /**
+     * JSON: an array of {path, profile}. The profile of each markdown file; an empty profile is not a spec.
+     */
+    docs?: string;
+    /**
+     * JSON: an array of {from, to, kind}, the links a person confirmed. Speccy writes each into the from doc.
+     */
+    links?: string;
+};
+
+export type ImportPreview = {
+    docs: Array<ImportDoc>;
+    links: Array<SuggestedLink>;
+};
+
+export type ImportDoc = {
+    path: string;
+    title: string;
+    /**
+     * The type the file names in its frontmatter.
+     */
+    type?: string;
+    /**
+     * The profile whose headings fit the file best. Absent when none fits.
+     */
+    guess?: string;
 };
 
 export type Diff = {
@@ -2130,6 +2198,35 @@ export type AdoptFrontmatterResponses = {
 
 export type AdoptFrontmatterResponse = AdoptFrontmatterResponses[keyof AdoptFrontmatterResponses];
 
+export type SetBundleProfileData = {
+    body: {
+        profile: string;
+    };
+    path: {
+        bundleId: string;
+    };
+    query?: never;
+    url: '/bundles/{bundleId}/profile';
+};
+
+export type SetBundleProfileErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetBundleProfileError = SetBundleProfileErrors[keyof SetBundleProfileErrors];
+
+export type SetBundleProfileResponses = {
+    /**
+     * The bundle, with its new profile.
+     */
+    200: Bundle;
+};
+
+export type SetBundleProfileResponse = SetBundleProfileResponses[keyof SetBundleProfileResponses];
+
 export type SetVisibilityData = {
     body: {
         visibility: Visibility;
@@ -2452,12 +2549,37 @@ export type ImportBundleError = ImportBundleErrors[keyof ImportBundleErrors];
 
 export type ImportBundleResponses = {
     /**
-     * The new bundle.
+     * The new bundles. A folder with two or more spec docs gives one bundle per doc.
      */
-    201: Bundle;
+    201: BundleList;
 };
 
 export type ImportBundleResponse = ImportBundleResponses[keyof ImportBundleResponses];
+
+export type PreviewImportData = {
+    body: ImportRequest;
+    path?: never;
+    query?: never;
+    url: '/bundles/import/preview';
+};
+
+export type PreviewImportErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PreviewImportError = PreviewImportErrors[keyof PreviewImportErrors];
+
+export type PreviewImportResponses = {
+    /**
+     * The docs of the import.
+     */
+    200: ImportPreview;
+};
+
+export type PreviewImportResponse = PreviewImportResponses[keyof PreviewImportResponses];
 
 export type DeleteBundleData = {
     body?: never;
@@ -3445,6 +3567,7 @@ export type AdoptSkippedData = {
     body: {
         path: string;
         profile: string;
+        link?: ConfirmedLink;
     };
     path?: never;
     query?: never;
@@ -3468,6 +3591,31 @@ export type AdoptSkippedResponses = {
 };
 
 export type AdoptSkippedResponse = AdoptSkippedResponses[keyof AdoptSkippedResponses];
+
+export type SuggestLinksData = {
+    body: LinkSuggestRequest;
+    path?: never;
+    query?: never;
+    url: '/links/suggest';
+};
+
+export type SuggestLinksErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SuggestLinksError = SuggestLinksErrors[keyof SuggestLinksErrors];
+
+export type SuggestLinksResponses = {
+    /**
+     * The suggested links.
+     */
+    200: LinkSuggestions;
+};
+
+export type SuggestLinksResponse = SuggestLinksResponses[keyof SuggestLinksResponses];
 
 export type GuessProfileData = {
     body: {
@@ -4829,6 +4977,7 @@ export type AdoptSkippedDocsData = {
         items: Array<{
             path: string;
             profile: string;
+            link?: ConfirmedLink;
         }>;
     };
     path: {

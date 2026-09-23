@@ -68,6 +68,8 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Unchecked: an external link state meaning no credential and no MCP connection can read the target. Avoid: unknown, unreachable, skipped.
 - Skipped doc: a markdown file in a source that the scan passed over, because it names no type and no mapping covers it. Avoid: unmapped file, orphan doc, candidate.
 - Adopted type: the doc type a person accepted in Speccy for one path in a source. The repo replaces it when it names its own. Avoid: override, profile override, guess.
+- Adopted link: a link a person confirmed in Speccy for a doc in a repo source. Speccy stores it and writes nothing into the repo. A link the repo names replaces it. Avoid: inferred link, implicit link, stored link.
+- Spec doc: a markdown file that names a type, that a map glob covers, or that has an adopted type. Each spec doc is its own bundle. Avoid: typed doc, reviewed doc.
 - Dismissed doc: a markdown file a person marked as not a spec, so Speccy stops offering to adopt it. Avoid: ignored file, hidden file, excluded.
 - Verification run: one execution of the post-build gate on one bundle version against one code repo at one SHA. Avoid: conformance run, build check, second gate.
 - Code target: a repo path plus a verbatim anchor quote that locates where one trace ID is implemented. A test target is the same, anchored on the test declaration line. Avoid: code link, symbol, reference, coverage entry.

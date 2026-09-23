@@ -14,6 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
+const deleteAdoptedLink = `-- name: DeleteAdoptedLink :exec
+DELETE FROM adopted_link WHERE source_id = $1 AND path = $2 AND kind = $3
+`
+
+type DeleteAdoptedLinkParams struct {
+	SourceID uuid.UUID
+	Path     string
+	Kind     string
+}
+
+func (q *Queries) DeleteAdoptedLink(ctx context.Context, arg DeleteAdoptedLinkParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAdoptedLink, arg.SourceID, arg.Path, arg.Kind)
+	return err
+}
+
 const deleteAdoptedType = `-- name: DeleteAdoptedType :exec
 DELETE FROM adopted_type WHERE source_id = $1 AND path = $2
 `
@@ -177,6 +192,38 @@ func (q *Queries) InsertGithubSource(ctx context.Context, arg InsertGithubSource
 	return err
 }
 
+const listAdoptedLinks = `-- name: ListAdoptedLinks :many
+SELECT source_id, path, kind, target FROM adopted_link WHERE source_id = $1 ORDER BY path, kind
+`
+
+func (q *Queries) ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]AdoptedLink, error) {
+	rows, err := q.db.QueryContext(ctx, listAdoptedLinks, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AdoptedLink
+	for rows.Next() {
+		var i AdoptedLink
+		if err := rows.Scan(
+			&i.SourceID,
+			&i.Path,
+			&i.Kind,
+			&i.Target,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAdoptedTypes = `-- name: ListAdoptedTypes :many
 SELECT source_id, path, profile FROM adopted_type WHERE source_id = $1 ORDER BY path
 `
@@ -277,6 +324,29 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const setAdoptedLink = `-- name: SetAdoptedLink :exec
+INSERT INTO adopted_link (source_id, path, kind, target)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (source_id, path, kind) DO UPDATE SET target = excluded.target
+`
+
+type SetAdoptedLinkParams struct {
+	SourceID uuid.UUID
+	Path     string
+	Kind     string
+	Target   string
+}
+
+func (q *Queries) SetAdoptedLink(ctx context.Context, arg SetAdoptedLinkParams) error {
+	_, err := q.db.ExecContext(ctx, setAdoptedLink,
+		arg.SourceID,
+		arg.Path,
+		arg.Kind,
+		arg.Target,
+	)
+	return err
 }
 
 const setAdoptedType = `-- name: SetAdoptedType :exec

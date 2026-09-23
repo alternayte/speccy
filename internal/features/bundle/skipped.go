@@ -2,7 +2,9 @@ package bundle
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -71,16 +73,31 @@ func (a *API) AdoptSkipped(ctx context.Context, req api.AdoptSkippedRequestObjec
 		WorkspaceID: a.Service.Workspace, Path: want}); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(file, source.AddTypeLine(content, req.Body.Profile), 0o644); err != nil {
+	next := source.AddTypeLine(content, req.Body.Profile)
+	// A confirmed link goes into the doc: a folder in local mode is the person's own. The
+	// target is written relative to the doc's folder, as a frontmatter target reads.
+	if l := req.Body.Link; l != nil {
+		if !checkLinkKind(l.Kind) {
+			return nil, kernel.Invalid("bad_link", "There is no link kind %q.", l.Kind)
+		}
+		rel, err := filepath.Rel(filepath.Dir(filepath.FromSlash(want)), filepath.FromSlash(l.Target))
+		if err != nil {
+			return nil, kernel.Invalid("bad_link", "%s is not a path Speccy can link to.", l.Target)
+		}
+		if next, err = source.AddLink(next, l.Kind, filepath.ToSlash(rel)); err != nil {
+			return nil, kernel.Invalid("bad_frontmatter", "%s: %s.", want, err.Error())
+		}
+	}
+	if err := os.WriteFile(file, next, 0o644); err != nil {
 		return nil, err
 	}
 	if err := a.Service.Sync(ctx); err != nil {
 		return nil, err
 	}
-	// A folder with one typed markdown file is a bundle, and its slug is the folder (REQ-001).
+	// The doc is a folder bundle when it is the one spec doc in its folder, and a single-file
+	// bundle when the folder holds another: find the bundle whose main doc it is.
 	q := a.Service.DB.Queries()
-	slug := filepath.ToSlash(filepath.Dir(want))
-	b, err := q.GetBundleBySlug(ctx, pgdb.GetBundleBySlugParams{WorkspaceID: a.Service.Workspace, Slug: slug})
+	b, err := a.bundleOfDoc(ctx, want)
 	if err != nil {
 		return nil, err
 	}
@@ -102,4 +119,21 @@ func (a *API) GuessProfile(ctx context.Context, req api.GuessProfileRequestObjec
 		out.Profile = &key
 	}
 	return out, nil
+}
+
+// bundleOfDoc returns the local bundle whose main doc is the root-relative path doc.
+func (a *API) bundleOfDoc(ctx context.Context, doc string) (pgdb.Bundle, error) {
+	s := a.Service
+	bundles, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindLocal})
+	if err != nil {
+		return pgdb.Bundle{}, err
+	}
+	for _, b := range bundles {
+		var ref localRef
+		_ = json.Unmarshal(b.SourceRef, &ref)
+		if path.Join(ref.Dir, b.MainDoc) == doc {
+			return b, nil
+		}
+	}
+	return pgdb.Bundle{}, kernel.NotFound("bundle_not_found", "No bundle holds %s after the scan.", doc)
 }
