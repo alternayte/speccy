@@ -5,9 +5,11 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
+	"path/filepath"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
 	"github.com/pressly/goose/v3"
@@ -30,6 +32,8 @@ const (
 type DB struct {
 	SQL    *sql.DB
 	Engine Engine
+	// path is the SQLite file, so an error can name the state folder.
+	path string
 }
 
 // Tx is a transaction and the engine it runs on.
@@ -57,7 +61,7 @@ func OpenSQLite(ctx context.Context, path string) (*DB, error) {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
-	return &DB{SQL: sqldb, Engine: SQLite}, nil
+	return &DB{SQL: sqldb, Engine: SQLite, path: path}, nil
 }
 
 // OpenPostgres opens the Postgres database at dsn.
@@ -115,11 +119,23 @@ func (d *DB) Migrations() (*goose.Provider, error) {
 	return goose.NewProvider(dialect, d.SQL, sub)
 }
 
-// Migrate applies every pending migration.
+// Baseline is the one migration a database starts from: the schema of Speccy 0.15.0. Speccy
+// keeps no data from an older version.
+const Baseline = 31
+
+// Migrate applies every pending migration. A database from before 0.15.0 stops here with a
+// message that says what to do, not with a failed migration.
 func (d *DB) Migrate(ctx context.Context) error {
 	p, err := d.Migrations()
 	if err != nil {
 		return fmt.Errorf("migrate %s: %w", d.Engine, err)
+	}
+	v, err := p.GetDBVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("migrate %s: %w", d.Engine, err)
+	}
+	if v > 0 && v < Baseline {
+		return d.tooOld()
 	}
 	if _, err := p.Up(ctx); err != nil {
 		return fmt.Errorf("migrate %s: %w", d.Engine, err)
@@ -157,4 +173,15 @@ func (d *DB) MigrateSet(ctx context.Context, fsys fs.FS, table string) error {
 		return fmt.Errorf("migrate %s: %w", table, err)
 	}
 	return nil
+}
+
+// tooOld says that the database is from a Speccy before 0.15.0, and what to do.
+func (d *DB) tooOld() error {
+	if d.Engine == SQLite {
+		return fmt.Errorf("the state in %s is from a Speccy before 0.15.0, and this Speccy cannot read it. "+
+			"Move that folder aside, then start Speccy again: Speccy makes a new state and scans the docs again. "+
+			"The reviews and threads of the old state stay in the folder you moved", filepath.Dir(d.path))
+	}
+	return errors.New("the database is from a Speccy before 0.15.0, and this Speccy cannot read it. " +
+		"Point SPECCY_DATABASE_URL at a new, empty database")
 }
