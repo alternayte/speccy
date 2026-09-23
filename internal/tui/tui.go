@@ -57,10 +57,10 @@ type model struct {
 	width  int
 	height int
 
-	bundles []api.Bundle
+	bundles []api.SpecDoc
 	cursor  int
 
-	bundle   *api.Bundle
+	bundle   *api.SpecDoc
 	findings []api.Finding
 	fcursor  int
 
@@ -76,9 +76,9 @@ type model struct {
 
 // Messages from commands.
 type (
-	bundlesMsg  []api.Bundle
+	bundlesMsg  []api.SpecDoc
 	findingsMsg struct {
-		bundle   api.Bundle
+		bundle   api.SpecDoc
 		findings []api.Finding
 	}
 	tourMsg     []api.TourPoint
@@ -106,7 +106,7 @@ func problem(p *api.Problem, status int) error {
 func (m *model) loadBundles() tea.Cmd {
 	return func() tea.Msg {
 		limit := api.Limit(100)
-		var out []api.Bundle
+		var out []api.SpecDoc
 		var cursor *api.Cursor
 		for {
 			res, err := m.o.Client.ListBundlesWithResponse(m.ctx, &api.ListBundlesParams{Limit: &limit, Cursor: cursor})
@@ -116,7 +116,9 @@ func (m *model) loadBundles() tea.Cmd {
 			if res.JSON200 == nil {
 				return errMsg{problem(res.ApplicationproblemJSONDefault, res.StatusCode())}
 			}
-			out = append(out, res.JSON200.Items...)
+			for _, b := range res.JSON200.Items {
+				out = append(out, b.Docs...)
+			}
 			if res.JSON200.NextCursor == nil || *res.JSON200.NextCursor == "" {
 				return bundlesMsg(out)
 			}
@@ -128,7 +130,7 @@ func (m *model) loadBundles() tea.Cmd {
 
 func (m *model) loadBundle(id uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		res, err := m.o.Client.GetBundleWithResponse(m.ctx, id)
+		res, err := m.o.Client.GetSpecDocWithResponse(m.ctx, id)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -339,7 +341,7 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				f := m.findings[m.fcursor]
 				return m, m.openEditor(m.bundle.Slug, f.Anchor.File, m.line(f.Anchor))
 			}
-			return m, m.openEditor(m.bundle.Slug, m.bundle.MainDoc, 0)
+			return m, m.openEditor(m.bundle.Slug, m.bundle.Path, 0)
 		}
 	case screenTour:
 		switch k.String() {
@@ -378,14 +380,14 @@ func verdictStyled(v *api.BundleVerdict) string {
 	if v == nil {
 		return faint.Render("Not reviewed")
 	}
-	label := map[api.VerdictResult]string{api.BuildReady: "Build Ready", api.NotBuildReady: "Not Build Ready", api.Stale: "Stale"}[v.Result]
+	label := map[api.VerdictResult]string{api.VerdictResultBuildReady: "Build Ready", api.VerdictResultNotBuildReady: "Not Build Ready", api.VerdictResultStale: "Stale"}[v.Result]
 	if v.WaiverCount > 0 {
 		label += fmt.Sprintf(" (%d waiver%s)", v.WaiverCount, map[bool]string{true: "", false: "s"}[v.WaiverCount == 1])
 	}
 	switch v.Result {
-	case api.BuildReady:
+	case api.VerdictResultBuildReady:
 		return ok.Render(label)
-	case api.NotBuildReady:
+	case api.VerdictResultNotBuildReady:
 		return bad.Render(label)
 	}
 	return warn.Render(label)
@@ -459,7 +461,7 @@ func (m *model) doNext() (tea.Model, tea.Cmd) {
 			f := m.findings[m.fcursor]
 			return m, m.openEditor(b.Slug, f.Anchor.File, m.line(f.Anchor))
 		}
-		return m, m.openEditor(b.Slug, b.MainDoc, 0)
+		return m, m.openEditor(b.Slug, b.Path, 0)
 	default:
 		m.status = n.Sentence + ": do this in the app."
 		return m, nil

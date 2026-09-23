@@ -67,7 +67,7 @@ func (a *API) buildReady(ctx context.Context, b pgdb.SpecDoc) (bool, error) {
 
 // GetBundleStatus returns the status, and what the caller can do.
 func (a *API) GetBundleStatus(ctx context.Context, req api.GetBundleStatusRequestObject) (api.GetBundleStatusResponseObject, error) {
-	out, err := a.status(ctx, req.BundleId)
+	out, err := a.status(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (a *API) GetBundleStatus(ctx context.Context, req api.GetBundleStatusReques
 
 // RequestReview moves a draft to in review and assigns reviewers (REQ-090).
 func (a *API) RequestReview(ctx context.Context, req api.RequestReviewRequestObject) (api.RequestReviewResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +107,7 @@ func (a *API) RequestReview(ctx context.Context, req api.RequestReviewRequestObj
 
 // ApproveBundle approves the current version (REQ-076).
 func (a *API) ApproveBundle(ctx context.Context, req api.ApproveBundleRequestObject) (api.ApproveBundleResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}

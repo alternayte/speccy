@@ -32,7 +32,7 @@ type API struct {
 // named after the bundle, so the archive unpacks to a bundle folder.
 func (a *API) ExportBundle(ctx context.Context, req api.ExportBundleRequestObject) (api.ExportBundleResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}

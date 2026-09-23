@@ -229,7 +229,7 @@ func runReview(args []string, stdout, stderr io.Writer) int {
 	}
 	if enforcement == "blocking" {
 		for _, r := range results {
-			if r.Verdict != string(api.BuildReady) {
+			if r.Verdict != string(api.VerdictResultBuildReady) {
 				return exitNotReady
 			}
 		}
@@ -413,7 +413,7 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 		fmt.Fprintf(stderr, "speccy review: %v.\n", problemText(err))
 		return nil, exitRun
 	}
-	bySlug := map[string]api.Bundle{}
+	bySlug := map[string]api.SpecDoc{}
 	for _, b := range bundles {
 		bySlug[b.Slug] = b
 	}
@@ -436,7 +436,7 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 			out = append(out, reviewed{Path: lb.Slug, Error: "Speccy did not load this bundle. Run speccy in the folder to see why."})
 			continue
 		}
-		r := reviewed{Path: b.Slug, Title: b.Title, Profile: b.ProfileKey, MainDoc: path.Join(lb.Dir, b.MainDoc)}
+		r := reviewed{Path: b.Slug, Title: b.Title, Profile: b.ProfileKey, MainDoc: path.Join(lb.Dir, b.Path)}
 		if b.RunError != nil && b.Verdict == nil {
 			r.Error = *b.RunError
 			out = append(out, r)
@@ -620,8 +620,8 @@ func reviewOne(ctx context.Context, c *api.ClientWithResponses, fl reviewFlags, 
 }
 
 // listAll pages through the bundles.
-func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.Bundle, error) {
-	var out []api.Bundle
+func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.SpecDoc, error) {
+	var out []api.SpecDoc
 	var cursor *api.Cursor
 	limit := api.Limit(100)
 	for {
@@ -632,7 +632,9 @@ func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.Bundle, err
 		if res.JSON200 == nil {
 			return nil, errors.New(problemText(res.ApplicationproblemJSONDefault))
 		}
-		out = append(out, res.JSON200.Items...)
+		for _, b := range res.JSON200.Items {
+			out = append(out, b.Docs...)
+		}
 		if res.JSON200.NextCursor == nil || *res.JSON200.NextCursor == "" {
 			return out, nil
 		}

@@ -30,7 +30,7 @@ func (a *API) bundle(ctx context.Context, id [16]byte) (pgdb.SpecDoc, error) {
 
 // StartRun queues a full review.
 func (a *API) StartRun(ctx context.Context, req api.StartRunRequestObject) (api.StartRunResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (a *API) StartRun(ctx context.Context, req api.StartRunRequestObject) (api.
 
 // EstimateRun estimates a full review's tokens and cost (REQ-104).
 func (a *API) EstimateRun(ctx context.Context, req api.EstimateRunRequestObject) (api.EstimateRunResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (a *API) EstimateRun(ctx context.Context, req api.EstimateRunRequestObject)
 
 // ListAssumptions lists the current main doc's assumption sentences (REQ-033).
 func (a *API) ListAssumptions(ctx context.Context, req api.ListAssumptionsRequestObject) (api.ListAssumptionsResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}

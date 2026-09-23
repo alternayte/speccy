@@ -359,7 +359,7 @@ type ClientInterface interface {
 	// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
 	DeleteBundle(ctx context.Context, bundleId BundleId, params *DeleteBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBundle Get one bundle.
+	// GetBundle Get one bundle with its spec docs.
 	//
 	// Corresponds with GET /bundles/{bundleId} (the `GetBundle` operationId).
 	GetBundle(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -369,170 +369,10 @@ type ClientInterface interface {
 	// Corresponds with GET /bundles/{bundleId}/access (the `GetBundleAccess` operationId).
 	GetBundleAccess(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
-	//
-	// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
-	AdoptFrontmatter(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
-	//
-	// Corresponds with POST /bundles/{bundleId}/approve (the `ApproveBundle` operationId).
-	ApproveBundle(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
-	//
-	// Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
-	ListAssumptions(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
 	//
 	// Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
 	DeleteBundlePlan(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
-	//
-	// Corresponds with GET /bundles/{bundleId}/diff (the `DiffVersions` operationId).
-	DiffVersions(ctx context.Context, bundleId BundleId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
-	//
-	// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
-	SummarizeDiff(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
-	//
-	// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
-	DiscardDraft(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
-	//
-	// Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
-	ExportBundle(ctx context.Context, bundleId BundleId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteFile Delete a file. Creates a version (REQ-005).
-	//
-	// Corresponds with DELETE /bundles/{bundleId}/files (the `DeleteFile` operationId).
-	DeleteFile(ctx context.Context, bundleId BundleId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListFiles List the files of a bundle version. The default is the current version.
-	//
-	// Corresponds with GET /bundles/{bundleId}/files (the `ListFiles` operationId).
-	ListFiles(ctx context.Context, bundleId BundleId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
-	//
-	// Corresponds with GET /bundles/{bundleId}/files/content (the `GetFileContent` operationId).
-	GetFileContent(ctx context.Context, bundleId BundleId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PutFileContentWithBody Create or replace a file. Creates a version when the content changed (REQ-005).
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with PUT /bundles/{bundleId}/files/content (the `PutFileContent` operationId).
-	PutFileContentWithBody(ctx context.Context, bundleId BundleId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RenameFileWithBody Rename or move a file inside the bundle. Creates a version (REQ-005).
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-	RenameFileWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-	RenameFile(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
-	//
-	// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
-	ListHandoffs(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// TakeHandoffWithBody Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-	TakeHandoffWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-	TakeHandoff(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SetBundleProfileWithBody Change the profile of the bundle's main doc.
-	//
-	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-	SetBundleProfileWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// SetBundleProfile Change the profile of the bundle's main doc.
-	//
-	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-	SetBundleProfile(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-	PublishBundleWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-	PublishBundle(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-	RequestReviewWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-	RequestReview(ctx context.Context, bundleId BundleId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListRuns List the review runs of a bundle, newest first.
-	//
-	// Corresponds with GET /bundles/{bundleId}/runs (the `ListRuns` operationId).
-	ListRuns(ctx context.Context, bundleId BundleId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// StartRunWithBody Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-	StartRunWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-	StartRun(ctx context.Context, bundleId BundleId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
-	//
-	// Corresponds with GET /bundles/{bundleId}/runs/estimate (the `EstimateRun` operationId).
-	EstimateRun(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RevokeShareLink Revoke the share link (REQ-085).
 	//
@@ -553,111 +393,6 @@ type ClientInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/share (the `CreateShareLink` operationId).
 	CreateShareLink(ctx context.Context, bundleId BundleId, body CreateShareLinkJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBundleStatus The review status of a bundle (§9.5).
-	//
-	// Corresponds with GET /bundles/{bundleId}/status (the `GetBundleStatus` operationId).
-	GetBundleStatus(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListBundleThreads List the threads of a bundle, open first (REQ-087).
-	//
-	// Corresponds with GET /bundles/{bundleId}/threads (the `ListBundleThreads` operationId).
-	ListBundleThreads(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// OpenBundleThreadWithBody Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-	OpenBundleThreadWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-	OpenBundleThread(ctx context.Context, bundleId BundleId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	//
-	// Corresponds with GET /bundles/{bundleId}/tour (the `GetTour` operationId).
-	GetTour(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
-	//
-	// Corresponds with GET /bundles/{bundleId}/trace (the `GetTrace` operationId).
-	GetTrace(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// AddTraceIdsWithBody Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-	AddTraceIdsWithBody(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-	AddTraceIds(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestVerificationWaiverWithBody Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-	RequestVerificationWaiverWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-	RequestVerificationWaiver(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListVerifications The verification runs of a bundle, newest first.
-	//
-	// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
-	ListVerifications(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RunVerificationWithBody Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-	RunVerificationWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-	RunVerification(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
-	//
-	// Corresponds with GET /bundles/{bundleId}/verifications/defaults (the `VerificationDefaults` operationId).
-	VerificationDefaults(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ResolveVerificationTargetWithBody Say which repo and commit, or which folder, a pasted target names, before a run starts.
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-	ResolveVerificationTargetWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-	ResolveVerificationTarget(ctx context.Context, bundleId BundleId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListVersions List the versions of a bundle, newest first.
-	//
-	// Corresponds with GET /bundles/{bundleId}/versions (the `ListVersions` operationId).
-	ListVersions(ctx context.Context, bundleId BundleId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// SetVisibilityWithBody Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
 	//
 	// Takes any type of body and a specified content type.
@@ -671,25 +406,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /bundles/{bundleId}/visibility (the `SetVisibility` operationId).
 	SetVisibility(ctx context.Context, bundleId BundleId, body SetVisibilityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
-	//
-	// Corresponds with GET /bundles/{bundleId}/waivers (the `ListWaivers` operationId).
-	ListWaivers(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestWaiverWithBody Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-	//
-	// Takes any type of body and a specified content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-	RequestWaiverWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-	//
-	// Takes a body of the `application/json` content type.
-	//
-	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-	RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
 	//
@@ -714,6 +430,295 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
 	DismissDoc(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetSpecDoc Get one spec doc.
+	//
+	// Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
+	GetSpecDoc(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	//
+	// Corresponds with POST /docs/{docId}/adopt (the `AdoptFrontmatter` operationId).
+	AdoptFrontmatter(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+	//
+	// Corresponds with POST /docs/{docId}/approve (the `ApproveBundle` operationId).
+	ApproveBundle(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+	//
+	// Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
+	ListAssumptions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+	//
+	// Corresponds with GET /docs/{docId}/diff (the `DiffVersions` operationId).
+	DiffVersions(ctx context.Context, docId DocId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+	//
+	// Corresponds with POST /docs/{docId}/diff/summary (the `SummarizeDiff` operationId).
+	SummarizeDiff(ctx context.Context, docId DocId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	//
+	// Corresponds with POST /docs/{docId}/draft/discard (the `DiscardDraft` operationId).
+	DiscardDraft(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
+	//
+	// Corresponds with GET /docs/{docId}/export (the `ExportBundle` operationId).
+	ExportBundle(ctx context.Context, docId DocId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteFile Delete a file. Creates a version (REQ-005).
+	//
+	// Corresponds with DELETE /docs/{docId}/files (the `DeleteFile` operationId).
+	DeleteFile(ctx context.Context, docId DocId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListFiles List the files of a bundle version. The default is the current version.
+	//
+	// Corresponds with GET /docs/{docId}/files (the `ListFiles` operationId).
+	ListFiles(ctx context.Context, docId DocId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
+	//
+	// Corresponds with GET /docs/{docId}/files/content (the `GetFileContent` operationId).
+	GetFileContent(ctx context.Context, docId DocId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PutFileContentWithBody Create or replace a file. Creates a version when the content changed (REQ-005).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /docs/{docId}/files/content (the `PutFileContent` operationId).
+	PutFileContentWithBody(ctx context.Context, docId DocId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RenameFileWithBody Rename or move a file inside the bundle. Creates a version (REQ-005).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+	RenameFileWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+	RenameFile(ctx context.Context, docId DocId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+	//
+	// Corresponds with GET /docs/{docId}/handoff (the `ListHandoffs` operationId).
+	ListHandoffs(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TakeHandoffWithBody Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoffWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoff(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetBundleProfileWithBody Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfileWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetBundleProfile Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfile(ctx context.Context, docId DocId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+	PublishBundleWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+	PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+	RequestReviewWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+	RequestReview(ctx context.Context, docId DocId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListRuns List the review runs of a bundle, newest first.
+	//
+	// Corresponds with GET /docs/{docId}/runs (the `ListRuns` operationId).
+	ListRuns(ctx context.Context, docId DocId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartRunWithBody Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+	StartRunWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+	StartRun(ctx context.Context, docId DocId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
+	//
+	// Corresponds with GET /docs/{docId}/runs/estimate (the `EstimateRun` operationId).
+	EstimateRun(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBundleStatus The review status of a bundle (§9.5).
+	//
+	// Corresponds with GET /docs/{docId}/status (the `GetBundleStatus` operationId).
+	GetBundleStatus(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListBundleThreads List the threads of a bundle, open first (REQ-087).
+	//
+	// Corresponds with GET /docs/{docId}/threads (the `ListBundleThreads` operationId).
+	ListBundleThreads(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// OpenBundleThreadWithBody Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+	OpenBundleThreadWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+	OpenBundleThread(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+	//
+	// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
+	GetTour(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+	//
+	// Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
+	GetTrace(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddTraceIdsWithBody Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+	AddTraceIdsWithBody(ctx context.Context, docId DocId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+	AddTraceIds(ctx context.Context, docId DocId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestVerificationWaiverWithBody Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiverWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiver(ctx context.Context, docId DocId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListVerifications The verification runs of a bundle, newest first.
+	//
+	// Corresponds with GET /docs/{docId}/verifications (the `ListVerifications` operationId).
+	ListVerifications(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RunVerificationWithBody Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+	RunVerificationWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+	RunVerification(ctx context.Context, docId DocId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+	//
+	// Corresponds with GET /docs/{docId}/verifications/defaults (the `VerificationDefaults` operationId).
+	VerificationDefaults(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ResolveVerificationTargetWithBody Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+	ResolveVerificationTargetWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+	ResolveVerificationTarget(ctx context.Context, docId DocId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListVersions List the versions of a bundle, newest first.
+	//
+	// Corresponds with GET /docs/{docId}/versions (the `ListVersions` operationId).
+	ListVersions(ctx context.Context, docId DocId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
+	//
+	// Corresponds with GET /docs/{docId}/waivers (the `ListWaivers` operationId).
+	ListWaivers(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestWaiverWithBody Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+	RequestWaiverWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+	RequestWaiver(ctx context.Context, docId DocId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ResolveGithubUrlWithBody Read a source URL and say what it names, before the source is made (REQ-128).
 	//
@@ -1857,7 +1862,7 @@ func (c *Client) DeleteBundle(ctx context.Context, bundleId BundleId, params *De
 	return c.Client.Do(req)
 }
 
-// GetBundle Get one bundle.
+// GetBundle Get one bundle with its spec docs.
 //
 // Corresponds with GET /bundles/{bundleId} (the `GetBundle` operationId).
 func (c *Client) GetBundle(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1887,431 +1892,11 @@ func (c *Client) GetBundleAccess(ctx context.Context, bundleId BundleId, reqEdit
 	return c.Client.Do(req)
 }
 
-// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
-//
-// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
-func (c *Client) AdoptFrontmatter(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAdoptFrontmatterRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
-//
-// Corresponds with POST /bundles/{bundleId}/approve (the `ApproveBundle` operationId).
-func (c *Client) ApproveBundle(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewApproveBundleRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
-//
-// Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
-func (c *Client) ListAssumptions(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListAssumptionsRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
 //
 // Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
 func (c *Client) DeleteBundlePlan(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteBundlePlanRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
-//
-// Corresponds with GET /bundles/{bundleId}/diff (the `DiffVersions` operationId).
-func (c *Client) DiffVersions(ctx context.Context, bundleId BundleId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDiffVersionsRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
-//
-// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
-func (c *Client) SummarizeDiff(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSummarizeDiffRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
-//
-// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
-func (c *Client) DiscardDraft(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDiscardDraftRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
-//
-// Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
-func (c *Client) ExportBundle(ctx context.Context, bundleId BundleId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExportBundleRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// DeleteFile Delete a file. Creates a version (REQ-005).
-//
-// Corresponds with DELETE /bundles/{bundleId}/files (the `DeleteFile` operationId).
-func (c *Client) DeleteFile(ctx context.Context, bundleId BundleId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteFileRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListFiles List the files of a bundle version. The default is the current version.
-//
-// Corresponds with GET /bundles/{bundleId}/files (the `ListFiles` operationId).
-func (c *Client) ListFiles(ctx context.Context, bundleId BundleId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListFilesRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
-//
-// Corresponds with GET /bundles/{bundleId}/files/content (the `GetFileContent` operationId).
-func (c *Client) GetFileContent(ctx context.Context, bundleId BundleId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetFileContentRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// PutFileContentWithBody Create or replace a file. Creates a version when the content changed (REQ-005).
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with PUT /bundles/{bundleId}/files/content (the `PutFileContent` operationId).
-func (c *Client) PutFileContentWithBody(ctx context.Context, bundleId BundleId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPutFileContentRequestWithBody(c.Server, bundleId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RenameFileWithBody Rename or move a file inside the bundle. Creates a version (REQ-005).
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-func (c *Client) RenameFileWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRenameFileRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-func (c *Client) RenameFile(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRenameFileRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
-//
-// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
-func (c *Client) ListHandoffs(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListHandoffsRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// TakeHandoffWithBody Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-func (c *Client) TakeHandoffWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewTakeHandoffRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-func (c *Client) TakeHandoff(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewTakeHandoffRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// SetBundleProfileWithBody Change the profile of the bundle's main doc.
-//
-// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-func (c *Client) SetBundleProfileWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetBundleProfileRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// SetBundleProfile Change the profile of the bundle's main doc.
-//
-// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-func (c *Client) SetBundleProfile(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSetBundleProfileRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-func (c *Client) PublishBundleWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPublishBundleRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-func (c *Client) PublishBundle(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPublishBundleRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-func (c *Client) RequestReviewWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestReviewRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-func (c *Client) RequestReview(ctx context.Context, bundleId BundleId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestReviewRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListRuns List the review runs of a bundle, newest first.
-//
-// Corresponds with GET /bundles/{bundleId}/runs (the `ListRuns` operationId).
-func (c *Client) ListRuns(ctx context.Context, bundleId BundleId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListRunsRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// StartRunWithBody Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-func (c *Client) StartRunWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStartRunRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-func (c *Client) StartRun(ctx context.Context, bundleId BundleId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewStartRunRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
-//
-// Corresponds with GET /bundles/{bundleId}/runs/estimate (the `EstimateRun` operationId).
-func (c *Client) EstimateRun(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewEstimateRunRequest(c.Server, bundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -2371,281 +1956,6 @@ func (c *Client) CreateShareLink(ctx context.Context, bundleId BundleId, body Cr
 	return c.Client.Do(req)
 }
 
-// GetBundleStatus The review status of a bundle (§9.5).
-//
-// Corresponds with GET /bundles/{bundleId}/status (the `GetBundleStatus` operationId).
-func (c *Client) GetBundleStatus(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetBundleStatusRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListBundleThreads List the threads of a bundle, open first (REQ-087).
-//
-// Corresponds with GET /bundles/{bundleId}/threads (the `ListBundleThreads` operationId).
-func (c *Client) ListBundleThreads(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListBundleThreadsRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// OpenBundleThreadWithBody Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-func (c *Client) OpenBundleThreadWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewOpenBundleThreadRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-func (c *Client) OpenBundleThread(ctx context.Context, bundleId BundleId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewOpenBundleThreadRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-//
-// Corresponds with GET /bundles/{bundleId}/tour (the `GetTour` operationId).
-func (c *Client) GetTour(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTourRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
-//
-// Corresponds with GET /bundles/{bundleId}/trace (the `GetTrace` operationId).
-func (c *Client) GetTrace(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTraceRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// AddTraceIdsWithBody Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-func (c *Client) AddTraceIdsWithBody(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAddTraceIdsRequestWithBody(c.Server, bundleId, params, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-func (c *Client) AddTraceIds(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewAddTraceIdsRequest(c.Server, bundleId, params, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestVerificationWaiverWithBody Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-func (c *Client) RequestVerificationWaiverWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestVerificationWaiverRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-func (c *Client) RequestVerificationWaiver(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestVerificationWaiverRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListVerifications The verification runs of a bundle, newest first.
-//
-// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
-func (c *Client) ListVerifications(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListVerificationsRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RunVerificationWithBody Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-func (c *Client) RunVerificationWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRunVerificationRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-func (c *Client) RunVerification(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRunVerificationRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
-//
-// Corresponds with GET /bundles/{bundleId}/verifications/defaults (the `VerificationDefaults` operationId).
-func (c *Client) VerificationDefaults(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewVerificationDefaultsRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ResolveVerificationTargetWithBody Say which repo and commit, or which folder, a pasted target names, before a run starts.
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-func (c *Client) ResolveVerificationTargetWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewResolveVerificationTargetRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-func (c *Client) ResolveVerificationTarget(ctx context.Context, bundleId BundleId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewResolveVerificationTargetRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListVersions List the versions of a bundle, newest first.
-//
-// Corresponds with GET /bundles/{bundleId}/versions (the `ListVersions` operationId).
-func (c *Client) ListVersions(ctx context.Context, bundleId BundleId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListVersionsRequest(c.Server, bundleId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 // SetVisibilityWithBody Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
 //
 // Takes any type of body and a specified content type.
@@ -2670,55 +1980,6 @@ func (c *Client) SetVisibilityWithBody(ctx context.Context, bundleId BundleId, c
 // Corresponds with PUT /bundles/{bundleId}/visibility (the `SetVisibility` operationId).
 func (c *Client) SetVisibility(ctx context.Context, bundleId BundleId, body SetVisibilityJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetVisibilityRequest(c.Server, bundleId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
-//
-// Corresponds with GET /bundles/{bundleId}/waivers (the `ListWaivers` operationId).
-func (c *Client) ListWaivers(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListWaiversRequest(c.Server, bundleId)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestWaiverWithBody Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-//
-// Takes any type of body and a specified content type.
-//
-// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-func (c *Client) RequestWaiverWithBody(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestWaiverRequestWithBody(c.Server, bundleId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-//
-// Takes a body of the `application/json` content type.
-//
-// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-func (c *Client) RequestWaiver(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewRequestWaiverRequest(c.Server, bundleId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2783,6 +2044,765 @@ func (c *Client) DismissDocWithBody(ctx context.Context, contentType string, bod
 // Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
 func (c *Client) DismissDoc(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDismissDocRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetSpecDoc Get one spec doc.
+//
+// Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
+func (c *Client) GetSpecDoc(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSpecDocRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+//
+// Corresponds with POST /docs/{docId}/adopt (the `AdoptFrontmatter` operationId).
+func (c *Client) AdoptFrontmatter(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptFrontmatterRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+//
+// Corresponds with POST /docs/{docId}/approve (the `ApproveBundle` operationId).
+func (c *Client) ApproveBundle(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewApproveBundleRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+//
+// Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
+func (c *Client) ListAssumptions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListAssumptionsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+//
+// Corresponds with GET /docs/{docId}/diff (the `DiffVersions` operationId).
+func (c *Client) DiffVersions(ctx context.Context, docId DocId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiffVersionsRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+//
+// Corresponds with POST /docs/{docId}/diff/summary (the `SummarizeDiff` operationId).
+func (c *Client) SummarizeDiff(ctx context.Context, docId DocId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSummarizeDiffRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+//
+// Corresponds with POST /docs/{docId}/draft/discard (the `DiscardDraft` operationId).
+func (c *Client) DiscardDraft(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscardDraftRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
+//
+// Corresponds with GET /docs/{docId}/export (the `ExportBundle` operationId).
+func (c *Client) ExportBundle(ctx context.Context, docId DocId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportBundleRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteFile Delete a file. Creates a version (REQ-005).
+//
+// Corresponds with DELETE /docs/{docId}/files (the `DeleteFile` operationId).
+func (c *Client) DeleteFile(ctx context.Context, docId DocId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteFileRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListFiles List the files of a bundle version. The default is the current version.
+//
+// Corresponds with GET /docs/{docId}/files (the `ListFiles` operationId).
+func (c *Client) ListFiles(ctx context.Context, docId DocId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListFilesRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
+//
+// Corresponds with GET /docs/{docId}/files/content (the `GetFileContent` operationId).
+func (c *Client) GetFileContent(ctx context.Context, docId DocId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFileContentRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PutFileContentWithBody Create or replace a file. Creates a version when the content changed (REQ-005).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /docs/{docId}/files/content (the `PutFileContent` operationId).
+func (c *Client) PutFileContentWithBody(ctx context.Context, docId DocId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPutFileContentRequestWithBody(c.Server, docId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RenameFileWithBody Rename or move a file inside the bundle. Creates a version (REQ-005).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+func (c *Client) RenameFileWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameFileRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+func (c *Client) RenameFile(ctx context.Context, docId DocId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRenameFileRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+//
+// Corresponds with GET /docs/{docId}/handoff (the `ListHandoffs` operationId).
+func (c *Client) ListHandoffs(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListHandoffsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TakeHandoffWithBody Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+func (c *Client) TakeHandoffWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeHandoffRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+func (c *Client) TakeHandoff(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeHandoffRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetBundleProfileWithBody Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+func (c *Client) SetBundleProfileWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetBundleProfileRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetBundleProfile Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+func (c *Client) SetBundleProfile(ctx context.Context, docId DocId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetBundleProfileRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishBundleWithBody Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+func (c *Client) PublishBundleWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishBundleRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+func (c *Client) PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishBundleRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+func (c *Client) RequestReviewWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestReviewRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+func (c *Client) RequestReview(ctx context.Context, docId DocId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestReviewRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListRuns List the review runs of a bundle, newest first.
+//
+// Corresponds with GET /docs/{docId}/runs (the `ListRuns` operationId).
+func (c *Client) ListRuns(ctx context.Context, docId DocId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListRunsRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartRunWithBody Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+func (c *Client) StartRunWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartRunRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+func (c *Client) StartRun(ctx context.Context, docId DocId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartRunRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
+//
+// Corresponds with GET /docs/{docId}/runs/estimate (the `EstimateRun` operationId).
+func (c *Client) EstimateRun(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEstimateRunRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetBundleStatus The review status of a bundle (§9.5).
+//
+// Corresponds with GET /docs/{docId}/status (the `GetBundleStatus` operationId).
+func (c *Client) GetBundleStatus(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBundleStatusRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListBundleThreads List the threads of a bundle, open first (REQ-087).
+//
+// Corresponds with GET /docs/{docId}/threads (the `ListBundleThreads` operationId).
+func (c *Client) ListBundleThreads(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListBundleThreadsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// OpenBundleThreadWithBody Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+func (c *Client) OpenBundleThreadWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewOpenBundleThreadRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+func (c *Client) OpenBundleThread(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewOpenBundleThreadRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+//
+// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
+func (c *Client) GetTour(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTourRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+//
+// Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
+func (c *Client) GetTrace(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTraceRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AddTraceIdsWithBody Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+func (c *Client) AddTraceIdsWithBody(ctx context.Context, docId DocId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddTraceIdsRequestWithBody(c.Server, docId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+func (c *Client) AddTraceIds(ctx context.Context, docId DocId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddTraceIdsRequest(c.Server, docId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestVerificationWaiverWithBody Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *Client) RequestVerificationWaiverWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestVerificationWaiverRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *Client) RequestVerificationWaiver(ctx context.Context, docId DocId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestVerificationWaiverRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListVerifications The verification runs of a bundle, newest first.
+//
+// Corresponds with GET /docs/{docId}/verifications (the `ListVerifications` operationId).
+func (c *Client) ListVerifications(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListVerificationsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RunVerificationWithBody Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+func (c *Client) RunVerificationWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRunVerificationRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+func (c *Client) RunVerification(ctx context.Context, docId DocId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRunVerificationRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+//
+// Corresponds with GET /docs/{docId}/verifications/defaults (the `VerificationDefaults` operationId).
+func (c *Client) VerificationDefaults(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewVerificationDefaultsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ResolveVerificationTargetWithBody Say which repo and commit, or which folder, a pasted target names, before a run starts.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+func (c *Client) ResolveVerificationTargetWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResolveVerificationTargetRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+func (c *Client) ResolveVerificationTarget(ctx context.Context, docId DocId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewResolveVerificationTargetRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListVersions List the versions of a bundle, newest first.
+//
+// Corresponds with GET /docs/{docId}/versions (the `ListVersions` operationId).
+func (c *Client) ListVersions(ctx context.Context, docId DocId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListVersionsRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
+//
+// Corresponds with GET /docs/{docId}/waivers (the `ListWaivers` operationId).
+func (c *Client) ListWaivers(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListWaiversRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestWaiverWithBody Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+func (c *Client) RequestWaiverWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestWaiverRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+func (c *Client) RequestWaiver(ctx context.Context, docId DocId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRequestWaiverRequest(c.Server, docId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5146,108 +5166,6 @@ func NewGetBundleAccessRequest(server string, bundleId BundleId) (*http.Request,
 	return req, nil
 }
 
-// NewAdoptFrontmatterRequest constructs an http.Request for the AdoptFrontmatter method
-func NewAdoptFrontmatterRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/adopt", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewApproveBundleRequest constructs an http.Request for the ApproveBundle method
-func NewApproveBundleRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/approve", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListAssumptionsRequest constructs an http.Request for the ListAssumptions method
-func NewListAssumptionsRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/assumptions", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewDeleteBundlePlanRequest constructs an http.Request for the DeleteBundlePlan method
 func NewDeleteBundlePlanRequest(server string, bundleId BundleId) (*http.Request, error) {
 	var err error
@@ -5265,916 +5183,6 @@ func NewDeleteBundlePlanRequest(server string, bundleId BundleId) (*http.Request
 	}
 
 	operationPath := fmt.Sprintf("/bundles/%s/delete-plan", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDiffVersionsRequest constructs an http.Request for the DiffVersions method
-func NewDiffVersionsRequest(server string, bundleId BundleId, params *DiffVersionsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/diff", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewSummarizeDiffRequest constructs an http.Request for the SummarizeDiff method
-func NewSummarizeDiffRequest(server string, bundleId BundleId, params *SummarizeDiffParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/diff/summary", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDiscardDraftRequest constructs an http.Request for the DiscardDraft method
-func NewDiscardDraftRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/draft/discard", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewExportBundleRequest constructs an http.Request for the ExportBundle method
-func NewExportBundleRequest(server string, bundleId BundleId, params *ExportBundleParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/export", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Version != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Format != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "format", *params.Format, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteFileRequest constructs an http.Request for the DeleteFile method
-func NewDeleteFileRequest(server string, bundleId BundleId, params *DeleteFileParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/files", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListFilesRequest constructs an http.Request for the ListFiles method
-func NewListFilesRequest(server string, bundleId BundleId, params *ListFilesParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/files", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Version != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetFileContentRequest constructs an http.Request for the GetFileContent method
-func NewGetFileContentRequest(server string, bundleId BundleId, params *GetFileContentParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/files/content", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Version != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPutFileContentRequestWithBody constructs an http.Request for the PutFileContent method, with any body, and a specified content type
-func NewPutFileContentRequestWithBody(server string, bundleId BundleId, params *PutFileContentParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/files/content", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRenameFileRequest calls the generic RenameFile builder with application/json body
-func NewRenameFileRequest(server string, bundleId BundleId, body RenameFileJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRenameFileRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewRenameFileRequestWithBody constructs an http.Request for the RenameFile method, with any body, and a specified content type
-func NewRenameFileRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/files/rename", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListHandoffsRequest constructs an http.Request for the ListHandoffs method
-func NewListHandoffsRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/handoff", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewTakeHandoffRequest calls the generic TakeHandoff builder with application/json body
-func NewTakeHandoffRequest(server string, bundleId BundleId, body TakeHandoffJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewTakeHandoffRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewTakeHandoffRequestWithBody constructs an http.Request for the TakeHandoff method, with any body, and a specified content type
-func NewTakeHandoffRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/handoff", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewSetBundleProfileRequest calls the generic SetBundleProfile builder with application/json body
-func NewSetBundleProfileRequest(server string, bundleId BundleId, body SetBundleProfileJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewSetBundleProfileRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewSetBundleProfileRequestWithBody constructs an http.Request for the SetBundleProfile method, with any body, and a specified content type
-func NewSetBundleProfileRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/profile", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPublishBundleRequest calls the generic PublishBundle builder with application/json body
-func NewPublishBundleRequest(server string, bundleId BundleId, body PublishBundleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPublishBundleRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewPublishBundleRequestWithBody constructs an http.Request for the PublishBundle method, with any body, and a specified content type
-func NewPublishBundleRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/publish", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRequestReviewRequest calls the generic RequestReview builder with application/json body
-func NewRequestReviewRequest(server string, bundleId BundleId, body RequestReviewJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRequestReviewRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewRequestReviewRequestWithBody constructs an http.Request for the RequestReview method, with any body, and a specified content type
-func NewRequestReviewRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/review-request", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListRunsRequest constructs an http.Request for the ListRuns method
-func NewListRunsRequest(server string, bundleId BundleId, params *ListRunsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/runs", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewStartRunRequest calls the generic StartRun builder with application/json body
-func NewStartRunRequest(server string, bundleId BundleId, body StartRunJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewStartRunRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewStartRunRequestWithBody constructs an http.Request for the StartRun method, with any body, and a specified content type
-func NewStartRunRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/runs", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewEstimateRunRequest constructs an http.Request for the EstimateRun method
-func NewEstimateRunRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/runs/estimate", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -6273,541 +5281,6 @@ func NewCreateShareLinkRequestWithBody(server string, bundleId BundleId, content
 	return req, nil
 }
 
-// NewGetBundleStatusRequest constructs an http.Request for the GetBundleStatus method
-func NewGetBundleStatusRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/status", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewListBundleThreadsRequest constructs an http.Request for the ListBundleThreads method
-func NewListBundleThreadsRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/threads", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewOpenBundleThreadRequest calls the generic OpenBundleThread builder with application/json body
-func NewOpenBundleThreadRequest(server string, bundleId BundleId, body OpenBundleThreadJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewOpenBundleThreadRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewOpenBundleThreadRequestWithBody constructs an http.Request for the OpenBundleThread method, with any body, and a specified content type
-func NewOpenBundleThreadRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/threads", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetTourRequest constructs an http.Request for the GetTour method
-func NewGetTourRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/tour", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetTraceRequest constructs an http.Request for the GetTrace method
-func NewGetTraceRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/trace", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewAddTraceIdsRequest calls the generic AddTraceIds builder with application/json body
-func NewAddTraceIdsRequest(server string, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewAddTraceIdsRequestWithBody(server, bundleId, params, "application/json", bodyReader)
-}
-
-// NewAddTraceIdsRequestWithBody constructs an http.Request for the AddTraceIds method, with any body, and a specified content type
-func NewAddTraceIdsRequestWithBody(server string, bundleId BundleId, params *AddTraceIdsParams, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/trace/ids", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
-			}
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewRequestVerificationWaiverRequest calls the generic RequestVerificationWaiver builder with application/json body
-func NewRequestVerificationWaiverRequest(server string, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRequestVerificationWaiverRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewRequestVerificationWaiverRequestWithBody constructs an http.Request for the RequestVerificationWaiver method, with any body, and a specified content type
-func NewRequestVerificationWaiverRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/verification-waivers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListVerificationsRequest constructs an http.Request for the ListVerifications method
-func NewListVerificationsRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/verifications", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRunVerificationRequest calls the generic RunVerification builder with application/json body
-func NewRunVerificationRequest(server string, bundleId BundleId, body RunVerificationJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRunVerificationRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewRunVerificationRequestWithBody constructs an http.Request for the RunVerification method, with any body, and a specified content type
-func NewRunVerificationRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/verifications", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewVerificationDefaultsRequest constructs an http.Request for the VerificationDefaults method
-func NewVerificationDefaultsRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/verifications/defaults", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewResolveVerificationTargetRequest calls the generic ResolveVerificationTarget builder with application/json body
-func NewResolveVerificationTargetRequest(server string, bundleId BundleId, body ResolveVerificationTargetJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewResolveVerificationTargetRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewResolveVerificationTargetRequestWithBody constructs an http.Request for the ResolveVerificationTarget method, with any body, and a specified content type
-func NewResolveVerificationTargetRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/verifications/resolve", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListVersionsRequest constructs an http.Request for the ListVersions method
-func NewListVersionsRequest(server string, bundleId BundleId, params *ListVersionsParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/versions", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		// queryValues collects non-styled parameters (passthrough, JSON)
-		// that are safe to round-trip through url.Values.Encode().
-		queryValues := queryURL.Query()
-		// rawQueryFragments collects pre-encoded query fragments from
-		// styled parameters, preserving literal commas as delimiters
-		// per the OpenAPI spec (e.g. "color=blue,black,brown").
-		var rawQueryFragments []string
-
-		if params.Cursor != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if params.Limit != nil {
-
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
-				return nil, err
-			} else {
-				for _, qp := range strings.Split(queryFrag, "&") {
-					rawQueryFragments = append(rawQueryFragments, qp)
-				}
-			}
-
-		}
-
-		if encoded := queryValues.Encode(); encoded != "" {
-			rawQueryFragments = append(rawQueryFragments, encoded)
-		}
-		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewSetVisibilityRequest calls the generic SetVisibility builder with application/json body
 func NewSetVisibilityRequest(server string, bundleId BundleId, body SetVisibilityJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -6846,87 +5319,6 @@ func NewSetVisibilityRequestWithBody(server string, bundleId BundleId, contentTy
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewListWaiversRequest constructs an http.Request for the ListWaivers method
-func NewListWaiversRequest(server string, bundleId BundleId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/waivers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewRequestWaiverRequest calls the generic RequestWaiver builder with application/json body
-func NewRequestWaiverRequest(server string, bundleId BundleId, body RequestWaiverJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewRequestWaiverRequestWithBody(server, bundleId, "application/json", bodyReader)
-}
-
-// NewRequestWaiverRequestWithBody constructs an http.Request for the RequestWaiver method, with any body, and a specified content type
-func NewRequestWaiverRequestWithBody(server string, bundleId BundleId, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "bundleId", bundleId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/bundles/%s/waivers", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -7046,6 +5438,1668 @@ func NewDismissDocRequestWithBody(server string, contentType string, body io.Rea
 	}
 
 	operationPath := fmt.Sprintf("/dismissed-docs")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetSpecDocRequest constructs an http.Request for the GetSpecDoc method
+func NewGetSpecDocRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAdoptFrontmatterRequest constructs an http.Request for the AdoptFrontmatter method
+func NewAdoptFrontmatterRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/adopt", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewApproveBundleRequest constructs an http.Request for the ApproveBundle method
+func NewApproveBundleRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/approve", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListAssumptionsRequest constructs an http.Request for the ListAssumptions method
+func NewListAssumptionsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/assumptions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDiffVersionsRequest constructs an http.Request for the DiffVersions method
+func NewDiffVersionsRequest(server string, docId DocId, params *DiffVersionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/diff", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSummarizeDiffRequest constructs an http.Request for the SummarizeDiff method
+func NewSummarizeDiffRequest(server string, docId DocId, params *SummarizeDiffParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/diff/summary", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "from", params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "to", params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDiscardDraftRequest constructs an http.Request for the DiscardDraft method
+func NewDiscardDraftRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/draft/discard", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewExportBundleRequest constructs an http.Request for the ExportBundle method
+func NewExportBundleRequest(server string, docId DocId, params *ExportBundleParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/export", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Version != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Format != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "format", *params.Format, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteFileRequest constructs an http.Request for the DeleteFile method
+func NewDeleteFileRequest(server string, docId DocId, params *DeleteFileParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/files", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListFilesRequest constructs an http.Request for the ListFiles method
+func NewListFilesRequest(server string, docId DocId, params *ListFilesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/files", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Version != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetFileContentRequest constructs an http.Request for the GetFileContent method
+func NewGetFileContentRequest(server string, docId DocId, params *GetFileContentParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/files/content", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Version != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "version", *params.Version, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPutFileContentRequestWithBody constructs an http.Request for the PutFileContent method, with any body, and a specified content type
+func NewPutFileContentRequestWithBody(server string, docId DocId, params *PutFileContentParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/files/content", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "path", params.Path, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRenameFileRequest calls the generic RenameFile builder with application/json body
+func NewRenameFileRequest(server string, docId DocId, body RenameFileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRenameFileRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewRenameFileRequestWithBody constructs an http.Request for the RenameFile method, with any body, and a specified content type
+func NewRenameFileRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/files/rename", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListHandoffsRequest constructs an http.Request for the ListHandoffs method
+func NewListHandoffsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/handoff", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewTakeHandoffRequest calls the generic TakeHandoff builder with application/json body
+func NewTakeHandoffRequest(server string, docId DocId, body TakeHandoffJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTakeHandoffRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewTakeHandoffRequestWithBody constructs an http.Request for the TakeHandoff method, with any body, and a specified content type
+func NewTakeHandoffRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/handoff", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSetBundleProfileRequest calls the generic SetBundleProfile builder with application/json body
+func NewSetBundleProfileRequest(server string, docId DocId, body SetBundleProfileJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetBundleProfileRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewSetBundleProfileRequestWithBody constructs an http.Request for the SetBundleProfile method, with any body, and a specified content type
+func NewSetBundleProfileRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/profile", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPublishBundleRequest calls the generic PublishBundle builder with application/json body
+func NewPublishBundleRequest(server string, docId DocId, body PublishBundleJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPublishBundleRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewPublishBundleRequestWithBody constructs an http.Request for the PublishBundle method, with any body, and a specified content type
+func NewPublishBundleRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/publish", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRequestReviewRequest calls the generic RequestReview builder with application/json body
+func NewRequestReviewRequest(server string, docId DocId, body RequestReviewJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRequestReviewRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewRequestReviewRequestWithBody constructs an http.Request for the RequestReview method, with any body, and a specified content type
+func NewRequestReviewRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/review-request", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListRunsRequest constructs an http.Request for the ListRuns method
+func NewListRunsRequest(server string, docId DocId, params *ListRunsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/runs", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStartRunRequest calls the generic StartRun builder with application/json body
+func NewStartRunRequest(server string, docId DocId, body StartRunJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewStartRunRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewStartRunRequestWithBody constructs an http.Request for the StartRun method, with any body, and a specified content type
+func NewStartRunRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/runs", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewEstimateRunRequest constructs an http.Request for the EstimateRun method
+func NewEstimateRunRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/runs/estimate", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBundleStatusRequest constructs an http.Request for the GetBundleStatus method
+func NewGetBundleStatusRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/status", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListBundleThreadsRequest constructs an http.Request for the ListBundleThreads method
+func NewListBundleThreadsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/threads", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewOpenBundleThreadRequest calls the generic OpenBundleThread builder with application/json body
+func NewOpenBundleThreadRequest(server string, docId DocId, body OpenBundleThreadJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewOpenBundleThreadRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewOpenBundleThreadRequestWithBody constructs an http.Request for the OpenBundleThread method, with any body, and a specified content type
+func NewOpenBundleThreadRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/threads", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetTourRequest constructs an http.Request for the GetTour method
+func NewGetTourRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/tour", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTraceRequest constructs an http.Request for the GetTrace method
+func NewGetTraceRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/trace", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAddTraceIdsRequest calls the generic AddTraceIds builder with application/json body
+func NewAddTraceIdsRequest(server string, docId DocId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAddTraceIdsRequestWithBody(server, docId, params, "application/json", bodyReader)
+}
+
+// NewAddTraceIdsRequestWithBody constructs an http.Request for the AddTraceIds method, with any body, and a specified content type
+func NewAddTraceIdsRequestWithBody(server string, docId DocId, params *AddTraceIdsParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/trace/ids", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewRequestVerificationWaiverRequest calls the generic RequestVerificationWaiver builder with application/json body
+func NewRequestVerificationWaiverRequest(server string, docId DocId, body RequestVerificationWaiverJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRequestVerificationWaiverRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewRequestVerificationWaiverRequestWithBody constructs an http.Request for the RequestVerificationWaiver method, with any body, and a specified content type
+func NewRequestVerificationWaiverRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/verification-waivers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListVerificationsRequest constructs an http.Request for the ListVerifications method
+func NewListVerificationsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/verifications", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRunVerificationRequest calls the generic RunVerification builder with application/json body
+func NewRunVerificationRequest(server string, docId DocId, body RunVerificationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRunVerificationRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewRunVerificationRequestWithBody constructs an http.Request for the RunVerification method, with any body, and a specified content type
+func NewRunVerificationRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/verifications", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewVerificationDefaultsRequest constructs an http.Request for the VerificationDefaults method
+func NewVerificationDefaultsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/verifications/defaults", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewResolveVerificationTargetRequest calls the generic ResolveVerificationTarget builder with application/json body
+func NewResolveVerificationTargetRequest(server string, docId DocId, body ResolveVerificationTargetJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewResolveVerificationTargetRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewResolveVerificationTargetRequestWithBody constructs an http.Request for the ResolveVerificationTarget method, with any body, and a specified content type
+func NewResolveVerificationTargetRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/verifications/resolve", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListVersionsRequest constructs an http.Request for the ListVersions method
+func NewListVersionsRequest(server string, docId DocId, params *ListVersionsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/versions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListWaiversRequest constructs an http.Request for the ListWaivers method
+func NewListWaiversRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/waivers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRequestWaiverRequest calls the generic RequestWaiver builder with application/json body
+func NewRequestWaiverRequest(server string, docId DocId, body RequestWaiverJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRequestWaiverRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewRequestWaiverRequestWithBody constructs an http.Request for the RequestWaiver method, with any body, and a specified content type
+func NewRequestWaiverRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/waivers", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9369,7 +9423,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with DELETE /bundles/{bundleId} (the `DeleteBundle` operationId).
 	DeleteBundleWithResponse(ctx context.Context, bundleId BundleId, params *DeleteBundleParams, reqEditors ...RequestEditorFn) (*DeleteBundleResponse, error)
 
-	// GetBundleWithResponse Get one bundle.
+	// GetBundleWithResponse Get one bundle with its spec docs.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -9383,198 +9437,12 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /bundles/{bundleId}/access (the `GetBundleAccess` operationId).
 	GetBundleAccessWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetBundleAccessResponse, error)
 
-	// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
-	AdoptFrontmatterWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*AdoptFrontmatterResponse, error)
-
-	// ApproveBundleWithResponse Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/approve (the `ApproveBundle` operationId).
-	ApproveBundleWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ApproveBundleResponse, error)
-
-	// ListAssumptionsWithResponse List the sentences of the current main doc that start with "Assumption:" (REQ-033).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
-	ListAssumptionsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListAssumptionsResponse, error)
-
 	// DeleteBundlePlanWithResponse What the Delete control offers for this bundle, by the kind of source that makes it.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /bundles/{bundleId}/delete-plan (the `DeleteBundlePlan` operationId).
 	DeleteBundlePlanWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DeleteBundlePlanResponse, error)
-
-	// DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/diff (the `DiffVersions` operationId).
-	DiffVersionsWithResponse(ctx context.Context, bundleId BundleId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*DiffVersionsResponse, error)
-
-	// SummarizeDiffWithResponse Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
-	SummarizeDiffWithResponse(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*SummarizeDiffResponse, error)
-
-	// DiscardDraftWithResponse Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
-	DiscardDraftWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DiscardDraftResponse, error)
-
-	// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
-	ExportBundleWithResponse(ctx context.Context, bundleId BundleId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*ExportBundleResponse, error)
-
-	// DeleteFileWithResponse Delete a file. Creates a version (REQ-005).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with DELETE /bundles/{bundleId}/files (the `DeleteFile` operationId).
-	DeleteFileWithResponse(ctx context.Context, bundleId BundleId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*DeleteFileResponse, error)
-
-	// ListFilesWithResponse List the files of a bundle version. The default is the current version.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/files (the `ListFiles` operationId).
-	ListFilesWithResponse(ctx context.Context, bundleId BundleId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*ListFilesResponse, error)
-
-	// GetFileContentWithResponse Get the bytes of one file in a bundle version. The default is the current version.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/files/content (the `GetFileContent` operationId).
-	GetFileContentWithResponse(ctx context.Context, bundleId BundleId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*GetFileContentResponse, error)
-
-	// PutFileContentWithBodyWithResponse Create or replace a file. Creates a version when the content changed (REQ-005).
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /bundles/{bundleId}/files/content (the `PutFileContent` operationId).
-	PutFileContentWithBodyWithResponse(ctx context.Context, bundleId BundleId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFileContentResponse, error)
-
-	// RenameFileWithBodyWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-	RenameFileWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
-
-	// RenameFileWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-	RenameFileWithResponse(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
-
-	// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
-	ListHandoffsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListHandoffsResponse, error)
-
-	// TakeHandoffWithBodyWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-	TakeHandoffWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
-
-	// TakeHandoffWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-	TakeHandoffWithResponse(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
-
-	// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
-	//
-	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-	SetBundleProfileWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error)
-
-	// SetBundleProfileWithResponse Change the profile of the bundle's main doc.
-	//
-	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-	SetBundleProfileWithResponse(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error)
-
-	// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-	PublishBundleWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
-
-	// PublishBundleWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-	PublishBundleWithResponse(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
-
-	// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-	RequestReviewWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error)
-
-	// RequestReviewWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-	RequestReviewWithResponse(ctx context.Context, bundleId BundleId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error)
-
-	// ListRunsWithResponse List the review runs of a bundle, newest first.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/runs (the `ListRuns` operationId).
-	ListRunsWithResponse(ctx context.Context, bundleId BundleId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*ListRunsResponse, error)
-
-	// StartRunWithBodyWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-	StartRunWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartRunResponse, error)
-
-	// StartRunWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-	StartRunWithResponse(ctx context.Context, bundleId BundleId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*StartRunResponse, error)
-
-	// EstimateRunWithResponse Estimate the tokens and cost of a full review before it starts (REQ-104).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/runs/estimate (the `EstimateRun` operationId).
-	EstimateRunWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*EstimateRunResponse, error)
 
 	// RevokeShareLinkWithResponse Revoke the share link (REQ-085).
 	//
@@ -9597,125 +9465,6 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /bundles/{bundleId}/share (the `CreateShareLink` operationId).
 	CreateShareLinkWithResponse(ctx context.Context, bundleId BundleId, body CreateShareLinkJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShareLinkResponse, error)
 
-	// GetBundleStatusWithResponse The review status of a bundle (§9.5).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/status (the `GetBundleStatus` operationId).
-	GetBundleStatusWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetBundleStatusResponse, error)
-
-	// ListBundleThreadsWithResponse List the threads of a bundle, open first (REQ-087).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/threads (the `ListBundleThreads` operationId).
-	ListBundleThreadsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListBundleThreadsResponse, error)
-
-	// OpenBundleThreadWithBodyWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-	OpenBundleThreadWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error)
-
-	// OpenBundleThreadWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-	OpenBundleThreadWithResponse(ctx context.Context, bundleId BundleId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error)
-
-	// GetTourWithResponse The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/tour (the `GetTour` operationId).
-	GetTourWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetTourResponse, error)
-
-	// GetTraceWithResponse The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/trace (the `GetTrace` operationId).
-	GetTraceWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetTraceResponse, error)
-
-	// AddTraceIdsWithBodyWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-	AddTraceIdsWithBodyWithResponse(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error)
-
-	// AddTraceIdsWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-	AddTraceIdsWithResponse(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error)
-
-	// RequestVerificationWaiverWithBodyWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-	RequestVerificationWaiverWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error)
-
-	// RequestVerificationWaiverWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-	RequestVerificationWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error)
-
-	// ListVerificationsWithResponse The verification runs of a bundle, newest first.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
-	ListVerificationsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListVerificationsResponse, error)
-
-	// RunVerificationWithBodyWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-	RunVerificationWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error)
-
-	// RunVerificationWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-	RunVerificationWithResponse(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error)
-
-	// VerificationDefaultsWithResponse The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/verifications/defaults (the `VerificationDefaults` operationId).
-	VerificationDefaultsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*VerificationDefaultsResponse, error)
-
-	// ResolveVerificationTargetWithBodyWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-	ResolveVerificationTargetWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error)
-
-	// ResolveVerificationTargetWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-	ResolveVerificationTargetWithResponse(ctx context.Context, bundleId BundleId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error)
-
-	// ListVersionsWithResponse List the versions of a bundle, newest first.
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/versions (the `ListVersions` operationId).
-	ListVersionsWithResponse(ctx context.Context, bundleId BundleId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*ListVersionsResponse, error)
-
 	// SetVisibilityWithBodyWithResponse Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -9729,27 +9478,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /bundles/{bundleId}/visibility (the `SetVisibility` operationId).
 	SetVisibilityWithResponse(ctx context.Context, bundleId BundleId, body SetVisibilityJSONRequestBody, reqEditors ...RequestEditorFn) (*SetVisibilityResponse, error)
-
-	// ListWaiversWithResponse List the waivers of a bundle (REQ-072 to REQ-074).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /bundles/{bundleId}/waivers (the `ListWaivers` operationId).
-	ListWaiversWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListWaiversResponse, error)
-
-	// RequestWaiverWithBodyWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-	//
-	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-	RequestWaiverWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
-
-	// RequestWaiverWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-	//
-	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-	RequestWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
 
 	// UndismissDocWithResponse Take the mark off a file, so it appears again (REQ-133).
 	//
@@ -9778,6 +9506,339 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /dismissed-docs (the `DismissDoc` operationId).
 	DismissDocWithResponse(ctx context.Context, body DismissDocJSONRequestBody, reqEditors ...RequestEditorFn) (*DismissDocResponse, error)
+
+	// GetSpecDocWithResponse Get one spec doc.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
+	GetSpecDocWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetSpecDocResponse, error)
+
+	// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/adopt (the `AdoptFrontmatter` operationId).
+	AdoptFrontmatterWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*AdoptFrontmatterResponse, error)
+
+	// ApproveBundleWithResponse Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/approve (the `ApproveBundle` operationId).
+	ApproveBundleWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ApproveBundleResponse, error)
+
+	// ListAssumptionsWithResponse List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
+	ListAssumptionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListAssumptionsResponse, error)
+
+	// DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/diff (the `DiffVersions` operationId).
+	DiffVersionsWithResponse(ctx context.Context, docId DocId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*DiffVersionsResponse, error)
+
+	// SummarizeDiffWithResponse Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/diff/summary (the `SummarizeDiff` operationId).
+	SummarizeDiffWithResponse(ctx context.Context, docId DocId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*SummarizeDiffResponse, error)
+
+	// DiscardDraftWithResponse Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/draft/discard (the `DiscardDraft` operationId).
+	DiscardDraftWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*DiscardDraftResponse, error)
+
+	// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/export (the `ExportBundle` operationId).
+	ExportBundleWithResponse(ctx context.Context, docId DocId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*ExportBundleResponse, error)
+
+	// DeleteFileWithResponse Delete a file. Creates a version (REQ-005).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /docs/{docId}/files (the `DeleteFile` operationId).
+	DeleteFileWithResponse(ctx context.Context, docId DocId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*DeleteFileResponse, error)
+
+	// ListFilesWithResponse List the files of a bundle version. The default is the current version.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/files (the `ListFiles` operationId).
+	ListFilesWithResponse(ctx context.Context, docId DocId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*ListFilesResponse, error)
+
+	// GetFileContentWithResponse Get the bytes of one file in a bundle version. The default is the current version.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/files/content (the `GetFileContent` operationId).
+	GetFileContentWithResponse(ctx context.Context, docId DocId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*GetFileContentResponse, error)
+
+	// PutFileContentWithBodyWithResponse Create or replace a file. Creates a version when the content changed (REQ-005).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /docs/{docId}/files/content (the `PutFileContent` operationId).
+	PutFileContentWithBodyWithResponse(ctx context.Context, docId DocId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFileContentResponse, error)
+
+	// RenameFileWithBodyWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+	RenameFileWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
+
+	// RenameFileWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+	RenameFileWithResponse(ctx context.Context, docId DocId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
+
+	// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/handoff (the `ListHandoffs` operationId).
+	ListHandoffsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListHandoffsResponse, error)
+
+	// TakeHandoffWithBodyWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoffWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
+
+	// TakeHandoffWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+	TakeHandoffWithResponse(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
+
+	// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfileWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error)
+
+	// SetBundleProfileWithResponse Change the profile of the bundle's main doc.
+	//
+	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+	SetBundleProfileWithResponse(ctx context.Context, docId DocId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error)
+
+	// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+	PublishBundleWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
+
+	// PublishBundleWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+	PublishBundleWithResponse(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
+
+	// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+	RequestReviewWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error)
+
+	// RequestReviewWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+	RequestReviewWithResponse(ctx context.Context, docId DocId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error)
+
+	// ListRunsWithResponse List the review runs of a bundle, newest first.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/runs (the `ListRuns` operationId).
+	ListRunsWithResponse(ctx context.Context, docId DocId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*ListRunsResponse, error)
+
+	// StartRunWithBodyWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+	StartRunWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartRunResponse, error)
+
+	// StartRunWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+	StartRunWithResponse(ctx context.Context, docId DocId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*StartRunResponse, error)
+
+	// EstimateRunWithResponse Estimate the tokens and cost of a full review before it starts (REQ-104).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/runs/estimate (the `EstimateRun` operationId).
+	EstimateRunWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*EstimateRunResponse, error)
+
+	// GetBundleStatusWithResponse The review status of a bundle (§9.5).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/status (the `GetBundleStatus` operationId).
+	GetBundleStatusWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetBundleStatusResponse, error)
+
+	// ListBundleThreadsWithResponse List the threads of a bundle, open first (REQ-087).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/threads (the `ListBundleThreads` operationId).
+	ListBundleThreadsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListBundleThreadsResponse, error)
+
+	// OpenBundleThreadWithBodyWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+	OpenBundleThreadWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error)
+
+	// OpenBundleThreadWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+	OpenBundleThreadWithResponse(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error)
+
+	// GetTourWithResponse The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
+	GetTourWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTourResponse, error)
+
+	// GetTraceWithResponse The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
+	GetTraceWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTraceResponse, error)
+
+	// AddTraceIdsWithBodyWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+	AddTraceIdsWithBodyWithResponse(ctx context.Context, docId DocId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error)
+
+	// AddTraceIdsWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+	AddTraceIdsWithResponse(ctx context.Context, docId DocId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error)
+
+	// RequestVerificationWaiverWithBodyWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiverWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error)
+
+	// RequestVerificationWaiverWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+	RequestVerificationWaiverWithResponse(ctx context.Context, docId DocId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error)
+
+	// ListVerificationsWithResponse The verification runs of a bundle, newest first.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/verifications (the `ListVerifications` operationId).
+	ListVerificationsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListVerificationsResponse, error)
+
+	// RunVerificationWithBodyWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+	RunVerificationWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error)
+
+	// RunVerificationWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+	RunVerificationWithResponse(ctx context.Context, docId DocId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error)
+
+	// VerificationDefaultsWithResponse The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/verifications/defaults (the `VerificationDefaults` operationId).
+	VerificationDefaultsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*VerificationDefaultsResponse, error)
+
+	// ResolveVerificationTargetWithBodyWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+	ResolveVerificationTargetWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error)
+
+	// ResolveVerificationTargetWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+	ResolveVerificationTargetWithResponse(ctx context.Context, docId DocId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error)
+
+	// ListVersionsWithResponse List the versions of a bundle, newest first.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/versions (the `ListVersions` operationId).
+	ListVersionsWithResponse(ctx context.Context, docId DocId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*ListVersionsResponse, error)
+
+	// ListWaiversWithResponse List the waivers of a bundle (REQ-072 to REQ-074).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/waivers (the `ListWaivers` operationId).
+	ListWaiversWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListWaiversResponse, error)
+
+	// RequestWaiverWithBodyWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+	RequestWaiverWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
+
+	// RequestWaiverWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+	RequestWaiverWithResponse(ctx context.Context, docId DocId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
 
 	// ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
 	//
@@ -11534,13 +11595,13 @@ type CreateBundleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *Bundle
+	JSON201 *SpecDoc
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r CreateBundleResponse) GetJSON201() *Bundle {
+func (r CreateBundleResponse) GetJSON201() *SpecDoc {
 	return r.JSON201
 }
 
@@ -11811,6 +11872,386 @@ func (r GetBundleAccessResponse) ContentType() string {
 	return ""
 }
 
+type DeleteBundlePlanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *DeletePlan
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteBundlePlanResponse) GetJSON200() *DeletePlan {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteBundlePlanResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteBundlePlanResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteBundlePlanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteBundlePlanResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteBundlePlanResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RevokeShareLinkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BundleAccess
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RevokeShareLinkResponse) GetJSON200() *BundleAccess {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RevokeShareLinkResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RevokeShareLinkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RevokeShareLinkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RevokeShareLinkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RevokeShareLinkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateShareLinkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Access BundleAccess `json:"access"`
+		Url    string       `json:"url"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CreateShareLinkResponse) GetJSON200() *struct {
+	Access BundleAccess `json:"access"`
+	Url    string       `json:"url"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CreateShareLinkResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateShareLinkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateShareLinkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateShareLinkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateShareLinkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetVisibilityResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BundleAccess
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetVisibilityResponse) GetJSON200() *BundleAccess {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetVisibilityResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetVisibilityResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetVisibilityResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetVisibilityResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetVisibilityResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UndismissDocResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UndismissDocResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UndismissDocResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UndismissDocResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UndismissDocResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UndismissDocResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListDismissedDocsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []DismissedDoc `json:"items"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListDismissedDocsResponse) GetJSON200() *struct {
+	Items []DismissedDoc `json:"items"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListDismissedDocsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListDismissedDocsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDismissedDocsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDismissedDocsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDismissedDocsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DismissDocResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DismissDocResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DismissDocResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DismissDocResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DismissDocResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DismissDocResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetSpecDocResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SpecDoc
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSpecDocResponse) GetJSON200() *SpecDoc {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetSpecDocResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSpecDocResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSpecDocResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSpecDocResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSpecDocResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type AdoptFrontmatterResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -11953,54 +12394,6 @@ func (r ListAssumptionsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListAssumptionsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DeleteBundlePlanResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *DeletePlan
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r DeleteBundlePlanResponse) GetJSON200() *DeletePlan {
-	return r.JSON200
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r DeleteBundlePlanResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r DeleteBundlePlanResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteBundlePlanResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteBundlePlanResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DeleteBundlePlanResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -12525,13 +12918,13 @@ type SetBundleProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Bundle
+	JSON200 *SpecDoc
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r SetBundleProfileResponse) GetJSON200() *Bundle {
+func (r SetBundleProfileResponse) GetJSON200() *SpecDoc {
 	return r.JSON200
 }
 
@@ -12809,108 +13202,6 @@ func (r EstimateRunResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r EstimateRunResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type RevokeShareLinkResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *BundleAccess
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r RevokeShareLinkResponse) GetJSON200() *BundleAccess {
-	return r.JSON200
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r RevokeShareLinkResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r RevokeShareLinkResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r RevokeShareLinkResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r RevokeShareLinkResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r RevokeShareLinkResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type CreateShareLinkResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *struct {
-		Access BundleAccess `json:"access"`
-		Url    string       `json:"url"`
-	}
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r CreateShareLinkResponse) GetJSON200() *struct {
-	Access BundleAccess `json:"access"`
-	Url    string       `json:"url"`
-} {
-	return r.JSON200
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r CreateShareLinkResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r CreateShareLinkResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateShareLinkResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateShareLinkResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r CreateShareLinkResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13497,54 +13788,6 @@ func (r ListVersionsResponse) ContentType() string {
 	return ""
 }
 
-type SetVisibilityResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *BundleAccess
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r SetVisibilityResponse) GetJSON200() *BundleAccess {
-	return r.JSON200
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r SetVisibilityResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r SetVisibilityResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r SetVisibilityResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r SetVisibilityResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r SetVisibilityResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
 type ListWaiversResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13639,140 +13882,6 @@ func (r RequestWaiverResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RequestWaiverResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type UndismissDocResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r UndismissDocResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r UndismissDocResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r UndismissDocResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UndismissDocResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r UndismissDocResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type ListDismissedDocsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *struct {
-		Items []DismissedDoc `json:"items"`
-	}
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ListDismissedDocsResponse) GetJSON200() *struct {
-	Items []DismissedDoc `json:"items"`
-} {
-	return r.JSON200
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r ListDismissedDocsResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r ListDismissedDocsResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r ListDismissedDocsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ListDismissedDocsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ListDismissedDocsResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type DismissDocResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r DismissDocResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r DismissDocResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r DismissDocResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DismissDocResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r DismissDocResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -15801,13 +15910,13 @@ type AdoptSkippedResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *Bundle
+	JSON201 *SpecDoc
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r AdoptSkippedResponse) GetJSON201() *Bundle {
+func (r AdoptSkippedResponse) GetJSON201() *SpecDoc {
 	return r.JSON201
 }
 
@@ -16822,7 +16931,7 @@ func (c *ClientWithResponses) DeleteBundleWithResponse(ctx context.Context, bund
 	return ParseDeleteBundleResponse(rsp)
 }
 
-// GetBundleWithResponse Get one bundle.
+// GetBundleWithResponse Get one bundle with its spec docs.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -16848,45 +16957,6 @@ func (c *ClientWithResponses) GetBundleAccessWithResponse(ctx context.Context, b
 	return ParseGetBundleAccessResponse(rsp)
 }
 
-// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/adopt (the `AdoptFrontmatter` operationId).
-func (c *ClientWithResponses) AdoptFrontmatterWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*AdoptFrontmatterResponse, error) {
-	rsp, err := c.AdoptFrontmatter(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseAdoptFrontmatterResponse(rsp)
-}
-
-// ApproveBundleWithResponse Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/approve (the `ApproveBundle` operationId).
-func (c *ClientWithResponses) ApproveBundleWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ApproveBundleResponse, error) {
-	rsp, err := c.ApproveBundle(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseApproveBundleResponse(rsp)
-}
-
-// ListAssumptionsWithResponse List the sentences of the current main doc that start with "Assumption:" (REQ-033).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/assumptions (the `ListAssumptions` operationId).
-func (c *ClientWithResponses) ListAssumptionsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListAssumptionsResponse, error) {
-	rsp, err := c.ListAssumptions(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListAssumptionsResponse(rsp)
-}
-
 // DeleteBundlePlanWithResponse What the Delete control offers for this bundle, by the kind of source that makes it.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -16898,309 +16968,6 @@ func (c *ClientWithResponses) DeleteBundlePlanWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseDeleteBundlePlanResponse(rsp)
-}
-
-// DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/diff (the `DiffVersions` operationId).
-func (c *ClientWithResponses) DiffVersionsWithResponse(ctx context.Context, bundleId BundleId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*DiffVersionsResponse, error) {
-	rsp, err := c.DiffVersions(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDiffVersionsResponse(rsp)
-}
-
-// SummarizeDiffWithResponse Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/diff/summary (the `SummarizeDiff` operationId).
-func (c *ClientWithResponses) SummarizeDiffWithResponse(ctx context.Context, bundleId BundleId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*SummarizeDiffResponse, error) {
-	rsp, err := c.SummarizeDiff(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSummarizeDiffResponse(rsp)
-}
-
-// DiscardDraftWithResponse Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/draft/discard (the `DiscardDraft` operationId).
-func (c *ClientWithResponses) DiscardDraftWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*DiscardDraftResponse, error) {
-	rsp, err := c.DiscardDraft(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDiscardDraftResponse(rsp)
-}
-
-// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/export (the `ExportBundle` operationId).
-func (c *ClientWithResponses) ExportBundleWithResponse(ctx context.Context, bundleId BundleId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*ExportBundleResponse, error) {
-	rsp, err := c.ExportBundle(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExportBundleResponse(rsp)
-}
-
-// DeleteFileWithResponse Delete a file. Creates a version (REQ-005).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with DELETE /bundles/{bundleId}/files (the `DeleteFile` operationId).
-func (c *ClientWithResponses) DeleteFileWithResponse(ctx context.Context, bundleId BundleId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*DeleteFileResponse, error) {
-	rsp, err := c.DeleteFile(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteFileResponse(rsp)
-}
-
-// ListFilesWithResponse List the files of a bundle version. The default is the current version.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/files (the `ListFiles` operationId).
-func (c *ClientWithResponses) ListFilesWithResponse(ctx context.Context, bundleId BundleId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*ListFilesResponse, error) {
-	rsp, err := c.ListFiles(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListFilesResponse(rsp)
-}
-
-// GetFileContentWithResponse Get the bytes of one file in a bundle version. The default is the current version.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/files/content (the `GetFileContent` operationId).
-func (c *ClientWithResponses) GetFileContentWithResponse(ctx context.Context, bundleId BundleId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*GetFileContentResponse, error) {
-	rsp, err := c.GetFileContent(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetFileContentResponse(rsp)
-}
-
-// PutFileContentWithBodyWithResponse Create or replace a file. Creates a version when the content changed (REQ-005).
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /bundles/{bundleId}/files/content (the `PutFileContent` operationId).
-func (c *ClientWithResponses) PutFileContentWithBodyWithResponse(ctx context.Context, bundleId BundleId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFileContentResponse, error) {
-	rsp, err := c.PutFileContentWithBody(ctx, bundleId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePutFileContentResponse(rsp)
-}
-
-// RenameFileWithBodyWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-func (c *ClientWithResponses) RenameFileWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameFileResponse, error) {
-	rsp, err := c.RenameFileWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRenameFileResponse(rsp)
-}
-
-// RenameFileWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/files/rename (the `RenameFile` operationId).
-func (c *ClientWithResponses) RenameFileWithResponse(ctx context.Context, bundleId BundleId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error) {
-	rsp, err := c.RenameFile(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRenameFileResponse(rsp)
-}
-
-// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/handoff (the `ListHandoffs` operationId).
-func (c *ClientWithResponses) ListHandoffsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListHandoffsResponse, error) {
-	rsp, err := c.ListHandoffs(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListHandoffsResponse(rsp)
-}
-
-// TakeHandoffWithBodyWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-func (c *ClientWithResponses) TakeHandoffWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error) {
-	rsp, err := c.TakeHandoffWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseTakeHandoffResponse(rsp)
-}
-
-// TakeHandoffWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/handoff (the `TakeHandoff` operationId).
-func (c *ClientWithResponses) TakeHandoffWithResponse(ctx context.Context, bundleId BundleId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error) {
-	rsp, err := c.TakeHandoff(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseTakeHandoffResponse(rsp)
-}
-
-// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
-//
-// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-func (c *ClientWithResponses) SetBundleProfileWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error) {
-	rsp, err := c.SetBundleProfileWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetBundleProfileResponse(rsp)
-}
-
-// SetBundleProfileWithResponse Change the profile of the bundle's main doc.
-//
-// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with PUT /bundles/{bundleId}/profile (the `SetBundleProfile` operationId).
-func (c *ClientWithResponses) SetBundleProfileWithResponse(ctx context.Context, bundleId BundleId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error) {
-	rsp, err := c.SetBundleProfile(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseSetBundleProfileResponse(rsp)
-}
-
-// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-func (c *ClientWithResponses) PublishBundleWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error) {
-	rsp, err := c.PublishBundleWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePublishBundleResponse(rsp)
-}
-
-// PublishBundleWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/publish (the `PublishBundle` operationId).
-func (c *ClientWithResponses) PublishBundleWithResponse(ctx context.Context, bundleId BundleId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error) {
-	rsp, err := c.PublishBundle(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePublishBundleResponse(rsp)
-}
-
-// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-func (c *ClientWithResponses) RequestReviewWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error) {
-	rsp, err := c.RequestReviewWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestReviewResponse(rsp)
-}
-
-// RequestReviewWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/review-request (the `RequestReview` operationId).
-func (c *ClientWithResponses) RequestReviewWithResponse(ctx context.Context, bundleId BundleId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error) {
-	rsp, err := c.RequestReview(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestReviewResponse(rsp)
-}
-
-// ListRunsWithResponse List the review runs of a bundle, newest first.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/runs (the `ListRuns` operationId).
-func (c *ClientWithResponses) ListRunsWithResponse(ctx context.Context, bundleId BundleId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*ListRunsResponse, error) {
-	rsp, err := c.ListRuns(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListRunsResponse(rsp)
-}
-
-// StartRunWithBodyWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-func (c *ClientWithResponses) StartRunWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartRunResponse, error) {
-	rsp, err := c.StartRunWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseStartRunResponse(rsp)
-}
-
-// StartRunWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/runs (the `StartRun` operationId).
-func (c *ClientWithResponses) StartRunWithResponse(ctx context.Context, bundleId BundleId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*StartRunResponse, error) {
-	rsp, err := c.StartRun(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseStartRunResponse(rsp)
-}
-
-// EstimateRunWithResponse Estimate the tokens and cost of a full review before it starts (REQ-104).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/runs/estimate (the `EstimateRun` operationId).
-func (c *ClientWithResponses) EstimateRunWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*EstimateRunResponse, error) {
-	rsp, err := c.EstimateRun(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseEstimateRunResponse(rsp)
 }
 
 // RevokeShareLinkWithResponse Revoke the share link (REQ-085).
@@ -17242,227 +17009,6 @@ func (c *ClientWithResponses) CreateShareLinkWithResponse(ctx context.Context, b
 	return ParseCreateShareLinkResponse(rsp)
 }
 
-// GetBundleStatusWithResponse The review status of a bundle (§9.5).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/status (the `GetBundleStatus` operationId).
-func (c *ClientWithResponses) GetBundleStatusWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetBundleStatusResponse, error) {
-	rsp, err := c.GetBundleStatus(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetBundleStatusResponse(rsp)
-}
-
-// ListBundleThreadsWithResponse List the threads of a bundle, open first (REQ-087).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/threads (the `ListBundleThreads` operationId).
-func (c *ClientWithResponses) ListBundleThreadsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListBundleThreadsResponse, error) {
-	rsp, err := c.ListBundleThreads(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListBundleThreadsResponse(rsp)
-}
-
-// OpenBundleThreadWithBodyWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-func (c *ClientWithResponses) OpenBundleThreadWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error) {
-	rsp, err := c.OpenBundleThreadWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseOpenBundleThreadResponse(rsp)
-}
-
-// OpenBundleThreadWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/threads (the `OpenBundleThread` operationId).
-func (c *ClientWithResponses) OpenBundleThreadWithResponse(ctx context.Context, bundleId BundleId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error) {
-	rsp, err := c.OpenBundleThread(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseOpenBundleThreadResponse(rsp)
-}
-
-// GetTourWithResponse The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/tour (the `GetTour` operationId).
-func (c *ClientWithResponses) GetTourWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetTourResponse, error) {
-	rsp, err := c.GetTour(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetTourResponse(rsp)
-}
-
-// GetTraceWithResponse The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/trace (the `GetTrace` operationId).
-func (c *ClientWithResponses) GetTraceWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*GetTraceResponse, error) {
-	rsp, err := c.GetTrace(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetTraceResponse(rsp)
-}
-
-// AddTraceIdsWithBodyWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-func (c *ClientWithResponses) AddTraceIdsWithBodyWithResponse(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error) {
-	rsp, err := c.AddTraceIdsWithBody(ctx, bundleId, params, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseAddTraceIdsResponse(rsp)
-}
-
-// AddTraceIdsWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/trace/ids (the `AddTraceIds` operationId).
-func (c *ClientWithResponses) AddTraceIdsWithResponse(ctx context.Context, bundleId BundleId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error) {
-	rsp, err := c.AddTraceIds(ctx, bundleId, params, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseAddTraceIdsResponse(rsp)
-}
-
-// RequestVerificationWaiverWithBodyWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-func (c *ClientWithResponses) RequestVerificationWaiverWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error) {
-	rsp, err := c.RequestVerificationWaiverWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestVerificationWaiverResponse(rsp)
-}
-
-// RequestVerificationWaiverWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/verification-waivers (the `RequestVerificationWaiver` operationId).
-func (c *ClientWithResponses) RequestVerificationWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error) {
-	rsp, err := c.RequestVerificationWaiver(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestVerificationWaiverResponse(rsp)
-}
-
-// ListVerificationsWithResponse The verification runs of a bundle, newest first.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/verifications (the `ListVerifications` operationId).
-func (c *ClientWithResponses) ListVerificationsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListVerificationsResponse, error) {
-	rsp, err := c.ListVerifications(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListVerificationsResponse(rsp)
-}
-
-// RunVerificationWithBodyWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-func (c *ClientWithResponses) RunVerificationWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error) {
-	rsp, err := c.RunVerificationWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRunVerificationResponse(rsp)
-}
-
-// RunVerificationWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/verifications (the `RunVerification` operationId).
-func (c *ClientWithResponses) RunVerificationWithResponse(ctx context.Context, bundleId BundleId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error) {
-	rsp, err := c.RunVerification(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRunVerificationResponse(rsp)
-}
-
-// VerificationDefaultsWithResponse The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/verifications/defaults (the `VerificationDefaults` operationId).
-func (c *ClientWithResponses) VerificationDefaultsWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*VerificationDefaultsResponse, error) {
-	rsp, err := c.VerificationDefaults(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseVerificationDefaultsResponse(rsp)
-}
-
-// ResolveVerificationTargetWithBodyWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-func (c *ClientWithResponses) ResolveVerificationTargetWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error) {
-	rsp, err := c.ResolveVerificationTargetWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseResolveVerificationTargetResponse(rsp)
-}
-
-// ResolveVerificationTargetWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
-func (c *ClientWithResponses) ResolveVerificationTargetWithResponse(ctx context.Context, bundleId BundleId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error) {
-	rsp, err := c.ResolveVerificationTarget(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseResolveVerificationTargetResponse(rsp)
-}
-
-// ListVersionsWithResponse List the versions of a bundle, newest first.
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/versions (the `ListVersions` operationId).
-func (c *ClientWithResponses) ListVersionsWithResponse(ctx context.Context, bundleId BundleId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*ListVersionsResponse, error) {
-	rsp, err := c.ListVersions(ctx, bundleId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListVersionsResponse(rsp)
-}
-
 // SetVisibilityWithBodyWithResponse Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -17487,45 +17033,6 @@ func (c *ClientWithResponses) SetVisibilityWithResponse(ctx context.Context, bun
 		return nil, err
 	}
 	return ParseSetVisibilityResponse(rsp)
-}
-
-// ListWaiversWithResponse List the waivers of a bundle (REQ-072 to REQ-074).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /bundles/{bundleId}/waivers (the `ListWaivers` operationId).
-func (c *ClientWithResponses) ListWaiversWithResponse(ctx context.Context, bundleId BundleId, reqEditors ...RequestEditorFn) (*ListWaiversResponse, error) {
-	rsp, err := c.ListWaivers(ctx, bundleId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseListWaiversResponse(rsp)
-}
-
-// RequestWaiverWithBodyWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-//
-// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-func (c *ClientWithResponses) RequestWaiverWithBodyWithResponse(ctx context.Context, bundleId BundleId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error) {
-	rsp, err := c.RequestWaiverWithBody(ctx, bundleId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestWaiverResponse(rsp)
-}
-
-// RequestWaiverWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-//
-// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
-//
-// Corresponds with POST /bundles/{bundleId}/waivers (the `RequestWaiver` operationId).
-func (c *ClientWithResponses) RequestWaiverWithResponse(ctx context.Context, bundleId BundleId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error) {
-	rsp, err := c.RequestWaiver(ctx, bundleId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseRequestWaiverResponse(rsp)
 }
 
 // UndismissDocWithResponse Take the mark off a file, so it appears again (REQ-133).
@@ -17578,6 +17085,621 @@ func (c *ClientWithResponses) DismissDocWithResponse(ctx context.Context, body D
 		return nil, err
 	}
 	return ParseDismissDocResponse(rsp)
+}
+
+// GetSpecDocWithResponse Get one spec doc.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
+func (c *ClientWithResponses) GetSpecDocWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetSpecDocResponse, error) {
+	rsp, err := c.GetSpecDoc(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSpecDocResponse(rsp)
+}
+
+// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/adopt (the `AdoptFrontmatter` operationId).
+func (c *ClientWithResponses) AdoptFrontmatterWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*AdoptFrontmatterResponse, error) {
+	rsp, err := c.AdoptFrontmatter(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptFrontmatterResponse(rsp)
+}
+
+// ApproveBundleWithResponse Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/approve (the `ApproveBundle` operationId).
+func (c *ClientWithResponses) ApproveBundleWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ApproveBundleResponse, error) {
+	rsp, err := c.ApproveBundle(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseApproveBundleResponse(rsp)
+}
+
+// ListAssumptionsWithResponse List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
+func (c *ClientWithResponses) ListAssumptionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListAssumptionsResponse, error) {
+	rsp, err := c.ListAssumptions(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListAssumptionsResponse(rsp)
+}
+
+// DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/diff (the `DiffVersions` operationId).
+func (c *ClientWithResponses) DiffVersionsWithResponse(ctx context.Context, docId DocId, params *DiffVersionsParams, reqEditors ...RequestEditorFn) (*DiffVersionsResponse, error) {
+	rsp, err := c.DiffVersions(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiffVersionsResponse(rsp)
+}
+
+// SummarizeDiffWithResponse Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/diff/summary (the `SummarizeDiff` operationId).
+func (c *ClientWithResponses) SummarizeDiffWithResponse(ctx context.Context, docId DocId, params *SummarizeDiffParams, reqEditors ...RequestEditorFn) (*SummarizeDiffResponse, error) {
+	rsp, err := c.SummarizeDiff(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSummarizeDiffResponse(rsp)
+}
+
+// DiscardDraftWithResponse Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/draft/discard (the `DiscardDraft` operationId).
+func (c *ClientWithResponses) DiscardDraftWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*DiscardDraftResponse, error) {
+	rsp, err := c.DiscardDraft(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscardDraftResponse(rsp)
+}
+
+// ExportBundleWithResponse Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/export (the `ExportBundle` operationId).
+func (c *ClientWithResponses) ExportBundleWithResponse(ctx context.Context, docId DocId, params *ExportBundleParams, reqEditors ...RequestEditorFn) (*ExportBundleResponse, error) {
+	rsp, err := c.ExportBundle(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportBundleResponse(rsp)
+}
+
+// DeleteFileWithResponse Delete a file. Creates a version (REQ-005).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /docs/{docId}/files (the `DeleteFile` operationId).
+func (c *ClientWithResponses) DeleteFileWithResponse(ctx context.Context, docId DocId, params *DeleteFileParams, reqEditors ...RequestEditorFn) (*DeleteFileResponse, error) {
+	rsp, err := c.DeleteFile(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteFileResponse(rsp)
+}
+
+// ListFilesWithResponse List the files of a bundle version. The default is the current version.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/files (the `ListFiles` operationId).
+func (c *ClientWithResponses) ListFilesWithResponse(ctx context.Context, docId DocId, params *ListFilesParams, reqEditors ...RequestEditorFn) (*ListFilesResponse, error) {
+	rsp, err := c.ListFiles(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListFilesResponse(rsp)
+}
+
+// GetFileContentWithResponse Get the bytes of one file in a bundle version. The default is the current version.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/files/content (the `GetFileContent` operationId).
+func (c *ClientWithResponses) GetFileContentWithResponse(ctx context.Context, docId DocId, params *GetFileContentParams, reqEditors ...RequestEditorFn) (*GetFileContentResponse, error) {
+	rsp, err := c.GetFileContent(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFileContentResponse(rsp)
+}
+
+// PutFileContentWithBodyWithResponse Create or replace a file. Creates a version when the content changed (REQ-005).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /docs/{docId}/files/content (the `PutFileContent` operationId).
+func (c *ClientWithResponses) PutFileContentWithBodyWithResponse(ctx context.Context, docId DocId, params *PutFileContentParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PutFileContentResponse, error) {
+	rsp, err := c.PutFileContentWithBody(ctx, docId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePutFileContentResponse(rsp)
+}
+
+// RenameFileWithBodyWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+func (c *ClientWithResponses) RenameFileWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RenameFileResponse, error) {
+	rsp, err := c.RenameFileWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameFileResponse(rsp)
+}
+
+// RenameFileWithResponse Rename or move a file inside the bundle. Creates a version (REQ-005).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
+func (c *ClientWithResponses) RenameFileWithResponse(ctx context.Context, docId DocId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error) {
+	rsp, err := c.RenameFile(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRenameFileResponse(rsp)
+}
+
+// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/handoff (the `ListHandoffs` operationId).
+func (c *ClientWithResponses) ListHandoffsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListHandoffsResponse, error) {
+	rsp, err := c.ListHandoffs(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListHandoffsResponse(rsp)
+}
+
+// TakeHandoffWithBodyWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+func (c *ClientWithResponses) TakeHandoffWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error) {
+	rsp, err := c.TakeHandoffWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeHandoffResponse(rsp)
+}
+
+// TakeHandoffWithResponse Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
+func (c *ClientWithResponses) TakeHandoffWithResponse(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error) {
+	rsp, err := c.TakeHandoff(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeHandoffResponse(rsp)
+}
+
+// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+func (c *ClientWithResponses) SetBundleProfileWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error) {
+	rsp, err := c.SetBundleProfileWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetBundleProfileResponse(rsp)
+}
+
+// SetBundleProfileWithResponse Change the profile of the bundle's main doc.
+//
+// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /docs/{docId}/profile (the `SetBundleProfile` operationId).
+func (c *ClientWithResponses) SetBundleProfileWithResponse(ctx context.Context, docId DocId, body SetBundleProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*SetBundleProfileResponse, error) {
+	rsp, err := c.SetBundleProfile(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetBundleProfileResponse(rsp)
+}
+
+// PublishBundleWithBodyWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+func (c *ClientWithResponses) PublishBundleWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error) {
+	rsp, err := c.PublishBundleWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishBundleResponse(rsp)
+}
+
+// PublishBundleWithResponse Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
+func (c *ClientWithResponses) PublishBundleWithResponse(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error) {
+	rsp, err := c.PublishBundle(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishBundleResponse(rsp)
+}
+
+// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+func (c *ClientWithResponses) RequestReviewWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error) {
+	rsp, err := c.RequestReviewWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestReviewResponse(rsp)
+}
+
+// RequestReviewWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/review-request (the `RequestReview` operationId).
+func (c *ClientWithResponses) RequestReviewWithResponse(ctx context.Context, docId DocId, body RequestReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestReviewResponse, error) {
+	rsp, err := c.RequestReview(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestReviewResponse(rsp)
+}
+
+// ListRunsWithResponse List the review runs of a bundle, newest first.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/runs (the `ListRuns` operationId).
+func (c *ClientWithResponses) ListRunsWithResponse(ctx context.Context, docId DocId, params *ListRunsParams, reqEditors ...RequestEditorFn) (*ListRunsResponse, error) {
+	rsp, err := c.ListRuns(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListRunsResponse(rsp)
+}
+
+// StartRunWithBodyWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+func (c *ClientWithResponses) StartRunWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartRunResponse, error) {
+	rsp, err := c.StartRunWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartRunResponse(rsp)
+}
+
+// StartRunWithResponse Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/runs (the `StartRun` operationId).
+func (c *ClientWithResponses) StartRunWithResponse(ctx context.Context, docId DocId, body StartRunJSONRequestBody, reqEditors ...RequestEditorFn) (*StartRunResponse, error) {
+	rsp, err := c.StartRun(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartRunResponse(rsp)
+}
+
+// EstimateRunWithResponse Estimate the tokens and cost of a full review before it starts (REQ-104).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/runs/estimate (the `EstimateRun` operationId).
+func (c *ClientWithResponses) EstimateRunWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*EstimateRunResponse, error) {
+	rsp, err := c.EstimateRun(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEstimateRunResponse(rsp)
+}
+
+// GetBundleStatusWithResponse The review status of a bundle (§9.5).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/status (the `GetBundleStatus` operationId).
+func (c *ClientWithResponses) GetBundleStatusWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetBundleStatusResponse, error) {
+	rsp, err := c.GetBundleStatus(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBundleStatusResponse(rsp)
+}
+
+// ListBundleThreadsWithResponse List the threads of a bundle, open first (REQ-087).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/threads (the `ListBundleThreads` operationId).
+func (c *ClientWithResponses) ListBundleThreadsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListBundleThreadsResponse, error) {
+	rsp, err := c.ListBundleThreads(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListBundleThreadsResponse(rsp)
+}
+
+// OpenBundleThreadWithBodyWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+func (c *ClientWithResponses) OpenBundleThreadWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error) {
+	rsp, err := c.OpenBundleThreadWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseOpenBundleThreadResponse(rsp)
+}
+
+// OpenBundleThreadWithResponse Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
+func (c *ClientWithResponses) OpenBundleThreadWithResponse(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error) {
+	rsp, err := c.OpenBundleThread(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseOpenBundleThreadResponse(rsp)
+}
+
+// GetTourWithResponse The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
+func (c *ClientWithResponses) GetTourWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTourResponse, error) {
+	rsp, err := c.GetTour(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTourResponse(rsp)
+}
+
+// GetTraceWithResponse The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
+func (c *ClientWithResponses) GetTraceWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTraceResponse, error) {
+	rsp, err := c.GetTrace(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTraceResponse(rsp)
+}
+
+// AddTraceIdsWithBodyWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+func (c *ClientWithResponses) AddTraceIdsWithBodyWithResponse(ctx context.Context, docId DocId, params *AddTraceIdsParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error) {
+	rsp, err := c.AddTraceIdsWithBody(ctx, docId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddTraceIdsResponse(rsp)
+}
+
+// AddTraceIdsWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/trace/ids (the `AddTraceIds` operationId).
+func (c *ClientWithResponses) AddTraceIdsWithResponse(ctx context.Context, docId DocId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody, reqEditors ...RequestEditorFn) (*AddTraceIdsResponse, error) {
+	rsp, err := c.AddTraceIds(ctx, docId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAddTraceIdsResponse(rsp)
+}
+
+// RequestVerificationWaiverWithBodyWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *ClientWithResponses) RequestVerificationWaiverWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error) {
+	rsp, err := c.RequestVerificationWaiverWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestVerificationWaiverResponse(rsp)
+}
+
+// RequestVerificationWaiverWithResponse Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/verification-waivers (the `RequestVerificationWaiver` operationId).
+func (c *ClientWithResponses) RequestVerificationWaiverWithResponse(ctx context.Context, docId DocId, body RequestVerificationWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestVerificationWaiverResponse, error) {
+	rsp, err := c.RequestVerificationWaiver(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestVerificationWaiverResponse(rsp)
+}
+
+// ListVerificationsWithResponse The verification runs of a bundle, newest first.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/verifications (the `ListVerifications` operationId).
+func (c *ClientWithResponses) ListVerificationsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListVerificationsResponse, error) {
+	rsp, err := c.ListVerifications(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListVerificationsResponse(rsp)
+}
+
+// RunVerificationWithBodyWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+func (c *ClientWithResponses) RunVerificationWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error) {
+	rsp, err := c.RunVerificationWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRunVerificationResponse(rsp)
+}
+
+// RunVerificationWithResponse Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/verifications (the `RunVerification` operationId).
+func (c *ClientWithResponses) RunVerificationWithResponse(ctx context.Context, docId DocId, body RunVerificationJSONRequestBody, reqEditors ...RequestEditorFn) (*RunVerificationResponse, error) {
+	rsp, err := c.RunVerification(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRunVerificationResponse(rsp)
+}
+
+// VerificationDefaultsWithResponse The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/verifications/defaults (the `VerificationDefaults` operationId).
+func (c *ClientWithResponses) VerificationDefaultsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*VerificationDefaultsResponse, error) {
+	rsp, err := c.VerificationDefaults(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseVerificationDefaultsResponse(rsp)
+}
+
+// ResolveVerificationTargetWithBodyWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+func (c *ClientWithResponses) ResolveVerificationTargetWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error) {
+	rsp, err := c.ResolveVerificationTargetWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResolveVerificationTargetResponse(rsp)
+}
+
+// ResolveVerificationTargetWithResponse Say which repo and commit, or which folder, a pasted target names, before a run starts.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/verifications/resolve (the `ResolveVerificationTarget` operationId).
+func (c *ClientWithResponses) ResolveVerificationTargetWithResponse(ctx context.Context, docId DocId, body ResolveVerificationTargetJSONRequestBody, reqEditors ...RequestEditorFn) (*ResolveVerificationTargetResponse, error) {
+	rsp, err := c.ResolveVerificationTarget(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseResolveVerificationTargetResponse(rsp)
+}
+
+// ListVersionsWithResponse List the versions of a bundle, newest first.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/versions (the `ListVersions` operationId).
+func (c *ClientWithResponses) ListVersionsWithResponse(ctx context.Context, docId DocId, params *ListVersionsParams, reqEditors ...RequestEditorFn) (*ListVersionsResponse, error) {
+	rsp, err := c.ListVersions(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListVersionsResponse(rsp)
+}
+
+// ListWaiversWithResponse List the waivers of a bundle (REQ-072 to REQ-074).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/waivers (the `ListWaivers` operationId).
+func (c *ClientWithResponses) ListWaiversWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListWaiversResponse, error) {
+	rsp, err := c.ListWaivers(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListWaiversResponse(rsp)
+}
+
+// RequestWaiverWithBodyWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+func (c *ClientWithResponses) RequestWaiverWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error) {
+	rsp, err := c.RequestWaiverWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestWaiverResponse(rsp)
+}
+
+// RequestWaiverWithResponse Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
+func (c *ClientWithResponses) RequestWaiverWithResponse(ctx context.Context, docId DocId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error) {
+	rsp, err := c.RequestWaiver(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRequestWaiverResponse(rsp)
 }
 
 // ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
@@ -19397,7 +19519,7 @@ func ParseCreateBundleResponse(rsp *http.Response) (*CreateBundleResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Bundle
+		var dest SpecDoc
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -19576,6 +19698,267 @@ func ParseGetBundleAccessResponse(rsp *http.Response) (*GetBundleAccessResponse,
 	return response, nil
 }
 
+// ParseDeleteBundlePlanResponse parses an HTTP response from a DeleteBundlePlanWithResponse call
+func ParseDeleteBundlePlanResponse(rsp *http.Response) (*DeleteBundlePlanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteBundlePlanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeletePlan
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRevokeShareLinkResponse parses an HTTP response from a RevokeShareLinkWithResponse call
+func ParseRevokeShareLinkResponse(rsp *http.Response) (*RevokeShareLinkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RevokeShareLinkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BundleAccess
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateShareLinkResponse parses an HTTP response from a CreateShareLinkWithResponse call
+func ParseCreateShareLinkResponse(rsp *http.Response) (*CreateShareLinkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateShareLinkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Access BundleAccess `json:"access"`
+			Url    string       `json:"url"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetVisibilityResponse parses an HTTP response from a SetVisibilityWithResponse call
+func ParseSetVisibilityResponse(rsp *http.Response) (*SetVisibilityResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetVisibilityResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BundleAccess
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUndismissDocResponse parses an HTTP response from a UndismissDocWithResponse call
+func ParseUndismissDocResponse(rsp *http.Response) (*UndismissDocResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UndismissDocResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDismissedDocsResponse parses an HTTP response from a ListDismissedDocsWithResponse call
+func ParseListDismissedDocsResponse(rsp *http.Response) (*ListDismissedDocsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDismissedDocsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []DismissedDoc `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDismissDocResponse parses an HTTP response from a DismissDocWithResponse call
+func ParseDismissDocResponse(rsp *http.Response) (*DismissDocResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DismissDocResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSpecDocResponse parses an HTTP response from a GetSpecDocWithResponse call
+func ParseGetSpecDocResponse(rsp *http.Response) (*GetSpecDocResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSpecDocResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SpecDoc
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseAdoptFrontmatterResponse parses an HTTP response from a AdoptFrontmatterWithResponse call
 func ParseAdoptFrontmatterResponse(rsp *http.Response) (*AdoptFrontmatterResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -19660,39 +20043,6 @@ func ParseListAssumptionsResponse(rsp *http.Response) (*ListAssumptionsResponse,
 		var dest struct {
 			Items []Anchor `json:"items"`
 		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteBundlePlanResponse parses an HTTP response from a DeleteBundlePlanWithResponse call
-func ParseDeleteBundlePlanResponse(rsp *http.Response) (*DeleteBundlePlanResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteBundlePlanResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DeletePlan
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -20074,7 +20424,7 @@ func ParseSetBundleProfileResponse(rsp *http.Response) (*SetBundleProfileRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Bundle
+		var dest SpecDoc
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -20243,75 +20593,6 @@ func ParseEstimateRunResponse(rsp *http.Response) (*EstimateRunResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest RunEstimate
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseRevokeShareLinkResponse parses an HTTP response from a RevokeShareLinkWithResponse call
-func ParseRevokeShareLinkResponse(rsp *http.Response) (*RevokeShareLinkResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &RevokeShareLinkResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BundleAccess
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseCreateShareLinkResponse parses an HTTP response from a CreateShareLinkWithResponse call
-func ParseCreateShareLinkResponse(rsp *http.Response) (*CreateShareLinkResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateShareLinkResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Access BundleAccess `json:"access"`
-			Url    string       `json:"url"`
-		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -20727,39 +21008,6 @@ func ParseListVersionsResponse(rsp *http.Response) (*ListVersionsResponse, error
 	return response, nil
 }
 
-// ParseSetVisibilityResponse parses an HTTP response from a SetVisibilityWithResponse call
-func ParseSetVisibilityResponse(rsp *http.Response) (*SetVisibilityResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &SetVisibilityResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest BundleAccess
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParseListWaiversResponse parses an HTTP response from a ListWaiversWithResponse call
 func ParseListWaiversResponse(rsp *http.Response) (*ListWaiversResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -20815,99 +21063,6 @@ func ParseRequestWaiverResponse(rsp *http.Response) (*RequestWaiverResponse, err
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUndismissDocResponse parses an HTTP response from a UndismissDocWithResponse call
-func ParseUndismissDocResponse(rsp *http.Response) (*UndismissDocResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UndismissDocResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseListDismissedDocsResponse parses an HTTP response from a ListDismissedDocsWithResponse call
-func ParseListDismissedDocsResponse(rsp *http.Response) (*ListDismissedDocsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ListDismissedDocsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			Items []DismissedDoc `json:"items"`
-		}
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDismissDocResponse parses an HTTP response from a DismissDocWithResponse call
-func ParseDismissDocResponse(rsp *http.Response) (*DismissDocResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DismissDocResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case rsp.StatusCode == 204:
-		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
@@ -22314,7 +22469,7 @@ func ParseAdoptSkippedResponse(rsp *http.Response) (*AdoptSkippedResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Bundle
+		var dest SpecDoc
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

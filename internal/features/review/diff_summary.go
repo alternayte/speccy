@@ -36,7 +36,7 @@ type diffSummary struct {
 // and the change in findings, from the stored runs (REQ-007). The summary is cached by the
 // content of both versions.
 func (a *API) SummarizeDiff(ctx context.Context, req api.SummarizeDiffRequestObject) (api.SummarizeDiffResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}

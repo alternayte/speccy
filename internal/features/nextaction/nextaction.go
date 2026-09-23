@@ -89,7 +89,7 @@ func Of(in Inputs) *api.NextAction {
 	if a := in.Adopt; a != nil && (a.Type != nil || a.Size != nil) {
 		return &api.NextAction{Kind: api.NextActionKindAdopt, Sentence: "Write the type and the size into the doc"}
 	}
-	if v.Result != api.BuildReady {
+	if v.Result != api.VerdictResultBuildReady {
 		return nil
 	}
 	if in.Hosted && in.ApprovalsNeeded > in.ApprovalsGiven {
@@ -106,7 +106,7 @@ func Of(in Inputs) *api.NextAction {
 }
 
 func stale(v *api.BundleVerdict, current int64) bool {
-	return v.Result == api.Stale || v.VersionNumber != current
+	return v.Result == api.VerdictResultStale || v.VersionNumber != current
 }
 
 func deref(n *int) int {
@@ -135,7 +135,7 @@ func short(s string, n int) string {
 // WaiverFor returns the waiver of this bundle that waits for the caller, if there is one.
 func WaiverFor(waiting []api.Waiver, bundleID uuid.UUID) *api.Waiver {
 	for i, w := range waiting {
-		if w.BundleId == bundleID {
+		if w.DocId == bundleID {
 			return &waiting[i]
 		}
 	}

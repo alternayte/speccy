@@ -15,8 +15,8 @@ const verdictLabel: Record<string, string> = {
 // HandoffsPanel lists the builders that took this bundle's build packet, newest first
 // (REQ-136). A handoff is stale once the bundle has a newer version, which is what tells an
 // author their edit landed after someone started building.
-export function HandoffsPanel({ bundleId, current }: { bundleId: string; current: number }) {
-  const handoffs = useQuery({ ...listHandoffsOptions({ path: { bundleId } }), refetchInterval: 15_000 });
+export function HandoffsPanel({ docId, current }: { docId: string; current: number }) {
+  const handoffs = useQuery({ ...listHandoffsOptions({ path: { docId } }), refetchInterval: 15_000 });
   const items = handoffs.data?.items ?? [];
   if (handoffs.isPending) return <Loading label="Loading handoffs" />;
   if (handoffs.isError)

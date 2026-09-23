@@ -102,7 +102,7 @@ func (a *API) report(ctx context.Context, b pgdb.SpecDoc) (api.ExportBundleRespo
 			d.Kind = "Lint checks only"
 		}
 		d.Next = next(bv.Must, bv.Result)
-		if bv.Result == api.Stale {
+		if bv.Result == api.VerdictResultStale {
 			d.Next = fmt.Sprintf("This verdict is for version %d. The report shows version %d.", bv.VersionNumber, v.Number)
 		}
 		d.setRadar(bv.Radar)
@@ -195,7 +195,7 @@ func next(must int, result api.VerdictResult) string {
 	switch {
 	case must > 0:
 		return fmt.Sprintf("%d MUST finding%s to fix. SHOULD findings never block.", must, plural(must))
-	case result == api.NotBuildReady:
+	case result == api.VerdictResultNotBuildReady:
 		return "A required link or decision is missing, or a blocking thread is open."
 	default:
 		return "No blocking findings."
@@ -203,7 +203,7 @@ func next(must int, result api.VerdictResult) string {
 }
 
 func verdictText(result api.VerdictResult, waivers int) string {
-	label := map[api.VerdictResult]string{api.BuildReady: "Build Ready", api.NotBuildReady: "Not Build Ready", api.Stale: "Stale"}[result]
+	label := map[api.VerdictResult]string{api.VerdictResultBuildReady: "Build Ready", api.VerdictResultNotBuildReady: "Not Build Ready", api.VerdictResultStale: "Stale"}[result]
 	if waivers > 0 {
 		label += fmt.Sprintf(" (%d waiver%s)", waivers, plural(waivers))
 	}

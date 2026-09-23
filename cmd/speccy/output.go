@@ -14,7 +14,7 @@ import (
 )
 
 var verdictText = map[string]string{
-	string(api.BuildReady): "Build Ready", string(api.NotBuildReady): "Not Build Ready", string(api.Stale): "Stale",
+	string(api.VerdictResultBuildReady): "Build Ready", string(api.VerdictResultNotBuildReady): "Not Build Ready", string(api.VerdictResultStale): "Stale",
 }
 
 func verdictLabel(r reviewed) string {
@@ -193,7 +193,7 @@ func writeSummary(w io.Writer, format string, rs []reviewed) {
 			row.Top = []string{}
 		}
 		rows = append(rows, row)
-		if r.Verdict == string(api.BuildReady) && r.Error == "" {
+		if r.Verdict == string(api.VerdictResultBuildReady) && r.Error == "" {
 			ready++
 		}
 		seen := map[string]bool{}

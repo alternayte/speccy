@@ -1,3 +1,4 @@
+import { useBundleId } from "./params";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
@@ -10,6 +11,7 @@ import { EditorPane, type View } from "@/features/editor/editor-pane";
 import {
   getBundleAccessOptions,
   getBundleOptions,
+  getSpecDocOptions,
   listFilesOptions,
   listFindingsOptions,
   listWaiversOptions,
@@ -47,14 +49,15 @@ const railLabels: Record<RailTab, string> = {
   history: "History",
 };
 
-export function BundlePage({ bundleId, search }: { bundleId: string; search: BundleSearch }) {
+export function BundlePage({ docId, search }: { docId: string; search: BundleSearch }) {
+  const bundleId = useBundleId();
   const navigate = useNavigate();
   const qc = useQueryClient();
   // Local mode: files on disk change without Speccy. Poll for new versions (REQ-005).
-  const bundle = useQuery({ ...getBundleOptions({ path: { bundleId } }), refetchInterval: 2000 });
+  const bundle = useQuery({ ...getSpecDocOptions({ path: { docId } }), refetchInterval: 2000 });
   const version = bundle.data?.current_version;
   const files = useQuery({
-    ...listFilesOptions({ path: { bundleId }, query: { version: version?.id } }),
+    ...listFilesOptions({ path: { docId }, query: { version: version?.id } }),
     enabled: !!version,
     // Keep the old list while a new version loads, so the editor stays mounted.
     placeholderData: keepPreviousData,
@@ -84,7 +87,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const selected = search.file ?? bundle.data?.main_doc ?? "";
+  const selected = search.file ?? bundle.data?.path ?? "";
   const view: View = search.view ?? lastView();
 
   useEffect(() => {
@@ -92,8 +95,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   }, [search.view]);
 
   const setSearch = useCallback(
-    (next: BundleSearch) => navigate({ to: "/bundles/$bundleId", params: { bundleId }, search: next, replace: true }),
-    [navigate, bundleId],
+    (next: BundleSearch) =>
+      navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId, docId }, search: next, replace: true }),
+    [navigate, bundleId, docId],
   );
 
   const select = (path: string) => {
@@ -113,20 +117,30 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const openFinding = (f: Finding) => openAnchor(f.anchor);
 
   const refresh = useCallback(() => {
-    qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
-  }, [qc, bundleId]);
-  const run = useActiveRun(bundleId, refresh);
+    qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
+  }, [qc, docId]);
+  const run = useActiveRun(docId, refresh);
   const findingsRun = bundle.data?.verdict?.run_id;
   const findings = useQuery({ ...listFindingsOptions({ path: { runId: findingsRun ?? "" } }), enabled: !!findingsRun });
   const me = useMe();
   const hosted = me.data?.mode === "hosted";
   const guest = !!me.data?.guest;
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
+  // The bundle's spec docs, for the file tree: each one opens its own profile, rail and verdict.
+  const folder = useQuery({ ...getBundleOptions({ path: { bundleId } }), refetchInterval: 5000 });
+  const specDocs = folder.data?.docs ?? [];
+  const openDoc = (id: string) => {
+    if (id === docId) return;
+    if (dirty && !window.confirm("This file has unsaved edits. Leave it and discard them?")) return;
+    setDirty(false);
+    setPanel(null);
+    navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId, docId: id }, search: { view: search.view } });
+  };
   // Waivers that wait for this person: the next action opens the first one.
-  const waivers = useQuery({ ...listWaiversOptions({ path: { bundleId } }), refetchInterval: 5000 });
+  const waivers = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
   // openWaiver shows a waiver where it can be judged: the rail selects the finding it excuses,
   // and the preview focuses the whole section the waiver covers (SDD §9.1).
-  const mainDoc = bundle.data?.main_doc;
+  const mainDoc = bundle.data?.path;
   const openWaiver = useCallback(
     (w: Waiver) => {
       setTab("findings");
@@ -155,7 +169,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   // apply only where the panes sit side by side.
   const explorer = useDivider({ key: "speccy-explorer-width", from: "left", min: 180, max: 480, initial: 248 });
   const rail = useDivider({ key: "speccy-rail-width", from: "right", min: 260, max: 560, initial: 320 });
-  const mode = useReviewerMode(bundleId);
+  const mode = useReviewerMode();
   // The control row opens the same dialogs as the buttons it holds.
   const runReview = useRef<() => void>(undefined);
   const askReview = useRef<() => void>(undefined);
@@ -171,7 +185,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         return;
       }
       case "decide":
-        navigate({ to: "/bundles/$bundleId/tour", params: { bundleId } });
+        navigate({ to: "/bundles/$bundleId/docs/$docId/tour", params: { bundleId, docId } });
         return;
       case "fix": {
         setTab("findings");
@@ -187,7 +201,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         runReview.current?.();
         return;
       case "adopt":
-        adopt.mutate({ path: { bundleId } });
+        adopt.mutate({ path: { docId } });
         return;
       case "request_review":
         askReview.current?.();
@@ -202,7 +216,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const canEdit = !hosted || !!access.data?.can_edit;
 
   if (mode.pending) return <Loading label="Loading the bundle" />;
-  if (mode.reviewer) return <ReviewerPage bundleId={bundleId} />;
+  if (mode.reviewer) return <ReviewerPage docId={docId} />;
 
   if (bundle.isPending) return <Loading label="Loading the bundle" />;
   if (bundle.isError)
@@ -215,7 +229,8 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
   const file = files.data?.items.find((f) => f.path === selected);
   // Each panel earns its place from the doc's state: an empty tab teaches nothing (SDD §13.4).
   const reviewed = !!b.verdict;
-  const assets = (files.data?.items.length ?? 1) > 1;
+  // The tree earns its column when the bundle holds more than this one file.
+  const assets = (files.data?.items.length ?? 1) > 1 || specDocs.length > 1;
   const tabs: RailTab[] = [
     ...(reviewed ? (["findings"] as const) : []),
     "threads",
@@ -238,7 +253,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         onRunReview={() => runReview.current?.()}
         onRequestReview={hosted ? () => askReview.current?.() : undefined}
         onExport={(format) =>
-          window.location.assign(`/api/v1/bundles/${bundleId}/export${format === "html" ? "?format=html" : ""}`)
+          window.location.assign(`/api/v1/docs/${docId}/export${format === "html" ? "?format=html" : ""}`)
         }
         onPrint={() => {
           if (view === "code") setSearch({ ...search, view: "preview" });
@@ -247,10 +262,10 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
         extra={
           <>
             <GitHubControl bundle={b} canEdit={canEdit} />
-            <ReviewStatus bundleId={bundleId} signedIn register={(f) => (askReview.current = f)} />
+            <ReviewStatus docId={docId} signedIn register={(f) => (askReview.current = f)} />
             {hosted ? <ShareDialog bundleId={bundleId} /> : null}
             <RunReviewButton
-              bundleId={bundleId}
+              docId={docId}
               active={!!run.active}
               onStarted={() => run.refetch()}
               register={(f) => (runReview.current = f)}
@@ -291,9 +306,11 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
             </div>
           ) : files.data ? (
             <Explorer
-              bundleId={bundleId}
+              docId={docId}
               baseVersion={b.current_version.id}
               files={files.data.items}
+              specDocs={specDocs}
+              onOpenDoc={openDoc}
               selected={selected}
               onSelect={select}
               onChanged={(path) => {
@@ -322,7 +339,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                 message={`Version ${b.current_version.number} of the bundle has no file ${selected}.`}
                 action={
                   <Button size="sm" onClick={() => setSearch({ view: search.view })}>
-                    Open the main doc
+                    Open the spec doc
                   </Button>
                 }
               />
@@ -330,7 +347,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
           ) : file ? (
             <EditorPane
               key={selected}
-              bundleId={bundleId}
+              docId={docId}
               path={selected}
               version={{ id: files.data!.version.id, number: files.data!.version.number }}
               sha={file.sha256}
@@ -417,7 +434,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                   orderKey={b.verdict?.ai_run_id}
                   selected={selectedFinding}
                   canEdit={canEdit && !guest}
-                  bundleId={bundleId}
+                  docId={docId}
                   member={!guest}
                   onOpen={openFinding}
                   onOpenWaiver={openWaiver}
@@ -440,7 +457,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                 />
               ) : shownTab === "threads" ? (
                 <ThreadsPanel
-                  bundleId={bundleId}
+                  docId={docId}
                   member={!guest}
                   pending={newThread}
                   onPendingDone={() => setNewThread(undefined)}
@@ -449,7 +466,7 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
               ) : shownTab === "evidence" ? (
                 <>
                   <EvidencePanel
-                    bundleId={bundleId}
+                    docId={docId}
                     runId={b.verdict?.ai_run_id}
                     version={b.current_version.id}
                     onOpen={openAnchor}
@@ -462,9 +479,9 @@ export function BundlePage({ bundleId, search }: { bundleId: string; search: Bun
                 </>
               ) : (
                 <>
-                  <VersionsPanel bundleId={bundleId} current={b.current_version.id} />
-                  <HandoffsPanel bundleId={bundleId} current={b.current_version.number} />
-                  <VerificationsPanel bundleId={bundleId} canVerify={!guest} prefill={verifyAt} />
+                  <VersionsPanel docId={docId} current={b.current_version.id} />
+                  <HandoffsPanel docId={docId} current={b.current_version.number} />
+                  <VerificationsPanel docId={docId} canVerify={!guest} prefill={verifyAt} />
                 </>
               )}
             </div>

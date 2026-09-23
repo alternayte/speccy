@@ -121,7 +121,7 @@ func (e *env) edit(t *testing.T, content string) {
 // waive requests a waiver of the placeholder as the author and approves it as the maintainer.
 func (e *env) waive(t *testing.T) api.Waiver {
 	t.Helper()
-	res, err := e.app.API.RequestWaiver(as("author"), api.RequestWaiverRequestObject{BundleId: e.b.ID,
+	res, err := e.app.API.RequestWaiver(as("author"), api.RequestWaiverRequestObject{DocId: e.b.ID,
 		Body: &api.RequestWaiverJSONRequestBody{FindingId: e.mustFinding(t, "lint.placeholder"), Reason: "The provider sets this limit; the asset lists it."}})
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestWaiver_InvalidatedOnSectionEdit(t *testing.T) {
 			if r, must := e.verdict(t); r != "not_build_ready" || must != 1 {
 				t.Errorf("after an edit in the waived section: %s with %d MUST, want not_build_ready with 1", r, must)
 			}
-			ws, _ := e.app.API.ListWaivers(as("author"), api.ListWaiversRequestObject{BundleId: e.b.ID})
+			ws, _ := e.app.API.ListWaivers(as("author"), api.ListWaiversRequestObject{DocId: e.b.ID})
 			items := ws.(api.ListWaivers200JSONResponse).Items
 			if len(items) != 1 || items[0].Status != "invalidated" {
 				t.Errorf("waivers after the edit: %+v", items)
@@ -229,19 +229,19 @@ func TestApproval_AuthorCannotApprove(t *testing.T) {
 			if r, _ := e.verdict(t); r != "build_ready" {
 				t.Fatalf("fixture verdict %s", r)
 			}
-			if _, err := e.app.API.RequestReview(as("member"), api.RequestReviewRequestObject{BundleId: e.b.ID,
+			if _, err := e.app.API.RequestReview(as("member"), api.RequestReviewRequestObject{DocId: e.b.ID,
 				Body: &api.RequestReviewJSONRequestBody{Reviewers: []string{"member"}}}); err == nil {
 				t.Error("a member who is not an author requested a review")
 			}
-			if _, err := e.app.API.RequestReview(as("author"), api.RequestReviewRequestObject{BundleId: e.b.ID,
+			if _, err := e.app.API.RequestReview(as("author"), api.RequestReviewRequestObject{DocId: e.b.ID,
 				Body: &api.RequestReviewJSONRequestBody{Reviewers: []string{"member"}}}); err != nil {
 				t.Fatal(err)
 			}
-			_, err := e.app.API.ApproveBundle(as("author"), api.ApproveBundleRequestObject{BundleId: e.b.ID})
+			_, err := e.app.API.ApproveBundle(as("author"), api.ApproveBundleRequestObject{DocId: e.b.ID})
 			if ke, ok := kernel.AsError(err); !ok || ke.Code != "author_cannot_approve" {
 				t.Errorf("the author approved: %v", err)
 			}
-			res, err := e.app.API.ApproveBundle(as("member"), api.ApproveBundleRequestObject{BundleId: e.b.ID})
+			res, err := e.app.API.ApproveBundle(as("member"), api.ApproveBundleRequestObject{DocId: e.b.ID})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -258,16 +258,16 @@ func TestApproval_EditRevokes(t *testing.T) {
 		t.Run(eng.Name, func(t *testing.T) {
 			e := newEnv(t, eng)
 			fixed(e, t)
-			if _, err := e.app.API.RequestReview(as("author"), api.RequestReviewRequestObject{BundleId: e.b.ID,
+			if _, err := e.app.API.RequestReview(as("author"), api.RequestReviewRequestObject{DocId: e.b.ID,
 				Body: &api.RequestReviewJSONRequestBody{Reviewers: []string{"member"}}}); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.app.API.ApproveBundle(as("member"), api.ApproveBundleRequestObject{BundleId: e.b.ID}); err != nil {
+			if _, err := e.app.API.ApproveBundle(as("member"), api.ApproveBundleRequestObject{DocId: e.b.ID}); err != nil {
 				t.Fatal(err)
 			}
 			main, _ := bundleFiles(t, e)
 			e.edit(t, strings.Replace(string(main), "logs each call", "logs each call twice", 1))
-			res, err := e.app.API.GetBundleStatus(as("member"), api.GetBundleStatusRequestObject{BundleId: e.b.ID})
+			res, err := e.app.API.GetBundleStatus(as("member"), api.GetBundleStatusRequestObject{DocId: e.b.ID})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -287,7 +287,7 @@ func TestThread_BlockingThreadBlocks(t *testing.T) {
 			e := newEnv(t, eng)
 			fixed(e, t)
 			blocking := true
-			res, err := e.app.API.OpenBundleThread(as("member"), api.OpenBundleThreadRequestObject{BundleId: e.b.ID, Body: &api.OpenThread{
+			res, err := e.app.API.OpenBundleThread(as("member"), api.OpenBundleThreadRequestObject{DocId: e.b.ID, Body: &api.OpenThread{
 				AnchorKind: api.OpenThreadAnchorKindSection, Anchor: map[string]any{"heading_path": []string{"Pay", "Limits"}},
 				AddressedTo: api.OpenThreadAddressedToHumans, Body: "Who owns the limit? @ann please decide.", Blocking: &blocking}})
 			if err != nil {
@@ -339,7 +339,7 @@ func TestThread_AIAnswers(t *testing.T) {
 		prompt = c.Prompt
 		return model.Raw{Text: `{"answer":"The doc says the limit is TBD. Stripe allows 100 per second.","sources":["https://stripe.com/docs/rate-limits"]}`}, nil
 	})
-	res, err := e.app.API.OpenBundleThread(as("member"), api.OpenBundleThreadRequestObject{BundleId: e.b.ID, Body: &api.OpenThread{
+	res, err := e.app.API.OpenBundleThread(as("member"), api.OpenBundleThreadRequestObject{DocId: e.b.ID, Body: &api.OpenThread{
 		AnchorKind: api.OpenThreadAnchorKindSection, Anchor: map[string]any{"heading_path": []string{"Pay", "Limits"}},
 		AddressedTo: api.OpenThreadAddressedToAi, Body: "What is the request limit?"}})
 	if err != nil {

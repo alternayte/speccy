@@ -1,3 +1,4 @@
+import { useBundleId } from "@/features/bundle/params";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
@@ -36,17 +37,22 @@ function Status({ s }: { s: ChangeStatus }) {
 }
 
 // DiffPage compares two versions by section of the main doc and by file (REQ-006).
-export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffSearch }) {
+export function DiffPage({ docId, search }: { docId: string; search: DiffSearch }) {
+  const bundleId = useBundleId();
   const navigate = useNavigate();
   const [by, setBy] = useState<"section" | "file">("section");
   const guest = !!useMe().data?.guest;
-  const versions = useQuery(listVersionsOptions({ path: { bundleId }, query: { limit: 100 } }));
+  const versions = useQuery(listVersionsOptions({ path: { docId }, query: { limit: 100 } }));
   const diff = useQuery({
-    ...diffVersionsOptions({ path: { bundleId }, query: { from: search.from, to: search.to } }),
+    ...diffVersionsOptions({ path: { docId }, query: { from: search.from, to: search.to } }),
     enabled: !!search.from && !!search.to,
   });
   const setVersion = (key: "from" | "to", id: string) =>
-    navigate({ to: "/bundles/$bundleId/diff", params: { bundleId }, search: { ...search, [key]: id } });
+    navigate({
+      to: "/bundles/$bundleId/docs/$docId/diff",
+      params: { bundleId, docId },
+      search: { ...search, [key]: id },
+    });
 
   const picker = (key: "from" | "to", label: string) => (
     <label className="flex items-center gap-1.5 text-xs text-ink-2">
@@ -72,8 +78,8 @@ export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffS
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[1200px] px-3 py-6 sm:px-6">
         <Link
-          to="/bundles/$bundleId"
-          params={{ bundleId }}
+          to="/bundles/$bundleId/docs/$docId"
+          params={{ bundleId, docId }}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
         >
           <ArrowLeft aria-hidden className="size-3.5" /> Back to the bundle
@@ -106,7 +112,7 @@ export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffS
         </div>
 
         {search.from && search.to && search.from !== search.to && !guest ? (
-          <AISummary key={search.from + search.to} bundleId={bundleId} from={search.from} to={search.to} />
+          <AISummary key={search.from + search.to} docId={docId} from={search.from} to={search.to} />
         ) : null}
 
         <div className="mt-5 space-y-4">
@@ -118,7 +124,7 @@ export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffS
             <ErrorState message={problemMessage(diff.error)} />
           ) : by === "section" ? (
             sections.length === 0 ? (
-              <Empty title="No section changed">The main doc has the same text in both versions.</Empty>
+              <Empty title="No section changed">The spec doc has the same text in both versions.</Empty>
             ) : (
               sections.map((s, i) => (
                 <section key={i} className="overflow-hidden rounded-lg border border-line bg-surface">
@@ -157,7 +163,7 @@ export function DiffPage({ bundleId, search }: { bundleId: string; search: DiffS
 
 // AISummary offers the AI diff summary: what changed in meaning, and the change in findings
 // (REQ-007). It calls a model, so it runs only on request.
-function AISummary({ bundleId, from, to }: { bundleId: string; from: string; to: string }) {
+function AISummary({ docId, from, to }: { docId: string; from: string; to: string }) {
   const sum = useMutation(summarizeDiffMutation());
   const d = sum.data;
   return (
@@ -171,7 +177,7 @@ function AISummary({ bundleId, from, to }: { bundleId: string; from: string; to:
             size="sm"
             variant="primary"
             icon={<Sparkle className="size-3.5" />}
-            onClick={() => sum.mutate({ path: { bundleId }, query: { from, to } })}
+            onClick={() => sum.mutate({ path: { docId }, query: { from, to } })}
             disabled={sum.isPending}
           >
             {sum.isPending ? "Summarizing" : "Summarize the change"}

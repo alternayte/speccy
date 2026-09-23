@@ -78,12 +78,12 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 
 	var items []api.InboxItem
 	add := func(kind api.InboxItemKind, b pgdb.SpecDoc, thread *uuid.UUID, text string, at time.Time) {
-		items = append(items, api.InboxItem{Kind: kind, BundleId: b.ID, BundleTitle: b.Title, ThreadId: thread, Text: text, At: at.UTC(), Unread: at.After(seen)})
+		items = append(items, api.InboxItem{Kind: kind, BundleId: b.BundleID, DocId: b.ID, BundleTitle: b.Title, ThreadId: thread, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}
 	// addWaiver is add for an item about one waiver: the bundle page opens on the finding it
 	// excuses (SDD §9.1).
 	addWaiver := func(kind api.InboxItemKind, b pgdb.SpecDoc, id uuid.UUID, text string, at time.Time) {
-		items = append(items, api.InboxItem{Kind: kind, BundleId: b.ID, BundleTitle: b.Title, WaiverId: &id, Text: text, At: at.UTC(), Unread: at.After(seen)})
+		items = append(items, api.InboxItem{Kind: kind, BundleId: b.BundleID, DocId: b.ID, BundleTitle: b.Title, WaiverId: &id, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}
 
 	// Bundles waiting for my review.
@@ -128,7 +128,7 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 			return nil, err
 		}
 		for _, w := range waiting {
-			b, ok := bundle(w.BundleId)
+			b, ok := bundle(w.DocId)
 			if !ok {
 				continue
 			}
@@ -143,7 +143,7 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 			return nil, err
 		}
 		for _, d := range decided {
-			b, ok := bundle(d.Waiver.BundleId)
+			b, ok := bundle(d.Waiver.DocId)
 			if !ok {
 				continue
 			}

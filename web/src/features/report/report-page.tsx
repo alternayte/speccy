@@ -1,3 +1,4 @@
+import { useBundleId } from "@/features/bundle/params";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Info, TriangleAlert } from "lucide-react";
@@ -18,7 +19,8 @@ const categoryLabel: Record<string, string> = {
 
 // ReportPage is the run report (SDD §13.1): stages and timings, cache hits, reader diversity,
 // cost, findings by category, and the radar.
-export function ReportPage({ bundleId, runId }: { bundleId: string; runId: string }) {
+export function ReportPage({ docId, runId }: { docId: string; runId: string }) {
+  const bundleId = useBundleId();
   const run = useQuery(getRunOptions({ path: { runId } }));
   const report = useQuery(getRunReportOptions({ path: { runId } }));
   if (run.isPending || report.isPending) return <Loading label="Loading the run report" />;
@@ -35,8 +37,8 @@ export function ReportPage({ bundleId, runId }: { bundleId: string; runId: strin
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-[960px] px-4 py-8 sm:px-6">
         <Link
-          to="/bundles/$bundleId"
-          params={{ bundleId }}
+          to="/bundles/$bundleId/docs/$docId"
+          params={{ bundleId, docId }}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
         >
           <ArrowLeft aria-hidden className="size-3.5" /> Back to the bundle

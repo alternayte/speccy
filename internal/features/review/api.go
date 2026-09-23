@@ -160,7 +160,7 @@ func (a *API) toAPI(ctx context.Context, b pgdb.SpecDoc, run pgdb.ReviewRun) (ap
 		return api.Run{}, err
 	}
 	out := api.Run{
-		Id: run.ID, BundleId: run.SpecDocID, VersionId: run.VersionID, VersionNumber: ver.Number,
+		Id: run.ID, DocId: run.SpecDocID, VersionId: run.VersionID, VersionNumber: ver.Number,
 		ProfileKey: run.ProfileKey, ProfileVersion: run.ProfileVersion, Kind: api.RunKind(run.Kind),
 		Status: api.RunStatus(run.Status), Stage: run.Stage, Error: run.Error, StartedAt: run.StartedAt.UTC(),
 	}
@@ -185,9 +185,9 @@ func (a *API) toAPI(ctx context.Context, b pgdb.SpecDoc, run pgdb.ReviewRun) (ap
 // ListRuns lists the runs of a bundle, newest first.
 func (a *API) ListRuns(ctx context.Context, req api.ListRunsRequestObject) (api.ListRunsResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.DocId})
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", req.BundleId)
+		return nil, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", req.DocId)
 	}
 	if err != nil {
 		return nil, err

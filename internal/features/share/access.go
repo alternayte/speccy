@@ -5,6 +5,8 @@ package share
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -47,11 +49,17 @@ func CanReadBundle(ctx context.Context, q store.Querier, a kernel.Actor, b pgdb.
 // CanEdit reports whether the actor can change spec doc d's files and settings: an author of
 // the bundle that holds d, or an admin.
 func CanEdit(ctx context.Context, q store.Querier, a kernel.Actor, d pgdb.SpecDoc) (bool, error) {
+	return CanEditBundle(ctx, q, a, d.BundleID)
+}
+
+// CanEditBundle reports whether the actor can change bundle id and its spec docs: an author of
+// the bundle, or an admin.
+func CanEditBundle(ctx context.Context, q store.Querier, a kernel.Actor, id uuid.UUID) (bool, error) {
 	if a.Guest != nil || a.UserID == "" {
 		return false, nil
 	}
 	if a.IsAdmin() {
 		return true, nil
 	}
-	return q.IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: d.BundleID, UserID: a.UserID})
+	return q.IsBundleAuthor(ctx, pgdb.IsBundleAuthorParams{BundleID: id, UserID: a.UserID})
 }

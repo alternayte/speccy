@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type ServerSentEventsResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcceptFixData, AcceptFixErrors, AcceptFixResponses, AddGithubSourceData, AddGithubSourceErrors, AddGithubSourceResponses, AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, AdoptFrontmatterData, AdoptFrontmatterErrors, AdoptFrontmatterResponses, AdoptSkippedData, AdoptSkippedDocsData, AdoptSkippedDocsErrors, AdoptSkippedDocsResponses, AdoptSkippedErrors, AdoptSkippedResponses, ApproveBundleData, ApproveBundleErrors, ApproveBundleResponses, ApproveWaiverData, ApproveWaiverErrors, ApproveWaiverResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateProfileData, CreateProfileErrors, CreateProfileResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteBundleData, DeleteBundleErrors, DeleteBundlePlanData, DeleteBundlePlanErrors, DeleteBundlePlanResponses, DeleteBundleResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteGithubConnectionData, DeleteGithubConnectionErrors, DeleteGithubConnectionResponses, DeleteGithubSourceData, DeleteGithubSourceErrors, DeleteGithubSourceResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DeleteProfileData, DeleteProfileErrors, DeleteProfileResponses, DiffProfileVersionsData, DiffProfileVersionsErrors, DiffProfileVersionsResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, DiscardDraftData, DiscardDraftErrors, DiscardDraftResponses, DismissDocData, DismissDocErrors, DismissDocResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetBundleStatusData, GetBundleStatusErrors, GetBundleStatusResponses, GetContentReviewReportData, GetContentReviewReportErrors, GetContentReviewReportResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetGithubConnectionData, GetGithubConnectionErrors, GetGithubConnectionResponses, GetInboxData, GetInboxErrors, GetInboxResponses, GetInsightsData, GetInsightsErrors, GetInsightsResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetProfileData, GetProfileErrors, GetProfileResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetThreadData, GetThreadErrors, GetThreadResponses, GetTourData, GetTourErrors, GetTourResponses, GetTraceData, GetTraceErrors, GetTraceResponses, GetVerificationData, GetVerificationErrors, GetVerificationResponses, GuessProfileData, GuessProfileErrors, GuessProfileResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListBundleThreadsData, ListBundleThreadsErrors, ListBundleThreadsResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListDismissedDocsData, ListDismissedDocsErrors, ListDismissedDocsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListGithubSourcesData, ListGithubSourcesErrors, ListGithubSourcesResponses, ListHandoffsData, ListHandoffsErrors, ListHandoffsResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPeopleData, ListPeopleErrors, ListPeopleResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListProfileThreadsData, ListProfileThreadsErrors, ListProfileThreadsResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListSkippedData, ListSkippedDocsData, ListSkippedDocsErrors, ListSkippedDocsResponses, ListSkippedErrors, ListSkippedResponses, ListVerificationsData, ListVerificationsErrors, ListVerificationsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, ListWaiversData, ListWaiversErrors, ListWaiversResponses, MarkDecisionData, MarkDecisionErrors, MarkDecisionResponses, MarkInboxItemReadData, MarkInboxItemReadErrors, MarkInboxItemReadResponses, MarkInboxSeenData, MarkInboxSeenErrors, MarkInboxSeenResponses, OpenBundleThreadData, OpenBundleThreadErrors, OpenBundleThreadResponses, OpenProfileThreadData, OpenProfileThreadErrors, OpenProfileThreadResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PreviewImportData, PreviewImportErrors, PreviewImportResponses, PublishBundleData, PublishBundleErrors, PublishBundleResponses, PublishSourceMappingData, PublishSourceMappingErrors, PublishSourceMappingResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RejectWaiverData, RejectWaiverErrors, RejectWaiverResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, ReportBuildData, ReportBuildErrors, ReportBuildResponses, RequestReviewData, RequestReviewErrors, RequestReviewResponses, RequestVerificationWaiverData, RequestVerificationWaiverErrors, RequestVerificationWaiverResponses, RequestWaiverData, RequestWaiverErrors, RequestWaiverResponses, ResolveGithubUrlData, ResolveGithubUrlErrors, ResolveGithubUrlResponses, ResolveVerificationTargetData, ResolveVerificationTargetErrors, ResolveVerificationTargetResponses, ReviewContentData, ReviewContentErrors, ReviewContentResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RollbackProfileData, RollbackProfileErrors, RollbackProfileResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, RunVerificationData, RunVerificationErrors, RunVerificationResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetBundleProfileData, SetBundleProfileErrors, SetBundleProfileResponses, SetGithubConnectionData, SetGithubConnectionErrors, SetGithubConnectionResponses, SetMaintainersData, SetMaintainersErrors, SetMaintainersResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetThreadBlockingData, SetThreadBlockingErrors, SetThreadBlockingResponses, SetThreadStatusData, SetThreadStatusErrors, SetThreadStatusResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, SuggestFixData, SuggestFixErrors, SuggestFixResponses, SuggestLinksData, SuggestLinksErrors, SuggestLinksResponses, SummarizeDiffData, SummarizeDiffErrors, SummarizeDiffResponses, SyncGithubSourceData, SyncGithubSourceErrors, SyncGithubSourceResponses, TakeHandoffData, TakeHandoffErrors, TakeHandoffResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UndismissDocData, UndismissDocErrors, UndismissDocResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, VerificationDefaultsData, VerificationDefaultsErrors, VerificationDefaultsResponses, VerificationEventsData, VerificationEventsErrors, VerificationEventsResponse, VerificationEventsResponses } from './types.gen';
+import type { AcceptFixData, AcceptFixErrors, AcceptFixResponses, AddGithubSourceData, AddGithubSourceErrors, AddGithubSourceResponses, AddTraceIdsData, AddTraceIdsErrors, AddTraceIdsResponses, AdoptFrontmatterData, AdoptFrontmatterErrors, AdoptFrontmatterResponses, AdoptSkippedData, AdoptSkippedDocsData, AdoptSkippedDocsErrors, AdoptSkippedDocsResponses, AdoptSkippedErrors, AdoptSkippedResponses, ApproveBundleData, ApproveBundleErrors, ApproveBundleResponses, ApproveWaiverData, ApproveWaiverErrors, ApproveWaiverResponses, AssignRoleData, AssignRoleErrors, AssignRoleResponses, CreateBackendData, CreateBackendErrors, CreateBackendResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateInviteData, CreateInviteErrors, CreateInviteResponses, CreateMcpConnectionData, CreateMcpConnectionErrors, CreateMcpConnectionResponses, CreateProfileData, CreateProfileErrors, CreateProfileResponses, CreateResetLinkData, CreateResetLinkErrors, CreateResetLinkResponses, CreateShareLinkData, CreateShareLinkErrors, CreateShareLinkResponses, DeleteBackendData, DeleteBackendErrors, DeleteBackendResponses, DeleteBundleData, DeleteBundleErrors, DeleteBundlePlanData, DeleteBundlePlanErrors, DeleteBundlePlanResponses, DeleteBundleResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteGithubConnectionData, DeleteGithubConnectionErrors, DeleteGithubConnectionResponses, DeleteGithubSourceData, DeleteGithubSourceErrors, DeleteGithubSourceResponses, DeleteMcpConnectionData, DeleteMcpConnectionErrors, DeleteMcpConnectionResponses, DeleteProfileData, DeleteProfileErrors, DeleteProfileResponses, DiffProfileVersionsData, DiffProfileVersionsErrors, DiffProfileVersionsResponses, DiffVersionsData, DiffVersionsErrors, DiffVersionsResponses, DiscardDraftData, DiscardDraftErrors, DiscardDraftResponses, DismissDocData, DismissDocErrors, DismissDocResponses, EstimateRunData, EstimateRunErrors, EstimateRunResponses, ExportBundleData, ExportBundleErrors, ExportBundleResponses, GetBudgetData, GetBudgetErrors, GetBudgetResponses, GetBundleAccessData, GetBundleAccessErrors, GetBundleAccessResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetBundleStatusData, GetBundleStatusErrors, GetBundleStatusResponses, GetContentReviewReportData, GetContentReviewReportErrors, GetContentReviewReportResponses, GetFileContentData, GetFileContentErrors, GetFileContentResponses, GetGithubConnectionData, GetGithubConnectionErrors, GetGithubConnectionResponses, GetInboxData, GetInboxErrors, GetInboxResponses, GetInsightsData, GetInsightsErrors, GetInsightsResponses, GetMeData, GetMeErrors, GetMeResponses, GetMetaData, GetMetaErrors, GetMetaResponses, GetProfileData, GetProfileErrors, GetProfileResponses, GetRunData, GetRunErrors, GetRunReportData, GetRunReportErrors, GetRunReportResponses, GetRunResponses, GetSettingsData, GetSettingsErrors, GetSettingsResponses, GetShareData, GetShareErrors, GetShareResponses, GetSpecDocData, GetSpecDocErrors, GetSpecDocResponses, GetThreadData, GetThreadErrors, GetThreadResponses, GetTourData, GetTourErrors, GetTourResponses, GetTraceData, GetTraceErrors, GetTraceResponses, GetVerificationData, GetVerificationErrors, GetVerificationResponses, GuessProfileData, GuessProfileErrors, GuessProfileResponses, ImportBundleData, ImportBundleErrors, ImportBundleResponses, JoinShareData, JoinShareErrors, JoinShareResponses, ListAssumptionsData, ListAssumptionsErrors, ListAssumptionsResponses, ListBackendsData, ListBackendsErrors, ListBackendsResponses, ListBundlesData, ListBundlesErrors, ListBundlesResponses, ListBundleThreadsData, ListBundleThreadsErrors, ListBundleThreadsResponses, ListClaimsData, ListClaimsErrors, ListClaimsResponses, ListDismissedDocsData, ListDismissedDocsErrors, ListDismissedDocsResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListFindingsData, ListFindingsErrors, ListFindingsResponses, ListGithubSourcesData, ListGithubSourcesErrors, ListGithubSourcesResponses, ListHandoffsData, ListHandoffsErrors, ListHandoffsResponses, ListInvitesData, ListInvitesErrors, ListInvitesResponses, ListMcpConnectionsData, ListMcpConnectionsErrors, ListMcpConnectionsResponses, ListMcpToolsData, ListMcpToolsErrors, ListMcpToolsResponses, ListPeopleData, ListPeopleErrors, ListPeopleResponses, ListPresetsData, ListPresetsErrors, ListPresetsResponses, ListProfilesData, ListProfilesErrors, ListProfilesResponses, ListProfileThreadsData, ListProfileThreadsErrors, ListProfileThreadsResponses, ListQuestionsData, ListQuestionsErrors, ListQuestionsResponses, ListRolesData, ListRolesErrors, ListRolesResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListSkippedData, ListSkippedDocsData, ListSkippedDocsErrors, ListSkippedDocsResponses, ListSkippedErrors, ListSkippedResponses, ListVerificationsData, ListVerificationsErrors, ListVerificationsResponses, ListVersionsData, ListVersionsErrors, ListVersionsResponses, ListWaiversData, ListWaiversErrors, ListWaiversResponses, MarkDecisionData, MarkDecisionErrors, MarkDecisionResponses, MarkInboxItemReadData, MarkInboxItemReadErrors, MarkInboxItemReadResponses, MarkInboxSeenData, MarkInboxSeenErrors, MarkInboxSeenResponses, OpenBundleThreadData, OpenBundleThreadErrors, OpenBundleThreadResponses, OpenProfileThreadData, OpenProfileThreadErrors, OpenProfileThreadResponses, PostMessageData, PostMessageErrors, PostMessageResponses, PreviewImportData, PreviewImportErrors, PreviewImportResponses, PublishBundleData, PublishBundleErrors, PublishBundleResponses, PublishSourceMappingData, PublishSourceMappingErrors, PublishSourceMappingResponses, PutFileContentData, PutFileContentErrors, PutFileContentResponses, RejectWaiverData, RejectWaiverErrors, RejectWaiverResponses, RenameFileData, RenameFileErrors, RenameFileResponses, RenderMarkdownData, RenderMarkdownErrors, RenderMarkdownResponses, ReportBuildData, ReportBuildErrors, ReportBuildResponses, RequestReviewData, RequestReviewErrors, RequestReviewResponses, RequestVerificationWaiverData, RequestVerificationWaiverErrors, RequestVerificationWaiverResponses, RequestWaiverData, RequestWaiverErrors, RequestWaiverResponses, ResolveGithubUrlData, ResolveGithubUrlErrors, ResolveGithubUrlResponses, ResolveVerificationTargetData, ResolveVerificationTargetErrors, ResolveVerificationTargetResponses, ReviewContentData, ReviewContentErrors, ReviewContentResponses, RevokeInviteData, RevokeInviteErrors, RevokeInviteResponses, RevokeShareLinkData, RevokeShareLinkErrors, RevokeShareLinkResponses, RollbackProfileData, RollbackProfileErrors, RollbackProfileResponses, RunEventsData, RunEventsErrors, RunEventsResponse, RunEventsResponses, RunVerificationData, RunVerificationErrors, RunVerificationResponses, SetBudgetData, SetBudgetErrors, SetBudgetResponses, SetBundleProfileData, SetBundleProfileErrors, SetBundleProfileResponses, SetGithubConnectionData, SetGithubConnectionErrors, SetGithubConnectionResponses, SetMaintainersData, SetMaintainersErrors, SetMaintainersResponses, SetSettingsData, SetSettingsErrors, SetSettingsResponses, SetThreadBlockingData, SetThreadBlockingErrors, SetThreadBlockingResponses, SetThreadStatusData, SetThreadStatusErrors, SetThreadStatusResponses, SetVisibilityData, SetVisibilityErrors, SetVisibilityResponses, StartRunData, StartRunErrors, StartRunResponses, SuggestFixData, SuggestFixErrors, SuggestFixResponses, SuggestLinksData, SuggestLinksErrors, SuggestLinksResponses, SummarizeDiffData, SummarizeDiffErrors, SummarizeDiffResponses, SyncGithubSourceData, SyncGithubSourceErrors, SyncGithubSourceResponses, TakeHandoffData, TakeHandoffErrors, TakeHandoffResponses, TestBackendData, TestBackendErrors, TestBackendResponses, UnassignRoleData, UnassignRoleErrors, UnassignRoleResponses, UndismissDocData, UndismissDocErrors, UndismissDocResponses, UpdateBackendData, UpdateBackendErrors, UpdateBackendResponses, UpdateMcpConnectionData, UpdateMcpConnectionErrors, UpdateMcpConnectionResponses, UpdateProfileData, UpdateProfileErrors, UpdateProfileResponses, VerificationDefaultsData, VerificationDefaultsErrors, VerificationDefaultsResponses, VerificationEventsData, VerificationEventsErrors, VerificationEventsResponse, VerificationEventsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -65,13 +65,13 @@ export const reportBuild = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * The handoffs of a bundle, newest first (REQ-136).
  */
-export const listHandoffs = <ThrowOnError extends boolean = false>(options: Options<ListHandoffsData, ThrowOnError>): RequestResult<ListHandoffsResponses, ListHandoffsErrors, ThrowOnError> => (options.client ?? client).get<ListHandoffsResponses, ListHandoffsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/handoff', ...options });
+export const listHandoffs = <ThrowOnError extends boolean = false>(options: Options<ListHandoffsData, ThrowOnError>): RequestResult<ListHandoffsResponses, ListHandoffsErrors, ThrowOnError> => (options.client ?? client).get<ListHandoffsResponses, ListHandoffsErrors, ThrowOnError>({ url: '/docs/{docId}/handoff', ...options });
 
 /**
  * Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
  */
 export const takeHandoff = <ThrowOnError extends boolean = false>(options: Options<TakeHandoffData, ThrowOnError>): RequestResult<TakeHandoffResponses, TakeHandoffErrors, ThrowOnError> => (options.client ?? client).post<TakeHandoffResponses, TakeHandoffErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/handoff',
+    url: '/docs/{docId}/handoff',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -83,7 +83,7 @@ export const takeHandoff = <ThrowOnError extends boolean = false>(options: Optio
  * Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
  */
 export const requestVerificationWaiver = <ThrowOnError extends boolean = false>(options: Options<RequestVerificationWaiverData, ThrowOnError>): RequestResult<RequestVerificationWaiverResponses, RequestVerificationWaiverErrors, ThrowOnError> => (options.client ?? client).post<RequestVerificationWaiverResponses, RequestVerificationWaiverErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/verification-waivers',
+    url: '/docs/{docId}/verification-waivers',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -99,13 +99,13 @@ export const deleteBundlePlan = <ThrowOnError extends boolean = false>(options: 
 /**
  * The verification runs of a bundle, newest first.
  */
-export const listVerifications = <ThrowOnError extends boolean = false>(options: Options<ListVerificationsData, ThrowOnError>): RequestResult<ListVerificationsResponses, ListVerificationsErrors, ThrowOnError> => (options.client ?? client).get<ListVerificationsResponses, ListVerificationsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/verifications', ...options });
+export const listVerifications = <ThrowOnError extends boolean = false>(options: Options<ListVerificationsData, ThrowOnError>): RequestResult<ListVerificationsResponses, ListVerificationsErrors, ThrowOnError> => (options.client ?? client).get<ListVerificationsResponses, ListVerificationsErrors, ThrowOnError>({ url: '/docs/{docId}/verifications', ...options });
 
 /**
  * Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
  */
 export const runVerification = <ThrowOnError extends boolean = false>(options: Options<RunVerificationData, ThrowOnError>): RequestResult<RunVerificationResponses, RunVerificationErrors, ThrowOnError> => (options.client ?? client).post<RunVerificationResponses, RunVerificationErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/verifications',
+    url: '/docs/{docId}/verifications',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -117,7 +117,7 @@ export const runVerification = <ThrowOnError extends boolean = false>(options: O
  * Say which repo and commit, or which folder, a pasted target names, before a run starts.
  */
 export const resolveVerificationTarget = <ThrowOnError extends boolean = false>(options: Options<ResolveVerificationTargetData, ThrowOnError>): RequestResult<ResolveVerificationTargetResponses, ResolveVerificationTargetErrors, ThrowOnError> => (options.client ?? client).post<ResolveVerificationTargetResponses, ResolveVerificationTargetErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/verifications/resolve',
+    url: '/docs/{docId}/verifications/resolve',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -128,7 +128,7 @@ export const resolveVerificationTarget = <ThrowOnError extends boolean = false>(
 /**
  * The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
  */
-export const verificationDefaults = <ThrowOnError extends boolean = false>(options: Options<VerificationDefaultsData, ThrowOnError>): RequestResult<VerificationDefaultsResponses, VerificationDefaultsErrors, ThrowOnError> => (options.client ?? client).get<VerificationDefaultsResponses, VerificationDefaultsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/verifications/defaults', ...options });
+export const verificationDefaults = <ThrowOnError extends boolean = false>(options: Options<VerificationDefaultsData, ThrowOnError>): RequestResult<VerificationDefaultsResponses, VerificationDefaultsErrors, ThrowOnError> => (options.client ?? client).get<VerificationDefaultsResponses, VerificationDefaultsErrors, ThrowOnError>({ url: '/docs/{docId}/verifications/defaults', ...options });
 
 /**
  * Follow a verification run's progress by trace ID, as server-sent events.
@@ -143,7 +143,7 @@ export const getVerification = <ThrowOnError extends boolean = false>(options: O
 /**
  * Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
  */
-export const adoptFrontmatter = <ThrowOnError extends boolean = false>(options: Options<AdoptFrontmatterData, ThrowOnError>): RequestResult<AdoptFrontmatterResponses, AdoptFrontmatterErrors, ThrowOnError> => (options.client ?? client).post<AdoptFrontmatterResponses, AdoptFrontmatterErrors, ThrowOnError>({ url: '/bundles/{bundleId}/adopt', ...options });
+export const adoptFrontmatter = <ThrowOnError extends boolean = false>(options: Options<AdoptFrontmatterData, ThrowOnError>): RequestResult<AdoptFrontmatterResponses, AdoptFrontmatterErrors, ThrowOnError> => (options.client ?? client).post<AdoptFrontmatterResponses, AdoptFrontmatterErrors, ThrowOnError>({ url: '/docs/{docId}/adopt', ...options });
 
 /**
  * Change the profile of the bundle's main doc.
@@ -152,7 +152,7 @@ export const adoptFrontmatter = <ThrowOnError extends boolean = false>(options: 
  *
  */
 export const setBundleProfile = <ThrowOnError extends boolean = false>(options: Options<SetBundleProfileData, ThrowOnError>): RequestResult<SetBundleProfileResponses, SetBundleProfileErrors, ThrowOnError> => (options.client ?? client).put<SetBundleProfileResponses, SetBundleProfileErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/profile',
+    url: '/docs/{docId}/profile',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -294,31 +294,36 @@ export const previewImport = <ThrowOnError extends boolean = false>(options: Opt
 export const deleteBundle = <ThrowOnError extends boolean = false>(options: Options<DeleteBundleData, ThrowOnError>): RequestResult<DeleteBundleResponses, DeleteBundleErrors, ThrowOnError> => (options.client ?? client).delete<DeleteBundleResponses, DeleteBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}', ...options });
 
 /**
- * Get one bundle.
+ * Get one bundle with its spec docs.
  */
 export const getBundle = <ThrowOnError extends boolean = false>(options: Options<GetBundleData, ThrowOnError>): RequestResult<GetBundleResponses, GetBundleErrors, ThrowOnError> => (options.client ?? client).get<GetBundleResponses, GetBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}', ...options });
 
 /**
+ * Get one spec doc.
+ */
+export const getSpecDoc = <ThrowOnError extends boolean = false>(options: Options<GetSpecDocData, ThrowOnError>): RequestResult<GetSpecDocResponses, GetSpecDocErrors, ThrowOnError> => (options.client ?? client).get<GetSpecDocResponses, GetSpecDocErrors, ThrowOnError>({ url: '/docs/{docId}', ...options });
+
+/**
  * Delete a file. Creates a version (REQ-005).
  */
-export const deleteFile = <ThrowOnError extends boolean = false>(options: Options<DeleteFileData, ThrowOnError>): RequestResult<DeleteFileResponses, DeleteFileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteFileResponses, DeleteFileErrors, ThrowOnError>({ url: '/bundles/{bundleId}/files', ...options });
+export const deleteFile = <ThrowOnError extends boolean = false>(options: Options<DeleteFileData, ThrowOnError>): RequestResult<DeleteFileResponses, DeleteFileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteFileResponses, DeleteFileErrors, ThrowOnError>({ url: '/docs/{docId}/files', ...options });
 
 /**
  * List the files of a bundle version. The default is the current version.
  */
-export const listFiles = <ThrowOnError extends boolean = false>(options: Options<ListFilesData, ThrowOnError>): RequestResult<ListFilesResponses, ListFilesErrors, ThrowOnError> => (options.client ?? client).get<ListFilesResponses, ListFilesErrors, ThrowOnError>({ url: '/bundles/{bundleId}/files', ...options });
+export const listFiles = <ThrowOnError extends boolean = false>(options: Options<ListFilesData, ThrowOnError>): RequestResult<ListFilesResponses, ListFilesErrors, ThrowOnError> => (options.client ?? client).get<ListFilesResponses, ListFilesErrors, ThrowOnError>({ url: '/docs/{docId}/files', ...options });
 
 /**
  * Get the bytes of one file in a bundle version. The default is the current version.
  */
-export const getFileContent = <ThrowOnError extends boolean = false>(options: Options<GetFileContentData, ThrowOnError>): RequestResult<GetFileContentResponses, GetFileContentErrors, ThrowOnError> => (options.client ?? client).get<GetFileContentResponses, GetFileContentErrors, ThrowOnError>({ url: '/bundles/{bundleId}/files/content', ...options });
+export const getFileContent = <ThrowOnError extends boolean = false>(options: Options<GetFileContentData, ThrowOnError>): RequestResult<GetFileContentResponses, GetFileContentErrors, ThrowOnError> => (options.client ?? client).get<GetFileContentResponses, GetFileContentErrors, ThrowOnError>({ url: '/docs/{docId}/files/content', ...options });
 
 /**
  * Create or replace a file. Creates a version when the content changed (REQ-005).
  */
 export const putFileContent = <ThrowOnError extends boolean = false>(options: Options<PutFileContentData, ThrowOnError>): RequestResult<PutFileContentResponses, PutFileContentErrors, ThrowOnError> => (options.client ?? client).put<PutFileContentResponses, PutFileContentErrors, ThrowOnError>({
     bodySerializer: null,
-    url: '/bundles/{bundleId}/files/content',
+    url: '/docs/{docId}/files/content',
     ...options,
     headers: {
         'Content-Type': 'application/octet-stream',
@@ -330,7 +335,7 @@ export const putFileContent = <ThrowOnError extends boolean = false>(options: Op
  * Rename or move a file inside the bundle. Creates a version (REQ-005).
  */
 export const renameFile = <ThrowOnError extends boolean = false>(options: Options<RenameFileData, ThrowOnError>): RequestResult<RenameFileResponses, RenameFileErrors, ThrowOnError> => (options.client ?? client).post<RenameFileResponses, RenameFileErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/files/rename',
+    url: '/docs/{docId}/files/rename',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -341,28 +346,28 @@ export const renameFile = <ThrowOnError extends boolean = false>(options: Option
 /**
  * List the versions of a bundle, newest first.
  */
-export const listVersions = <ThrowOnError extends boolean = false>(options: Options<ListVersionsData, ThrowOnError>): RequestResult<ListVersionsResponses, ListVersionsErrors, ThrowOnError> => (options.client ?? client).get<ListVersionsResponses, ListVersionsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/versions', ...options });
+export const listVersions = <ThrowOnError extends boolean = false>(options: Options<ListVersionsData, ThrowOnError>): RequestResult<ListVersionsResponses, ListVersionsErrors, ThrowOnError> => (options.client ?? client).get<ListVersionsResponses, ListVersionsErrors, ThrowOnError>({ url: '/docs/{docId}/versions', ...options });
 
 /**
  * Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
  */
-export const diffVersions = <ThrowOnError extends boolean = false>(options: Options<DiffVersionsData, ThrowOnError>): RequestResult<DiffVersionsResponses, DiffVersionsErrors, ThrowOnError> => (options.client ?? client).get<DiffVersionsResponses, DiffVersionsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/diff', ...options });
+export const diffVersions = <ThrowOnError extends boolean = false>(options: Options<DiffVersionsData, ThrowOnError>): RequestResult<DiffVersionsResponses, DiffVersionsErrors, ThrowOnError> => (options.client ?? client).get<DiffVersionsResponses, DiffVersionsErrors, ThrowOnError>({ url: '/docs/{docId}/diff', ...options });
 
 /**
  * Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
  */
-export const exportBundle = <ThrowOnError extends boolean = false>(options: Options<ExportBundleData, ThrowOnError>): RequestResult<ExportBundleResponses, ExportBundleErrors, ThrowOnError> => (options.client ?? client).get<ExportBundleResponses, ExportBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}/export', ...options });
+export const exportBundle = <ThrowOnError extends boolean = false>(options: Options<ExportBundleData, ThrowOnError>): RequestResult<ExportBundleResponses, ExportBundleErrors, ThrowOnError> => (options.client ?? client).get<ExportBundleResponses, ExportBundleErrors, ThrowOnError>({ url: '/docs/{docId}/export', ...options });
 
 /**
  * List the review runs of a bundle, newest first.
  */
-export const listRuns = <ThrowOnError extends boolean = false>(options: Options<ListRunsData, ThrowOnError>): RequestResult<ListRunsResponses, ListRunsErrors, ThrowOnError> => (options.client ?? client).get<ListRunsResponses, ListRunsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/runs', ...options });
+export const listRuns = <ThrowOnError extends boolean = false>(options: Options<ListRunsData, ThrowOnError>): RequestResult<ListRunsResponses, ListRunsErrors, ThrowOnError> => (options.client ?? client).get<ListRunsResponses, ListRunsErrors, ThrowOnError>({ url: '/docs/{docId}/runs', ...options });
 
 /**
  * Start a full review of the current version (REQ-020). Lint runs on its own on every save.
  */
 export const startRun = <ThrowOnError extends boolean = false>(options: Options<StartRunData, ThrowOnError>): RequestResult<StartRunResponses, StartRunErrors, ThrowOnError> => (options.client ?? client).post<StartRunResponses, StartRunErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/runs',
+    url: '/docs/{docId}/runs',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -390,23 +395,23 @@ export const getContentReviewReport = <ThrowOnError extends boolean = false>(opt
 /**
  * Estimate the tokens and cost of a full review before it starts (REQ-104).
  */
-export const estimateRun = <ThrowOnError extends boolean = false>(options: Options<EstimateRunData, ThrowOnError>): RequestResult<EstimateRunResponses, EstimateRunErrors, ThrowOnError> => (options.client ?? client).get<EstimateRunResponses, EstimateRunErrors, ThrowOnError>({ url: '/bundles/{bundleId}/runs/estimate', ...options });
+export const estimateRun = <ThrowOnError extends boolean = false>(options: Options<EstimateRunData, ThrowOnError>): RequestResult<EstimateRunResponses, EstimateRunErrors, ThrowOnError> => (options.client ?? client).get<EstimateRunResponses, EstimateRunErrors, ThrowOnError>({ url: '/docs/{docId}/runs/estimate', ...options });
 
 /**
  * List the sentences of the current main doc that start with "Assumption:" (REQ-033).
  */
-export const listAssumptions = <ThrowOnError extends boolean = false>(options: Options<ListAssumptionsData, ThrowOnError>): RequestResult<ListAssumptionsResponses, ListAssumptionsErrors, ThrowOnError> => (options.client ?? client).get<ListAssumptionsResponses, ListAssumptionsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/assumptions', ...options });
+export const listAssumptions = <ThrowOnError extends boolean = false>(options: Options<ListAssumptionsData, ThrowOnError>): RequestResult<ListAssumptionsResponses, ListAssumptionsErrors, ThrowOnError> => (options.client ?? client).get<ListAssumptionsResponses, ListAssumptionsErrors, ThrowOnError>({ url: '/docs/{docId}/assumptions', ...options });
 
 /**
  * The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
  */
-export const getTrace = <ThrowOnError extends boolean = false>(options: Options<GetTraceData, ThrowOnError>): RequestResult<GetTraceResponses, GetTraceErrors, ThrowOnError> => (options.client ?? client).get<GetTraceResponses, GetTraceErrors, ThrowOnError>({ url: '/bundles/{bundleId}/trace', ...options });
+export const getTrace = <ThrowOnError extends boolean = false>(options: Options<GetTraceData, ThrowOnError>): RequestResult<GetTraceResponses, GetTraceErrors, ThrowOnError> => (options.client ?? client).get<GetTraceResponses, GetTraceErrors, ThrowOnError>({ url: '/docs/{docId}/trace', ...options });
 
 /**
  * Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
  */
 export const addTraceIds = <ThrowOnError extends boolean = false>(options: Options<AddTraceIdsData, ThrowOnError>): RequestResult<AddTraceIdsResponses, AddTraceIdsErrors, ThrowOnError> => (options.client ?? client).post<AddTraceIdsResponses, AddTraceIdsErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/trace/ids',
+    url: '/docs/{docId}/trace/ids',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -476,12 +481,12 @@ export const getRun = <ThrowOnError extends boolean = false>(options: Options<Ge
 /**
  * The ordered points of the bundle's current review that need a human decision (SDD §13.3).
  */
-export const getTour = <ThrowOnError extends boolean = false>(options: Options<GetTourData, ThrowOnError>): RequestResult<GetTourResponses, GetTourErrors, ThrowOnError> => (options.client ?? client).get<GetTourResponses, GetTourErrors, ThrowOnError>({ url: '/bundles/{bundleId}/tour', ...options });
+export const getTour = <ThrowOnError extends boolean = false>(options: Options<GetTourData, ThrowOnError>): RequestResult<GetTourResponses, GetTourErrors, ThrowOnError> => (options.client ?? client).get<GetTourResponses, GetTourErrors, ThrowOnError>({ url: '/docs/{docId}/tour', ...options });
 
 /**
  * Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
  */
-export const summarizeDiff = <ThrowOnError extends boolean = false>(options: Options<SummarizeDiffData, ThrowOnError>): RequestResult<SummarizeDiffResponses, SummarizeDiffErrors, ThrowOnError> => (options.client ?? client).post<SummarizeDiffResponses, SummarizeDiffErrors, ThrowOnError>({ url: '/bundles/{bundleId}/diff/summary', ...options });
+export const summarizeDiff = <ThrowOnError extends boolean = false>(options: Options<SummarizeDiffData, ThrowOnError>): RequestResult<SummarizeDiffResponses, SummarizeDiffErrors, ThrowOnError> => (options.client ?? client).post<SummarizeDiffResponses, SummarizeDiffErrors, ThrowOnError>({ url: '/docs/{docId}/diff/summary', ...options });
 
 /**
  * The run report (SDD §13.1): stage timings, reader diversity, and findings by category.
@@ -550,13 +555,13 @@ export const guessProfile = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * List the threads of a bundle, open first (REQ-087).
  */
-export const listBundleThreads = <ThrowOnError extends boolean = false>(options: Options<ListBundleThreadsData, ThrowOnError>): RequestResult<ListBundleThreadsResponses, ListBundleThreadsErrors, ThrowOnError> => (options.client ?? client).get<ListBundleThreadsResponses, ListBundleThreadsErrors, ThrowOnError>({ url: '/bundles/{bundleId}/threads', ...options });
+export const listBundleThreads = <ThrowOnError extends boolean = false>(options: Options<ListBundleThreadsData, ThrowOnError>): RequestResult<ListBundleThreadsResponses, ListBundleThreadsErrors, ThrowOnError> => (options.client ?? client).get<ListBundleThreadsResponses, ListBundleThreadsErrors, ThrowOnError>({ url: '/docs/{docId}/threads', ...options });
 
 /**
  * Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
  */
 export const openBundleThread = <ThrowOnError extends boolean = false>(options: Options<OpenBundleThreadData, ThrowOnError>): RequestResult<OpenBundleThreadResponses, OpenBundleThreadErrors, ThrowOnError> => (options.client ?? client).post<OpenBundleThreadResponses, OpenBundleThreadErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/threads',
+    url: '/docs/{docId}/threads',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -620,13 +625,13 @@ export const setThreadStatus = <ThrowOnError extends boolean = false>(options: O
 /**
  * List the waivers of a bundle (REQ-072 to REQ-074).
  */
-export const listWaivers = <ThrowOnError extends boolean = false>(options: Options<ListWaiversData, ThrowOnError>): RequestResult<ListWaiversResponses, ListWaiversErrors, ThrowOnError> => (options.client ?? client).get<ListWaiversResponses, ListWaiversErrors, ThrowOnError>({ url: '/bundles/{bundleId}/waivers', ...options });
+export const listWaivers = <ThrowOnError extends boolean = false>(options: Options<ListWaiversData, ThrowOnError>): RequestResult<ListWaiversResponses, ListWaiversErrors, ThrowOnError> => (options.client ?? client).get<ListWaiversResponses, ListWaiversErrors, ThrowOnError>({ url: '/docs/{docId}/waivers', ...options });
 
 /**
  * Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
  */
 export const requestWaiver = <ThrowOnError extends boolean = false>(options: Options<RequestWaiverData, ThrowOnError>): RequestResult<RequestWaiverResponses, RequestWaiverErrors, ThrowOnError> => (options.client ?? client).post<RequestWaiverResponses, RequestWaiverErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/waivers',
+    url: '/docs/{docId}/waivers',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -654,13 +659,13 @@ export const rejectWaiver = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * The review status of a bundle (§9.5).
  */
-export const getBundleStatus = <ThrowOnError extends boolean = false>(options: Options<GetBundleStatusData, ThrowOnError>): RequestResult<GetBundleStatusResponses, GetBundleStatusErrors, ThrowOnError> => (options.client ?? client).get<GetBundleStatusResponses, GetBundleStatusErrors, ThrowOnError>({ url: '/bundles/{bundleId}/status', ...options });
+export const getBundleStatus = <ThrowOnError extends boolean = false>(options: Options<GetBundleStatusData, ThrowOnError>): RequestResult<GetBundleStatusResponses, GetBundleStatusErrors, ThrowOnError> => (options.client ?? client).get<GetBundleStatusResponses, GetBundleStatusErrors, ThrowOnError>({ url: '/docs/{docId}/status', ...options });
 
 /**
  * Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
  */
 export const requestReview = <ThrowOnError extends boolean = false>(options: Options<RequestReviewData, ThrowOnError>): RequestResult<RequestReviewResponses, RequestReviewErrors, ThrowOnError> => (options.client ?? client).post<RequestReviewResponses, RequestReviewErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/review-request',
+    url: '/docs/{docId}/review-request',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -671,7 +676,7 @@ export const requestReview = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
  */
-export const approveBundle = <ThrowOnError extends boolean = false>(options: Options<ApproveBundleData, ThrowOnError>): RequestResult<ApproveBundleResponses, ApproveBundleErrors, ThrowOnError> => (options.client ?? client).post<ApproveBundleResponses, ApproveBundleErrors, ThrowOnError>({ url: '/bundles/{bundleId}/approve', ...options });
+export const approveBundle = <ThrowOnError extends boolean = false>(options: Options<ApproveBundleData, ThrowOnError>): RequestResult<ApproveBundleResponses, ApproveBundleErrors, ThrowOnError> => (options.client ?? client).post<ApproveBundleResponses, ApproveBundleErrors, ThrowOnError>({ url: '/docs/{docId}/approve', ...options });
 
 /**
  * The members of the workspace, for reviewers and mentions. Empty in local mode.
@@ -972,7 +977,7 @@ export const syncGithubSource = <ThrowOnError extends boolean = false>(options: 
  * Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
  */
 export const publishBundle = <ThrowOnError extends boolean = false>(options: Options<PublishBundleData, ThrowOnError>): RequestResult<PublishBundleResponses, PublishBundleErrors, ThrowOnError> => (options.client ?? client).post<PublishBundleResponses, PublishBundleErrors, ThrowOnError>({
-    url: '/bundles/{bundleId}/publish',
+    url: '/docs/{docId}/publish',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -983,7 +988,7 @@ export const publishBundle = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
  */
-export const discardDraft = <ThrowOnError extends boolean = false>(options: Options<DiscardDraftData, ThrowOnError>): RequestResult<DiscardDraftResponses, DiscardDraftErrors, ThrowOnError> => (options.client ?? client).post<DiscardDraftResponses, DiscardDraftErrors, ThrowOnError>({ url: '/bundles/{bundleId}/draft/discard', ...options });
+export const discardDraft = <ThrowOnError extends boolean = false>(options: Options<DiscardDraftData, ThrowOnError>): RequestResult<DiscardDraftResponses, DiscardDraftErrors, ThrowOnError> => (options.client ?? client).post<DiscardDraftResponses, DiscardDraftErrors, ThrowOnError>({ url: '/docs/{docId}/draft/discard', ...options });
 
 /**
  * Get this month's token budget and use (REQ-104).

@@ -1,3 +1,4 @@
+import { useBundleId } from "./params";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { GitCompare } from "lucide-react";
@@ -9,8 +10,9 @@ import { relativeTime } from "./time";
 
 // VersionsPanel lists the versions of a bundle (REQ-005), newest first, each with a link to
 // its diff against the current version (REQ-006).
-export function VersionsPanel({ bundleId, current }: { bundleId: string; current: string }) {
-  const versions = useQuery(listVersionsOptions({ path: { bundleId }, query: { limit: 50 } }));
+export function VersionsPanel({ docId, current }: { docId: string; current: string }) {
+  const bundleId = useBundleId();
+  const versions = useQuery(listVersionsOptions({ path: { docId }, query: { limit: 50 } }));
   const { refetch } = versions;
   // A new current version means a new row.
   useEffect(() => {
@@ -43,8 +45,8 @@ export function VersionsPanel({ bundleId, current }: { bundleId: string; current
                     <span className="text-accent">current</span>
                   ) : (
                     <Link
-                      to="/bundles/$bundleId/diff"
-                      params={{ bundleId }}
+                      to="/bundles/$bundleId/docs/$docId/diff"
+                      params={{ bundleId, docId }}
                       search={{ from: v.id, to: current }}
                       className="ml-auto inline-flex items-center gap-1 text-ink-2 hover:text-accent"
                     >

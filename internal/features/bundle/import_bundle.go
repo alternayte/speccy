@@ -17,6 +17,8 @@ import (
 	"strings"
 	"testing/fstest"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/source/local"
 
@@ -111,13 +113,28 @@ func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObjec
 			return nil, err
 		}
 	}
+	// The response holds each bundle the import made, with its spec docs.
+	q := s.DB.Queries()
+	waiting, err := a.waiting(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := api.ImportBundle201JSONResponse{Items: []api.Bundle{}, Problems: []api.BundleProblem{}}
-	for _, b := range made {
-		ab, err := toAPI(ctx, s.DB.Queries(), b)
+	seen := map[uuid.UUID]bool{}
+	for _, d := range made {
+		if seen[d.BundleID] {
+			continue
+		}
+		seen[d.BundleID] = true
+		b, err := q.GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: d.BundleID})
 		if err != nil {
 			return nil, err
 		}
-		out.Items = append(out.Items, ab)
+		docs, err := a.specDocs(ctx, q, b, waiting)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, bundleToAPI(b, docs))
 	}
 	return out, nil
 }

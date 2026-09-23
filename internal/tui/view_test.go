@@ -16,10 +16,10 @@ import (
 // which no reader of the code can see.
 func TestView_FrameFitsTheTerminal(t *testing.T) {
 	st := api.ReviewStatus("in_review")
-	v := &api.BundleVerdict{Result: api.NotBuildReady, Score: 45, Must: 2, Should: 111, Info: 51, WaiverCount: 2,
+	v := &api.BundleVerdict{Result: api.VerdictResultNotBuildReady, Score: 45, Must: 2, Should: 111, Info: 51, WaiverCount: 2,
 		Kind: api.BundleVerdictKindFull, RunId: uuid.New(), VersionNumber: 7}
-	b := api.Bundle{Title: "Speccy — Software Design Document", Slug: "docs/specs/a-rather-long-bundle-slug",
-		ProfileKey: "sdd", MainDoc: "SDD.md", CurrentVersion: api.Version{Number: 7}, SourceKind: "local",
+	b := api.SpecDoc{Title: "Speccy — Software Design Document", Slug: "docs/specs/a-rather-long-bundle-slug",
+		ProfileKey: "sdd", Path: "SDD.md", CurrentVersion: api.Version{Number: 7}, SourceKind: "local",
 		Status: &st, UpdatedAt: time.Now().Add(-70 * time.Minute), Verdict: v,
 		NextAction: &api.NextAction{Kind: api.NextActionKindFix, Sentence: strings.Repeat("fix this thing ", 12)}}
 	fix := strings.Repeat("a long fix that must be cut ", 8)
@@ -32,7 +32,7 @@ func TestView_FrameFitsTheTerminal(t *testing.T) {
 		Anchor: &api.Anchor{File: "SDD.md", Quote: strings.Repeat("quoted ", 30)}}}
 
 	models := map[string]*model{
-		"list":     {screen: screenList, bundles: []api.Bundle{b, b}},
+		"list":     {screen: screenList, bundles: []api.SpecDoc{b, b}},
 		"empty":    {screen: screenList},
 		"bundle":   {screen: screenBundle, bundle: &b, findings: fs, fcursor: 1},
 		"running":  {screen: screenBundle, bundle: &b, findings: fs, running: "x", stage: "divergence"},
@@ -62,11 +62,11 @@ func TestView_FrameFitsTheTerminal(t *testing.T) {
 // The next action reaches every screen: the status line says it, and the key bar shows the key
 // that does it. A hidden panel is acceptable, a hidden key is not (SDD §13.4).
 func TestView_NextActionIsAlwaysOffered(t *testing.T) {
-	b := api.Bundle{Title: "Payment retries", Slug: "payments", ProfileKey: "prd", MainDoc: "PRD.md",
+	b := api.SpecDoc{Title: "Payment retries", Slug: "payments", ProfileKey: "prd", Path: "PRD.md",
 		CurrentVersion: api.Version{Number: 1}, SourceKind: "local", UpdatedAt: time.Now(),
 		NextAction: &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc"}}
 	for name, m := range map[string]*model{
-		"list":   {screen: screenList, bundles: []api.Bundle{b}},
+		"list":   {screen: screenList, bundles: []api.SpecDoc{b}},
 		"bundle": {screen: screenBundle, bundle: &b},
 		"tour":   {screen: screenTour, bundle: &b},
 	} {
@@ -80,7 +80,7 @@ func TestView_NextActionIsAlwaysOffered(t *testing.T) {
 		}
 	}
 	// No next action, no key.
-	plain := api.Bundle{Title: "Done", Slug: "done", MainDoc: "PRD.md", CurrentVersion: api.Version{Number: 1}, SourceKind: "local", UpdatedAt: time.Now()}
+	plain := api.SpecDoc{Title: "Done", Slug: "done", Path: "PRD.md", CurrentVersion: api.Version{Number: 1}, SourceKind: "local", UpdatedAt: time.Now()}
 	m := &model{screen: screenBundle, bundle: &plain, width: 100, height: 30}
 	if strings.Contains(m.View(), "do the next thing") {
 		t.Error("the key bar offers n with no next action")

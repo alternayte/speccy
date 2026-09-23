@@ -81,7 +81,7 @@ func runAdd(args []string, stdout, stderr io.Writer) int {
 	}
 	n := 0
 	for _, b := range bundles {
-		if b.SourceKind == api.BundleSourceKindGithub {
+		if b.SourceKind == api.SpecDocSourceKindGithub {
 			fmt.Fprintf(stdout, "  %s\n", b.Slug)
 			n++
 		}

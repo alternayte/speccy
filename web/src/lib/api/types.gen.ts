@@ -106,23 +106,27 @@ export type Problem = {
     code: string;
 };
 
-export type Bundle = {
+/**
+ * One spec doc of a bundle, with its own profile, versions, review runs and verdict.
+ */
+export type SpecDoc = {
     id: string;
     /**
-     * In local mode, the bundle folder relative to the served folder.
+     * The bundle that holds the spec doc.
      */
+    bundle_id: string;
     slug: string;
     title: string;
     /**
-     * The frontmatter type of the main doc.
+     * The profile of the spec doc.
      */
     profile_key: string;
     source_kind: 'local' | 'db' | 'github';
     github?: BundleGithub;
     /**
-     * The path of the main doc in the bundle.
+     * The path of the spec doc in its bundle.
      */
-    main_doc: string;
+    path: string;
     current_version: Version;
     updated_at: string;
     verdict?: BundleVerdict;
@@ -131,10 +135,38 @@ export type Bundle = {
      */
     run_error?: string;
     adopt?: Adopt;
-    visibility?: Visibility;
     status?: ReviewStatus;
     next_action?: NextAction;
 };
+
+/**
+ * A folder that holds one or more spec docs and their assets.
+ */
+export type Bundle = {
+    id: string;
+    /**
+     * The bundle folder relative to the served folder or the repo root.
+     */
+    slug: string;
+    /**
+     * The folder name.
+     */
+    title: string;
+    source_kind: 'local' | 'db' | 'github';
+    visibility?: Visibility;
+    state: BundleState;
+    /**
+     * The spec docs of the bundle, by path.
+     */
+    docs: Array<SpecDoc>;
+    updated_at: string;
+};
+
+/**
+ * The worst state of the bundle's spec docs, for a list row: not_build_ready when one spec doc is Not Build Ready, then not_reviewed when one has no verdict on its current version, and build_ready only when every spec doc is Build Ready.
+ *
+ */
+export type BundleState = 'not_build_ready' | 'not_reviewed' | 'build_ready';
 
 export type SkippedDoc = {
     /**
@@ -228,7 +260,7 @@ export type CreateBundleRequest = {
 
 export type Run = {
     id: string;
-    bundle_id: string;
+    doc_id: string;
     version_id: string;
     version_number: number;
     profile_key: string;
@@ -429,7 +461,7 @@ export type VerificationCounts = {
 
 export type Verification = {
     id: string;
-    bundle_id: string;
+    doc_id: string;
     handoff_id?: string;
     status: 'queued' | 'running' | 'done' | 'failed';
     /**
@@ -1070,7 +1102,7 @@ export type FindingList = {
 
 export type Thread = {
     id: string;
-    bundle_id?: string;
+    doc_id?: string;
     profile_key?: string;
     anchor_kind: 'text' | 'section' | 'finding' | 'check';
     /**
@@ -1134,7 +1166,7 @@ export type PostMessage = {
 
 export type Waiver = {
     id: string;
-    bundle_id: string;
+    doc_id: string;
     check_slug: string;
     level: string;
     section: Array<string>;
@@ -1335,6 +1367,10 @@ export type Inbox = {
 export type InboxItem = {
     kind: 'review_request' | 'waiver_request' | 'waiver_rejected' | 'waiver_ended' | 'message' | 'mention' | 'run';
     bundle_id: string;
+    /**
+     * The spec doc the item is about.
+     */
+    doc_id: string;
     bundle_title: string;
     thread_id?: string;
     /**
@@ -1691,9 +1727,9 @@ export type LineOp = {
 export type RenderRequest = {
     markdown: string;
     /**
-     * When set, relative image links resolve to files in this bundle.
+     * When set, relative image links resolve to files of this spec doc's version.
      */
-    bundle_id?: string;
+    doc_id?: string;
     /**
      * The path of the file in the bundle, so relative links resolve from its folder.
      */
@@ -1725,6 +1761,11 @@ export type WaiverId = string;
 export type ProfileKey = string;
 
 export type BundleId = string;
+
+/**
+ * The ID of one spec doc.
+ */
+export type DocId = string;
 
 export type HandoffId = string;
 
@@ -1908,10 +1949,13 @@ export type ReportBuildResponse = ReportBuildResponses[keyof ReportBuildResponse
 export type ListHandoffsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/handoff';
+    url: '/docs/{docId}/handoff';
 };
 
 export type ListHandoffsErrors = {
@@ -1944,10 +1988,13 @@ export type TakeHandoffData = {
         label?: string;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/handoff';
+    url: '/docs/{docId}/handoff';
 };
 
 export type TakeHandoffErrors = {
@@ -1978,10 +2025,13 @@ export type RequestVerificationWaiverData = {
         reason: string;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/verification-waivers';
+    url: '/docs/{docId}/verification-waivers';
 };
 
 export type RequestVerificationWaiverErrors = {
@@ -2032,10 +2082,13 @@ export type DeleteBundlePlanResponse = DeleteBundlePlanResponses[keyof DeleteBun
 export type ListVerificationsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/verifications';
+    url: '/docs/{docId}/verifications';
 };
 
 export type ListVerificationsErrors = {
@@ -2059,10 +2112,13 @@ export type ListVerificationsResponse = ListVerificationsResponses[keyof ListVer
 export type RunVerificationData = {
     body: VerificationRequest;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/verifications';
+    url: '/docs/{docId}/verifications';
 };
 
 export type RunVerificationErrors = {
@@ -2086,10 +2142,13 @@ export type RunVerificationResponse = RunVerificationResponses[keyof RunVerifica
 export type ResolveVerificationTargetData = {
     body: VerificationTargetInput;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/verifications/resolve';
+    url: '/docs/{docId}/verifications/resolve';
 };
 
 export type ResolveVerificationTargetErrors = {
@@ -2113,10 +2172,13 @@ export type ResolveVerificationTargetResponse = ResolveVerificationTargetRespons
 export type VerificationDefaultsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/verifications/defaults';
+    url: '/docs/{docId}/verifications/defaults';
 };
 
 export type VerificationDefaultsErrors = {
@@ -2194,10 +2256,13 @@ export type GetVerificationResponse = GetVerificationResponses[keyof GetVerifica
 export type AdoptFrontmatterData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/adopt';
+    url: '/docs/{docId}/adopt';
 };
 
 export type AdoptFrontmatterErrors = {
@@ -2223,10 +2288,13 @@ export type SetBundleProfileData = {
         profile: string;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/profile';
+    url: '/docs/{docId}/profile';
 };
 
 export type SetBundleProfileErrors = {
@@ -2242,7 +2310,7 @@ export type SetBundleProfileResponses = {
     /**
      * The bundle, with its new profile.
      */
-    200: Bundle;
+    200: SpecDoc;
 };
 
 export type SetBundleProfileResponse = SetBundleProfileResponses[keyof SetBundleProfileResponses];
@@ -2546,7 +2614,7 @@ export type CreateBundleResponses = {
     /**
      * The new bundle.
      */
-    201: Bundle;
+    201: SpecDoc;
 };
 
 export type CreateBundleResponse = CreateBundleResponses[keyof CreateBundleResponses];
@@ -2660,10 +2728,43 @@ export type GetBundleResponses = {
 
 export type GetBundleResponse = GetBundleResponses[keyof GetBundleResponses];
 
+export type GetSpecDocData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}';
+};
+
+export type GetSpecDocErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetSpecDocError = GetSpecDocErrors[keyof GetSpecDocErrors];
+
+export type GetSpecDocResponses = {
+    /**
+     * The spec doc.
+     */
+    200: SpecDoc;
+};
+
+export type GetSpecDocResponse = GetSpecDocResponses[keyof GetSpecDocResponses];
+
 export type DeleteFileData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query: {
         /**
@@ -2676,7 +2777,7 @@ export type DeleteFileData = {
          */
         base_version: string;
     };
-    url: '/bundles/{bundleId}/files';
+    url: '/docs/{docId}/files';
 };
 
 export type DeleteFileErrors = {
@@ -2700,12 +2801,15 @@ export type DeleteFileResponse = DeleteFileResponses[keyof DeleteFileResponses];
 export type ListFilesData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: {
         version?: string;
     };
-    url: '/bundles/{bundleId}/files';
+    url: '/docs/{docId}/files';
 };
 
 export type ListFilesErrors = {
@@ -2729,7 +2833,10 @@ export type ListFilesResponse = ListFilesResponses[keyof ListFilesResponses];
 export type GetFileContentData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query: {
         /**
@@ -2738,7 +2845,7 @@ export type GetFileContentData = {
         path: string;
         version?: string;
     };
-    url: '/bundles/{bundleId}/files/content';
+    url: '/docs/{docId}/files/content';
 };
 
 export type GetFileContentErrors = {
@@ -2762,7 +2869,10 @@ export type GetFileContentResponse = GetFileContentResponses[keyof GetFileConten
 export type PutFileContentData = {
     body: Blob | File;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query: {
         /**
@@ -2775,7 +2885,7 @@ export type PutFileContentData = {
          */
         base_version: string;
     };
-    url: '/bundles/{bundleId}/files/content';
+    url: '/docs/{docId}/files/content';
 };
 
 export type PutFileContentErrors = {
@@ -2799,10 +2909,13 @@ export type PutFileContentResponse = PutFileContentResponses[keyof PutFileConten
 export type RenameFileData = {
     body: RenameRequest;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/files/rename';
+    url: '/docs/{docId}/files/rename';
 };
 
 export type RenameFileErrors = {
@@ -2826,13 +2939,16 @@ export type RenameFileResponse = RenameFileResponses[keyof RenameFileResponses];
 export type ListVersionsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: {
         cursor?: string;
         limit?: number;
     };
-    url: '/bundles/{bundleId}/versions';
+    url: '/docs/{docId}/versions';
 };
 
 export type ListVersionsErrors = {
@@ -2856,13 +2972,16 @@ export type ListVersionsResponse = ListVersionsResponses[keyof ListVersionsRespo
 export type DiffVersionsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query: {
         from: string;
         to: string;
     };
-    url: '/bundles/{bundleId}/diff';
+    url: '/docs/{docId}/diff';
 };
 
 export type DiffVersionsErrors = {
@@ -2886,13 +3005,16 @@ export type DiffVersionsResponse = DiffVersionsResponses[keyof DiffVersionsRespo
 export type ExportBundleData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: {
         version?: string;
         format?: 'zip' | 'html';
     };
-    url: '/bundles/{bundleId}/export';
+    url: '/docs/{docId}/export';
 };
 
 export type ExportBundleErrors = {
@@ -2916,12 +3038,15 @@ export type ExportBundleResponse = ExportBundleResponses[keyof ExportBundleRespo
 export type ListRunsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: {
         limit?: number;
     };
-    url: '/bundles/{bundleId}/runs';
+    url: '/docs/{docId}/runs';
 };
 
 export type ListRunsErrors = {
@@ -2945,10 +3070,13 @@ export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
 export type StartRunData = {
     body?: StartRunRequest;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/runs';
+    url: '/docs/{docId}/runs';
 };
 
 export type StartRunErrors = {
@@ -3024,10 +3152,13 @@ export type GetContentReviewReportResponse = GetContentReviewReportResponses[key
 export type EstimateRunData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/runs/estimate';
+    url: '/docs/{docId}/runs/estimate';
 };
 
 export type EstimateRunErrors = {
@@ -3051,10 +3182,13 @@ export type EstimateRunResponse = EstimateRunResponses[keyof EstimateRunResponse
 export type ListAssumptionsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/assumptions';
+    url: '/docs/{docId}/assumptions';
 };
 
 export type ListAssumptionsErrors = {
@@ -3080,10 +3214,13 @@ export type ListAssumptionsResponse = ListAssumptionsResponses[keyof ListAssumpt
 export type GetTraceData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/trace';
+    url: '/docs/{docId}/trace';
 };
 
 export type GetTraceErrors = {
@@ -3112,7 +3249,10 @@ export type AddTraceIdsData = {
         ids: Array<string>;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query: {
         /**
@@ -3121,7 +3261,7 @@ export type AddTraceIdsData = {
          */
         base_version: string;
     };
-    url: '/bundles/{bundleId}/trace/ids';
+    url: '/docs/{docId}/trace/ids';
 };
 
 export type AddTraceIdsErrors = {
@@ -3392,10 +3532,13 @@ export type GetRunResponse = GetRunResponses[keyof GetRunResponses];
 export type GetTourData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/tour';
+    url: '/docs/{docId}/tour';
 };
 
 export type GetTourErrors = {
@@ -3419,13 +3562,16 @@ export type GetTourResponse = GetTourResponses[keyof GetTourResponses];
 export type SummarizeDiffData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query: {
         from: string;
         to: string;
     };
-    url: '/bundles/{bundleId}/diff/summary';
+    url: '/docs/{docId}/diff/summary';
 };
 
 export type SummarizeDiffErrors = {
@@ -3607,7 +3753,7 @@ export type AdoptSkippedResponses = {
     /**
      * The new bundle.
      */
-    201: Bundle;
+    201: SpecDoc;
 };
 
 export type AdoptSkippedResponse = AdoptSkippedResponses[keyof AdoptSkippedResponses];
@@ -3669,10 +3815,13 @@ export type GuessProfileResponse = GuessProfileResponses[keyof GuessProfileRespo
 export type ListBundleThreadsData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/threads';
+    url: '/docs/{docId}/threads';
 };
 
 export type ListBundleThreadsErrors = {
@@ -3698,10 +3847,13 @@ export type ListBundleThreadsResponse = ListBundleThreadsResponses[keyof ListBun
 export type OpenBundleThreadData = {
     body: OpenThread;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/threads';
+    url: '/docs/{docId}/threads';
 };
 
 export type OpenBundleThreadErrors = {
@@ -3866,10 +4018,13 @@ export type SetThreadStatusResponse = SetThreadStatusResponses[keyof SetThreadSt
 export type ListWaiversData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/waivers';
+    url: '/docs/{docId}/waivers';
 };
 
 export type ListWaiversErrors = {
@@ -3898,10 +4053,13 @@ export type RequestWaiverData = {
         reason: string;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/waivers';
+    url: '/docs/{docId}/waivers';
 };
 
 export type RequestWaiverErrors = {
@@ -3984,10 +4142,13 @@ export type RejectWaiverResponse = RejectWaiverResponses[keyof RejectWaiverRespo
 export type GetBundleStatusData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/status';
+    url: '/docs/{docId}/status';
 };
 
 export type GetBundleStatusErrors = {
@@ -4016,10 +4177,13 @@ export type RequestReviewData = {
         reviewers: Array<string>;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/review-request';
+    url: '/docs/{docId}/review-request';
 };
 
 export type RequestReviewErrors = {
@@ -4043,10 +4207,13 @@ export type RequestReviewResponse = RequestReviewResponses[keyof RequestReviewRe
 export type ApproveBundleData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/approve';
+    url: '/docs/{docId}/approve';
 };
 
 export type ApproveBundleErrors = {
@@ -5117,10 +5284,13 @@ export type PublishBundleData = {
         message?: string;
     };
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/publish';
+    url: '/docs/{docId}/publish';
 };
 
 export type PublishBundleErrors = {
@@ -5147,10 +5317,13 @@ export type PublishBundleResponse = PublishBundleResponses[keyof PublishBundleRe
 export type DiscardDraftData = {
     body?: never;
     path: {
-        bundleId: string;
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
     };
     query?: never;
-    url: '/bundles/{bundleId}/draft/discard';
+    url: '/docs/{docId}/draft/discard';
 };
 
 export type DiscardDraftErrors = {

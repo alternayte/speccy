@@ -118,9 +118,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/handoff:
+  /docs/{docId}/handoff:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listHandoffs
       summary: The handoffs of a bundle, newest first (REQ-136).
@@ -159,9 +159,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/verification-waivers:
+  /docs/{docId}/verification-waivers:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: requestVerificationWaiver
       summary: Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
@@ -207,9 +207,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/verifications:
+  /docs/{docId}/verifications:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listVerifications
       summary: The verification runs of a bundle, newest first.
@@ -241,9 +241,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/verifications/resolve:
+  /docs/{docId}/verifications/resolve:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: resolveVerificationTarget
       summary: Say which repo and commit, or which folder, a pasted target names, before a run starts.
@@ -263,9 +263,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/verifications/defaults:
+  /docs/{docId}/verifications/defaults:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: verificationDefaults
       summary: The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
@@ -321,9 +321,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/adopt:
+  /docs/{docId}/adopt:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: adoptFrontmatter
       summary: Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
@@ -337,9 +337,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/profile:
+  /docs/{docId}/profile:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     put:
       operationId: setBundleProfile
       summary: Change the profile of the bundle's main doc.
@@ -362,7 +362,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Bundle"
+                $ref: "#/components/schemas/SpecDoc"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -595,7 +595,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Bundle"
+                $ref: "#/components/schemas/SpecDoc"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -647,7 +647,7 @@ paths:
       - $ref: "#/components/parameters/BundleId"
     get:
       operationId: getBundle
-      summary: Get one bundle.
+      summary: Get one bundle with its spec docs.
       responses:
         "200":
           description: The bundle.
@@ -672,9 +672,25 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/files:
+  /docs/{docId}:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
+    get:
+      operationId: getSpecDoc
+      summary: Get one spec doc.
+      responses:
+        "200":
+          description: The spec doc.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpecDoc"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/files:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listFiles
       summary: List the files of a bundle version. The default is the current version.
@@ -705,9 +721,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/files/content:
+  /docs/{docId}/files/content:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
       - $ref: "#/components/parameters/PathQuery"
     get:
       operationId: getFileContent
@@ -746,9 +762,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/files/rename:
+  /docs/{docId}/files/rename:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: renameFile
       summary: Rename or move a file inside the bundle. Creates a version (REQ-005).
@@ -768,9 +784,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/versions:
+  /docs/{docId}/versions:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listVersions
       summary: List the versions of a bundle, newest first.
@@ -787,9 +803,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/diff:
+  /docs/{docId}/diff:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: diffVersions
       summary: Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
@@ -816,9 +832,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/export:
+  /docs/{docId}/export:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: exportBundle
       summary: Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
@@ -845,9 +861,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/runs:
+  /docs/{docId}/runs:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: startRun
       summary: Start a full review of the current version (REQ-020). Lint runs on its own on every save.
@@ -922,9 +938,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/runs/estimate:
+  /docs/{docId}/runs/estimate:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: estimateRun
       summary: Estimate the tokens and cost of a full review before it starts (REQ-104).
@@ -938,9 +954,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/assumptions:
+  /docs/{docId}/assumptions:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listAssumptions
       summary: List the sentences of the current main doc that start with "Assumption:" (REQ-033).
@@ -960,9 +976,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/trace:
+  /docs/{docId}/trace:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: getTrace
       summary: The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
@@ -976,9 +992,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/trace/ids:
+  /docs/{docId}/trace/ids:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
       - $ref: "#/components/parameters/BaseVersion"
     post:
       operationId: addTraceIds
@@ -1173,9 +1189,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/tour:
+  /docs/{docId}/tour:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: getTour
       summary: The ordered points of the bundle's current review that need a human decision (SDD §13.3).
@@ -1189,9 +1205,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/diff/summary:
+  /docs/{docId}/diff/summary:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: summarizeDiff
       summary: Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
@@ -1326,7 +1342,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Bundle"
+                $ref: "#/components/schemas/SpecDoc"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1381,9 +1397,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/threads:
+  /docs/{docId}/threads:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listBundleThreads
       summary: List the threads of a bundle, open first (REQ-087).
@@ -1538,9 +1554,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/waivers:
+  /docs/{docId}/waivers:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: listWaivers
       summary: List the waivers of a bundle (REQ-072 to REQ-074).
@@ -1628,9 +1644,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/status:
+  /docs/{docId}/status:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     get:
       operationId: getBundleStatus
       summary: The review status of a bundle (§9.5).
@@ -1644,9 +1660,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/review-request:
+  /docs/{docId}/review-request:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: requestReview
       summary: Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
@@ -1673,9 +1689,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/approve:
+  /docs/{docId}/approve:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: approveBundle
       summary: Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
@@ -2393,9 +2409,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/publish:
+  /docs/{docId}/publish:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: publishBundle
       summary: Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
@@ -2425,9 +2441,9 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /bundles/{bundleId}/draft/discard:
+  /docs/{docId}/draft/discard:
     parameters:
-      - $ref: "#/components/parameters/BundleId"
+      - $ref: "#/components/parameters/DocId"
     post:
       operationId: discardDraft
       summary: Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
@@ -2560,6 +2576,14 @@ components:
       name: bundleId
       in: path
       required: true
+      schema:
+        type: string
+        format: uuid
+    DocId:
+      name: docId
+      in: path
+      required: true
+      description: The ID of one spec doc.
       schema:
         type: string
         format: uuid
@@ -2778,29 +2802,33 @@ components:
           type: string
           description: A stable machine-readable error code.
 
-    Bundle:
+    SpecDoc:
       type: object
-      required: [id, slug, title, profile_key, source_kind, main_doc, current_version, updated_at]
+      description: One spec doc of a bundle, with its own profile, versions, review runs and verdict.
+      required: [id, bundle_id, slug, title, profile_key, source_kind, path, current_version, updated_at]
       properties:
         id:
           type: string
           format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+          description: The bundle that holds the spec doc.
         slug:
           type: string
-          description: In local mode, the bundle folder relative to the served folder.
         title:
           type: string
         profile_key:
           type: string
-          description: The frontmatter type of the main doc.
+          description: The profile of the spec doc.
         source_kind:
           type: string
           enum: [local, db, github]
         github:
           $ref: "#/components/schemas/BundleGithub"
-        main_doc:
+        path:
           type: string
-          description: The path of the main doc in the bundle.
+          description: The path of the spec doc in its bundle.
         current_version:
           $ref: "#/components/schemas/Version"
         updated_at:
@@ -2813,12 +2841,48 @@ components:
           description: Why the latest run on the current version failed, when it failed.
         adopt:
           $ref: "#/components/schemas/Adopt"
-        visibility:
-          $ref: "#/components/schemas/Visibility"
         status:
           $ref: "#/components/schemas/ReviewStatus"
         next_action:
           $ref: "#/components/schemas/NextAction"
+
+    Bundle:
+      type: object
+      description: A folder that holds one or more spec docs and their assets.
+      required: [id, slug, title, source_kind, state, docs, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          description: The bundle folder relative to the served folder or the repo root.
+        title:
+          type: string
+          description: The folder name.
+        source_kind:
+          type: string
+          enum: [local, db, github]
+        visibility:
+          $ref: "#/components/schemas/Visibility"
+        state:
+          $ref: "#/components/schemas/BundleState"
+        docs:
+          type: array
+          description: The spec docs of the bundle, by path.
+          items:
+            $ref: "#/components/schemas/SpecDoc"
+        updated_at:
+          type: string
+          format: date-time
+
+    BundleState:
+      type: string
+      description: >
+        The worst state of the bundle's spec docs, for a list row: not_build_ready when one
+        spec doc is Not Build Ready, then not_reviewed when one has no verdict on its current
+        version, and build_ready only when every spec doc is Build Ready.
+      enum: [not_build_ready, not_reviewed, build_ready]
 
     SkippedDoc:
       type: object
@@ -2925,12 +2989,12 @@ components:
 
     Run:
       type: object
-      required: [id, bundle_id, version_id, version_number, profile_key, profile_version, kind, status, stage, error, started_at]
+      required: [id, doc_id, version_id, version_number, profile_key, profile_version, kind, status, stage, error, started_at]
       properties:
         id:
           type: string
           format: uuid
-        bundle_id:
+        doc_id:
           type: string
           format: uuid
         version_id:
@@ -3213,12 +3277,12 @@ components:
 
     Verification:
       type: object
-      required: [id, bundle_id, status, repo, sha, counts, notes, stale, created_at, outcomes]
+      required: [id, doc_id, status, repo, sha, counts, notes, stale, created_at, outcomes]
       properties:
         id:
           type: string
           format: uuid
-        bundle_id:
+        doc_id:
           type: string
           format: uuid
         handoff_id:
@@ -4178,7 +4242,7 @@ components:
         id:
           type: string
           format: uuid
-        bundle_id:
+        doc_id:
           type: string
           format: uuid
         profile_key:
@@ -4291,12 +4355,12 @@ components:
 
     Waiver:
       type: object
-      required: [id, bundle_id, check_slug, level, section, reason, status, requested_by, approvals, policy, needed, can_approve, created_at]
+      required: [id, doc_id, check_slug, level, section, reason, status, requested_by, approvals, policy, needed, can_approve, created_at]
       properties:
         id:
           type: string
           format: uuid
-        bundle_id:
+        doc_id:
           type: string
           format: uuid
         check_slug:
@@ -4579,7 +4643,7 @@ components:
 
     InboxItem:
       type: object
-      required: [kind, bundle_id, bundle_title, text, at, unread, key]
+      required: [kind, bundle_id, doc_id, bundle_title, text, at, unread, key]
       properties:
         kind:
           type: string
@@ -4587,6 +4651,10 @@ components:
         bundle_id:
           type: string
           format: uuid
+        doc_id:
+          type: string
+          format: uuid
+          description: The spec doc the item is about.
         bundle_title:
           type: string
         thread_id:
@@ -5167,10 +5235,10 @@ components:
       properties:
         markdown:
           type: string
-        bundle_id:
+        doc_id:
           type: string
           format: uuid
-          description: When set, relative image links resolve to files in this bundle.
+          description: When set, relative image links resolve to files of this spec doc's version.
         path:
           type: string
           description: The path of the file in the bundle, so relative links resolve from its folder.

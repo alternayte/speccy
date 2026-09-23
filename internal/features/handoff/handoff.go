@@ -44,7 +44,7 @@ const LinksDir = "links"
 // TakeHandoff returns the build packet and records the handoff (REQ-136).
 func (a *API) TakeHandoff(ctx context.Context, req api.TakeHandoffRequestObject) (api.TakeHandoffResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (a *API) questions(ctx context.Context, b pgdb.SpecDoc) ([]api.PacketQuesti
 // ListHandoffs lists the handoffs of a bundle, newest first (REQ-136).
 func (a *API) ListHandoffs(ctx context.Context, req api.ListHandoffsRequestObject) (api.ListHandoffsResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}

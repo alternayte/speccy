@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { Anchor, Thread, ThreadDetail } from "@/lib/api";
 import {
-  getBundleOptions,
+  getSpecDocOptions,
   getThreadOptions,
   getThreadQueryKey,
   listBundleThreadsOptions,
@@ -41,14 +41,14 @@ export type NewAnchor =
 // ThreadsPanel lists a bundle's threads, shows one, and opens new ones. A guest writes in
 // threads for humans only; members also ask the AI, decide, mark blocking, and resolve.
 export function ThreadsPanel({
-  bundleId,
+  docId,
   member,
   reviewer = false,
   pending,
   onPendingDone,
   onOpenAnchor,
 }: {
-  bundleId: string;
+  docId: string;
   member: boolean;
   // reviewer changes the lead line: reviewer mode has no code view and no findings.
   reviewer?: boolean;
@@ -57,12 +57,12 @@ export function ThreadsPanel({
   onOpenAnchor: (a: Anchor) => void;
 }) {
   const [open, setOpen] = useState<string>();
-  const threads = useQuery(listBundleThreadsOptions({ path: { bundleId } }));
+  const threads = useQuery(listBundleThreadsOptions({ path: { docId } }));
 
   if (pending) {
     return (
       <Composer
-        bundleId={bundleId}
+        docId={docId}
         member={member}
         anchor={pending}
         onDone={(id) => {
@@ -76,7 +76,7 @@ export function ThreadsPanel({
     return (
       <ThreadView
         threadId={open}
-        bundleId={bundleId}
+        docId={docId}
         member={member}
         onBack={() => setOpen(undefined)}
         onOpenAnchor={onOpenAnchor}
@@ -156,12 +156,12 @@ function ThreadRow({ t, onOpen }: { t: Thread; onOpen: () => void }) {
 }
 
 function Composer({
-  bundleId,
+  docId,
   member,
   anchor,
   onDone,
 }: {
-  bundleId: string;
+  docId: string;
   member: boolean;
   anchor: NewAnchor;
   onDone: (id?: string) => void;
@@ -173,8 +173,8 @@ function Composer({
   const create = useMutation({
     ...openBundleThreadMutation(),
     onSuccess: (t) => {
-      qc.invalidateQueries({ queryKey: listBundleThreadsQueryKey({ path: { bundleId } }) });
-      qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+      qc.invalidateQueries({ queryKey: listBundleThreadsQueryKey({ path: { docId } }) });
+      qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
       onDone(t.id);
     },
   });
@@ -190,7 +190,7 @@ function Composer({
       onSubmit={(e) => {
         e.preventDefault();
         create.mutate({
-          path: { bundleId },
+          path: { docId },
           body: {
             anchor_kind: anchor.kind,
             anchor: anchorBody,
@@ -264,16 +264,16 @@ function Composer({
   );
 }
 
-// ThreadView shows one thread. bundleId is absent for a suggestion thread on a profile.
+// ThreadView shows one thread. docId is absent for a suggestion thread on a profile.
 export function ThreadView({
   threadId,
-  bundleId,
+  docId,
   member,
   onBack,
   onOpenAnchor,
 }: {
   threadId: string;
-  bundleId?: string;
+  docId?: string;
   member: boolean;
   onBack: () => void;
   onOpenAnchor?: (a: Anchor) => void;
@@ -287,9 +287,9 @@ export function ThreadView({
   const [body, setBody] = useState("");
   const update = (t: ThreadDetail) => {
     qc.setQueryData(getThreadQueryKey({ path: { threadId } }), t);
-    if (bundleId) {
-      qc.invalidateQueries({ queryKey: listBundleThreadsQueryKey({ path: { bundleId } }) });
-      qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+    if (docId) {
+      qc.invalidateQueries({ queryKey: listBundleThreadsQueryKey({ path: { docId } }) });
+      qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
     } else if (t.profile_key) {
       qc.invalidateQueries({ queryKey: listProfileThreadsQueryKey({ path: { key: t.profile_key } }) });
     }

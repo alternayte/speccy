@@ -131,7 +131,7 @@ type Change func(ctx context.Context, id, base uuid.UUID, op source.Op, by, mess
 
 // GetTrace returns the bundle's links, its traceability matrices, and suggested IDs.
 func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.GetTraceResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 
 // AddTraceIds inserts the chosen suggested IDs into the main doc as a new version (REQ-052).
 func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject) (api.AddTraceIdsResponseObject, error) {
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}

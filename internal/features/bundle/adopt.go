@@ -70,7 +70,7 @@ func mainDocContent(ctx context.Context, q store.Querier, b pgdb.SpecDoc) ([]byt
 // review needs no guess.
 func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequestObject) (api.AdoptFrontmatterResponseObject, error) {
 	q := a.Service.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, a.Service.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequ
 func (a *API) SetBundleProfile(ctx context.Context, req api.SetBundleProfileRequestObject) (api.SetBundleProfileResponseObject, error) {
 	s := a.Service
 	q := s.DB.Queries()
-	b, err := version.Bundle(ctx, q, s.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, q, s.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}

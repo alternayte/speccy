@@ -8,7 +8,7 @@ import { ErrorState, Loading } from "@/components/ui/states";
 import type { ReviewStatus as Status } from "@/lib/api";
 import {
   approveBundleMutation,
-  getBundleOptions,
+  getSpecDocOptions,
   getBundleStatusOptions,
   getBundleStatusQueryKey,
   listPeopleOptions,
@@ -26,24 +26,24 @@ const statusStyle: Record<Status, { label: string; tone: string }> = {
 // ReviewStatus shows the bundle's status (§9.5) and the review actions: an author requests a
 // review with reviewers (REQ-090); a reviewer approves (REQ-076).
 export function ReviewStatus({
-  bundleId,
+  docId,
   signedIn,
   register,
 }: {
-  bundleId: string;
+  docId: string;
   signedIn: boolean;
   // register hands the request-review opener to the control row (SDD §13.4).
   register?: (open: () => void) => void;
 }) {
   const qc = useQueryClient();
-  const status = useQuery({ ...getBundleStatusOptions({ path: { bundleId } }), refetchInterval: 5000 });
+  const status = useQuery({ ...getBundleStatusOptions({ path: { docId } }), refetchInterval: 5000 });
   const [asking, setAsking] = useState(false);
   useEffect(() => {
     register?.(() => setAsking(true));
   }, [register]);
   const done = (s: unknown) => {
-    qc.setQueryData(getBundleStatusQueryKey({ path: { bundleId } }), s);
-    qc.invalidateQueries({ queryKey: getBundleOptions({ path: { bundleId } }).queryKey });
+    qc.setQueryData(getBundleStatusQueryKey({ path: { docId } }), s);
+    qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
   };
   const approve = useMutation({ ...approveBundleMutation(), onSuccess: done });
   if (!status.data) return null;
@@ -75,7 +75,7 @@ export function ReviewStatus({
           icon={<BadgeCheck className="size-3.5" />}
           disabled={!s.can_approve || approve.isPending}
           title={s.approve_blocked_by}
-          onClick={() => approve.mutate({ path: { bundleId } })}
+          onClick={() => approve.mutate({ path: { docId } })}
         >
           <span className="hidden sm:inline">Approve</span>
         </Button>
@@ -83,7 +83,7 @@ export function ReviewStatus({
       {approve.isError ? <span className="text-xs text-bad">{problemMessage(approve.error)}</span> : null}
       <RequestDialog
         open={asking}
-        bundleId={bundleId}
+        docId={docId}
         current={s.reviewers}
         draft={s.status === "draft"}
         onClose={() => setAsking(false)}
@@ -98,14 +98,14 @@ export function ReviewStatus({
 
 function RequestDialog({
   open,
-  bundleId,
+  docId,
   current,
   draft,
   onClose,
   onDone,
 }: {
   open: boolean;
-  bundleId: string;
+  docId: string;
   current: string[];
   draft: boolean;
   onClose: () => void;
@@ -132,7 +132,7 @@ function RequestDialog({
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            request.mutate({ path: { bundleId }, body: { reviewers: [...picked] } });
+            request.mutate({ path: { docId }, body: { reviewers: [...picked] } });
           }}
         >
           <ul className="max-h-64 space-y-1 overflow-y-auto">

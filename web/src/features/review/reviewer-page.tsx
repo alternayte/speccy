@@ -1,3 +1,4 @@
+import { useBundleId } from "@/features/bundle/params";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Compass, MessageSquarePlus, Paperclip } from "lucide-react";
@@ -7,7 +8,7 @@ import { ErrorState, Loading } from "@/components/ui/states";
 import { contentUrl } from "@/features/editor/editor-pane";
 import { Preview } from "@/features/editor/preview";
 import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
-import { getBundleOptions, listFilesOptions } from "@/lib/api/@tanstack/react-query.gen";
+import { getSpecDocOptions, listFilesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { type Anchor, type BundleVerdict, getFileContent } from "@/lib/api";
 import { problemMessage } from "@/lib/problem";
 
@@ -22,21 +23,22 @@ export function statusLine(verdict: BundleVerdict | undefined): string {
 
 // ReviewerPage is the whole surface for a person who cannot edit the bundle (reviewer mode):
 // the main doc, the assets, one status line, and comments. Every author tool stays hidden.
-export function ReviewerPage({ bundleId }: { bundleId: string }) {
-  const bundle = useQuery({ ...getBundleOptions({ path: { bundleId } }), refetchInterval: 5000 });
+export function ReviewerPage({ docId }: { docId: string }) {
+  const bundleId = useBundleId();
+  const bundle = useQuery({ ...getSpecDocOptions({ path: { docId } }), refetchInterval: 5000 });
   const version = bundle.data?.current_version;
-  const main = bundle.data?.main_doc;
+  const main = bundle.data?.path;
   const files = useQuery({
-    ...listFilesOptions({ path: { bundleId }, query: { version: version?.id } }),
+    ...listFilesOptions({ path: { docId }, query: { version: version?.id } }),
     enabled: !!version,
     placeholderData: keepPreviousData,
   });
   const doc = useQuery({
-    queryKey: ["reviewer-doc", bundleId, version?.id],
+    queryKey: ["reviewer-doc", docId, version?.id],
     enabled: !!main && !!version,
     queryFn: async () => {
       const res = await getFileContent({
-        path: { bundleId },
+        path: { docId },
         query: { path: main!, version: version!.id },
         parseAs: "text",
         throwOnError: true,
@@ -78,7 +80,7 @@ export function ReviewerPage({ bundleId }: { bundleId: string }) {
       </div>
     );
   const b = bundle.data;
-  const assets = (files.data?.items ?? []).filter((f) => f.path !== b.main_doc);
+  const assets = (files.data?.items ?? []).filter((f) => f.path !== b.path);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -91,8 +93,8 @@ export function ReviewerPage({ bundleId }: { bundleId: string }) {
           Comment
         </Button>
         <Link
-          to="/bundles/$bundleId/tour"
-          params={{ bundleId }}
+          to="/bundles/$bundleId/docs/$docId/tour"
+          params={{ bundleId, docId }}
           className="inline-flex h-7 items-center gap-1.5 rounded-md border border-accent bg-accent px-2.5 text-xs font-medium text-accent-ink hover:brightness-110"
         >
           <Compass aria-hidden className="size-3.5" />
@@ -109,7 +111,7 @@ export function ReviewerPage({ bundleId }: { bundleId: string }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {doc.data !== undefined ? (
             <div ref={docRef}>
-              <Preview markdown={doc.data} bundleId={bundleId} path={b.main_doc} onOpenPath={() => {}} />
+              <Preview markdown={doc.data} docId={docId} path={b.path} onOpenPath={() => {}} />
             </div>
           ) : doc.isError ? (
             <div className="p-4">
@@ -128,7 +130,7 @@ export function ReviewerPage({ bundleId }: { bundleId: string }) {
                   <li key={f.path}>
                     <a
                       className="text-accent hover:underline"
-                      href={contentUrl(bundleId, f.path, b.current_version.id)}
+                      href={contentUrl(docId, f.path, b.current_version.id)}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -148,7 +150,7 @@ export function ReviewerPage({ bundleId }: { bundleId: string }) {
             Comments
           </h2>
           <ThreadsPanel
-            bundleId={bundleId}
+            docId={docId}
             member={false}
             reviewer
             pending={pending}

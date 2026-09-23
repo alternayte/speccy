@@ -90,7 +90,7 @@ func (a *API) mainDoc(ctx context.Context, b pgdb.SpecDoc) ([]byte, section.Doc,
 // RequestWaiver asks for a waiver of one finding (REQ-072).
 func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObject) (api.RequestWaiverResponseObject, error) {
 	q := a.DB.Queries()
-	b, err := a.bundle(ctx, req.BundleId)
+	b, err := a.bundle(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (a *API) RejectWaiver(ctx context.Context, req api.RejectWaiverRequestObjec
 
 // ListWaivers lists a bundle's waivers.
 func (a *API) ListWaivers(ctx context.Context, req api.ListWaiversRequestObject) (api.ListWaiversResponseObject, error) {
-	rows, err := a.DB.Queries().ListSpecDocWaivers(ctx, req.BundleId)
+	rows, err := a.DB.Queries().ListSpecDocWaivers(ctx, req.DocId)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +330,7 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		path = []string{}
 	}
 	w := api.Waiver{
-		Id: s.ID, BundleId: s.BundleID, CheckSlug: s.Check, Level: string(s.Level), Section: path, Reason: s.Reason,
+		Id: s.ID, DocId: s.BundleID, CheckSlug: s.Check, Level: string(s.Level), Section: path, Reason: s.Reason,
 		Status: api.WaiverStatus(s.Status), RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(),
 		Approvals: approvals, Policy: s.Policy.Name, Needed: need, CanApprove: can, CreatedAt: v.CreatedAt.UTC(),
 	}
@@ -389,7 +389,7 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc)
 // no self-approval, and an end when the requirement's section changes. It never goes in the
 // doc's sidecar, because the sidecar travels with the doc into every build of it.
 func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVerificationWaiverRequestObject) (api.RequestVerificationWaiverResponseObject, error) {
-	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.BundleId)
+	b, err := version.Bundle(ctx, a.DB.Queries(), a.Workspace, req.DocId)
 	if err != nil {
 		return nil, err
 	}

@@ -233,6 +233,27 @@ func (e BundleLinkTargetKind) Valid() bool {
 	}
 }
 
+// Defines values for BundleState.
+const (
+	BundleStateBuildReady    BundleState = "build_ready"
+	BundleStateNotBuildReady BundleState = "not_build_ready"
+	BundleStateNotReviewed   BundleState = "not_reviewed"
+)
+
+// Valid indicates whether the value is a known member of the BundleState enum.
+func (e BundleState) Valid() bool {
+	switch e {
+	case BundleStateBuildReady:
+		return true
+	case BundleStateNotBuildReady:
+		return true
+	case BundleStateNotReviewed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BundleVerdictKind.
 const (
 	BundleVerdictKindFull BundleVerdictKind = "full"
@@ -857,6 +878,27 @@ func (e RunStatus) Valid() bool {
 	}
 }
 
+// Defines values for SpecDocSourceKind.
+const (
+	SpecDocSourceKindDb     SpecDocSourceKind = "db"
+	SpecDocSourceKindGithub SpecDocSourceKind = "github"
+	SpecDocSourceKindLocal  SpecDocSourceKind = "local"
+)
+
+// Valid indicates whether the value is a known member of the SpecDocSourceKind enum.
+func (e SpecDocSourceKind) Valid() bool {
+	switch e {
+	case SpecDocSourceKindDb:
+		return true
+	case SpecDocSourceKindGithub:
+		return true
+	case SpecDocSourceKindLocal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for StartRunRequestStages.
 const (
 	StartRunRequestStagesCoherence  StartRunRequestStages = "coherence"
@@ -1114,19 +1156,19 @@ func (e TraceCellState) Valid() bool {
 
 // Defines values for VerdictResult.
 const (
-	BuildReady    VerdictResult = "build_ready"
-	NotBuildReady VerdictResult = "not_build_ready"
-	Stale         VerdictResult = "stale"
+	VerdictResultBuildReady    VerdictResult = "build_ready"
+	VerdictResultNotBuildReady VerdictResult = "not_build_ready"
+	VerdictResultStale         VerdictResult = "stale"
 )
 
 // Valid indicates whether the value is a known member of the VerdictResult enum.
 func (e VerdictResult) Valid() bool {
 	switch e {
-	case BuildReady:
+	case VerdictResultBuildReady:
 		return true
-	case NotBuildReady:
+	case VerdictResultNotBuildReady:
 		return true
-	case Stale:
+	case VerdictResultStale:
 		return true
 	default:
 		return false
@@ -1535,38 +1577,23 @@ type BuildReport struct {
 // BuildReportKind blocked means the agent cannot build the section without an answer. note means it built something, and the doc was unclear.
 type BuildReportKind string
 
-// Bundle defines model for Bundle.
+// Bundle A folder that holds one or more spec docs and their assets.
 type Bundle struct {
-	// Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
-	Adopt          *Adopt  `json:"adopt,omitempty"`
-	CurrentVersion Version `json:"current_version"`
+	// Docs The spec docs of the bundle, by path.
+	Docs []SpecDoc          `json:"docs"`
+	Id   openapi_types.UUID `json:"id"`
 
-	// Github Where a GitHub bundle comes from, and its draft (REQ-123).
-	Github *BundleGithub      `json:"github,omitempty"`
-	Id     openapi_types.UUID `json:"id"`
-
-	// MainDoc The path of the main doc in the bundle.
-	MainDoc string `json:"main_doc"`
-
-	// NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
-	NextAction *NextAction `json:"next_action,omitempty"`
-
-	// ProfileKey The frontmatter type of the main doc.
-	ProfileKey string `json:"profile_key"`
-
-	// RunError Why the latest run on the current version failed, when it failed.
-	RunError *string `json:"run_error,omitempty"`
-
-	// Slug In local mode, the bundle folder relative to the served folder.
+	// Slug The bundle folder relative to the served folder or the repo root.
 	Slug       string           `json:"slug"`
 	SourceKind BundleSourceKind `json:"source_kind"`
-	Status     *ReviewStatus    `json:"status,omitempty"`
-	Title      string           `json:"title"`
-	UpdatedAt  time.Time        `json:"updated_at"`
 
-	// Verdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
-	Verdict    *BundleVerdict `json:"verdict,omitempty"`
-	Visibility *Visibility    `json:"visibility,omitempty"`
+	// State The worst state of the bundle's spec docs, for a list row: not_build_ready when one spec doc is Not Build Ready, then not_reviewed when one has no verdict on its current version, and build_ready only when every spec doc is Build Ready.
+	State BundleState `json:"state"`
+
+	// Title The folder name.
+	Title      string      `json:"title"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+	Visibility *Visibility `json:"visibility,omitempty"`
 }
 
 // BundleSourceKind defines model for Bundle.SourceKind.
@@ -1666,6 +1693,9 @@ type BundleRef struct {
 	Slug       string             `json:"slug"`
 	Title      string             `json:"title"`
 }
+
+// BundleState The worst state of the bundle's spec docs, for a list row: not_build_ready when one spec doc is Not Build Ready, then not_reviewed when one has no verdict on its current version, and build_ready only when every spec doc is Build Ready.
+type BundleState string
 
 // BundleStatus defines model for BundleStatus.
 type BundleStatus struct {
@@ -2138,6 +2168,9 @@ type InboxItem struct {
 	BundleId    openapi_types.UUID `json:"bundle_id"`
 	BundleTitle string             `json:"bundle_title"`
 
+	// DocId The spec doc the item is about.
+	DocId openapi_types.UUID `json:"doc_id"`
+
 	// Key Names the item, so a click marks this one item read.
 	Key      string              `json:"key"`
 	Kind     InboxItemKind       `json:"kind"`
@@ -2531,8 +2564,8 @@ type RenameRequest struct {
 
 // RenderRequest defines model for RenderRequest.
 type RenderRequest struct {
-	// BundleId When set, relative image links resolve to files in this bundle.
-	BundleId *openapi_types.UUID `json:"bundle_id,omitempty"`
+	// DocId When set, relative image links resolve to files of this spec doc's version.
+	DocId    *openapi_types.UUID `json:"doc_id,omitempty"`
 	Markdown string              `json:"markdown"`
 
 	// Path The path of the file in the bundle, so relative links resolve from its folder.
@@ -2591,13 +2624,12 @@ type RoleName string
 
 // Run defines model for Run.
 type Run struct {
-	BundleId openapi_types.UUID `json:"bundle_id"`
-
 	// CacheHits Steps answered from the cache (REQ-021).
 	CacheHits *int64 `json:"cache_hits,omitempty"`
 
 	// CostEstimate USD, from the prices on the role assignments.
 	CostEstimate *float32           `json:"cost_estimate,omitempty"`
+	DocId        openapi_types.UUID `json:"doc_id"`
 	Error        string             `json:"error"`
 	FinishedAt   *time.Time         `json:"finished_at,omitempty"`
 	Id           openapi_types.UUID `json:"id"`
@@ -2710,6 +2742,43 @@ type SourceSkippedDoc struct {
 	Path string `json:"path"`
 }
 
+// SpecDoc One spec doc of a bundle, with its own profile, versions, review runs and verdict.
+type SpecDoc struct {
+	// Adopt The frontmatter keys the main doc does not name, and the values a review used for them (REQ-135). Absent when the doc names both.
+	Adopt *Adopt `json:"adopt,omitempty"`
+
+	// BundleId The bundle that holds the spec doc.
+	BundleId       openapi_types.UUID `json:"bundle_id"`
+	CurrentVersion Version            `json:"current_version"`
+
+	// Github Where a GitHub bundle comes from, and its draft (REQ-123).
+	Github *BundleGithub      `json:"github,omitempty"`
+	Id     openapi_types.UUID `json:"id"`
+
+	// NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
+	NextAction *NextAction `json:"next_action,omitempty"`
+
+	// Path The path of the spec doc in its bundle.
+	Path string `json:"path"`
+
+	// ProfileKey The profile of the spec doc.
+	ProfileKey string `json:"profile_key"`
+
+	// RunError Why the latest run on the current version failed, when it failed.
+	RunError   *string           `json:"run_error,omitempty"`
+	Slug       string            `json:"slug"`
+	SourceKind SpecDocSourceKind `json:"source_kind"`
+	Status     *ReviewStatus     `json:"status,omitempty"`
+	Title      string            `json:"title"`
+	UpdatedAt  time.Time         `json:"updated_at"`
+
+	// Verdict The verdict of the bundle's latest completed run. It is stale when that run is not on the current version.
+	Verdict *BundleVerdict `json:"verdict,omitempty"`
+}
+
+// SpecDocSourceKind defines model for SpecDoc.SourceKind.
+type SpecDocSourceKind string
+
 // StageTiming defines model for StageTiming.
 type StageTiming struct {
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
@@ -2750,9 +2819,9 @@ type Thread struct {
 	Anchor     map[string]interface{} `json:"anchor"`
 	AnchorKind ThreadAnchorKind       `json:"anchor_kind"`
 	Blocking   bool                   `json:"blocking"`
-	BundleId   *openapi_types.UUID    `json:"bundle_id,omitempty"`
 	CreatedAt  time.Time              `json:"created_at"`
 	CreatedBy  string                 `json:"created_by"`
+	DocId      *openapi_types.UUID    `json:"doc_id,omitempty"`
 
 	// HandoffId The handoff a builder opened this thread from (REQ-137).
 	HandoffId *openapi_types.UUID `json:"handoff_id,omitempty"`
@@ -2787,9 +2856,9 @@ type ThreadDetail struct {
 	// Answering The AI is writing an answer.
 	Answering bool                `json:"answering"`
 	Blocking  bool                `json:"blocking"`
-	BundleId  *openapi_types.UUID `json:"bundle_id,omitempty"`
 	CreatedAt time.Time           `json:"created_at"`
 	CreatedBy string              `json:"created_by"`
+	DocId     *openapi_types.UUID `json:"doc_id,omitempty"`
 
 	// HandoffId The handoff a builder opened this thread from (REQ-137).
 	HandoffId *openapi_types.UUID `json:"handoff_id,omitempty"`
@@ -2919,12 +2988,12 @@ type Verification struct {
 
 	// Branch The branch the SHA was the head of, when the target named a branch or a repo.
 	Branch    *string            `json:"branch,omitempty"`
-	BundleId  openapi_types.UUID `json:"bundle_id"`
 	Counts    VerificationCounts `json:"counts"`
 	CreatedAt time.Time          `json:"created_at"`
 
 	// Digest The content digest of a folder run.
-	Digest *string `json:"digest,omitempty"`
+	Digest *string            `json:"digest,omitempty"`
+	DocId  openapi_types.UUID `json:"doc_id"`
 
 	// Error Why a failed run failed.
 	Error     *string             `json:"error,omitempty"`
@@ -3088,8 +3157,7 @@ type Visibility string
 
 // Waiver defines model for Waiver.
 type Waiver struct {
-	Approvals []string           `json:"approvals"`
-	BundleId  openapi_types.UUID `json:"bundle_id"`
+	Approvals []string `json:"approvals"`
 
 	// CanApprove Whether the caller can approve or reject it now.
 	CanApprove bool      `json:"can_approve"`
@@ -3098,6 +3166,7 @@ type Waiver struct {
 
 	// DecisionReason Why the waiver is rejected. Only a rejected waiver has one.
 	DecisionReason *string            `json:"decision_reason,omitempty"`
+	DocId          openapi_types.UUID `json:"doc_id"`
 	Id             openapi_types.UUID `json:"id"`
 	Level          string             `json:"level"`
 
@@ -3139,6 +3208,9 @@ type ConnectionId = openapi_types.UUID
 
 // Cursor defines model for Cursor.
 type Cursor = string
+
+// DocId defines model for DocId.
+type DocId = openapi_types.UUID
 
 // FindingId defines model for FindingId.
 type FindingId = openapi_types.UUID
@@ -3211,6 +3283,22 @@ type ListBundlesParams struct {
 type DeleteBundleParams struct {
 	// Slug The bundle's slug, typed to confirm.
 	Slug string `form:"slug" json:"slug"`
+}
+
+// CreateShareLinkJSONBody defines parameters for CreateShareLink.
+type CreateShareLinkJSONBody struct {
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
+// SetVisibilityJSONBody defines parameters for SetVisibility.
+type SetVisibilityJSONBody struct {
+	Visibility Visibility `json:"visibility"`
+}
+
+// UndismissDocParams defines parameters for UndismissDoc.
+type UndismissDocParams struct {
+	Path     string              `form:"path" json:"path"`
+	SourceId *openapi_types.UUID `form:"source_id,omitempty" json:"source_id,omitempty"`
 }
 
 // DiffVersionsParams defines parameters for DiffVersions.
@@ -3296,11 +3384,6 @@ type ListRunsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// CreateShareLinkJSONBody defines parameters for CreateShareLink.
-type CreateShareLinkJSONBody struct {
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
-}
-
 // AddTraceIdsJSONBody defines parameters for AddTraceIds.
 type AddTraceIdsJSONBody struct {
 	// Ids The suggested IDs to insert, from GET /trace.
@@ -3328,21 +3411,10 @@ type ListVersionsParams struct {
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// SetVisibilityJSONBody defines parameters for SetVisibility.
-type SetVisibilityJSONBody struct {
-	Visibility Visibility `json:"visibility"`
-}
-
 // RequestWaiverJSONBody defines parameters for RequestWaiver.
 type RequestWaiverJSONBody struct {
 	FindingId openapi_types.UUID `json:"finding_id"`
 	Reason    string             `json:"reason"`
-}
-
-// UndismissDocParams defines parameters for UndismissDoc.
-type UndismissDocParams struct {
-	Path     string              `form:"path" json:"path"`
-	SourceId *openapi_types.UUID `form:"source_id,omitempty" json:"source_id,omitempty"`
 }
 
 // ResolveGithubUrlJSONBody defines parameters for ResolveGithubUrl.
@@ -3478,6 +3550,15 @@ type ImportBundleMultipartRequestBody = ImportRequest
 // PreviewImportMultipartRequestBody defines body for PreviewImport for multipart/form-data ContentType.
 type PreviewImportMultipartRequestBody = ImportRequest
 
+// CreateShareLinkJSONRequestBody defines body for CreateShareLink for application/json ContentType.
+type CreateShareLinkJSONRequestBody CreateShareLinkJSONBody
+
+// SetVisibilityJSONRequestBody defines body for SetVisibility for application/json ContentType.
+type SetVisibilityJSONRequestBody SetVisibilityJSONBody
+
+// DismissDocJSONRequestBody defines body for DismissDoc for application/json ContentType.
+type DismissDocJSONRequestBody = DismissedDoc
+
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
 
@@ -3496,9 +3577,6 @@ type RequestReviewJSONRequestBody RequestReviewJSONBody
 // StartRunJSONRequestBody defines body for StartRun for application/json ContentType.
 type StartRunJSONRequestBody = StartRunRequest
 
-// CreateShareLinkJSONRequestBody defines body for CreateShareLink for application/json ContentType.
-type CreateShareLinkJSONRequestBody CreateShareLinkJSONBody
-
 // OpenBundleThreadJSONRequestBody defines body for OpenBundleThread for application/json ContentType.
 type OpenBundleThreadJSONRequestBody = OpenThread
 
@@ -3514,14 +3592,8 @@ type RunVerificationJSONRequestBody = VerificationRequest
 // ResolveVerificationTargetJSONRequestBody defines body for ResolveVerificationTarget for application/json ContentType.
 type ResolveVerificationTargetJSONRequestBody = VerificationTargetInput
 
-// SetVisibilityJSONRequestBody defines body for SetVisibility for application/json ContentType.
-type SetVisibilityJSONRequestBody SetVisibilityJSONBody
-
 // RequestWaiverJSONRequestBody defines body for RequestWaiver for application/json ContentType.
 type RequestWaiverJSONRequestBody RequestWaiverJSONBody
-
-// DismissDocJSONRequestBody defines body for DismissDoc for application/json ContentType.
-type DismissDocJSONRequestBody = DismissedDoc
 
 // ResolveGithubUrlJSONRequestBody defines body for ResolveGithubUrl for application/json ContentType.
 type ResolveGithubUrlJSONRequestBody ResolveGithubUrlJSONBody
@@ -3678,126 +3750,24 @@ type ServerInterface interface {
 	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 	// (DELETE /bundles/{bundleId})
 	DeleteBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteBundleParams)
-	// GetBundle Get one bundle.
+	// GetBundle Get one bundle with its spec docs.
 	// (GET /bundles/{bundleId})
 	GetBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// GetBundleAccess Who can see the bundle, and its share link state (REQ-084, REQ-085).
 	// (GET /bundles/{bundleId}/access)
 	GetBundleAccess(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
-	// (POST /bundles/{bundleId}/adopt)
-	AdoptFrontmatter(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
-	// (POST /bundles/{bundleId}/approve)
-	ApproveBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
-	// (GET /bundles/{bundleId}/assumptions)
-	ListAssumptions(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
 	// (GET /bundles/{bundleId}/delete-plan)
 	DeleteBundlePlan(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
-	// (GET /bundles/{bundleId}/diff)
-	DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams)
-	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
-	// (POST /bundles/{bundleId}/diff/summary)
-	SummarizeDiff(w http.ResponseWriter, r *http.Request, bundleId BundleId, params SummarizeDiffParams)
-	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
-	// (POST /bundles/{bundleId}/draft/discard)
-	DiscardDraft(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
-	// (GET /bundles/{bundleId}/export)
-	ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams)
-	// DeleteFile Delete a file. Creates a version (REQ-005).
-	// (DELETE /bundles/{bundleId}/files)
-	DeleteFile(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteFileParams)
-	// ListFiles List the files of a bundle version. The default is the current version.
-	// (GET /bundles/{bundleId}/files)
-	ListFiles(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListFilesParams)
-	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
-	// (GET /bundles/{bundleId}/files/content)
-	GetFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params GetFileContentParams)
-	// PutFileContent Create or replace a file. Creates a version when the content changed (REQ-005).
-	// (PUT /bundles/{bundleId}/files/content)
-	PutFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params PutFileContentParams)
-	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
-	// (POST /bundles/{bundleId}/files/rename)
-	RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
-	// (GET /bundles/{bundleId}/handoff)
-	ListHandoffs(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-	// (POST /bundles/{bundleId}/handoff)
-	TakeHandoff(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// SetBundleProfile Change the profile of the bundle's main doc.
-	// (PUT /bundles/{bundleId}/profile)
-	SetBundleProfile(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-	// (POST /bundles/{bundleId}/publish)
-	PublishBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-	// (POST /bundles/{bundleId}/review-request)
-	RequestReview(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListRuns List the review runs of a bundle, newest first.
-	// (GET /bundles/{bundleId}/runs)
-	ListRuns(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListRunsParams)
-	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-	// (POST /bundles/{bundleId}/runs)
-	StartRun(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
-	// (GET /bundles/{bundleId}/runs/estimate)
-	EstimateRun(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// RevokeShareLink Revoke the share link (REQ-085).
 	// (DELETE /bundles/{bundleId}/share)
 	RevokeShareLink(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// CreateShareLink Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
 	// (POST /bundles/{bundleId}/share)
 	CreateShareLink(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// GetBundleStatus The review status of a bundle (§9.5).
-	// (GET /bundles/{bundleId}/status)
-	GetBundleStatus(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListBundleThreads List the threads of a bundle, open first (REQ-087).
-	// (GET /bundles/{bundleId}/threads)
-	ListBundleThreads(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-	// (POST /bundles/{bundleId}/threads)
-	OpenBundleThread(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	// (GET /bundles/{bundleId}/tour)
-	GetTour(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
-	// (GET /bundles/{bundleId}/trace)
-	GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-	// (POST /bundles/{bundleId}/trace/ids)
-	AddTraceIds(w http.ResponseWriter, r *http.Request, bundleId BundleId, params AddTraceIdsParams)
-	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-	// (POST /bundles/{bundleId}/verification-waivers)
-	RequestVerificationWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListVerifications The verification runs of a bundle, newest first.
-	// (GET /bundles/{bundleId}/verifications)
-	ListVerifications(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-	// (POST /bundles/{bundleId}/verifications)
-	RunVerification(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
-	// (GET /bundles/{bundleId}/verifications/defaults)
-	VerificationDefaults(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
-	// (POST /bundles/{bundleId}/verifications/resolve)
-	ResolveVerificationTarget(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListVersions List the versions of a bundle, newest first.
-	// (GET /bundles/{bundleId}/versions)
-	ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams)
 	// SetVisibility Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
 	// (PUT /bundles/{bundleId}/visibility)
 	SetVisibility(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
-	// (GET /bundles/{bundleId}/waivers)
-	ListWaivers(w http.ResponseWriter, r *http.Request, bundleId BundleId)
-	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-	// (POST /bundles/{bundleId}/waivers)
-	RequestWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId)
 	// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
 	// (DELETE /dismissed-docs)
 	UndismissDoc(w http.ResponseWriter, r *http.Request, params UndismissDocParams)
@@ -3807,6 +3777,111 @@ type ServerInterface interface {
 	// DismissDoc Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
 	// (POST /dismissed-docs)
 	DismissDoc(w http.ResponseWriter, r *http.Request)
+	// GetSpecDoc Get one spec doc.
+	// (GET /docs/{docId})
+	GetSpecDoc(w http.ResponseWriter, r *http.Request, docId DocId)
+	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	// (POST /docs/{docId}/adopt)
+	AdoptFrontmatter(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+	// (POST /docs/{docId}/approve)
+	ApproveBundle(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+	// (GET /docs/{docId}/assumptions)
+	ListAssumptions(w http.ResponseWriter, r *http.Request, docId DocId)
+	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+	// (GET /docs/{docId}/diff)
+	DiffVersions(w http.ResponseWriter, r *http.Request, docId DocId, params DiffVersionsParams)
+	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+	// (POST /docs/{docId}/diff/summary)
+	SummarizeDiff(w http.ResponseWriter, r *http.Request, docId DocId, params SummarizeDiffParams)
+	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	// (POST /docs/{docId}/draft/discard)
+	DiscardDraft(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
+	// (GET /docs/{docId}/export)
+	ExportBundle(w http.ResponseWriter, r *http.Request, docId DocId, params ExportBundleParams)
+	// DeleteFile Delete a file. Creates a version (REQ-005).
+	// (DELETE /docs/{docId}/files)
+	DeleteFile(w http.ResponseWriter, r *http.Request, docId DocId, params DeleteFileParams)
+	// ListFiles List the files of a bundle version. The default is the current version.
+	// (GET /docs/{docId}/files)
+	ListFiles(w http.ResponseWriter, r *http.Request, docId DocId, params ListFilesParams)
+	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
+	// (GET /docs/{docId}/files/content)
+	GetFileContent(w http.ResponseWriter, r *http.Request, docId DocId, params GetFileContentParams)
+	// PutFileContent Create or replace a file. Creates a version when the content changed (REQ-005).
+	// (PUT /docs/{docId}/files/content)
+	PutFileContent(w http.ResponseWriter, r *http.Request, docId DocId, params PutFileContentParams)
+	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
+	// (POST /docs/{docId}/files/rename)
+	RenameFile(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+	// (GET /docs/{docId}/handoff)
+	ListHandoffs(w http.ResponseWriter, r *http.Request, docId DocId)
+	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	// (POST /docs/{docId}/handoff)
+	TakeHandoff(w http.ResponseWriter, r *http.Request, docId DocId)
+	// SetBundleProfile Change the profile of the bundle's main doc.
+	// (PUT /docs/{docId}/profile)
+	SetBundleProfile(w http.ResponseWriter, r *http.Request, docId DocId)
+	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	// (POST /docs/{docId}/publish)
+	PublishBundle(w http.ResponseWriter, r *http.Request, docId DocId)
+	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+	// (POST /docs/{docId}/review-request)
+	RequestReview(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListRuns List the review runs of a bundle, newest first.
+	// (GET /docs/{docId}/runs)
+	ListRuns(w http.ResponseWriter, r *http.Request, docId DocId, params ListRunsParams)
+	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	// (POST /docs/{docId}/runs)
+	StartRun(w http.ResponseWriter, r *http.Request, docId DocId)
+	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
+	// (GET /docs/{docId}/runs/estimate)
+	EstimateRun(w http.ResponseWriter, r *http.Request, docId DocId)
+	// GetBundleStatus The review status of a bundle (§9.5).
+	// (GET /docs/{docId}/status)
+	GetBundleStatus(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListBundleThreads List the threads of a bundle, open first (REQ-087).
+	// (GET /docs/{docId}/threads)
+	ListBundleThreads(w http.ResponseWriter, r *http.Request, docId DocId)
+	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+	// (POST /docs/{docId}/threads)
+	OpenBundleThread(w http.ResponseWriter, r *http.Request, docId DocId)
+	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+	// (GET /docs/{docId}/tour)
+	GetTour(w http.ResponseWriter, r *http.Request, docId DocId)
+	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+	// (GET /docs/{docId}/trace)
+	GetTrace(w http.ResponseWriter, r *http.Request, docId DocId)
+	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	// (POST /docs/{docId}/trace/ids)
+	AddTraceIds(w http.ResponseWriter, r *http.Request, docId DocId, params AddTraceIdsParams)
+	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	// (POST /docs/{docId}/verification-waivers)
+	RequestVerificationWaiver(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListVerifications The verification runs of a bundle, newest first.
+	// (GET /docs/{docId}/verifications)
+	ListVerifications(w http.ResponseWriter, r *http.Request, docId DocId)
+	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+	// (POST /docs/{docId}/verifications)
+	RunVerification(w http.ResponseWriter, r *http.Request, docId DocId)
+	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+	// (GET /docs/{docId}/verifications/defaults)
+	VerificationDefaults(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	// (POST /docs/{docId}/verifications/resolve)
+	ResolveVerificationTarget(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListVersions List the versions of a bundle, newest first.
+	// (GET /docs/{docId}/versions)
+	ListVersions(w http.ResponseWriter, r *http.Request, docId DocId, params ListVersionsParams)
+	// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
+	// (GET /docs/{docId}/waivers)
+	ListWaivers(w http.ResponseWriter, r *http.Request, docId DocId)
+	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+	// (POST /docs/{docId}/waivers)
+	RequestWaiver(w http.ResponseWriter, r *http.Request, docId DocId)
 	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
 	// (POST /github/resolve)
 	ResolveGithubUrl(w http.ResponseWriter, r *http.Request)
@@ -4614,84 +4689,6 @@ func (siw *ServerInterfaceWrapper) GetBundleAccess(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
-// AdoptFrontmatter operation middleware
-func (siw *ServerInterfaceWrapper) AdoptFrontmatter(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AdoptFrontmatter(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ApproveBundle operation middleware
-func (siw *ServerInterfaceWrapper) ApproveBundle(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ApproveBundle(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListAssumptions operation middleware
-func (siw *ServerInterfaceWrapper) ListAssumptions(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListAssumptions(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 // DeleteBundlePlan operation middleware
 func (siw *ServerInterfaceWrapper) DeleteBundlePlan(w http.ResponseWriter, r *http.Request) {
 
@@ -4709,654 +4706,6 @@ func (siw *ServerInterfaceWrapper) DeleteBundlePlan(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DeleteBundlePlan(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DiffVersions operation middleware
-func (siw *ServerInterfaceWrapper) DiffVersions(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params DiffVersionsParams
-
-	// ------------- Required query parameter "from" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
-		}
-		return
-	}
-
-	// ------------- Required query parameter "to" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DiffVersions(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// SummarizeDiff operation middleware
-func (siw *ServerInterfaceWrapper) SummarizeDiff(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params SummarizeDiffParams
-
-	// ------------- Required query parameter "from" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
-		}
-		return
-	}
-
-	// ------------- Required query parameter "to" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SummarizeDiff(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DiscardDraft operation middleware
-func (siw *ServerInterfaceWrapper) DiscardDraft(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DiscardDraft(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ExportBundle operation middleware
-func (siw *ServerInterfaceWrapper) ExportBundle(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ExportBundleParams
-
-	// ------------- Optional query parameter "version" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
-		}
-		return
-	}
-
-	// ------------- Optional query parameter "format" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "format", r.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "format"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "format", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ExportBundle(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeleteFile operation middleware
-func (siw *ServerInterfaceWrapper) DeleteFile(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params DeleteFileParams
-
-	// ------------- Required query parameter "path" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
-		}
-		return
-	}
-
-	// ------------- Required query parameter "base_version" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeleteFile(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListFiles operation middleware
-func (siw *ServerInterfaceWrapper) ListFiles(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListFilesParams
-
-	// ------------- Optional query parameter "version" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListFiles(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetFileContent operation middleware
-func (siw *ServerInterfaceWrapper) GetFileContent(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params GetFileContentParams
-
-	// ------------- Optional query parameter "version" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
-		}
-		return
-	}
-
-	// ------------- Required query parameter "path" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetFileContent(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PutFileContent operation middleware
-func (siw *ServerInterfaceWrapper) PutFileContent(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params PutFileContentParams
-
-	// ------------- Required query parameter "base_version" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
-		}
-		return
-	}
-
-	// ------------- Required query parameter "path" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PutFileContent(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RenameFile operation middleware
-func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RenameFile(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListHandoffs operation middleware
-func (siw *ServerInterfaceWrapper) ListHandoffs(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListHandoffs(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// TakeHandoff operation middleware
-func (siw *ServerInterfaceWrapper) TakeHandoff(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.TakeHandoff(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// SetBundleProfile operation middleware
-func (siw *ServerInterfaceWrapper) SetBundleProfile(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.SetBundleProfile(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// PublishBundle operation middleware
-func (siw *ServerInterfaceWrapper) PublishBundle(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.PublishBundle(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RequestReview operation middleware
-func (siw *ServerInterfaceWrapper) RequestReview(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RequestReview(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListRuns operation middleware
-func (siw *ServerInterfaceWrapper) ListRuns(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListRunsParams
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListRuns(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// StartRun operation middleware
-func (siw *ServerInterfaceWrapper) StartRun(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.StartRun(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// EstimateRun operation middleware
-func (siw *ServerInterfaceWrapper) EstimateRun(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.EstimateRun(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5418,363 +4767,6 @@ func (siw *ServerInterfaceWrapper) CreateShareLink(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
-// GetBundleStatus operation middleware
-func (siw *ServerInterfaceWrapper) GetBundleStatus(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetBundleStatus(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListBundleThreads operation middleware
-func (siw *ServerInterfaceWrapper) ListBundleThreads(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListBundleThreads(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// OpenBundleThread operation middleware
-func (siw *ServerInterfaceWrapper) OpenBundleThread(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.OpenBundleThread(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetTour operation middleware
-func (siw *ServerInterfaceWrapper) GetTour(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetTour(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetTrace operation middleware
-func (siw *ServerInterfaceWrapper) GetTrace(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetTrace(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// AddTraceIds operation middleware
-func (siw *ServerInterfaceWrapper) AddTraceIds(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params AddTraceIdsParams
-
-	// ------------- Required query parameter "base_version" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.AddTraceIds(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RequestVerificationWaiver operation middleware
-func (siw *ServerInterfaceWrapper) RequestVerificationWaiver(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RequestVerificationWaiver(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListVerifications operation middleware
-func (siw *ServerInterfaceWrapper) ListVerifications(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListVerifications(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RunVerification operation middleware
-func (siw *ServerInterfaceWrapper) RunVerification(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RunVerification(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// VerificationDefaults operation middleware
-func (siw *ServerInterfaceWrapper) VerificationDefaults(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.VerificationDefaults(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ResolveVerificationTarget operation middleware
-func (siw *ServerInterfaceWrapper) ResolveVerificationTarget(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ResolveVerificationTarget(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListVersions operation middleware
-func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListVersionsParams
-
-	// ------------- Optional query parameter "cursor" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
-		}
-		return
-	}
-
-	// ------------- Optional query parameter "limit" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListVersions(w, r, bundleId, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
 // SetVisibility operation middleware
 func (siw *ServerInterfaceWrapper) SetVisibility(w http.ResponseWriter, r *http.Request) {
 
@@ -5792,58 +4784,6 @@ func (siw *ServerInterfaceWrapper) SetVisibility(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetVisibility(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListWaivers operation middleware
-func (siw *ServerInterfaceWrapper) ListWaivers(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListWaivers(w, r, bundleId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// RequestWaiver operation middleware
-func (siw *ServerInterfaceWrapper) RequestWaiver(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "bundleId" -------------
-	var bundleId BundleId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "bundleId", r.PathValue("bundleId"), &bundleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "bundleId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.RequestWaiver(w, r, bundleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5918,6 +4858,1167 @@ func (siw *ServerInterfaceWrapper) DismissDoc(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.DismissDoc(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSpecDoc operation middleware
+func (siw *ServerInterfaceWrapper) GetSpecDoc(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSpecDoc(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AdoptFrontmatter operation middleware
+func (siw *ServerInterfaceWrapper) AdoptFrontmatter(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AdoptFrontmatter(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ApproveBundle operation middleware
+func (siw *ServerInterfaceWrapper) ApproveBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ApproveBundle(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListAssumptions operation middleware
+func (siw *ServerInterfaceWrapper) ListAssumptions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListAssumptions(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiffVersions operation middleware
+func (siw *ServerInterfaceWrapper) DiffVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DiffVersionsParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiffVersions(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SummarizeDiff operation middleware
+func (siw *ServerInterfaceWrapper) SummarizeDiff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SummarizeDiffParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SummarizeDiff(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiscardDraft operation middleware
+func (siw *ServerInterfaceWrapper) DiscardDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscardDraft(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportBundle operation middleware
+func (siw *ServerInterfaceWrapper) ExportBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportBundleParams
+
+	// ------------- Optional query parameter "version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "format" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "format", r.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "format"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "format", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportBundle(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFile operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params DeleteFileParams
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFile(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFiles operation middleware
+func (siw *ServerInterfaceWrapper) ListFiles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFilesParams
+
+	// ------------- Optional query parameter "version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFiles(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFileContent operation middleware
+func (siw *ServerInterfaceWrapper) GetFileContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetFileContentParams
+
+	// ------------- Optional query parameter "version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "version", r.URL.Query(), &params.Version, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFileContent(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutFileContent operation middleware
+func (siw *ServerInterfaceWrapper) PutFileContent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutFileContentParams
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "path" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "path", r.URL.Query(), &params.Path, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "path"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "path", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutFileContent(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameFile operation middleware
+func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameFile(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHandoffs operation middleware
+func (siw *ServerInterfaceWrapper) ListHandoffs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHandoffs(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TakeHandoff operation middleware
+func (siw *ServerInterfaceWrapper) TakeHandoff(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TakeHandoff(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetBundleProfile operation middleware
+func (siw *ServerInterfaceWrapper) SetBundleProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetBundleProfile(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishBundle operation middleware
+func (siw *ServerInterfaceWrapper) PublishBundle(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishBundle(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestReview operation middleware
+func (siw *ServerInterfaceWrapper) RequestReview(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestReview(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRuns operation middleware
+func (siw *ServerInterfaceWrapper) ListRuns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRunsParams
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRuns(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartRun operation middleware
+func (siw *ServerInterfaceWrapper) StartRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartRun(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EstimateRun operation middleware
+func (siw *ServerInterfaceWrapper) EstimateRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EstimateRun(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBundleStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetBundleStatus(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBundleStatus(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBundleThreads operation middleware
+func (siw *ServerInterfaceWrapper) ListBundleThreads(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBundleThreads(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// OpenBundleThread operation middleware
+func (siw *ServerInterfaceWrapper) OpenBundleThread(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OpenBundleThread(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTour operation middleware
+func (siw *ServerInterfaceWrapper) GetTour(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTour(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetTrace operation middleware
+func (siw *ServerInterfaceWrapper) GetTrace(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetTrace(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddTraceIds operation middleware
+func (siw *ServerInterfaceWrapper) AddTraceIds(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params AddTraceIdsParams
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddTraceIds(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestVerificationWaiver operation middleware
+func (siw *ServerInterfaceWrapper) RequestVerificationWaiver(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestVerificationWaiver(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListVerifications operation middleware
+func (siw *ServerInterfaceWrapper) ListVerifications(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListVerifications(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RunVerification operation middleware
+func (siw *ServerInterfaceWrapper) RunVerification(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RunVerification(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// VerificationDefaults operation middleware
+func (siw *ServerInterfaceWrapper) VerificationDefaults(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.VerificationDefaults(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ResolveVerificationTarget operation middleware
+func (siw *ServerInterfaceWrapper) ResolveVerificationTarget(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ResolveVerificationTarget(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListVersions operation middleware
+func (siw *ServerInterfaceWrapper) ListVersions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListVersionsParams
+
+	// ------------- Optional query parameter "cursor" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "cursor", r.URL.Query(), &params.Cursor, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "cursor"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "cursor", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "limit", r.URL.Query(), &params.Limit, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListVersions(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListWaivers operation middleware
+func (siw *ServerInterfaceWrapper) ListWaivers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListWaivers(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestWaiver operation middleware
+func (siw *ServerInterfaceWrapper) RequestWaiver(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestWaiver(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7236,18 +7337,18 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/share/{token}", wrapper.JoinShare)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/access", wrapper.GetBundleAccess)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/handoffs/{handoffId}/report", wrapper.ReportBuild)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.ListHandoffs)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/handoff", wrapper.TakeHandoff)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verification-waivers", wrapper.RequestVerificationWaiver)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.ListHandoffs)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.TakeHandoff)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/verification-waivers", wrapper.RequestVerificationWaiver)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/delete-plan", wrapper.DeleteBundlePlan)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/verifications", wrapper.ListVerifications)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verifications", wrapper.RunVerification)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/verifications/resolve", wrapper.ResolveVerificationTarget)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/verifications/defaults", wrapper.VerificationDefaults)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/verifications", wrapper.ListVerifications)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/verifications", wrapper.RunVerification)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/verifications/resolve", wrapper.ResolveVerificationTarget)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/verifications/defaults", wrapper.VerificationDefaults)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}/events", wrapper.VerificationEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/verifications/{runId}", wrapper.GetVerification)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/adopt", wrapper.AdoptFrontmatter)
-	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/profile", wrapper.SetBundleProfile)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/adopt", wrapper.AdoptFrontmatter)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/docs/{docId}/profile", wrapper.SetBundleProfile)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/visibility", wrapper.SetVisibility)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.RevokeShareLink)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/share", wrapper.CreateShareLink)
@@ -7263,22 +7364,23 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/import/preview", wrapper.PreviewImport)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.DeleteBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}", wrapper.GetBundle)
-	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.DeleteFile)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/files", wrapper.ListFiles)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/files/content", wrapper.GetFileContent)
-	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/bundles/{bundleId}/files/content", wrapper.PutFileContent)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/files/rename", wrapper.RenameFile)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/versions", wrapper.ListVersions)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/diff", wrapper.DiffVersions)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/export", wrapper.ExportBundle)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.ListRuns)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/runs", wrapper.StartRun)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}", wrapper.GetSpecDoc)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/docs/{docId}/files", wrapper.DeleteFile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/files", wrapper.ListFiles)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/files/content", wrapper.GetFileContent)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/docs/{docId}/files/content", wrapper.PutFileContent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/files/rename", wrapper.RenameFile)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/versions", wrapper.ListVersions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/diff", wrapper.DiffVersions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/export", wrapper.ExportBundle)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.ListRuns)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}/report", wrapper.GetContentReviewReport)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/runs/estimate", wrapper.EstimateRun)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/assumptions", wrapper.ListAssumptions)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/trace", wrapper.GetTrace)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/trace/ids", wrapper.AddTraceIds)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs/estimate", wrapper.EstimateRun)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/assumptions", wrapper.ListAssumptions)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/trace", wrapper.GetTrace)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/trace/ids", wrapper.AddTraceIds)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/events", wrapper.RunEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/claims", wrapper.ListClaims)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/questions", wrapper.ListQuestions)
@@ -7288,8 +7390,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.UpdateMCPConnection)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp/{connectionId}/tools", wrapper.ListMCPTools)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/tour", wrapper.GetTour)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/diff/summary", wrapper.SummarizeDiff)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/tour", wrapper.GetTour)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/diff/summary", wrapper.SummarizeDiff)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/report", wrapper.GetRunReport)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix", wrapper.SuggestFix)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix/accept", wrapper.AcceptFix)
@@ -7298,20 +7400,20 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/skipped", wrapper.AdoptSkipped)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/links/suggest", wrapper.SuggestLinks)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/guess", wrapper.GuessProfile)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.ListBundleThreads)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/threads", wrapper.OpenBundleThread)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/threads", wrapper.ListBundleThreads)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/threads", wrapper.OpenBundleThread)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/threads/{threadId}", wrapper.GetThread)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/threads/{threadId}/messages", wrapper.PostMessage)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/threads/{threadId}/decision", wrapper.MarkDecision)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/threads/{threadId}/blocking", wrapper.SetThreadBlocking)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/threads/{threadId}/status", wrapper.SetThreadStatus)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/waivers", wrapper.ListWaivers)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/waivers", wrapper.RequestWaiver)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.ListWaivers)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.RequestWaiver)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/approve", wrapper.ApproveWaiver)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/reject", wrapper.RejectWaiver)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/status", wrapper.GetBundleStatus)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/review-request", wrapper.RequestReview)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/approve", wrapper.ApproveBundle)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/status", wrapper.GetBundleStatus)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/review-request", wrapper.RequestReview)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/approve", wrapper.ApproveBundle)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/people", wrapper.ListPeople)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/inbox", wrapper.GetInbox)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/inbox/seen", wrapper.MarkInboxSeen)
@@ -7350,8 +7452,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/skipped", wrapper.AdoptSkippedDocs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/mapping", wrapper.PublishSourceMapping)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/sync", wrapper.SyncGithubSource)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/publish", wrapper.PublishBundle)
-	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/bundles/{bundleId}/draft/discard", wrapper.DiscardDraft)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/publish", wrapper.PublishBundle)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/draft/discard", wrapper.DiscardDraft)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/budget", wrapper.GetBudget)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/budget", wrapper.SetBudget)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
@@ -8359,7 +8461,7 @@ type CreateBundleResponseObject interface {
 	VisitCreateBundleResponse(w http.ResponseWriter) error
 }
 
-type CreateBundle201JSONResponse Bundle
+type CreateBundle201JSONResponse SpecDoc
 
 func (response CreateBundle201JSONResponse) VisitCreateBundleResponse(w http.ResponseWriter) error {
 
@@ -8580,125 +8682,6 @@ func (response GetBundleAccessdefaultApplicationProblemPlusJSONResponse) VisitGe
 	return err
 }
 
-type AdoptFrontmatterRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type AdoptFrontmatterResponseObject interface {
-	VisitAdoptFrontmatterResponse(w http.ResponseWriter) error
-}
-
-type AdoptFrontmatter200JSONResponse WriteResult
-
-func (response AdoptFrontmatter200JSONResponse) VisitAdoptFrontmatterResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type AdoptFrontmatterdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response AdoptFrontmatterdefaultApplicationProblemPlusJSONResponse) VisitAdoptFrontmatterResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ApproveBundleRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type ApproveBundleResponseObject interface {
-	VisitApproveBundleResponse(w http.ResponseWriter) error
-}
-
-type ApproveBundle200JSONResponse BundleStatus
-
-func (response ApproveBundle200JSONResponse) VisitApproveBundleResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ApproveBundledefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ApproveBundledefaultApplicationProblemPlusJSONResponse) VisitApproveBundleResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListAssumptionsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type ListAssumptionsResponseObject interface {
-	VisitListAssumptionsResponse(w http.ResponseWriter) error
-}
-
-type ListAssumptions200JSONResponse struct {
-	Items []Anchor `json:"items"`
-}
-
-func (response ListAssumptions200JSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListAssumptionsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListAssumptionsdefaultApplicationProblemPlusJSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type DeleteBundlePlanRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 }
@@ -8727,719 +8710,6 @@ type DeleteBundlePlandefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DeleteBundlePlandefaultApplicationProblemPlusJSONResponse) VisitDeleteBundlePlanResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiffVersionsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   DiffVersionsParams
-}
-
-type DiffVersionsResponseObject interface {
-	VisitDiffVersionsResponse(w http.ResponseWriter) error
-}
-
-type DiffVersions200JSONResponse Diff
-
-func (response DiffVersions200JSONResponse) VisitDiffVersionsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiffVersionsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response DiffVersionsdefaultApplicationProblemPlusJSONResponse) VisitDiffVersionsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SummarizeDiffRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   SummarizeDiffParams
-}
-
-type SummarizeDiffResponseObject interface {
-	VisitSummarizeDiffResponse(w http.ResponseWriter) error
-}
-
-type SummarizeDiff200JSONResponse DiffSummary
-
-func (response SummarizeDiff200JSONResponse) VisitSummarizeDiffResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SummarizeDiffdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response SummarizeDiffdefaultApplicationProblemPlusJSONResponse) VisitSummarizeDiffResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiscardDraftRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type DiscardDraftResponseObject interface {
-	VisitDiscardDraftResponse(w http.ResponseWriter) error
-}
-
-type DiscardDraft200JSONResponse WriteResult
-
-func (response DiscardDraft200JSONResponse) VisitDiscardDraftResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DiscardDraftdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response DiscardDraftdefaultApplicationProblemPlusJSONResponse) VisitDiscardDraftResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ExportBundleRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   ExportBundleParams
-}
-
-type ExportBundleResponseObject interface {
-	VisitExportBundleResponse(w http.ResponseWriter) error
-}
-
-type ExportBundle200ApplicationzipResponse struct {
-	Body          io.Reader
-	ContentLength int64
-}
-
-func (response ExportBundle200ApplicationzipResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
-
-	w.Header().Set("Content-Type", "application/zip")
-	if response.ContentLength != 0 {
-		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
-	}
-	w.WriteHeader(200)
-
-	if closer, ok := response.Body.(io.ReadCloser); ok {
-		defer closer.Close()
-	}
-	_, err := io.Copy(w, response.Body)
-	return err
-}
-
-type ExportBundle200TexthtmlResponse struct {
-	Body          io.Reader
-	ContentLength int64
-}
-
-func (response ExportBundle200TexthtmlResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
-
-	w.Header().Set("Content-Type", "text/html")
-	if response.ContentLength != 0 {
-		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
-	}
-	w.WriteHeader(200)
-
-	if closer, ok := response.Body.(io.ReadCloser); ok {
-		defer closer.Close()
-	}
-	_, err := io.Copy(w, response.Body)
-	return err
-}
-
-type ExportBundledefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ExportBundledefaultApplicationProblemPlusJSONResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteFileRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   DeleteFileParams
-}
-
-type DeleteFileResponseObject interface {
-	VisitDeleteFileResponse(w http.ResponseWriter) error
-}
-
-type DeleteFile200JSONResponse WriteResult
-
-func (response DeleteFile200JSONResponse) VisitDeleteFileResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteFiledefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response DeleteFiledefaultApplicationProblemPlusJSONResponse) VisitDeleteFileResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListFilesRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   ListFilesParams
-}
-
-type ListFilesResponseObject interface {
-	VisitListFilesResponse(w http.ResponseWriter) error
-}
-
-type ListFiles200JSONResponse FileList
-
-func (response ListFiles200JSONResponse) VisitListFilesResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListFilesdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListFilesdefaultApplicationProblemPlusJSONResponse) VisitListFilesResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetFileContentRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   GetFileContentParams
-}
-
-type GetFileContentResponseObject interface {
-	VisitGetFileContentResponse(w http.ResponseWriter) error
-}
-
-type GetFileContent200ApplicationoctetStreamResponse struct {
-	Body          io.Reader
-	ContentLength int64
-}
-
-func (response GetFileContent200ApplicationoctetStreamResponse) VisitGetFileContentResponse(w http.ResponseWriter) error {
-
-	w.Header().Set("Content-Type", "application/octet-stream")
-	if response.ContentLength != 0 {
-		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
-	}
-	w.WriteHeader(200)
-
-	if closer, ok := response.Body.(io.ReadCloser); ok {
-		defer closer.Close()
-	}
-	_, err := io.Copy(w, response.Body)
-	return err
-}
-
-type GetFileContentdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response GetFileContentdefaultApplicationProblemPlusJSONResponse) VisitGetFileContentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutFileContentRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   PutFileContentParams
-	Body     io.Reader
-}
-
-type PutFileContentResponseObject interface {
-	VisitPutFileContentResponse(w http.ResponseWriter) error
-}
-
-type PutFileContent200JSONResponse WriteResult
-
-func (response PutFileContent200JSONResponse) VisitPutFileContentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PutFileContentdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response PutFileContentdefaultApplicationProblemPlusJSONResponse) VisitPutFileContentResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RenameFileRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *RenameFileJSONRequestBody
-}
-
-type RenameFileResponseObject interface {
-	VisitRenameFileResponse(w http.ResponseWriter) error
-}
-
-type RenameFile200JSONResponse WriteResult
-
-func (response RenameFile200JSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RenameFiledefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListHandoffsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type ListHandoffsResponseObject interface {
-	VisitListHandoffsResponse(w http.ResponseWriter) error
-}
-
-type ListHandoffs200JSONResponse HandoffList
-
-func (response ListHandoffs200JSONResponse) VisitListHandoffsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListHandoffsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListHandoffsdefaultApplicationProblemPlusJSONResponse) VisitListHandoffsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type TakeHandoffRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *TakeHandoffJSONRequestBody
-}
-
-type TakeHandoffResponseObject interface {
-	VisitTakeHandoffResponse(w http.ResponseWriter) error
-}
-
-type TakeHandoff200JSONResponse BuildPacket
-
-func (response TakeHandoff200JSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type TakeHandoffdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response TakeHandoffdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SetBundleProfileRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *SetBundleProfileJSONRequestBody
-}
-
-type SetBundleProfileResponseObject interface {
-	VisitSetBundleProfileResponse(w http.ResponseWriter) error
-}
-
-type SetBundleProfile200JSONResponse Bundle
-
-func (response SetBundleProfile200JSONResponse) VisitSetBundleProfileResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type SetBundleProfiledefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response SetBundleProfiledefaultApplicationProblemPlusJSONResponse) VisitSetBundleProfileResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishBundleRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *PublishBundleJSONRequestBody
-}
-
-type PublishBundleResponseObject interface {
-	VisitPublishBundleResponse(w http.ResponseWriter) error
-}
-
-type PublishBundle200JSONResponse struct {
-	PrNumber int    `json:"pr_number"`
-	PrUrl    string `json:"pr_url"`
-}
-
-func (response PublishBundle200JSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type PublishBundledefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response PublishBundledefaultApplicationProblemPlusJSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestReviewRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *RequestReviewJSONRequestBody
-}
-
-type RequestReviewResponseObject interface {
-	VisitRequestReviewResponse(w http.ResponseWriter) error
-}
-
-type RequestReview200JSONResponse BundleStatus
-
-func (response RequestReview200JSONResponse) VisitRequestReviewResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestReviewdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response RequestReviewdefaultApplicationProblemPlusJSONResponse) VisitRequestReviewResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListRunsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   ListRunsParams
-}
-
-type ListRunsResponseObject interface {
-	VisitListRunsResponse(w http.ResponseWriter) error
-}
-
-type ListRuns200JSONResponse RunList
-
-func (response ListRuns200JSONResponse) VisitListRunsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListRunsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListRunsdefaultApplicationProblemPlusJSONResponse) VisitListRunsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type StartRunRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *StartRunJSONRequestBody
-}
-
-type StartRunResponseObject interface {
-	VisitStartRunResponse(w http.ResponseWriter) error
-}
-
-type StartRun202JSONResponse Run
-
-func (response StartRun202JSONResponse) VisitStartRunResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(202)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type StartRundefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response StartRundefaultApplicationProblemPlusJSONResponse) VisitStartRunResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type EstimateRunRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type EstimateRunResponseObject interface {
-	VisitEstimateRunResponse(w http.ResponseWriter) error
-}
-
-type EstimateRun200JSONResponse RunEstimate
-
-func (response EstimateRun200JSONResponse) VisitEstimateRunResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type EstimateRundefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response EstimateRundefaultApplicationProblemPlusJSONResponse) VisitEstimateRunResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -9533,483 +8803,6 @@ func (response CreateShareLinkdefaultApplicationProblemPlusJSONResponse) VisitCr
 	return err
 }
 
-type GetBundleStatusRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type GetBundleStatusResponseObject interface {
-	VisitGetBundleStatusResponse(w http.ResponseWriter) error
-}
-
-type GetBundleStatus200JSONResponse BundleStatus
-
-func (response GetBundleStatus200JSONResponse) VisitGetBundleStatusResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetBundleStatusdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response GetBundleStatusdefaultApplicationProblemPlusJSONResponse) VisitGetBundleStatusResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListBundleThreadsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type ListBundleThreadsResponseObject interface {
-	VisitListBundleThreadsResponse(w http.ResponseWriter) error
-}
-
-type ListBundleThreads200JSONResponse struct {
-	Items []Thread `json:"items"`
-}
-
-func (response ListBundleThreads200JSONResponse) VisitListBundleThreadsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListBundleThreadsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListBundleThreadsdefaultApplicationProblemPlusJSONResponse) VisitListBundleThreadsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type OpenBundleThreadRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *OpenBundleThreadJSONRequestBody
-}
-
-type OpenBundleThreadResponseObject interface {
-	VisitOpenBundleThreadResponse(w http.ResponseWriter) error
-}
-
-type OpenBundleThread200JSONResponse ThreadDetail
-
-func (response OpenBundleThread200JSONResponse) VisitOpenBundleThreadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type OpenBundleThreaddefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response OpenBundleThreaddefaultApplicationProblemPlusJSONResponse) VisitOpenBundleThreadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetTourRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type GetTourResponseObject interface {
-	VisitGetTourResponse(w http.ResponseWriter) error
-}
-
-type GetTour200JSONResponse Tour
-
-func (response GetTour200JSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetTourdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response GetTourdefaultApplicationProblemPlusJSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetTraceRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type GetTraceResponseObject interface {
-	VisitGetTraceResponse(w http.ResponseWriter) error
-}
-
-type GetTrace200JSONResponse TraceView
-
-func (response GetTrace200JSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetTracedefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response GetTracedefaultApplicationProblemPlusJSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type AddTraceIdsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   AddTraceIdsParams
-	Body     *AddTraceIdsJSONRequestBody
-}
-
-type AddTraceIdsResponseObject interface {
-	VisitAddTraceIdsResponse(w http.ResponseWriter) error
-}
-
-type AddTraceIds200JSONResponse WriteResult
-
-func (response AddTraceIds200JSONResponse) VisitAddTraceIdsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type AddTraceIdsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response AddTraceIdsdefaultApplicationProblemPlusJSONResponse) VisitAddTraceIdsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestVerificationWaiverRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *RequestVerificationWaiverJSONRequestBody
-}
-
-type RequestVerificationWaiverResponseObject interface {
-	VisitRequestVerificationWaiverResponse(w http.ResponseWriter) error
-}
-
-type RequestVerificationWaiver200JSONResponse Waiver
-
-func (response RequestVerificationWaiver200JSONResponse) VisitRequestVerificationWaiverResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestVerificationWaiverdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response RequestVerificationWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequestVerificationWaiverResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListVerificationsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type ListVerificationsResponseObject interface {
-	VisitListVerificationsResponse(w http.ResponseWriter) error
-}
-
-type ListVerifications200JSONResponse VerificationList
-
-func (response ListVerifications200JSONResponse) VisitListVerificationsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListVerificationsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListVerificationsdefaultApplicationProblemPlusJSONResponse) VisitListVerificationsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RunVerificationRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *RunVerificationJSONRequestBody
-}
-
-type RunVerificationResponseObject interface {
-	VisitRunVerificationResponse(w http.ResponseWriter) error
-}
-
-type RunVerification202JSONResponse Verification
-
-func (response RunVerification202JSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(202)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RunVerificationdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response RunVerificationdefaultApplicationProblemPlusJSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type VerificationDefaultsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type VerificationDefaultsResponseObject interface {
-	VisitVerificationDefaultsResponse(w http.ResponseWriter) error
-}
-
-type VerificationDefaults200JSONResponse VerificationDefaults
-
-func (response VerificationDefaults200JSONResponse) VisitVerificationDefaultsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type VerificationDefaultsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response VerificationDefaultsdefaultApplicationProblemPlusJSONResponse) VisitVerificationDefaultsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ResolveVerificationTargetRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *ResolveVerificationTargetJSONRequestBody
-}
-
-type ResolveVerificationTargetResponseObject interface {
-	VisitResolveVerificationTargetResponse(w http.ResponseWriter) error
-}
-
-type ResolveVerificationTarget200JSONResponse ResolvedBuild
-
-func (response ResolveVerificationTarget200JSONResponse) VisitResolveVerificationTargetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ResolveVerificationTargetdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ResolveVerificationTargetdefaultApplicationProblemPlusJSONResponse) VisitResolveVerificationTargetResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListVersionsRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Params   ListVersionsParams
-}
-
-type ListVersionsResponseObject interface {
-	VisitListVersionsResponse(w http.ResponseWriter) error
-}
-
-type ListVersions200JSONResponse VersionList
-
-func (response ListVersions200JSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListVersionsdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListVersionsdefaultApplicationProblemPlusJSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 type SetVisibilityRequestObject struct {
 	BundleId BundleId `json:"bundleId"`
 	Body     *SetVisibilityJSONRequestBody
@@ -10039,87 +8832,6 @@ type SetVisibilitydefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response SetVisibilitydefaultApplicationProblemPlusJSONResponse) VisitSetVisibilityResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListWaiversRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-}
-
-type ListWaiversResponseObject interface {
-	VisitListWaiversResponse(w http.ResponseWriter) error
-}
-
-type ListWaivers200JSONResponse struct {
-	Items []Waiver `json:"items"`
-}
-
-func (response ListWaivers200JSONResponse) VisitListWaiversResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListWaiversdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response ListWaiversdefaultApplicationProblemPlusJSONResponse) VisitListWaiversResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestWaiverRequestObject struct {
-	BundleId BundleId `json:"bundleId"`
-	Body     *RequestWaiverJSONRequestBody
-}
-
-type RequestWaiverResponseObject interface {
-	VisitRequestWaiverResponse(w http.ResponseWriter) error
-}
-
-type RequestWaiver200JSONResponse Waiver
-
-func (response RequestWaiver200JSONResponse) VisitRequestWaiverResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RequestWaiverdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response RequestWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequestWaiverResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -10226,6 +8938,1435 @@ type DismissDocdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response DismissDocdefaultApplicationProblemPlusJSONResponse) VisitDismissDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSpecDocRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetSpecDocResponseObject interface {
+	VisitGetSpecDocResponse(w http.ResponseWriter) error
+}
+
+type GetSpecDoc200JSONResponse SpecDoc
+
+func (response GetSpecDoc200JSONResponse) VisitGetSpecDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSpecDocdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSpecDocdefaultApplicationProblemPlusJSONResponse) VisitGetSpecDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptFrontmatterRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type AdoptFrontmatterResponseObject interface {
+	VisitAdoptFrontmatterResponse(w http.ResponseWriter) error
+}
+
+type AdoptFrontmatter200JSONResponse WriteResult
+
+func (response AdoptFrontmatter200JSONResponse) VisitAdoptFrontmatterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AdoptFrontmatterdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AdoptFrontmatterdefaultApplicationProblemPlusJSONResponse) VisitAdoptFrontmatterResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveBundleRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ApproveBundleResponseObject interface {
+	VisitApproveBundleResponse(w http.ResponseWriter) error
+}
+
+type ApproveBundle200JSONResponse BundleStatus
+
+func (response ApproveBundle200JSONResponse) VisitApproveBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ApproveBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ApproveBundledefaultApplicationProblemPlusJSONResponse) VisitApproveBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAssumptionsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ListAssumptionsResponseObject interface {
+	VisitListAssumptionsResponse(w http.ResponseWriter) error
+}
+
+type ListAssumptions200JSONResponse struct {
+	Items []Anchor `json:"items"`
+}
+
+func (response ListAssumptions200JSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListAssumptionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListAssumptionsdefaultApplicationProblemPlusJSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiffVersionsRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params DiffVersionsParams
+}
+
+type DiffVersionsResponseObject interface {
+	VisitDiffVersionsResponse(w http.ResponseWriter) error
+}
+
+type DiffVersions200JSONResponse Diff
+
+func (response DiffVersions200JSONResponse) VisitDiffVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiffVersionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DiffVersionsdefaultApplicationProblemPlusJSONResponse) VisitDiffVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SummarizeDiffRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params SummarizeDiffParams
+}
+
+type SummarizeDiffResponseObject interface {
+	VisitSummarizeDiffResponse(w http.ResponseWriter) error
+}
+
+type SummarizeDiff200JSONResponse DiffSummary
+
+func (response SummarizeDiff200JSONResponse) VisitSummarizeDiffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SummarizeDiffdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SummarizeDiffdefaultApplicationProblemPlusJSONResponse) VisitSummarizeDiffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardDraftRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type DiscardDraftResponseObject interface {
+	VisitDiscardDraftResponse(w http.ResponseWriter) error
+}
+
+type DiscardDraft200JSONResponse WriteResult
+
+func (response DiscardDraft200JSONResponse) VisitDiscardDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardDraftdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DiscardDraftdefaultApplicationProblemPlusJSONResponse) VisitDiscardDraftResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportBundleRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params ExportBundleParams
+}
+
+type ExportBundleResponseObject interface {
+	VisitExportBundleResponse(w http.ResponseWriter) error
+}
+
+type ExportBundle200ApplicationzipResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportBundle200ApplicationzipResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/zip")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportBundle200TexthtmlResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportBundle200TexthtmlResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/html")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ExportBundledefaultApplicationProblemPlusJSONResponse) VisitExportBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFileRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params DeleteFileParams
+}
+
+type DeleteFileResponseObject interface {
+	VisitDeleteFileResponse(w http.ResponseWriter) error
+}
+
+type DeleteFile200JSONResponse WriteResult
+
+func (response DeleteFile200JSONResponse) VisitDeleteFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteFiledefaultApplicationProblemPlusJSONResponse) VisitDeleteFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFilesRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params ListFilesParams
+}
+
+type ListFilesResponseObject interface {
+	VisitListFilesResponse(w http.ResponseWriter) error
+}
+
+type ListFiles200JSONResponse FileList
+
+func (response ListFiles200JSONResponse) VisitListFilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFilesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListFilesdefaultApplicationProblemPlusJSONResponse) VisitListFilesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFileContentRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params GetFileContentParams
+}
+
+type GetFileContentResponseObject interface {
+	VisitGetFileContentResponse(w http.ResponseWriter) error
+}
+
+type GetFileContent200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetFileContent200ApplicationoctetStreamResponse) VisitGetFileContentResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetFileContentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetFileContentdefaultApplicationProblemPlusJSONResponse) VisitGetFileContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFileContentRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params PutFileContentParams
+	Body   io.Reader
+}
+
+type PutFileContentResponseObject interface {
+	VisitPutFileContentResponse(w http.ResponseWriter) error
+}
+
+type PutFileContent200JSONResponse WriteResult
+
+func (response PutFileContent200JSONResponse) VisitPutFileContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PutFileContentdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PutFileContentdefaultApplicationProblemPlusJSONResponse) VisitPutFileContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameFileRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *RenameFileJSONRequestBody
+}
+
+type RenameFileResponseObject interface {
+	VisitRenameFileResponse(w http.ResponseWriter) error
+}
+
+type RenameFile200JSONResponse WriteResult
+
+func (response RenameFile200JSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RenameFiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameFileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandoffsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ListHandoffsResponseObject interface {
+	VisitListHandoffsResponse(w http.ResponseWriter) error
+}
+
+type ListHandoffs200JSONResponse HandoffList
+
+func (response ListHandoffs200JSONResponse) VisitListHandoffsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHandoffsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListHandoffsdefaultApplicationProblemPlusJSONResponse) VisitListHandoffsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TakeHandoffRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *TakeHandoffJSONRequestBody
+}
+
+type TakeHandoffResponseObject interface {
+	VisitTakeHandoffResponse(w http.ResponseWriter) error
+}
+
+type TakeHandoff200JSONResponse BuildPacket
+
+func (response TakeHandoff200JSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TakeHandoffdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response TakeHandoffdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBundleProfileRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *SetBundleProfileJSONRequestBody
+}
+
+type SetBundleProfileResponseObject interface {
+	VisitSetBundleProfileResponse(w http.ResponseWriter) error
+}
+
+type SetBundleProfile200JSONResponse SpecDoc
+
+func (response SetBundleProfile200JSONResponse) VisitSetBundleProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetBundleProfiledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetBundleProfiledefaultApplicationProblemPlusJSONResponse) VisitSetBundleProfileResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishBundleRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *PublishBundleJSONRequestBody
+}
+
+type PublishBundleResponseObject interface {
+	VisitPublishBundleResponse(w http.ResponseWriter) error
+}
+
+type PublishBundle200JSONResponse struct {
+	PrNumber int    `json:"pr_number"`
+	PrUrl    string `json:"pr_url"`
+}
+
+func (response PublishBundle200JSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PublishBundledefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PublishBundledefaultApplicationProblemPlusJSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestReviewRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *RequestReviewJSONRequestBody
+}
+
+type RequestReviewResponseObject interface {
+	VisitRequestReviewResponse(w http.ResponseWriter) error
+}
+
+type RequestReview200JSONResponse BundleStatus
+
+func (response RequestReview200JSONResponse) VisitRequestReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestReviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RequestReviewdefaultApplicationProblemPlusJSONResponse) VisitRequestReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunsRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params ListRunsParams
+}
+
+type ListRunsResponseObject interface {
+	VisitListRunsResponse(w http.ResponseWriter) error
+}
+
+type ListRuns200JSONResponse RunList
+
+func (response ListRuns200JSONResponse) VisitListRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRunsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListRunsdefaultApplicationProblemPlusJSONResponse) VisitListRunsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartRunRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *StartRunJSONRequestBody
+}
+
+type StartRunResponseObject interface {
+	VisitStartRunResponse(w http.ResponseWriter) error
+}
+
+type StartRun202JSONResponse Run
+
+func (response StartRun202JSONResponse) VisitStartRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartRundefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response StartRundefaultApplicationProblemPlusJSONResponse) VisitStartRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EstimateRunRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type EstimateRunResponseObject interface {
+	VisitEstimateRunResponse(w http.ResponseWriter) error
+}
+
+type EstimateRun200JSONResponse RunEstimate
+
+func (response EstimateRun200JSONResponse) VisitEstimateRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EstimateRundefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response EstimateRundefaultApplicationProblemPlusJSONResponse) VisitEstimateRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBundleStatusRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetBundleStatusResponseObject interface {
+	VisitGetBundleStatusResponse(w http.ResponseWriter) error
+}
+
+type GetBundleStatus200JSONResponse BundleStatus
+
+func (response GetBundleStatus200JSONResponse) VisitGetBundleStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBundleStatusdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBundleStatusdefaultApplicationProblemPlusJSONResponse) VisitGetBundleStatusResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBundleThreadsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ListBundleThreadsResponseObject interface {
+	VisitListBundleThreadsResponse(w http.ResponseWriter) error
+}
+
+type ListBundleThreads200JSONResponse struct {
+	Items []Thread `json:"items"`
+}
+
+func (response ListBundleThreads200JSONResponse) VisitListBundleThreadsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBundleThreadsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBundleThreadsdefaultApplicationProblemPlusJSONResponse) VisitListBundleThreadsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenBundleThreadRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *OpenBundleThreadJSONRequestBody
+}
+
+type OpenBundleThreadResponseObject interface {
+	VisitOpenBundleThreadResponse(w http.ResponseWriter) error
+}
+
+type OpenBundleThread200JSONResponse ThreadDetail
+
+func (response OpenBundleThread200JSONResponse) VisitOpenBundleThreadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OpenBundleThreaddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response OpenBundleThreaddefaultApplicationProblemPlusJSONResponse) VisitOpenBundleThreadResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTourRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetTourResponseObject interface {
+	VisitGetTourResponse(w http.ResponseWriter) error
+}
+
+type GetTour200JSONResponse Tour
+
+func (response GetTour200JSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTourdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetTourdefaultApplicationProblemPlusJSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTraceRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetTraceResponseObject interface {
+	VisitGetTraceResponse(w http.ResponseWriter) error
+}
+
+type GetTrace200JSONResponse TraceView
+
+func (response GetTrace200JSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetTracedefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetTracedefaultApplicationProblemPlusJSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTraceIdsRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params AddTraceIdsParams
+	Body   *AddTraceIdsJSONRequestBody
+}
+
+type AddTraceIdsResponseObject interface {
+	VisitAddTraceIdsResponse(w http.ResponseWriter) error
+}
+
+type AddTraceIds200JSONResponse WriteResult
+
+func (response AddTraceIds200JSONResponse) VisitAddTraceIdsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddTraceIdsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AddTraceIdsdefaultApplicationProblemPlusJSONResponse) VisitAddTraceIdsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestVerificationWaiverRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *RequestVerificationWaiverJSONRequestBody
+}
+
+type RequestVerificationWaiverResponseObject interface {
+	VisitRequestVerificationWaiverResponse(w http.ResponseWriter) error
+}
+
+type RequestVerificationWaiver200JSONResponse Waiver
+
+func (response RequestVerificationWaiver200JSONResponse) VisitRequestVerificationWaiverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestVerificationWaiverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RequestVerificationWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequestVerificationWaiverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVerificationsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ListVerificationsResponseObject interface {
+	VisitListVerificationsResponse(w http.ResponseWriter) error
+}
+
+type ListVerifications200JSONResponse VerificationList
+
+func (response ListVerifications200JSONResponse) VisitListVerificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVerificationsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListVerificationsdefaultApplicationProblemPlusJSONResponse) VisitListVerificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunVerificationRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *RunVerificationJSONRequestBody
+}
+
+type RunVerificationResponseObject interface {
+	VisitRunVerificationResponse(w http.ResponseWriter) error
+}
+
+type RunVerification202JSONResponse Verification
+
+func (response RunVerification202JSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RunVerificationdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RunVerificationdefaultApplicationProblemPlusJSONResponse) VisitRunVerificationResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerificationDefaultsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type VerificationDefaultsResponseObject interface {
+	VisitVerificationDefaultsResponse(w http.ResponseWriter) error
+}
+
+type VerificationDefaults200JSONResponse VerificationDefaults
+
+func (response VerificationDefaults200JSONResponse) VisitVerificationDefaultsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type VerificationDefaultsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response VerificationDefaultsdefaultApplicationProblemPlusJSONResponse) VisitVerificationDefaultsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveVerificationTargetRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *ResolveVerificationTargetJSONRequestBody
+}
+
+type ResolveVerificationTargetResponseObject interface {
+	VisitResolveVerificationTargetResponse(w http.ResponseWriter) error
+}
+
+type ResolveVerificationTarget200JSONResponse ResolvedBuild
+
+func (response ResolveVerificationTarget200JSONResponse) VisitResolveVerificationTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ResolveVerificationTargetdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ResolveVerificationTargetdefaultApplicationProblemPlusJSONResponse) VisitResolveVerificationTargetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVersionsRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params ListVersionsParams
+}
+
+type ListVersionsResponseObject interface {
+	VisitListVersionsResponse(w http.ResponseWriter) error
+}
+
+type ListVersions200JSONResponse VersionList
+
+func (response ListVersions200JSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListVersionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListVersionsdefaultApplicationProblemPlusJSONResponse) VisitListVersionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListWaiversRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ListWaiversResponseObject interface {
+	VisitListWaiversResponse(w http.ResponseWriter) error
+}
+
+type ListWaivers200JSONResponse struct {
+	Items []Waiver `json:"items"`
+}
+
+func (response ListWaivers200JSONResponse) VisitListWaiversResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListWaiversdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListWaiversdefaultApplicationProblemPlusJSONResponse) VisitListWaiversResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestWaiverRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *RequestWaiverJSONRequestBody
+}
+
+type RequestWaiverResponseObject interface {
+	VisitRequestWaiverResponse(w http.ResponseWriter) error
+}
+
+type RequestWaiver200JSONResponse Waiver
+
+func (response RequestWaiver200JSONResponse) VisitRequestWaiverResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RequestWaiverdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RequestWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequestWaiverResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -11917,7 +12058,7 @@ type AdoptSkippedResponseObject interface {
 	VisitAdoptSkippedResponse(w http.ResponseWriter) error
 }
 
-type AdoptSkipped201JSONResponse Bundle
+type AdoptSkipped201JSONResponse SpecDoc
 
 func (response AdoptSkipped201JSONResponse) VisitAdoptSkippedResponse(w http.ResponseWriter) error {
 
@@ -12425,126 +12566,24 @@ type StrictServerInterface interface {
 	// DeleteBundle Delete a bundle whose text Speccy holds, with everything that hangs off it. Permanent.
 	// (DELETE /bundles/{bundleId})
 	DeleteBundle(ctx context.Context, request DeleteBundleRequestObject) (DeleteBundleResponseObject, error)
-	// GetBundle Get one bundle.
+	// GetBundle Get one bundle with its spec docs.
 	// (GET /bundles/{bundleId})
 	GetBundle(ctx context.Context, request GetBundleRequestObject) (GetBundleResponseObject, error)
 	// GetBundleAccess Who can see the bundle, and its share link state (REQ-084, REQ-085).
 	// (GET /bundles/{bundleId}/access)
 	GetBundleAccess(ctx context.Context, request GetBundleAccessRequestObject) (GetBundleAccessResponseObject, error)
-	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
-	// (POST /bundles/{bundleId}/adopt)
-	AdoptFrontmatter(ctx context.Context, request AdoptFrontmatterRequestObject) (AdoptFrontmatterResponseObject, error)
-	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
-	// (POST /bundles/{bundleId}/approve)
-	ApproveBundle(ctx context.Context, request ApproveBundleRequestObject) (ApproveBundleResponseObject, error)
-	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
-	// (GET /bundles/{bundleId}/assumptions)
-	ListAssumptions(ctx context.Context, request ListAssumptionsRequestObject) (ListAssumptionsResponseObject, error)
 	// DeleteBundlePlan What the Delete control offers for this bundle, by the kind of source that makes it.
 	// (GET /bundles/{bundleId}/delete-plan)
 	DeleteBundlePlan(ctx context.Context, request DeleteBundlePlanRequestObject) (DeleteBundlePlanResponseObject, error)
-	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
-	// (GET /bundles/{bundleId}/diff)
-	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
-	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
-	// (POST /bundles/{bundleId}/diff/summary)
-	SummarizeDiff(ctx context.Context, request SummarizeDiffRequestObject) (SummarizeDiffResponseObject, error)
-	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
-	// (POST /bundles/{bundleId}/draft/discard)
-	DiscardDraft(ctx context.Context, request DiscardDraftRequestObject) (DiscardDraftResponseObject, error)
-	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
-	// (GET /bundles/{bundleId}/export)
-	ExportBundle(ctx context.Context, request ExportBundleRequestObject) (ExportBundleResponseObject, error)
-	// DeleteFile Delete a file. Creates a version (REQ-005).
-	// (DELETE /bundles/{bundleId}/files)
-	DeleteFile(ctx context.Context, request DeleteFileRequestObject) (DeleteFileResponseObject, error)
-	// ListFiles List the files of a bundle version. The default is the current version.
-	// (GET /bundles/{bundleId}/files)
-	ListFiles(ctx context.Context, request ListFilesRequestObject) (ListFilesResponseObject, error)
-	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
-	// (GET /bundles/{bundleId}/files/content)
-	GetFileContent(ctx context.Context, request GetFileContentRequestObject) (GetFileContentResponseObject, error)
-	// PutFileContent Create or replace a file. Creates a version when the content changed (REQ-005).
-	// (PUT /bundles/{bundleId}/files/content)
-	PutFileContent(ctx context.Context, request PutFileContentRequestObject) (PutFileContentResponseObject, error)
-	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
-	// (POST /bundles/{bundleId}/files/rename)
-	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
-	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
-	// (GET /bundles/{bundleId}/handoff)
-	ListHandoffs(ctx context.Context, request ListHandoffsRequestObject) (ListHandoffsResponseObject, error)
-	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
-	// (POST /bundles/{bundleId}/handoff)
-	TakeHandoff(ctx context.Context, request TakeHandoffRequestObject) (TakeHandoffResponseObject, error)
-	// SetBundleProfile Change the profile of the bundle's main doc.
-	// (PUT /bundles/{bundleId}/profile)
-	SetBundleProfile(ctx context.Context, request SetBundleProfileRequestObject) (SetBundleProfileResponseObject, error)
-	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
-	// (POST /bundles/{bundleId}/publish)
-	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
-	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
-	// (POST /bundles/{bundleId}/review-request)
-	RequestReview(ctx context.Context, request RequestReviewRequestObject) (RequestReviewResponseObject, error)
-	// ListRuns List the review runs of a bundle, newest first.
-	// (GET /bundles/{bundleId}/runs)
-	ListRuns(ctx context.Context, request ListRunsRequestObject) (ListRunsResponseObject, error)
-	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
-	// (POST /bundles/{bundleId}/runs)
-	StartRun(ctx context.Context, request StartRunRequestObject) (StartRunResponseObject, error)
-	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
-	// (GET /bundles/{bundleId}/runs/estimate)
-	EstimateRun(ctx context.Context, request EstimateRunRequestObject) (EstimateRunResponseObject, error)
 	// RevokeShareLink Revoke the share link (REQ-085).
 	// (DELETE /bundles/{bundleId}/share)
 	RevokeShareLink(ctx context.Context, request RevokeShareLinkRequestObject) (RevokeShareLinkResponseObject, error)
 	// CreateShareLink Make a new share link (REQ-085). It replaces the old one and sets link visibility. The URL appears one time.
 	// (POST /bundles/{bundleId}/share)
 	CreateShareLink(ctx context.Context, request CreateShareLinkRequestObject) (CreateShareLinkResponseObject, error)
-	// GetBundleStatus The review status of a bundle (§9.5).
-	// (GET /bundles/{bundleId}/status)
-	GetBundleStatus(ctx context.Context, request GetBundleStatusRequestObject) (GetBundleStatusResponseObject, error)
-	// ListBundleThreads List the threads of a bundle, open first (REQ-087).
-	// (GET /bundles/{bundleId}/threads)
-	ListBundleThreads(ctx context.Context, request ListBundleThreadsRequestObject) (ListBundleThreadsResponseObject, error)
-	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
-	// (POST /bundles/{bundleId}/threads)
-	OpenBundleThread(ctx context.Context, request OpenBundleThreadRequestObject) (OpenBundleThreadResponseObject, error)
-	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	// (GET /bundles/{bundleId}/tour)
-	GetTour(ctx context.Context, request GetTourRequestObject) (GetTourResponseObject, error)
-	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
-	// (GET /bundles/{bundleId}/trace)
-	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
-	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
-	// (POST /bundles/{bundleId}/trace/ids)
-	AddTraceIds(ctx context.Context, request AddTraceIdsRequestObject) (AddTraceIdsResponseObject, error)
-	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
-	// (POST /bundles/{bundleId}/verification-waivers)
-	RequestVerificationWaiver(ctx context.Context, request RequestVerificationWaiverRequestObject) (RequestVerificationWaiverResponseObject, error)
-	// ListVerifications The verification runs of a bundle, newest first.
-	// (GET /bundles/{bundleId}/verifications)
-	ListVerifications(ctx context.Context, request ListVerificationsRequestObject) (ListVerificationsResponseObject, error)
-	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
-	// (POST /bundles/{bundleId}/verifications)
-	RunVerification(ctx context.Context, request RunVerificationRequestObject) (RunVerificationResponseObject, error)
-	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
-	// (GET /bundles/{bundleId}/verifications/defaults)
-	VerificationDefaults(ctx context.Context, request VerificationDefaultsRequestObject) (VerificationDefaultsResponseObject, error)
-	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
-	// (POST /bundles/{bundleId}/verifications/resolve)
-	ResolveVerificationTarget(ctx context.Context, request ResolveVerificationTargetRequestObject) (ResolveVerificationTargetResponseObject, error)
-	// ListVersions List the versions of a bundle, newest first.
-	// (GET /bundles/{bundleId}/versions)
-	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
 	// SetVisibility Set the visibility of the bundle (REQ-084). Leaving link visibility revokes the share link.
 	// (PUT /bundles/{bundleId}/visibility)
 	SetVisibility(ctx context.Context, request SetVisibilityRequestObject) (SetVisibilityResponseObject, error)
-	// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
-	// (GET /bundles/{bundleId}/waivers)
-	ListWaivers(ctx context.Context, request ListWaiversRequestObject) (ListWaiversResponseObject, error)
-	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
-	// (POST /bundles/{bundleId}/waivers)
-	RequestWaiver(ctx context.Context, request RequestWaiverRequestObject) (RequestWaiverResponseObject, error)
 	// UndismissDoc Take the mark off a file, so it appears again (REQ-133).
 	// (DELETE /dismissed-docs)
 	UndismissDoc(ctx context.Context, request UndismissDocRequestObject) (UndismissDocResponseObject, error)
@@ -12554,6 +12593,111 @@ type StrictServerInterface interface {
 	// DismissDoc Mark a markdown file as not a spec, so Speccy stops offering to adopt it (REQ-133).
 	// (POST /dismissed-docs)
 	DismissDoc(ctx context.Context, request DismissDocRequestObject) (DismissDocResponseObject, error)
+	// GetSpecDoc Get one spec doc.
+	// (GET /docs/{docId})
+	GetSpecDoc(ctx context.Context, request GetSpecDocRequestObject) (GetSpecDocResponseObject, error)
+	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
+	// (POST /docs/{docId}/adopt)
+	AdoptFrontmatter(ctx context.Context, request AdoptFrontmatterRequestObject) (AdoptFrontmatterResponseObject, error)
+	// ApproveBundle Approve the current version (REQ-076). The author cannot approve. Approval needs a current Build Ready verdict.
+	// (POST /docs/{docId}/approve)
+	ApproveBundle(ctx context.Context, request ApproveBundleRequestObject) (ApproveBundleResponseObject, error)
+	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
+	// (GET /docs/{docId}/assumptions)
+	ListAssumptions(ctx context.Context, request ListAssumptionsRequestObject) (ListAssumptionsResponseObject, error)
+	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
+	// (GET /docs/{docId}/diff)
+	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
+	// SummarizeDiff Summarize what changed in meaning between two versions, and the change in findings (REQ-007).
+	// (POST /docs/{docId}/diff/summary)
+	SummarizeDiff(ctx context.Context, request SummarizeDiffRequestObject) (SummarizeDiffResponseObject, error)
+	// DiscardDraft Drop the draft of a GitHub bundle. The version from GitHub becomes current again.
+	// (POST /docs/{docId}/draft/discard)
+	DiscardDraft(ctx context.Context, request DiscardDraftRequestObject) (DiscardDraftResponseObject, error)
+	// ExportBundle Download a bundle version as a .zip file, or the current version as a self-contained HTML report with the verdict (REQ-008).
+	// (GET /docs/{docId}/export)
+	ExportBundle(ctx context.Context, request ExportBundleRequestObject) (ExportBundleResponseObject, error)
+	// DeleteFile Delete a file. Creates a version (REQ-005).
+	// (DELETE /docs/{docId}/files)
+	DeleteFile(ctx context.Context, request DeleteFileRequestObject) (DeleteFileResponseObject, error)
+	// ListFiles List the files of a bundle version. The default is the current version.
+	// (GET /docs/{docId}/files)
+	ListFiles(ctx context.Context, request ListFilesRequestObject) (ListFilesResponseObject, error)
+	// GetFileContent Get the bytes of one file in a bundle version. The default is the current version.
+	// (GET /docs/{docId}/files/content)
+	GetFileContent(ctx context.Context, request GetFileContentRequestObject) (GetFileContentResponseObject, error)
+	// PutFileContent Create or replace a file. Creates a version when the content changed (REQ-005).
+	// (PUT /docs/{docId}/files/content)
+	PutFileContent(ctx context.Context, request PutFileContentRequestObject) (PutFileContentResponseObject, error)
+	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
+	// (POST /docs/{docId}/files/rename)
+	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
+	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
+	// (GET /docs/{docId}/handoff)
+	ListHandoffs(ctx context.Context, request ListHandoffsRequestObject) (ListHandoffsResponseObject, error)
+	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
+	// (POST /docs/{docId}/handoff)
+	TakeHandoff(ctx context.Context, request TakeHandoffRequestObject) (TakeHandoffResponseObject, error)
+	// SetBundleProfile Change the profile of the bundle's main doc.
+	// (PUT /docs/{docId}/profile)
+	SetBundleProfile(ctx context.Context, request SetBundleProfileRequestObject) (SetBundleProfileResponseObject, error)
+	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
+	// (POST /docs/{docId}/publish)
+	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
+	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
+	// (POST /docs/{docId}/review-request)
+	RequestReview(ctx context.Context, request RequestReviewRequestObject) (RequestReviewResponseObject, error)
+	// ListRuns List the review runs of a bundle, newest first.
+	// (GET /docs/{docId}/runs)
+	ListRuns(ctx context.Context, request ListRunsRequestObject) (ListRunsResponseObject, error)
+	// StartRun Start a full review of the current version (REQ-020). Lint runs on its own on every save.
+	// (POST /docs/{docId}/runs)
+	StartRun(ctx context.Context, request StartRunRequestObject) (StartRunResponseObject, error)
+	// EstimateRun Estimate the tokens and cost of a full review before it starts (REQ-104).
+	// (GET /docs/{docId}/runs/estimate)
+	EstimateRun(ctx context.Context, request EstimateRunRequestObject) (EstimateRunResponseObject, error)
+	// GetBundleStatus The review status of a bundle (§9.5).
+	// (GET /docs/{docId}/status)
+	GetBundleStatus(ctx context.Context, request GetBundleStatusRequestObject) (GetBundleStatusResponseObject, error)
+	// ListBundleThreads List the threads of a bundle, open first (REQ-087).
+	// (GET /docs/{docId}/threads)
+	ListBundleThreads(ctx context.Context, request ListBundleThreadsRequestObject) (ListBundleThreadsResponseObject, error)
+	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
+	// (POST /docs/{docId}/threads)
+	OpenBundleThread(ctx context.Context, request OpenBundleThreadRequestObject) (OpenBundleThreadResponseObject, error)
+	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+	// (GET /docs/{docId}/tour)
+	GetTour(ctx context.Context, request GetTourRequestObject) (GetTourResponseObject, error)
+	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
+	// (GET /docs/{docId}/trace)
+	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
+	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
+	// (POST /docs/{docId}/trace/ids)
+	AddTraceIds(ctx context.Context, request AddTraceIdsRequestObject) (AddTraceIdsResponseObject, error)
+	// RequestVerificationWaiver Ask to excuse one trace ID in one code repo. It never goes in the doc's sidecar.
+	// (POST /docs/{docId}/verification-waivers)
+	RequestVerificationWaiver(ctx context.Context, request RequestVerificationWaiverRequestObject) (RequestVerificationWaiverResponseObject, error)
+	// ListVerifications The verification runs of a bundle, newest first.
+	// (GET /docs/{docId}/verifications)
+	ListVerifications(ctx context.Context, request ListVerificationsRequestObject) (ListVerificationsResponseObject, error)
+	// RunVerification Queue a verification of one build of this bundle against a code repo at one commit, or a folder.
+	// (POST /docs/{docId}/verifications)
+	RunVerification(ctx context.Context, request RunVerificationRequestObject) (RunVerificationResponseObject, error)
+	// VerificationDefaults The targets that prefill the verify field. The implemented-by links first, else the repo of the last run.
+	// (GET /docs/{docId}/verifications/defaults)
+	VerificationDefaults(ctx context.Context, request VerificationDefaultsRequestObject) (VerificationDefaultsResponseObject, error)
+	// ResolveVerificationTarget Say which repo and commit, or which folder, a pasted target names, before a run starts.
+	// (POST /docs/{docId}/verifications/resolve)
+	ResolveVerificationTarget(ctx context.Context, request ResolveVerificationTargetRequestObject) (ResolveVerificationTargetResponseObject, error)
+	// ListVersions List the versions of a bundle, newest first.
+	// (GET /docs/{docId}/versions)
+	ListVersions(ctx context.Context, request ListVersionsRequestObject) (ListVersionsResponseObject, error)
+	// ListWaivers List the waivers of a bundle (REQ-072 to REQ-074).
+	// (GET /docs/{docId}/waivers)
+	ListWaivers(ctx context.Context, request ListWaiversRequestObject) (ListWaiversResponseObject, error)
+	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
+	// (POST /docs/{docId}/waivers)
+	RequestWaiver(ctx context.Context, request RequestWaiverRequestObject) (RequestWaiverResponseObject, error)
 	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
 	// (POST /github/resolve)
 	ResolveGithubUrl(ctx context.Context, request ResolveGithubUrlRequestObject) (ResolveGithubUrlResponseObject, error)
@@ -13644,84 +13788,6 @@ func (sh *strictHandler) GetBundleAccess(w http.ResponseWriter, r *http.Request,
 	}
 }
 
-// AdoptFrontmatter operation middleware
-func (sh *strictHandler) AdoptFrontmatter(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request AdoptFrontmatterRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.AdoptFrontmatter(ctx, request.(AdoptFrontmatterRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AdoptFrontmatter")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(AdoptFrontmatterResponseObject); ok {
-		if err := validResponse.VisitAdoptFrontmatterResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ApproveBundle operation middleware
-func (sh *strictHandler) ApproveBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ApproveBundleRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ApproveBundle(ctx, request.(ApproveBundleRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ApproveBundle")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ApproveBundleResponseObject); ok {
-		if err := validResponse.VisitApproveBundleResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListAssumptions operation middleware
-func (sh *strictHandler) ListAssumptions(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ListAssumptionsRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListAssumptions(ctx, request.(ListAssumptionsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListAssumptions")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListAssumptionsResponseObject); ok {
-		if err := validResponse.VisitListAssumptionsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // DeleteBundlePlan operation middleware
 func (sh *strictHandler) DeleteBundlePlan(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
 	var request DeleteBundlePlanRequestObject
@@ -13741,509 +13807,6 @@ func (sh *strictHandler) DeleteBundlePlan(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DeleteBundlePlanResponseObject); ok {
 		if err := validResponse.VisitDeleteBundlePlanResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// DiffVersions operation middleware
-func (sh *strictHandler) DiffVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DiffVersionsParams) {
-	var request DiffVersionsRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DiffVersions(ctx, request.(DiffVersionsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DiffVersions")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DiffVersionsResponseObject); ok {
-		if err := validResponse.VisitDiffVersionsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// SummarizeDiff operation middleware
-func (sh *strictHandler) SummarizeDiff(w http.ResponseWriter, r *http.Request, bundleId BundleId, params SummarizeDiffParams) {
-	var request SummarizeDiffRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.SummarizeDiff(ctx, request.(SummarizeDiffRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SummarizeDiff")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(SummarizeDiffResponseObject); ok {
-		if err := validResponse.VisitSummarizeDiffResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// DiscardDraft operation middleware
-func (sh *strictHandler) DiscardDraft(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request DiscardDraftRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DiscardDraft(ctx, request.(DiscardDraftRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DiscardDraft")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DiscardDraftResponseObject); ok {
-		if err := validResponse.VisitDiscardDraftResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ExportBundle operation middleware
-func (sh *strictHandler) ExportBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ExportBundleParams) {
-	var request ExportBundleRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ExportBundle(ctx, request.(ExportBundleRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ExportBundle")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ExportBundleResponseObject); ok {
-		if err := validResponse.VisitExportBundleResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// DeleteFile operation middleware
-func (sh *strictHandler) DeleteFile(w http.ResponseWriter, r *http.Request, bundleId BundleId, params DeleteFileParams) {
-	var request DeleteFileRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.DeleteFile(ctx, request.(DeleteFileRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeleteFile")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(DeleteFileResponseObject); ok {
-		if err := validResponse.VisitDeleteFileResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListFiles operation middleware
-func (sh *strictHandler) ListFiles(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListFilesParams) {
-	var request ListFilesRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListFiles(ctx, request.(ListFilesRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListFiles")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListFilesResponseObject); ok {
-		if err := validResponse.VisitListFilesResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetFileContent operation middleware
-func (sh *strictHandler) GetFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params GetFileContentParams) {
-	var request GetFileContentRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetFileContent(ctx, request.(GetFileContentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetFileContent")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetFileContentResponseObject); ok {
-		if err := validResponse.VisitGetFileContentResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// PutFileContent operation middleware
-func (sh *strictHandler) PutFileContent(w http.ResponseWriter, r *http.Request, bundleId BundleId, params PutFileContentParams) {
-	var request PutFileContentRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	request.Body = r.Body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PutFileContent(ctx, request.(PutFileContentRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PutFileContent")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PutFileContentResponseObject); ok {
-		if err := validResponse.VisitPutFileContentResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// RenameFile operation middleware
-func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request RenameFileRequestObject
-
-	request.BundleId = bundleId
-
-	var body RenameFileJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.RenameFile(ctx, request.(RenameFileRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RenameFile")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(RenameFileResponseObject); ok {
-		if err := validResponse.VisitRenameFileResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListHandoffs operation middleware
-func (sh *strictHandler) ListHandoffs(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ListHandoffsRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListHandoffs(ctx, request.(ListHandoffsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListHandoffs")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListHandoffsResponseObject); ok {
-		if err := validResponse.VisitListHandoffsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// TakeHandoff operation middleware
-func (sh *strictHandler) TakeHandoff(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request TakeHandoffRequestObject
-
-	request.BundleId = bundleId
-
-	var body TakeHandoffJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		if !errors.Is(err, io.EOF) {
-			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-			return
-		}
-	} else {
-		request.Body = &body
-	}
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.TakeHandoff(ctx, request.(TakeHandoffRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "TakeHandoff")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(TakeHandoffResponseObject); ok {
-		if err := validResponse.VisitTakeHandoffResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// SetBundleProfile operation middleware
-func (sh *strictHandler) SetBundleProfile(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request SetBundleProfileRequestObject
-
-	request.BundleId = bundleId
-
-	var body SetBundleProfileJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.SetBundleProfile(ctx, request.(SetBundleProfileRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "SetBundleProfile")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(SetBundleProfileResponseObject); ok {
-		if err := validResponse.VisitSetBundleProfileResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// PublishBundle operation middleware
-func (sh *strictHandler) PublishBundle(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request PublishBundleRequestObject
-
-	request.BundleId = bundleId
-
-	var body PublishBundleJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		if !errors.Is(err, io.EOF) {
-			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-			return
-		}
-	} else {
-		request.Body = &body
-	}
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.PublishBundle(ctx, request.(PublishBundleRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "PublishBundle")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(PublishBundleResponseObject); ok {
-		if err := validResponse.VisitPublishBundleResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// RequestReview operation middleware
-func (sh *strictHandler) RequestReview(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request RequestReviewRequestObject
-
-	request.BundleId = bundleId
-
-	var body RequestReviewJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.RequestReview(ctx, request.(RequestReviewRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RequestReview")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(RequestReviewResponseObject); ok {
-		if err := validResponse.VisitRequestReviewResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListRuns operation middleware
-func (sh *strictHandler) ListRuns(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListRunsParams) {
-	var request ListRunsRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListRuns(ctx, request.(ListRunsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListRuns")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListRunsResponseObject); ok {
-		if err := validResponse.VisitListRunsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// StartRun operation middleware
-func (sh *strictHandler) StartRun(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request StartRunRequestObject
-
-	request.BundleId = bundleId
-
-	var body StartRunJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		if !errors.Is(err, io.EOF) {
-			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-			return
-		}
-	} else {
-		request.Body = &body
-	}
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.StartRun(ctx, request.(StartRunRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "StartRun")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(StartRunResponseObject); ok {
-		if err := validResponse.VisitStartRunResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// EstimateRun operation middleware
-func (sh *strictHandler) EstimateRun(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request EstimateRunRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.EstimateRun(ctx, request.(EstimateRunRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "EstimateRun")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(EstimateRunResponseObject); ok {
-		if err := validResponse.VisitEstimateRunResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -14310,355 +13873,6 @@ func (sh *strictHandler) CreateShareLink(w http.ResponseWriter, r *http.Request,
 	}
 }
 
-// GetBundleStatus operation middleware
-func (sh *strictHandler) GetBundleStatus(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request GetBundleStatusRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetBundleStatus(ctx, request.(GetBundleStatusRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetBundleStatus")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetBundleStatusResponseObject); ok {
-		if err := validResponse.VisitGetBundleStatusResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListBundleThreads operation middleware
-func (sh *strictHandler) ListBundleThreads(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ListBundleThreadsRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListBundleThreads(ctx, request.(ListBundleThreadsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListBundleThreads")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListBundleThreadsResponseObject); ok {
-		if err := validResponse.VisitListBundleThreadsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// OpenBundleThread operation middleware
-func (sh *strictHandler) OpenBundleThread(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request OpenBundleThreadRequestObject
-
-	request.BundleId = bundleId
-
-	var body OpenBundleThreadJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.OpenBundleThread(ctx, request.(OpenBundleThreadRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "OpenBundleThread")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(OpenBundleThreadResponseObject); ok {
-		if err := validResponse.VisitOpenBundleThreadResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetTour operation middleware
-func (sh *strictHandler) GetTour(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request GetTourRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetTour(ctx, request.(GetTourRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetTour")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetTourResponseObject); ok {
-		if err := validResponse.VisitGetTourResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetTrace operation middleware
-func (sh *strictHandler) GetTrace(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request GetTraceRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetTrace(ctx, request.(GetTraceRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetTrace")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetTraceResponseObject); ok {
-		if err := validResponse.VisitGetTraceResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// AddTraceIds operation middleware
-func (sh *strictHandler) AddTraceIds(w http.ResponseWriter, r *http.Request, bundleId BundleId, params AddTraceIdsParams) {
-	var request AddTraceIdsRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	var body AddTraceIdsJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.AddTraceIds(ctx, request.(AddTraceIdsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "AddTraceIds")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(AddTraceIdsResponseObject); ok {
-		if err := validResponse.VisitAddTraceIdsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// RequestVerificationWaiver operation middleware
-func (sh *strictHandler) RequestVerificationWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request RequestVerificationWaiverRequestObject
-
-	request.BundleId = bundleId
-
-	var body RequestVerificationWaiverJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.RequestVerificationWaiver(ctx, request.(RequestVerificationWaiverRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RequestVerificationWaiver")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(RequestVerificationWaiverResponseObject); ok {
-		if err := validResponse.VisitRequestVerificationWaiverResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListVerifications operation middleware
-func (sh *strictHandler) ListVerifications(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ListVerificationsRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListVerifications(ctx, request.(ListVerificationsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListVerifications")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListVerificationsResponseObject); ok {
-		if err := validResponse.VisitListVerificationsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// RunVerification operation middleware
-func (sh *strictHandler) RunVerification(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request RunVerificationRequestObject
-
-	request.BundleId = bundleId
-
-	var body RunVerificationJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.RunVerification(ctx, request.(RunVerificationRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RunVerification")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(RunVerificationResponseObject); ok {
-		if err := validResponse.VisitRunVerificationResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// VerificationDefaults operation middleware
-func (sh *strictHandler) VerificationDefaults(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request VerificationDefaultsRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.VerificationDefaults(ctx, request.(VerificationDefaultsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "VerificationDefaults")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(VerificationDefaultsResponseObject); ok {
-		if err := validResponse.VisitVerificationDefaultsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ResolveVerificationTarget operation middleware
-func (sh *strictHandler) ResolveVerificationTarget(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ResolveVerificationTargetRequestObject
-
-	request.BundleId = bundleId
-
-	var body ResolveVerificationTargetJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ResolveVerificationTarget(ctx, request.(ResolveVerificationTargetRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ResolveVerificationTarget")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ResolveVerificationTargetResponseObject); ok {
-		if err := validResponse.VisitResolveVerificationTargetResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListVersions operation middleware
-func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, bundleId BundleId, params ListVersionsParams) {
-	var request ListVersionsRequestObject
-
-	request.BundleId = bundleId
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListVersions(ctx, request.(ListVersionsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListVersions")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListVersionsResponseObject); ok {
-		if err := validResponse.VisitListVersionsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // SetVisibility operation middleware
 func (sh *strictHandler) SetVisibility(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
 	var request SetVisibilityRequestObject
@@ -14685,65 +13899,6 @@ func (sh *strictHandler) SetVisibility(w http.ResponseWriter, r *http.Request, b
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetVisibilityResponseObject); ok {
 		if err := validResponse.VisitSetVisibilityResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// ListWaivers operation middleware
-func (sh *strictHandler) ListWaivers(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request ListWaiversRequestObject
-
-	request.BundleId = bundleId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListWaivers(ctx, request.(ListWaiversRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListWaivers")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListWaiversResponseObject); ok {
-		if err := validResponse.VisitListWaiversResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// RequestWaiver operation middleware
-func (sh *strictHandler) RequestWaiver(w http.ResponseWriter, r *http.Request, bundleId BundleId) {
-	var request RequestWaiverRequestObject
-
-	request.BundleId = bundleId
-
-	var body RequestWaiverJSONRequestBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
-		return
-	}
-	request.Body = &body
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.RequestWaiver(ctx, request.(RequestWaiverRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RequestWaiver")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(RequestWaiverResponseObject); ok {
-		if err := validResponse.VisitRequestWaiverResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -14825,6 +13980,1021 @@ func (sh *strictHandler) DismissDoc(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DismissDocResponseObject); ok {
 		if err := validResponse.VisitDismissDocResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSpecDoc operation middleware
+func (sh *strictHandler) GetSpecDoc(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetSpecDocRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSpecDoc(ctx, request.(GetSpecDocRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSpecDoc")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSpecDocResponseObject); ok {
+		if err := validResponse.VisitGetSpecDocResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AdoptFrontmatter operation middleware
+func (sh *strictHandler) AdoptFrontmatter(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request AdoptFrontmatterRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AdoptFrontmatter(ctx, request.(AdoptFrontmatterRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AdoptFrontmatter")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AdoptFrontmatterResponseObject); ok {
+		if err := validResponse.VisitAdoptFrontmatterResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ApproveBundle operation middleware
+func (sh *strictHandler) ApproveBundle(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ApproveBundleRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ApproveBundle(ctx, request.(ApproveBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ApproveBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ApproveBundleResponseObject); ok {
+		if err := validResponse.VisitApproveBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListAssumptions operation middleware
+func (sh *strictHandler) ListAssumptions(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ListAssumptionsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListAssumptions(ctx, request.(ListAssumptionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListAssumptions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListAssumptionsResponseObject); ok {
+		if err := validResponse.VisitListAssumptionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiffVersions operation middleware
+func (sh *strictHandler) DiffVersions(w http.ResponseWriter, r *http.Request, docId DocId, params DiffVersionsParams) {
+	var request DiffVersionsRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiffVersions(ctx, request.(DiffVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiffVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiffVersionsResponseObject); ok {
+		if err := validResponse.VisitDiffVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SummarizeDiff operation middleware
+func (sh *strictHandler) SummarizeDiff(w http.ResponseWriter, r *http.Request, docId DocId, params SummarizeDiffParams) {
+	var request SummarizeDiffRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SummarizeDiff(ctx, request.(SummarizeDiffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SummarizeDiff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SummarizeDiffResponseObject); ok {
+		if err := validResponse.VisitSummarizeDiffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiscardDraft operation middleware
+func (sh *strictHandler) DiscardDraft(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request DiscardDraftRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscardDraft(ctx, request.(DiscardDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscardDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscardDraftResponseObject); ok {
+		if err := validResponse.VisitDiscardDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportBundle operation middleware
+func (sh *strictHandler) ExportBundle(w http.ResponseWriter, r *http.Request, docId DocId, params ExportBundleParams) {
+	var request ExportBundleRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportBundle(ctx, request.(ExportBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportBundleResponseObject); ok {
+		if err := validResponse.VisitExportBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFile operation middleware
+func (sh *strictHandler) DeleteFile(w http.ResponseWriter, r *http.Request, docId DocId, params DeleteFileParams) {
+	var request DeleteFileRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFile(ctx, request.(DeleteFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFileResponseObject); ok {
+		if err := validResponse.VisitDeleteFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFiles operation middleware
+func (sh *strictHandler) ListFiles(w http.ResponseWriter, r *http.Request, docId DocId, params ListFilesParams) {
+	var request ListFilesRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFiles(ctx, request.(ListFilesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFiles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFilesResponseObject); ok {
+		if err := validResponse.VisitListFilesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFileContent operation middleware
+func (sh *strictHandler) GetFileContent(w http.ResponseWriter, r *http.Request, docId DocId, params GetFileContentParams) {
+	var request GetFileContentRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFileContent(ctx, request.(GetFileContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFileContent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFileContentResponseObject); ok {
+		if err := validResponse.VisitGetFileContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutFileContent operation middleware
+func (sh *strictHandler) PutFileContent(w http.ResponseWriter, r *http.Request, docId DocId, params PutFileContentParams) {
+	var request PutFileContentRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutFileContent(ctx, request.(PutFileContentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutFileContent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutFileContentResponseObject); ok {
+		if err := validResponse.VisitPutFileContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameFile operation middleware
+func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request RenameFileRequestObject
+
+	request.DocId = docId
+
+	var body RenameFileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameFile(ctx, request.(RenameFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameFileResponseObject); ok {
+		if err := validResponse.VisitRenameFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListHandoffs operation middleware
+func (sh *strictHandler) ListHandoffs(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ListHandoffsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListHandoffs(ctx, request.(ListHandoffsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHandoffs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHandoffsResponseObject); ok {
+		if err := validResponse.VisitListHandoffsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TakeHandoff operation middleware
+func (sh *strictHandler) TakeHandoff(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request TakeHandoffRequestObject
+
+	request.DocId = docId
+
+	var body TakeHandoffJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TakeHandoff(ctx, request.(TakeHandoffRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TakeHandoff")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TakeHandoffResponseObject); ok {
+		if err := validResponse.VisitTakeHandoffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetBundleProfile operation middleware
+func (sh *strictHandler) SetBundleProfile(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request SetBundleProfileRequestObject
+
+	request.DocId = docId
+
+	var body SetBundleProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetBundleProfile(ctx, request.(SetBundleProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetBundleProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetBundleProfileResponseObject); ok {
+		if err := validResponse.VisitSetBundleProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishBundle operation middleware
+func (sh *strictHandler) PublishBundle(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request PublishBundleRequestObject
+
+	request.DocId = docId
+
+	var body PublishBundleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishBundle(ctx, request.(PublishBundleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishBundle")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishBundleResponseObject); ok {
+		if err := validResponse.VisitPublishBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestReview operation middleware
+func (sh *strictHandler) RequestReview(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request RequestReviewRequestObject
+
+	request.DocId = docId
+
+	var body RequestReviewJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestReview(ctx, request.(RequestReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestReview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestReviewResponseObject); ok {
+		if err := validResponse.VisitRequestReviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRuns operation middleware
+func (sh *strictHandler) ListRuns(w http.ResponseWriter, r *http.Request, docId DocId, params ListRunsParams) {
+	var request ListRunsRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRuns(ctx, request.(ListRunsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRuns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRunsResponseObject); ok {
+		if err := validResponse.VisitListRunsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartRun operation middleware
+func (sh *strictHandler) StartRun(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request StartRunRequestObject
+
+	request.DocId = docId
+
+	var body StartRunJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartRun(ctx, request.(StartRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartRunResponseObject); ok {
+		if err := validResponse.VisitStartRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EstimateRun operation middleware
+func (sh *strictHandler) EstimateRun(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request EstimateRunRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EstimateRun(ctx, request.(EstimateRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EstimateRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EstimateRunResponseObject); ok {
+		if err := validResponse.VisitEstimateRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBundleStatus operation middleware
+func (sh *strictHandler) GetBundleStatus(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetBundleStatusRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBundleStatus(ctx, request.(GetBundleStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBundleStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBundleStatusResponseObject); ok {
+		if err := validResponse.VisitGetBundleStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBundleThreads operation middleware
+func (sh *strictHandler) ListBundleThreads(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ListBundleThreadsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBundleThreads(ctx, request.(ListBundleThreadsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBundleThreads")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBundleThreadsResponseObject); ok {
+		if err := validResponse.VisitListBundleThreadsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// OpenBundleThread operation middleware
+func (sh *strictHandler) OpenBundleThread(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request OpenBundleThreadRequestObject
+
+	request.DocId = docId
+
+	var body OpenBundleThreadJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OpenBundleThread(ctx, request.(OpenBundleThreadRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OpenBundleThread")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OpenBundleThreadResponseObject); ok {
+		if err := validResponse.VisitOpenBundleThreadResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTour operation middleware
+func (sh *strictHandler) GetTour(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetTourRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTour(ctx, request.(GetTourRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTour")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTourResponseObject); ok {
+		if err := validResponse.VisitGetTourResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetTrace operation middleware
+func (sh *strictHandler) GetTrace(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetTraceRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTrace(ctx, request.(GetTraceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTrace")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetTraceResponseObject); ok {
+		if err := validResponse.VisitGetTraceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddTraceIds operation middleware
+func (sh *strictHandler) AddTraceIds(w http.ResponseWriter, r *http.Request, docId DocId, params AddTraceIdsParams) {
+	var request AddTraceIdsRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	var body AddTraceIdsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddTraceIds(ctx, request.(AddTraceIdsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddTraceIds")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddTraceIdsResponseObject); ok {
+		if err := validResponse.VisitAddTraceIdsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestVerificationWaiver operation middleware
+func (sh *strictHandler) RequestVerificationWaiver(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request RequestVerificationWaiverRequestObject
+
+	request.DocId = docId
+
+	var body RequestVerificationWaiverJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestVerificationWaiver(ctx, request.(RequestVerificationWaiverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestVerificationWaiver")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestVerificationWaiverResponseObject); ok {
+		if err := validResponse.VisitRequestVerificationWaiverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListVerifications operation middleware
+func (sh *strictHandler) ListVerifications(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ListVerificationsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListVerifications(ctx, request.(ListVerificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListVerifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListVerificationsResponseObject); ok {
+		if err := validResponse.VisitListVerificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RunVerification operation middleware
+func (sh *strictHandler) RunVerification(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request RunVerificationRequestObject
+
+	request.DocId = docId
+
+	var body RunVerificationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RunVerification(ctx, request.(RunVerificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RunVerification")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RunVerificationResponseObject); ok {
+		if err := validResponse.VisitRunVerificationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// VerificationDefaults operation middleware
+func (sh *strictHandler) VerificationDefaults(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request VerificationDefaultsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.VerificationDefaults(ctx, request.(VerificationDefaultsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "VerificationDefaults")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(VerificationDefaultsResponseObject); ok {
+		if err := validResponse.VisitVerificationDefaultsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ResolveVerificationTarget operation middleware
+func (sh *strictHandler) ResolveVerificationTarget(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ResolveVerificationTargetRequestObject
+
+	request.DocId = docId
+
+	var body ResolveVerificationTargetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ResolveVerificationTarget(ctx, request.(ResolveVerificationTargetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ResolveVerificationTarget")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ResolveVerificationTargetResponseObject); ok {
+		if err := validResponse.VisitResolveVerificationTargetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListVersions operation middleware
+func (sh *strictHandler) ListVersions(w http.ResponseWriter, r *http.Request, docId DocId, params ListVersionsParams) {
+	var request ListVersionsRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListVersions(ctx, request.(ListVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListVersionsResponseObject); ok {
+		if err := validResponse.VisitListVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListWaivers operation middleware
+func (sh *strictHandler) ListWaivers(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ListWaiversRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListWaivers(ctx, request.(ListWaiversRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListWaivers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListWaiversResponseObject); ok {
+		if err := validResponse.VisitListWaiversResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestWaiver operation middleware
+func (sh *strictHandler) RequestWaiver(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request RequestWaiverRequestObject
+
+	request.DocId = docId
+
+	var body RequestWaiverJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestWaiver(ctx, request.(RequestWaiverRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestWaiver")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestWaiverResponseObject); ok {
+		if err := validResponse.VisitRequestWaiverResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

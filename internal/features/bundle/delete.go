@@ -2,13 +2,14 @@ package bundle
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
-	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store"
@@ -17,14 +18,14 @@ import (
 // DeleteBundlePlan returns what the Delete control offers for this bundle.
 func (a *API) DeleteBundlePlan(ctx context.Context, req api.DeleteBundlePlanRequestObject) (api.DeleteBundlePlanResponseObject, error) {
 	s := a.Service
-	b, err := version.Bundle(ctx, s.DB.Queries(), s.Workspace, req.BundleId)
+	b, err := s.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
 	out := api.DeletePlan{Kind: api.DeletePlanKind(b.SourceKind), Slug: b.Slug}
 	switch b.SourceKind {
 	case KindDB:
-		out.Message = "This bundle and everything about it goes: its versions, its reviews, its threads, its waivers, its handoffs and its verification runs."
+		out.Message = "This bundle and everything about it goes: each spec doc with its versions, its reviews, its threads, its waivers, its handoffs and its verification runs."
 	case KindGitHub:
 		var ref githubRef
 		_ = json.Unmarshal(b.SourceRef, &ref)
@@ -51,8 +52,7 @@ func (a *API) DeleteBundlePlan(ctx context.Context, req api.DeleteBundlePlanRequ
 // DeleteBundle removes a bundle whose text Speccy holds, and everything that hangs off it.
 func (a *API) DeleteBundle(ctx context.Context, req api.DeleteBundleRequestObject) (api.DeleteBundleResponseObject, error) {
 	s := a.Service
-	q := s.DB.Queries()
-	b, err := version.Bundle(ctx, q, s.Workspace, req.BundleId)
+	b, err := s.bundle(ctx, req.BundleId)
 	if err != nil {
 		return nil, err
 	}
@@ -68,14 +68,33 @@ func (a *API) DeleteBundle(ctx context.Context, req api.DeleteBundleRequestObjec
 	if req.Params.Slug != b.Slug {
 		return nil, kernel.Invalid("slug_mismatch", "Type the bundle's slug, %s, to confirm.", b.Slug)
 	}
-	if err := s.DeleteBundleData(ctx, b.ID); err != nil {
+	docs, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{WorkspaceID: s.Workspace, SourceKind: KindDB})
+	if err != nil {
 		return nil, err
+	}
+	// The last spec doc takes the bundle row with it.
+	for _, d := range docs {
+		if d.BundleID != b.ID {
+			continue
+		}
+		if err := s.DeleteBundleData(ctx, d.ID); err != nil {
+			return nil, err
+		}
 	}
 	return api.DeleteBundle204Response{}, nil
 }
 
+// bundle returns the live bundle with id.
+func (s *Service) bundle(ctx context.Context, id uuid.UUID) (pgdb.Bundle, error) {
+	b, err := s.DB.Queries().GetBundle(ctx, pgdb.GetBundleParams{WorkspaceID: s.Workspace, ID: id})
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && b.ArchivedAt.Valid) {
+		return b, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", id)
+	}
+	return b, err
+}
+
 // mayDelete allows an author of the bundle or an admin. A guest never deletes.
-func (a *API) mayDelete(ctx context.Context, b pgdb.SpecDoc) error {
+func (a *API) mayDelete(ctx context.Context, b pgdb.Bundle) error {
 	act := kernel.ActorFrom(ctx)
 	if act.Guest != nil {
 		return kernel.Forbidden("not_an_author", "A guest cannot delete a bundle.")
@@ -83,7 +102,7 @@ func (a *API) mayDelete(ctx context.Context, b pgdb.SpecDoc) error {
 	if act.Role == kernel.RoleAdmin {
 		return nil
 	}
-	authors, err := a.Service.DB.Queries().ListBundleAuthors(ctx, b.BundleID)
+	authors, err := a.Service.DB.Queries().ListBundleAuthors(ctx, b.ID)
 	if err != nil {
 		return err
 	}
@@ -95,7 +114,8 @@ func (a *API) mayDelete(ctx context.Context, b pgdb.SpecDoc) error {
 	return kernel.Forbidden("not_an_author", "An author of this bundle or an admin deletes it.")
 }
 
-// DeleteBundleData removes the bundle and everything that hangs off it, in one transaction.
+// DeleteBundleData removes spec doc id and everything that hangs off it, in one transaction.
+// The last spec doc of a bundle takes the bundle with it.
 // The order is children first, because the foreign keys do not cascade. A blob stays while
 // another version still names it: blobs are shared by content.
 func (s *Service) DeleteBundleData(ctx context.Context, id uuid.UUID) error {
@@ -190,7 +210,7 @@ func (s *Service) DeleteBundleData(ctx context.Context, id uuid.UUID) error {
 
 // bundlesOfSource counts the bundles a GitHub source holds.
 func (s *Service) bundlesOfSource(ctx context.Context, src uuid.UUID) (int, error) {
-	rows, err := s.DB.Queries().ListSpecDocsBySource(ctx, pgdb.ListSpecDocsBySourceParams{
+	rows, err := s.DB.Queries().ListBundlesBySource(ctx, pgdb.ListBundlesBySourceParams{
 		WorkspaceID: s.Workspace, SourceKind: KindGitHub})
 	if err != nil {
 		return 0, err

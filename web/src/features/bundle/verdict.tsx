@@ -1,7 +1,8 @@
+import { useBundleId } from "./params";
 import { Link } from "@tanstack/react-router";
 import { clsx } from "clsx";
 import { CircleAlert, CircleCheck, CircleDashed, Info, OctagonX, TriangleAlert } from "lucide-react";
-import type { BundleVerdict, Run, VerdictResult } from "@/lib/api";
+import type { BundleState, BundleVerdict, Run, SpecDoc, VerdictResult } from "@/lib/api";
 
 const resultStyle: Record<VerdictResult, { label: string; tone: string; soft: string; icon: React.ReactNode }> = {
   build_ready: {
@@ -35,6 +36,33 @@ export function verdictLabel(v: BundleVerdict): string {
   return v.waiver_count > 0 ? `${base} (${v.waiver_count} waiver${v.waiver_count === 1 ? "" : "s"})` : base;
 }
 
+// BundleStatePill is the one chip of a bundle row: the worst state of its spec docs.
+export function BundleStatePill({ state }: { state: BundleState }) {
+  if (state === "not_reviewed") return <span className="text-xs text-ink-3">Not reviewed</span>;
+  const s = resultStyle[state];
+  return (
+    <span className={clsx("inline-flex items-center gap-1.5 text-xs font-medium", s.tone)}>
+      <span className="size-3.5">{s.icon}</span>
+      <span>{s.label}</span>
+    </span>
+  );
+}
+
+// DocStateIcon is one spec doc's verdict in the file tree: an icon with the verdict in words
+// for a screen reader. A doc with no verdict on its current version shows none.
+export function DocStateIcon({ doc }: { doc: SpecDoc }) {
+  const v = doc.verdict;
+  if (!v || v.version_number !== doc.current_version.number) {
+    return <span className="sr-only">Not reviewed</span>;
+  }
+  const s = resultStyle[v.result];
+  return (
+    <span role="img" aria-label={s.label} title={s.label} className={clsx("size-3 shrink-0", s.tone)}>
+      {s.icon}
+    </span>
+  );
+}
+
 // VerdictPill is the compact verdict for lists.
 export function VerdictPill({ verdict }: { verdict?: BundleVerdict }) {
   if (!verdict) return <span className="text-xs text-ink-3">Not reviewed</span>;
@@ -57,9 +85,9 @@ export function VerdictBar({
   onShowFindings,
   onShowWaivers,
   waiting,
-  bundleId,
+  docId,
 }: {
-  bundleId: string;
+  docId: string;
   verdict?: BundleVerdict;
   runError?: string;
   currentVersion: number;
@@ -71,6 +99,7 @@ export function VerdictBar({
   // waiting is how many waivers wait for this person's approval.
   waiting: number;
 }) {
+  const bundleId = useBundleId();
   if (runError && !verdict) {
     return (
       <div role="status" className="flex items-start gap-3 border-b border-bad/30 bg-bad-soft px-4 py-3 sm:px-5">
@@ -145,8 +174,8 @@ export function VerdictBar({
           Show findings
         </button>
         <Link
-          to="/bundles/$bundleId/runs/$runId"
-          params={{ bundleId, runId: verdict.run_id }}
+          to="/bundles/$bundleId/docs/$docId/runs/$runId"
+          params={{ bundleId, docId, runId: verdict.run_id }}
           className="font-medium text-ink underline underline-offset-2"
         >
           Run report

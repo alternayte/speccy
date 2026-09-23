@@ -19,7 +19,7 @@ import {
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import type { Bundle, NextAction } from "@/lib/api";
+import type { SpecDoc, NextAction } from "@/lib/api";
 import { verdictLabel } from "./verdict";
 
 const kindIcon: Record<NextAction["kind"], React.ReactNode> = {
@@ -48,7 +48,7 @@ export function ControlRow({
   onPrint,
   extra,
 }: {
-  bundle: Bundle;
+  bundle: SpecDoc;
   next?: NextAction;
   onNext: () => void;
   // busy is true while a review runs: the next action waits for it.
@@ -139,20 +139,20 @@ export function ControlRow({
         </MenuItem>
         <MenuItem
           icon={<Compass className="size-3.5" />}
-          onSelect={() => go("/bundles/$bundleId/tour", { bundleId: bundle.id })}
+          onSelect={() => go("/bundles/$bundleId/docs/$docId/tour", { docId: bundle.id })}
         >
           Tour
         </MenuItem>
         <MenuItem
           icon={<Network className="size-3.5" />}
-          onSelect={() => go("/bundles/$bundleId/trace", { bundleId: bundle.id })}
+          onSelect={() => go("/bundles/$bundleId/docs/$docId/trace", { docId: bundle.id })}
         >
           Traceability
         </MenuItem>
         {v ? (
           <MenuItem
             icon={<FileText className="size-3.5" />}
-            onSelect={() => go("/bundles/$bundleId/runs/$runId", { bundleId: bundle.id, runId: v.run_id })}
+            onSelect={() => go("/bundles/$bundleId/docs/$docId/runs/$runId", { docId: bundle.id, runId: v.run_id })}
           >
             Run report
           </MenuItem>

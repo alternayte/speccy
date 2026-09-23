@@ -262,7 +262,7 @@ func (a *API) PublishBundle(ctx context.Context, req api.PublishBundleRequestObj
 	if by == "" {
 		by = kernel.ActorFrom(ctx).UserID
 	}
-	pr, err := a.Service.Publish(ctx, req.BundleId, by, msg)
+	pr, err := a.Service.Publish(ctx, req.DocId, by, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (a *API) PublishBundle(ctx context.Context, req api.PublishBundleRequestObj
 
 // DiscardDraft drops a GitHub bundle's draft.
 func (a *API) DiscardDraft(ctx context.Context, req api.DiscardDraftRequestObject) (api.DiscardDraftResponseObject, error) {
-	v, err := a.Service.DiscardDraft(ctx, req.BundleId, kernel.ActorFrom(ctx).UserID)
+	v, err := a.Service.DiscardDraft(ctx, req.DocId, kernel.ActorFrom(ctx).UserID)
 	if err != nil {
 		return nil, err
 	}

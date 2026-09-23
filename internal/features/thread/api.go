@@ -117,11 +117,11 @@ func titleFrom(body string) string {
 
 // ListBundleThreads lists a bundle's threads, open first.
 func (a *API) ListBundleThreads(ctx context.Context, req api.ListBundleThreadsRequestObject) (api.ListBundleThreadsResponseObject, error) {
-	rows, err := a.DB.Queries().ListSpecDocThreads(ctx, uuid.NullUUID{UUID: req.BundleId, Valid: true})
+	rows, err := a.DB.Queries().ListSpecDocThreads(ctx, uuid.NullUUID{UUID: req.DocId, Valid: true})
 	if err != nil {
 		return nil, err
 	}
-	b, err := a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.BundleId})
+	b, err := a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.DocId})
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (a *API) OpenBundleThread(ctx context.Context, req api.OpenBundleThreadRequ
 	if req.Body.AnchorKind == api.OpenThreadAnchorKindCheck {
 		return nil, kernel.Invalid("bad_anchor", "A thread on a profile check belongs to the profile.")
 	}
-	id := req.BundleId
+	id := req.DocId
 	d, err := a.open(ctx, &id, "", *req.Body)
 	if err != nil {
 		return nil, err
@@ -308,7 +308,7 @@ func (a *API) detail(ctx context.Context, id uuid.UUID) (api.ThreadDetail, error
 		follow(&base, cur)
 	}
 	d := api.ThreadDetail{
-		Id: base.Id, BundleId: base.BundleId, ProfileKey: base.ProfileKey, AnchorKind: api.ThreadDetailAnchorKind(base.AnchorKind),
+		Id: base.Id, DocId: base.DocId, ProfileKey: base.ProfileKey, AnchorKind: api.ThreadDetailAnchorKind(base.AnchorKind),
 		Anchor: base.Anchor, AddressedTo: api.ThreadDetailAddressedTo(base.AddressedTo), Title: base.Title, Blocking: base.Blocking,
 		Status: api.ThreadDetailStatus(base.Status), CreatedBy: base.CreatedBy, CreatedAt: base.CreatedAt,
 		LastMessageAt: base.LastMessageAt, MessageCount: base.MessageCount, Messages: []api.ThreadMessage{},
@@ -336,7 +336,7 @@ func threadAPI(t pgdb.ThreadView) api.Thread {
 		CreatedAt: t.CreatedAt.UTC(), LastMessageAt: t.LastMessageAt.UTC(), MessageCount: int(t.MessageCount),
 	}
 	if t.SpecDocID.Valid {
-		out.BundleId = &t.SpecDocID.UUID
+		out.DocId = &t.SpecDocID.UUID
 	}
 	if t.ProfileKey != "" {
 		out.ProfileKey = &t.ProfileKey
