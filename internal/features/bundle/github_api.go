@@ -63,7 +63,7 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	s := a.Service
 	ref, err := github.ParseURL(raw)
 	if err != nil {
-		return ref, api.GithubResolved{}, kernel.Invalid("bad_url", "%s.", sentence(err.Error()))
+		return ref, api.GithubResolved{}, kernel.Invalid("bad_url", "%s", sentence(err.Error()))
 	}
 	c, err := s.github(ctx, ref.APIURL())
 	if err != nil {

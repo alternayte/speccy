@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -261,15 +263,22 @@ func TestCLI_InitGitHub(t *testing.T) {
 // The workflow that speccy init --github writes pins the Action at the release of the binary
 // that wrote it. A dev build is no release, so it pins main.
 func TestInitGitHub_WorkflowPinsTheRelease(t *testing.T) {
-	cases := map[string]string{
-		"v0.9.0":              "alternayte/speccy@v0.9.0\n",
-		"0.9.0":               "alternayte/speccy@v0.9.0\n",
-		"dev":                 "alternayte/speccy@main\n",
-		"v0.9.0-3-gabc-dirty": "alternayte/speccy@main\n",
+	cases := map[string][]string{
+		"v0.9.0":              {"alternayte/speccy@v0.9.0\n", "version: v0.9.0 "},
+		"0.9.0":               {"alternayte/speccy@v0.9.0\n", "version: v0.9.0 "},
+		"dev":                 {"alternayte/speccy@main\n"},
+		"v0.9.0-3-gabc-dirty": {"alternayte/speccy@main\n"},
 	}
-	for version, want := range cases {
-		if got := workflowFor(version); !strings.Contains(got, want) || strings.Contains(got, "@v0.1.0") {
-			t.Errorf("version %s: the workflow does not pin %s:\n%s", version, strings.TrimSpace(want), got)
+	for version, wants := range cases {
+		got := workflowFor(version)
+		for _, want := range wants {
+			if !strings.Contains(got, want) || strings.Contains(got, "@v0.1.0") {
+				t.Errorf("version %s: the workflow does not pin %s:\n%s", version, strings.TrimSpace(want), got)
+			}
+		}
+		var wf any
+		if err := yaml.Unmarshal([]byte(got), &wf); err != nil {
+			t.Errorf("version %s: the workflow is not YAML: %v\n%s", version, err, got)
 		}
 	}
 }

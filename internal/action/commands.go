@@ -181,7 +181,9 @@ func summaryLine(d Decision, t target) string {
 	if d.Refused != "" {
 		return fmt.Sprintf("- `/speccy %s` by @%s on `%s`: %s.", d.Command.Kind, d.Command.By, d.Bundle, d.Refused)
 	}
-	return fmt.Sprintf("- @%s asked for %s on `%s`. Speccy wrote it to `%s`.", d.Command.By, what, d.Bundle, source.SidecarPath(d.Doc))
+	// The line holds for a commit and for a fork alike: the summary says below it whether
+	// Speccy committed the sidecar or gives the text to paste.
+	return fmt.Sprintf("- @%s asked for %s on `%s`. It goes in `%s`.", d.Command.By, what, d.Bundle, source.SidecarPath(d.Doc))
 }
 
 // docPath is the main doc's path in the repo.

@@ -80,7 +80,8 @@ A profile setting of `off` for a check stays off. The summary comment on each pu
 This is the file that `speccy init --github` writes:
 
 ```yaml workflow
-# Speccy reviews the specs that a pull request changes (SDD §12.4).
+# Speccy reviews the specs that a pull request changes.
+# https://speccy-docs.pages.dev/how-to/keep-the-verdict-in-ci/
 name: Speccy
 on:
   pull_request:
@@ -94,14 +95,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alternayte/speccy@v0.1.0
-        # Lint checks only. For the model stages, set a key and pass it here:
-        # with:
-        #   models: all=anthropic:<model>
-        #   anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: alternayte/speccy@v0.19.0
+        with:
+          version: v0.19.0   # the speccy binary: keep it at the Action's tag
+          # Lint checks only. For the model stages, set a key and pass it here:
+          # models: all=anthropic:<model>
+          # anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
-The file pins the Action at `v0.1.0`. Change the tag to the release you run, such as `alternayte/speccy@v0.18.0`.
+The file pins the Action and the binary it downloads at one release: the release of the `speccy` that wrote the file. A `speccy` that is not a release writes `@main` and no `version`. A comment in the file then says to pin a release tag.
 
 With no model and no key, the Action runs the lint checks only. The check of each bundle then says `Lint checks only.` [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) adds the models, blocking enforcement, and connected mode.
 

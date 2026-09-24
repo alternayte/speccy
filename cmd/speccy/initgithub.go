@@ -28,7 +28,8 @@ const workflowPath = ".github/workflows/speccy.yml"
 
 // workflowFile needs no secret: lint checks only, advisory, on the docs a mapping names. The
 // %s is the step that uses the Action.
-const workflowFile = `# Speccy reviews the specs that a pull request changes (SDD §12.4).
+const workflowFile = `# Speccy reviews the specs that a pull request changes.
+# https://speccy-docs.pages.dev/how-to/keep-the-verdict-in-ci/
 name: Speccy
 on:
   pull_request:
@@ -42,25 +43,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-%s        # Lint checks only. For the model stages, set a key and pass it here:
-        # with:
-        #   models: all=anthropic:<model>
-        #   anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+%s`
+
+// modelsHint is the commented model setup under the Action's with:.
+const modelsHint = `          # Lint checks only. For the model stages, set a key and pass it here:
+          # models: all=anthropic:<model>
+          # anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 `
 
 // releaseVersion is a release tag, as the release build sets kernel.Version: v1.2.3 or 1.2.3.
 var releaseVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
 
 // workflowFor is the workflow, with the Action pinned at the release of the binary that wrote
-// it. A dev build, or a build between two tags, is no release, so the workflow uses main and
-// says to pin a tag.
+// it. The version input pins the binary the Action downloads too: without it, the Action runs
+// the latest release. A dev build, or a build between two tags, is no release, so the workflow
+// uses main and the latest release, and says to pin a tag.
 func workflowFor(version string) string {
-	step := "      - uses: alternayte/speccy@v" + strings.TrimPrefix(version, "v") + "\n"
 	if !releaseVersion.MatchString(version) {
-		step = "      # A build of speccy that is not a release wrote this, so it uses main. Pin a release tag.\n" +
-			"      - uses: alternayte/speccy@main\n"
+		return fmt.Sprintf(workflowFile, "      # A build of speccy that is not a release wrote this, so it uses main. Pin a release tag.\n"+
+			"      - uses: alternayte/speccy@main\n"+
+			"        with:\n"+modelsHint)
 	}
-	return fmt.Sprintf(workflowFile, step)
+	tag := "v" + strings.TrimPrefix(version, "v")
+	return fmt.Sprintf(workflowFile, "      - uses: alternayte/speccy@"+tag+"\n"+
+		"        with:\n"+
+		"          version: "+tag+"   # the speccy binary: keep it at the Action's tag\n"+modelsHint)
 }
 
 // initGitHub is speccy init --github: the one command that adopts a repo Speccy did not

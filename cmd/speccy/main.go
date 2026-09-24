@@ -58,6 +58,7 @@ const usage = `Usage:
   speccy profile validate <file>                         Check a profile file.
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
+                [--label <name>] [--acknowledged]
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
                 [--blocked | --note] [--section "A › B"] [--trace-id REQ-012]
   speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
