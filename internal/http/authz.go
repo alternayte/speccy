@@ -122,8 +122,9 @@ var operations = map[string]access{
 	"adoptFrontmatter": bundleEdit,
 	"setBundleProfile": bundleEdit,
 	// A handoff reads the bundle and records who took it (REQ-136).
-	"listHandoffs": bundleRead,
-	"takeHandoff":  bundleAI,
+	"listHandoffs":   bundleRead,
+	"takeHandoff":    bundleAI,
+	"takeHandoffZip": bundleAI,
 	// A verification run reads the bundle and the code, and opens a blocking thread when a
 	// MUST outcome blocks. It changes no verdict itself.
 	"listVerifications": bundleRead,

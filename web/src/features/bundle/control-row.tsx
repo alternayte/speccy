@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
 import {
   ChevronDown,
@@ -19,7 +19,7 @@ import {
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import type { SpecDoc, NextAction } from "@/lib/api";
+import type { BundleVerdict, SpecDoc, NextAction } from "@/lib/api";
 import { verdictLabel } from "./verdict";
 
 const kindIcon: Record<NextAction["kind"], React.ReactNode> = {
@@ -45,6 +45,7 @@ export function ControlRow({
   onRunReview,
   onRequestReview,
   onExport,
+  onHandoff,
   onPrint,
   extra,
 }: {
@@ -62,6 +63,8 @@ export function ControlRow({
   // onRequestReview asks for the reviews the profile needs. Hosted mode only.
   onRequestReview?: () => void;
   onExport: (format: "html" | "zip") => void;
+  // onHandoff opens the Hand it to a builder dialog. It is absent for a guest.
+  onHandoff?: () => void;
   onPrint: () => void;
   // extra holds the controls that only some bundles have, such as GitHub and Share.
   extra?: React.ReactNode;
@@ -87,6 +90,12 @@ export function ControlRow({
           <span className={clsx("font-medium", tone)}>
             {bundle.run_error && !v ? "Speccy cannot review this doc" : v ? verdictLabel(v) : "Not checked yet"}
           </span>
+          {v?.result === "stale" && v.stale_reason === "upstream_changed" ? (
+            <span className="text-ink-2">
+              {" · "}
+              <UpstreamLinks verdict={v} /> changed after this review
+            </span>
+          ) : null}
           <span className="text-ink-3">
             {" · "}
             {bundle.slug} · v{bundle.current_version.number}
@@ -132,6 +141,11 @@ export function ControlRow({
         {onRequestReview ? (
           <MenuItem icon={<MessageSquarePlus className="size-3.5" />} onSelect={onRequestReview}>
             Request a review
+          </MenuItem>
+        ) : null}
+        {onHandoff ? (
+          <MenuItem icon={<PackageCheck className="size-3.5" />} onSelect={onHandoff}>
+            Hand it to a builder
           </MenuItem>
         ) : null}
         <MenuItem icon={<FolderTree className="size-3.5" />} onSelect={onFiles}>
@@ -183,5 +197,29 @@ export function ControlRow({
         </p>
       ) : null}
     </div>
+  );
+}
+
+// UpstreamLinks names the linked spec docs that changed after the review read them, each a
+// link to that spec doc, so the author knows what to read before the next review.
+function UpstreamLinks({ verdict }: { verdict: BundleVerdict }) {
+  const ups = verdict.stale_upstream ?? [];
+  if (ups.length === 0) return <>A linked spec doc</>;
+  return (
+    <>
+      {ups.map((u, i) => (
+        <span key={u.id}>
+          {i === 0 ? "" : i === ups.length - 1 ? " and " : ", "}
+          <Link
+            to="/docs/$docId"
+            params={{ docId: u.id }}
+            className="font-medium text-ink underline underline-offset-2"
+            title={u.slug}
+          >
+            {u.title || u.slug}
+          </Link>
+        </span>
+      ))}
+    </>
   );
 }

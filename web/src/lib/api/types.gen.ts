@@ -242,6 +242,10 @@ export type BundleVerdict = {
      * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
      */
     stale_reason?: 'upstream_changed';
+    /**
+     * With stale_reason upstream_changed, the linked spec docs that have a newer version than the run read.
+     */
+    stale_upstream?: Array<BundleRef>;
 };
 
 export type VerdictResult = 'build_ready' | 'not_build_ready' | 'stale';
@@ -1291,6 +1295,17 @@ export type TraceAck = {
     target?: string;
 };
 
+export type HandoffRequest = {
+    /**
+     * Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+     */
+    acknowledged?: boolean;
+    /**
+     * What the builder calls this work, such as a repo, a branch, or a ticket.
+     */
+    label?: string;
+};
+
 export type HandoffList = {
     items: Array<Handoff>;
 };
@@ -2074,16 +2089,7 @@ export type ListHandoffsResponses = {
 export type ListHandoffsResponse = ListHandoffsResponses[keyof ListHandoffsResponses];
 
 export type TakeHandoffData = {
-    body?: {
-        /**
-         * Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
-         */
-        acknowledged?: boolean;
-        /**
-         * What the builder calls this work, such as a repo, a branch, or a ticket.
-         */
-        label?: string;
-    };
+    body?: HandoffRequest;
     path: {
         /**
          * The ID of one spec doc.
@@ -2111,6 +2117,36 @@ export type TakeHandoffResponses = {
 };
 
 export type TakeHandoffResponse = TakeHandoffResponses[keyof TakeHandoffResponses];
+
+export type TakeHandoffZipData = {
+    body?: HandoffRequest;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/handoff/zip';
+};
+
+export type TakeHandoffZipErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type TakeHandoffZipError = TakeHandoffZipErrors[keyof TakeHandoffZipErrors];
+
+export type TakeHandoffZipResponses = {
+    /**
+     * The build packet as a .zip file, in one folder.
+     */
+    200: Blob | File;
+};
+
+export type TakeHandoffZipResponse = TakeHandoffZipResponses[keyof TakeHandoffZipResponses];
 
 export type RequestVerificationWaiverData = {
     body: {
