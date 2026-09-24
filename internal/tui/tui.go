@@ -428,7 +428,7 @@ func (m *model) next() *api.NextAction {
 }
 
 // doNext does the named thing, as far as a terminal can: it runs a review, opens the tour, or
-// opens the file at the finding. The rest needs the app, and the status line says so.
+// opens the file at the finding. The rest needs the app, and the message line says so.
 func (m *model) doNext() (tea.Model, tea.Cmd) {
 	n := m.next()
 	if n == nil {

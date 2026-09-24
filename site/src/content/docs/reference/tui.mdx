@@ -34,11 +34,11 @@ Every screen has the same five parts, from top to bottom.
 |---|---|
 | Title bar | `Speccy` and the screen name, then the meta text: the bundle count, or the title, profile and version. |
 | Body | The list, the findings or the tour point. |
-| Status line | One line of progress, feedback, an error, or the next action. |
+| Message line | One line of progress, feedback, an error, or the next action. |
 | Rule | A thin line. |
 | Key bar | The keys of this screen. |
 
-The status line shows the first of these that applies:
+The message line shows the first of these that applies:
 
 | Shows | When |
 |---|---|
@@ -110,9 +110,9 @@ The tour screen shows one point at a time: a progress bar, the kind of point, th
 | Review | Runs a full review. |
 | Decide | Opens the tour. |
 | Fix | Opens the bundle. On the bundle screen, it opens the editor at the selected finding. |
-| Any other kind | Writes the sentence and `do this in the app.` on the status line. |
+| Any other kind | Writes the sentence and `do this in the app.` on the message line. |
 
-A full review needs a model for each role its stages use. With no model, the status line shows the error. [Add a model backend](/how-to/add-a-model-backend/) sets one up.
+A full review needs a model for each role its stages use. With no model, the message line shows the error. [Add a model backend](/how-to/add-a-model-backend/) sets one up.
 
 ## The editor
 
@@ -124,7 +124,7 @@ The TUI opens a file with `$VISUAL`, else `$EDITOR`, else `vi`. It passes the li
 | `zed`, `subl` | `--wait <file>:<line>` |
 | Any other | `+<line> <file>` |
 
-The TUI loads the screen again when the editor closes. When the editor does not start, the status line says `The editor did not open`, with the reason.
+The TUI loads the screen again when the editor closes. When the editor does not start, the message line says `The editor did not open`, with the reason.
 
 ## Terminal size
 

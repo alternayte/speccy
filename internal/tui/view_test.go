@@ -59,7 +59,7 @@ func TestView_FrameFitsTheTerminal(t *testing.T) {
 	}
 }
 
-// The next action reaches every screen: the status line says it, and the key bar shows the key
+// The next action reaches every screen: the message line says it, and the key bar shows the key
 // that does it. A hidden panel is acceptable, a hidden key is not (SDD §13.4).
 func TestView_NextActionIsAlwaysOffered(t *testing.T) {
 	b := api.SpecDoc{Title: "Payment retries", Slug: "payments", ProfileKey: "prd", Path: "PRD.md",
