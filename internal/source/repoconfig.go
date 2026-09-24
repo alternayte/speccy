@@ -155,9 +155,9 @@ var LinkKinds = []string{"implements", "refines", "references", "supersedes", Ex
 // BundleLinkKinds are the kinds a link rule may use: a rule links two bundles.
 var BundleLinkKinds = LinkKinds[:len(LinkKinds)-1]
 
-// LinkRule links bundles by path convention (REQ-132): "docs/sdd-{name}.md implements
-// docs/prd-{name}.md". A path is a single-file bundle's file, or a folder bundle's folder,
-// relative to the root. {name} matches one path segment or part of one.
+// LinkRule links spec docs by path convention (REQ-132): "docs/sdd-{name}.md implements
+// docs/prd-{name}.md". A path is a spec doc's file, relative to the root. {name} matches one
+// path segment or part of one.
 type LinkRule struct {
 	From string
 	Kind string
