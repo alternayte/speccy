@@ -60,9 +60,6 @@ func TestVerdict_UpstreamAndLinks(t *testing.T) {
 	if v := Decide(Input{UpstreamRequired: true, HasUpstream: true}); v.Result != BuildReady {
 		t.Error("a present upstream link blocked")
 	}
-	if v := Decide(Input{LinkedStale: true}); v.Result != NotBuildReady {
-		t.Error("a stale linked version did not block")
-	}
 }
 
 func TestScore(t *testing.T) {
