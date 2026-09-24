@@ -26,7 +26,25 @@ const theme = EditorView.theme({
   },
   ".cm-cursor": { borderLeftColor: "var(--accent)" },
   ".cm-searchMatch": { backgroundColor: "var(--warn-soft)" },
+  ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "var(--accent-soft)" },
   ".cm-panels": { backgroundColor: "var(--sunken)", color: "var(--ink)", borderColor: "var(--line)" },
+  // The search panel's fields and buttons take CodeMirror's light gradients unless the theme
+  // names them, and the dark theme's light text then sits on white.
+  ".cm-panel.cm-search": { padding: "var(--space-2) var(--space-3)", fontFamily: "var(--font-sans)" },
+  ".cm-panel.cm-search label": { color: "var(--ink-2)", fontSize: "var(--text-xs)" },
+  ".cm-panel.cm-search input[type=checkbox]": { accentColor: "var(--accent)" },
+  ".cm-textfield, .cm-button": {
+    backgroundColor: "var(--surface)",
+    backgroundImage: "none",
+    color: "var(--ink)",
+    border: "1px solid var(--line-strong)",
+    borderRadius: "var(--radius-sm)",
+    fontSize: "var(--text-xs)",
+    padding: "2px 8px",
+  },
+  ".cm-textfield:focus": { outline: "2px solid var(--focus)", outlineOffset: "-1px" },
+  ".cm-button:hover": { backgroundColor: "var(--sunken)" },
+  ".cm-panel.cm-search [name=close]": { color: "var(--ink-3)" },
 });
 
 const highlight = HighlightStyle.define([

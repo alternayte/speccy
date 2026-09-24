@@ -1,0 +1,104 @@
+---
+title: Guarantees
+description: What Speccy guarantees, and the test in the repo that proves each guarantee.
+sidebar:
+  order: 7
+---
+
+This page lists what Speccy guarantees, and the test that proves each guarantee.
+
+Each row names a test in the Speccy repo. `just verify` runs every test on each pull request, so a guarantee on this page holds on `main`. A test that stops passing fails the gate before the change merges.
+
+## The verdict
+
+| Guarantee | Test |
+|---|---|
+| An open MUST finding gives Not Build Ready. | [`TestVerdict_OpenMustBlocks`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
+| A valid waiver on the only MUST finding gives Build Ready. | [`TestVerdict_WaivedMustPasses`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
+| An open blocking thread gives Not Build Ready. | [`TestVerdict_BlockingThreadBlocks`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
+| The verdict of an old version reads Stale. | [`TestVerdict_OldVersionIsStale`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
+| SHOULD findings never change the verdict. | [`TestVerdict_ShouldNeverBlocks`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
+| The verdict function is pure: the same input gives the same output. | [`TestVerdict_Deterministic`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
+| An edit keeps the AI findings of the sections it did not touch, and drops the findings of a changed section. | [`TestAnEditCarriesTheAIFindingsOfUnchangedSections`](https://github.com/alternayte/speccy/blob/main/internal/features/review/carry_test.go) |
+
+## Waivers and approvals
+
+| Guarantee | Test |
+|---|---|
+| A waiver ends when its section changes. | [`TestWaiver_InvalidatedOnSectionEdit`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
+| Speccy applies each value of the waiver policy. | [`TestWaiverPolicy_Table`](https://github.com/alternayte/speccy/blob/main/internal/features/waiver/waiver_test.go) |
+| An author cannot approve their own bundle. | [`TestApproval_AuthorCannotApprove`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
+| A change of the content revokes the approvals. | [`TestApproval_EditRevokes`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
+
+## Profiles and adoption
+
+| Guarantee | Test |
+|---|---|
+| A mapped file with no frontmatter takes the mapped profile, and a frontmatter `type` wins over the mapping. | [`TestConfig_PathMapping`](https://github.com/alternayte/speccy/blob/main/internal/features/review/review_test.go) |
+| A relaxed check reports at INFO and never blocks. Removing it from the list restores its level. | [`TestAdoption_RelaxedCheck`](https://github.com/alternayte/speccy/blob/main/internal/features/review/review_test.go) |
+| Each run records the profile version it used. | [`TestRun_PinsProfileVersion`](https://github.com/alternayte/speccy/blob/main/internal/features/review/pipeline_test.go) |
+
+## The review stages
+
+| Guarantee | Test |
+|---|---|
+| Lint finishes a doc of 10,000 words in under 1 second. | [`BenchmarkLint_10kWords`](https://github.com/alternayte/speccy/blob/main/internal/engine/lint/lint_test.go) |
+| Speccy retries invalid JSON from a model once, then the step fails. | [`TestModel_InvalidJSONRetryOnce`](https://github.com/alternayte/speccy/blob/main/internal/model/model_test.go) |
+| Instructions in a doc do not change the verdict. | [`TestInjection_DocCannotChangeVerdict`](https://github.com/alternayte/speccy/blob/main/internal/features/review/pipeline_test.go) |
+| Instructions in an MCP result do not change the verdict. | [`TestInjection_MCPResultIsData`](https://github.com/alternayte/speccy/blob/main/internal/features/review/pipeline_test.go) |
+| An unverified claim is a SHOULD finding. A contradicted claim is a MUST finding. | [`TestGrounding_Labels`](https://github.com/alternayte/speccy/blob/main/internal/features/review/pipeline_test.go) |
+| Speccy sends an unchanged section to no model again. | [`TestCache_UnchangedSectionReused`](https://github.com/alternayte/speccy/blob/main/internal/features/review/pipeline_test.go) |
+| The most specific class rule of a source policy wins. | [`TestClassOfMostSpecificWins`](https://github.com/alternayte/speccy/blob/main/internal/engine/sourcepolicy/sourcepolicy_test.go) |
+| A forbidden host stays forbidden, even when an `allow` pattern covers it. | [`TestCheckHostForbidBeatsAllow`](https://github.com/alternayte/speccy/blob/main/internal/engine/sourcepolicy/sourcepolicy_test.go) |
+| Speccy never changes a doc until the author accepts the fix. | [`TestSuggestFix_RequiresAccept`](https://github.com/alternayte/speccy/blob/main/internal/features/review/fix_test.go) |
+| An anchor follows an edit, or detaches. It never points at the wrong text. | [`TestAnchor_Reanchor`](https://github.com/alternayte/speccy/blob/main/internal/engine/anchor/reanchor_test.go) |
+
+## Divergence
+
+| Guarantee | Test |
+|---|---|
+| Readers who give different answers make a divergence finding. | [`TestDivergence_SplitIsFinding`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
+| When every reader answers `NOT SPECIFIED` to a MUST question, Speccy makes a MUST gap finding. | [`TestDivergence_GapOnMust`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
+| An answer with a quote that is not in the bundle counts as `NOT SPECIFIED`. | [`TestDivergence_InventedQuoteRejected`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
+| One model for all readers gives the note "Low reader diversity", and the note does not block. | [`TestDivergence_LowDiversityFlagged`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
+| A reader never receives the answers of another reader, or the rubric. | [`TestDivergence_ReaderIsolation`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
+
+## Coherence
+
+| Guarantee | Test |
+|---|---|
+| An upstream REQ that the doc does not cover is a MUST finding. | [`TestCoherence_UncoveredReqIsMust`](https://github.com/alternayte/speccy/blob/main/internal/features/review/coherence_test.go) |
+| A standalone acknowledgement makes coherence not apply. | [`TestCoherence_StandaloneAck`](https://github.com/alternayte/speccy/blob/main/internal/features/review/coherence_test.go) |
+| An upstream edit makes the downstream verdicts stale. | [`TestCoherence_UpstreamEditStales`](https://github.com/alternayte/speccy/blob/main/internal/features/review/coherence_test.go) |
+| A restatement above the threshold is a SHOULD finding. | [`TestCoherence_RestatementShingles`](https://github.com/alternayte/speccy/blob/main/internal/features/review/coherence_test.go) |
+| A link rule makes a link only when both files exist. | [`TestConfig_LinkRules`](https://github.com/alternayte/speccy/blob/main/internal/features/review/coherence_test.go) |
+
+## Verification runs
+
+| Guarantee | Test |
+|---|---|
+| A target holds only when its anchor quote matches exactly once in the file. | [`TestCheckNeedsExactlyOneMatch`](https://github.com/alternayte/speccy/blob/main/internal/engine/verify/verify_test.go) |
+| A judge that affirms nothing gives the outcome unproven, and unproven never blocks. | [`TestDecideNeedsAnAffirmation`](https://github.com/alternayte/speccy/blob/main/internal/engine/verify/verify_test.go) |
+| A breach needs two judges that agree. | [`TestDecideBreachNeedsTwoJudges`](https://github.com/alternayte/speccy/blob/main/internal/engine/verify/verify_test.go) |
+
+## Storage and access
+
+| Guarantee | Test |
+|---|---|
+| Both store engines, SQLite and Postgres, pass the same conformance suite. | [`TestStoreConformance`](https://github.com/alternayte/speccy/blob/main/internal/store/conformance/conformance_test.go) |
+| The event store refuses a concurrent append with an old version. | [`TestEventStore_ConcurrentAppendRejected`](https://github.com/alternayte/speccy/blob/main/internal/es/es_test.go) |
+| Projections change in the same transaction as the append. | [`TestEventStore_InlineProjectionAtomic`](https://github.com/alternayte/speccy/blob/main/internal/es/es_test.go) |
+| Speccy stores no secret in plain text. | [`TestSecrets_EncryptedAndHashedAtRest`](https://github.com/alternayte/speccy/blob/main/internal/features/admin/admin_test.go) |
+| Local mode refuses an address that is not a loopback address. | [`TestLocalMode_LoopbackOnly`](https://github.com/alternayte/speccy/blob/main/internal/http/server_test.go) |
+| Each endpoint applies its table of roles. | [`TestAuthz_EndpointRoleTable`](https://github.com/alternayte/speccy/blob/main/internal/http/authz_test.go) |
+| A person who joins through a share link cannot edit the doc or ask the AI. | [`TestGuest_Restrictions`](https://github.com/alternayte/speccy/blob/main/internal/hostauth/hostauth_test.go) |
+
+## The CLI and the GitHub Action
+
+| Guarantee | Test |
+|---|---|
+| The exit codes of `speccy review` are 0 for Build Ready or advisory mode, and 1 for Not Build Ready in blocking mode. A usage error is 2, and a run error is 3. | [`TestCLI_ExitCodes`](https://github.com/alternayte/speccy/blob/main/cmd/speccy/review_test.go) |
+| `speccy review --summary` works with no server and no `speccy init`. | [`TestCLI_SummaryNoSetup`](https://github.com/alternayte/speccy/blob/main/cmd/speccy/review_test.go) |
+| In advisory mode, a verdict never fails the job of the Action. | [`TestAction_AdvisoryNeverFails`](https://github.com/alternayte/speccy/blob/main/internal/action/action_test.go) |
+| Inline comments go only on changed lines, keep to the limit, and never appear twice. | [`TestAction_InlineComments`](https://github.com/alternayte/speccy/blob/main/internal/action/action_test.go) |
+| A suggestion block carries only a fix that needs no model. | [`TestAction_SuggestionsDeterministicOnly`](https://github.com/alternayte/speccy/blob/main/internal/action/action_test.go) |

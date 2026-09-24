@@ -1,0 +1,128 @@
+---
+title: Sidecar
+description: The file that holds the approved waivers and acknowledgements of one spec doc, key by key.
+sidebar:
+  order: 7
+---
+
+This page lists every key of the sidecar: the file that holds the approved waivers and acknowledgements of one spec doc. Speccy writes no decision into the doc itself, so the doc keeps its own format.
+
+```yaml sidecar
+waivers:
+  - check: lint.sentence-length
+    section: [Payment retries, Limits]
+    reason: The sentence quotes the card network rule, and a split changes its meaning.
+    section_hash: sha256:752d1754bd7b42a181cc8ec171e2e5999fbf1eadfab58904f84cca38ea8a984b
+    requested_by: Nathan
+trace:
+  - id: REQ-004
+    status: covered_by
+    target: docs/sdd-notifications
+    reason: The notification service sends the retry email, and its SDD covers it.
+    acknowledged_by: Nathan
+  - id: REQ-007
+    status: out_of_scope
+    reason: The finance team reconciles refunds by hand this quarter.
+    acknowledged_by: Nathan
+```
+
+## Where it lives
+
+The sidecar of the doc at `<doc path>` is `.speccy/decisions/<doc path>.yaml`. The doc path is relative to the root of the repo or the served folder. The sidecar of `docs/sdd-payments.md` is `.speccy/decisions/docs/sdd-payments.md.yaml`.
+
+| Source | Where Speccy reads and writes the sidecar |
+|---|---|
+| A folder on disk | At the root of the served folder, where git sees it. |
+| A GitHub source | Among the bundle's files in Speccy. A publish writes it to the root of the repo. |
+| A bundle made in Speccy | Among the bundle's files, at the doc's path in the bundle. |
+
+A missing sidecar holds no decisions. Speccy writes an empty sidecar as an empty file. A scan and a review skip the sidecar, so it is never a spec doc.
+
+## Keys
+
+The sidecar has three top-level keys. Each one is optional. In the tables, **Needed** marks a key without which Speccy ignores the entry.
+
+| Key | Type | What it holds |
+|---|---|---|
+| `waivers` | list of waivers | The approved waivers of this doc. |
+| `trace` | list of trace acknowledgements | The upstream trace IDs that this doc does not cover, each with a reason. |
+| `standalone` | one standalone acknowledgement | The reason this doc has no upstream doc. |
+
+### waivers
+
+Each waiver excuses one check in one section.
+
+| Key | Type | Needed | What it holds |
+|---|---|---|---|
+| `check` | check slug | yes | The check that the waiver excuses. |
+| `section` | list of headings | no | The heading path of the section. An empty list, `[]`, or no `section`, is the whole doc. |
+| `reason` | text | yes | Why the check does not apply here. |
+| `section_hash` | `sha256:<hex>` | yes | The hash of the section at the time of the request. |
+| `requested_by` | text | no | The person who asked for the waiver: a name or an email from the app, or a GitHub login from a reply command. |
+
+A waiver of a check with `scope: doc` in the profile always has `section: []`, because its finding is about the whole doc.
+
+A waiver holds while its `check` and `reason` are not empty and `section_hash` equals the hash of the section now. When the section changes, the waiver ends, and the check counts again. The entry stays in the file. The app shows the waiver as ended.
+
+The sidecar names no approver. In the app, the approval records who approved. In a pull request, the merge records it.
+
+### trace
+
+Each entry answers a `trace.coverage` gap: one ID of an `implements` target that this doc does not name.
+
+| Key | Type | Needed | What it holds |
+|---|---|---|---|
+| `id` | trace ID | yes | The upstream ID, such as `REQ-004`. |
+| `status` | `covered_by` or `out_of_scope` | yes | `covered_by`: another doc covers the ID. `out_of_scope`: no doc of this work covers it. |
+| `target` | spec doc slug | with `covered_by` | The doc that covers the ID. |
+| `reason` | text | yes | Why this doc does not cover the ID. |
+| `acknowledged_by` | text | no | The person who asked for the acknowledgement. |
+
+An acknowledgement is about one upstream ID, not a section of this doc. An edit to this doc does not end it. The Traceability matrix shows each one with its reason.
+
+### standalone
+
+The standalone acknowledgement says that this doc has no upstream doc. With it, `links.has-upstream` passes, and the coherence checks of this doc do not apply.
+
+| Key | Type | Needed | What it holds |
+|---|---|---|---|
+| `reason` | text | yes | Why the doc has no upstream doc. An empty reason counts as no acknowledgement. |
+| `acknowledged_by` | text | no | The person who wrote the acknowledgement. |
+
+This key lives in the sidecar only. Speccy ignores a `standalone` key in the [frontmatter](/reference/frontmatter/#standalone-is-not-a-frontmatter-key).
+
+## The section hash
+
+`section_hash` is `sha256:` and the hex SHA-256 of the section's own text:
+
+- The text starts after the heading line, and it stops at the next heading of any level. A child section is not part of its parent's text.
+- For `section: []`, the text is the whole doc after the frontmatter.
+- Before the hash, Speccy changes each line ending to `\n` and removes spaces and tabs at the end of each line.
+- Speccy also turns each run of blank lines into one blank line, and removes blank lines at the start and the end.
+
+So an edit to the words of a section ends its waivers. A change to trailing spaces or blank lines does not.
+
+## Who writes it
+
+| Writer | What it writes |
+|---|---|
+| The app | A waiver or a trace acknowledgement, when the last approval that the profile's waiver policy needs arrives. For a folder on disk, the write makes no new version, because the doc text does not change. |
+| The GitHub Action | A waiver, a trace acknowledgement or a standalone acknowledgement, from a [reply command](/reference/reply-commands/). The Action commits the sidecar to the pull request's branch. |
+| You | Any entry. Speccy treats an entry you write by hand in the same way as its own. |
+
+The app has no control that writes `standalone`. Write it by hand, or reply `/speccy ack <reason>` to a `links.has-upstream` comment in a pull request.
+
+A pull request from a fork gives the Action no write token. The Action then prints the sidecar in its summary comment, and you commit it yourself. While a waiver is in the branch and not in the base branch, the summary comment gives the verdict with and without it.
+
+A verification waiver never goes in the sidecar. It excuses one trace ID in one code repo, and the sidecar travels with the doc into every build.
+
+When Speccy writes a waiver for a check and a section that the sidecar has already, the new entry replaces the old one. A trace acknowledgement replaces the one with the same `id`.
+
+## Errors
+
+Speccy reads the sidecar strictly. An unknown key, or a value of the wrong type, stops the review of the doc:
+
+```text
+.speccy/decisions/docs/sdd-payments.md.yaml: the sidecar does not parse: yaml: unmarshal errors:
+  line 3: field approved_by not found in type source.Waiver.
+```

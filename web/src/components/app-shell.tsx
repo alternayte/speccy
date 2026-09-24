@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "@tanstack/react-router";
 import { CircleUser, LogOut, UserRound } from "lucide-react";
+import { docsBase } from "@/lib/docs";
 import { useMe } from "@/features/account/me";
 import { getInboxOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { auth } from "@/lib/auth";
@@ -62,6 +63,14 @@ export function AppShell() {
             </span>
           ) : null}
           {hosted && m?.signed_in ? <UserMenu email={m.email ?? ""} /> : null}
+          <a
+            href={docsBase}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md px-2 py-1 text-sm text-ink-2 hover:bg-sunken hover:text-ink"
+          >
+            Docs
+          </a>
           <ThemeToggle />
         </div>
       </header>

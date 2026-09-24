@@ -20,3 +20,7 @@ docs/gauntlet/reference/
 
 # goreleaser output (just release-check).
 /dist/
+
+# The docs site's build output (just docs).
+/site/dist/
+/site/.astro/

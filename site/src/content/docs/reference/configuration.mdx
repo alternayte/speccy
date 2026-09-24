@@ -1,0 +1,124 @@
+---
+title: Configuration
+description: The flags of local mode, every SPECCY_ environment variable, the state folder, and where Speccy looks for .speccy.yaml.
+---
+
+This page lists every setting that Speccy reads from the command line, the environment, and the served folder. The [.speccy.yaml reference](/reference/speccy-yaml/) lists the keys of the repo configuration file.
+
+## Local mode flags
+
+`speccy` starts local mode and opens the browser. `speccy serve` starts local mode and opens no browser. Local mode has no sign-in.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--dir` | the current folder | The folder with the bundles. |
+| `--addr` | `127.0.0.1:7878` | The address to listen on. It must be a loopback address. Speccy refuses any other address, because local mode has no sign-in. |
+| `--no-open` | off | Do not open the browser. `speccy serve` never opens it. |
+
+`speccy serve --hosted` takes no other flag. It reads its settings from the environment. [Run hosted mode](/how-to/run-hosted-mode/) shows the setup.
+
+## Where Speccy looks for .speccy.yaml
+
+- Local mode reads `.speccy.yaml` in the `--dir` folder.
+- `review`, `action`, `export`, `handoff`, `report`, `verify`, `add`, `tui` and `mcp` look in the current folder first. Then they look in each parent folder. The first folder with `.speccy.yaml` is the root. With no file, the root is the current folder.
+- `speccy init` and `speccy init --github` write `.speccy.yaml` in the current folder.
+- A GitHub source reads `.speccy.yaml` at the root of its repo.
+
+A missing file is an empty configuration. In local mode, Speccy ignores a file that does not parse, and it lists the problem on the bundles screen. A command stops with exit code 2 and names the error.
+
+## The state folder
+
+Local mode, `speccy tui` and `speccy mcp` keep their state in `<root>/.speccy/state/`. They make the folder on first start. `speccy init` adds `.speccy/state/` to `.gitignore`. Do not commit the folder: it holds the key that decrypts your API keys.
+
+| Path, under the root | Holds | Commit it |
+|---|---|---|
+| `.speccy.yaml` | The repo configuration. | Yes |
+| `.speccy/profiles/<key>.yaml` | A local profile, and next to it the template file that the profile names. | Yes |
+| `.speccy/decisions/<doc path>.yaml` | The sidecar of one spec doc: its waivers and acknowledgements. | Yes |
+| `.speccy/state/speccy.db` | The SQLite database. | No |
+| `.speccy/state/speccy.db-wal`, `speccy.db-shm` | The SQLite write-ahead log and its index. They exist while Speccy runs. | No |
+| `.speccy/state/key` | The master key of local mode, with mode `0600`. | No |
+| `.speccy/state/tui.log` | The warnings of `speccy tui`. | No |
+
+The database holds the review runs, the findings, the threads, the waiver requests, the handoffs, the verification runs, the model backends and the budget. It also holds the adopted types, the adopted links and the dismissed docs, which Speccy never writes into the repo. The docs, the profiles and the sidecars stay as files in the folder.
+
+The headless commands (`review`, `action`, `export`, `handoff`, `report`, `verify` and `init --github`) use `.speccy/state/` when `speccy.db` exists there. They then share the models, the cache and the runs with the app. With no database, they use a temporary store and delete it when they finish. `speccy add` always makes `.speccy/state/`, because the source must outlive the command. `SPECCY_STATE_DIR` replaces the folder for all of these commands.
+
+[The master key](/operations/master-key/) explains the `key` file. [Back up and restore](/operations/back-up-and-restore/) says which files to copy.
+
+## Environment variables
+
+### Hosted mode
+
+`speccy serve --hosted`, `speccy admin invite` and `speccy admin reset-link` read these variables. Speccy names every missing or bad variable at once, and does not start.
+
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `SPECCY_DATABASE_URL` | Yes | none | The Postgres URL, such as `postgres://speccy:secret@db:5432/speccy`. |
+| `SPECCY_MASTER_KEY` | Yes | none | 32 random bytes in standard base64. Make one with `openssl rand -base64 32`. [The master key](/operations/master-key/) says what it protects. |
+| `SPECCY_BASE_URL` | Yes | none | The public URL, such as `https://speccy.example.com`. It must start with `http://` or `https://`. Speccy uses it in links, redirects and cookies. With `http://`, the cookies lose the Secure flag. |
+| `SPECCY_LISTEN` | No | `:8080` | The address to listen on. |
+| `SPECCY_LOG_LEVEL` | No | `info` | `debug`, `info`, `warn` or `error`. Hosted mode writes JSON logs to standard error. |
+| `SPECCY_OIDC_ISSUER` | No | none | The issuer URL of an OpenID Connect provider. Set it with the next two, or not at all. |
+| `SPECCY_OIDC_CLIENT_ID` | No | none | The OIDC client ID. |
+| `SPECCY_OIDC_CLIENT_SECRET` | No | none | The OIDC client secret. |
+| `SPECCY_GITHUB_OAUTH_CLIENT_ID` | No | none | The client ID of a GitHub OAuth app, for sign-in with GitHub. Set it with the secret, or not at all. |
+| `SPECCY_GITHUB_OAUTH_CLIENT_SECRET` | No | none | The client secret of the GitHub OAuth app. |
+
+### CI and the headless commands
+
+These variables apply to `speccy review`, `speccy action` and the other headless commands. Local mode, `speccy tui` and `speccy mcp` do not read them.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SPECCY_MODELS` | none | The model of each role, as `role=backend:model` items separated by `;` or new lines. |
+| `SPECCY_ANTHROPIC_API_KEY` | none | The API key of the `anthropic` backend in `SPECCY_MODELS`. |
+| `SPECCY_OPENAI_API_KEY` | none | The API key of the `openai` backend in `SPECCY_MODELS`. |
+| `SPECCY_OPENROUTER_API_KEY` | none | The API key of the `openrouter` backend in `SPECCY_MODELS`. |
+| `SPECCY_DEEPSEEK_API_KEY` | none | The API key of the `deepseek` backend in `SPECCY_MODELS`. |
+| `SPECCY_STATE_DIR` | `.speccy/state` under the root | The store folder. CI sets it to keep the store, and its cache, between runs. |
+| `SPECCY_REPORTS_DIR` | `speccy-reports` | Where `speccy action` writes one HTML report for each reviewed bundle. |
+| `SPECCY_TOKEN` | none | A personal API token for `--server`. Make one under **Account → API tokens** on the server. |
+
+A role is `reviewer`, `reader_1`, `reader_2`, `reader_3`, `judge` or `writer`. The role `all` sets every role. A backend is `anthropic`, `openai`, `openrouter` or `deepseek`. `SPECCY_MODELS` takes no agent CLI.
+
+```sh
+export SPECCY_MODELS="all=anthropic:<model>; reader_2=openai:<model>"
+export SPECCY_ANTHROPIC_API_KEY=...
+export SPECCY_OPENAI_API_KEY=...
+speccy review docs/specs
+```
+
+For each backend in `SPECCY_MODELS`, Speccy makes or updates a backend named `ci-<backend>`, with the key from `SPECCY_<BACKEND>_API_KEY`. Then it assigns the roles. With a kept store, these backends stay in the store. Speccy stops with an error when a key is missing. It picks no default model. [Add a model backend](/how-to/add-a-model-backend/) explains the roles.
+
+The GitHub Action sets all of these variables from its inputs. [GitHub Action](/reference/github-action/) lists the inputs.
+
+### The install script
+
+`install.sh` reads two variables. They do not reach the `speccy` binary.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SPECCY_VERSION` | the latest release | The version to install, such as `0.18.0`. |
+| `SPECCY_BIN_DIR` | `/usr/local/bin`, or `~/.local/bin` | Where the script puts the binary. |
+
+### Other variables
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `VISUAL`, then `EDITOR` | `speccy tui` | The editor that opens a file. |
+| `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `GITHUB_EVENT_PATH` | `speccy action` | The pull request and the token that posts the comments. GitHub Actions sets them. |
+| `GITHUB_API_URL`, `GITHUB_SERVER_URL`, `GITHUB_RUN_ID`, `GITHUB_STEP_SUMMARY` | `speccy action` | The GitHub host, the run link and the job summary file. GitHub Actions sets them. |
+
+## Workspace settings
+
+An admin sets these under **Admin → Workspace settings**. Speccy stores them in the database.
+
+| Setting | Default | Range | Mode |
+|---|---|---|---|
+| Model calls at a time | 4 | 1 to 16, per review run | Both |
+| Largest file (MB) | 10 | 1 to 50 | Hosted |
+| Largest bundle (MB) | 50 | the file limit to 500 | Hosted |
+| Invite links expire after (days) | 7 | 1 to 90 | Hosted |
+
+The API has one more setting, `resolve_sources`, with no control in the app. It turns the grounding source resolver on or off, and it is on by default. The resolver reads the redirect chain, the status and the dates of each grounding source. With it off, a source carries no redirect chain and no retrieval date. A source policy rule that needs them then drops the source. To change it, send `PUT /api/v1/admin/settings` with all the settings and `resolve_sources`. [HTTP API](/reference/api/) has the request.

@@ -1,0 +1,108 @@
+---
+title: Budget and model cost
+description: What a review costs, how the monthly token budget works, and how to spend less on models.
+sidebar:
+  order: 4
+---
+
+This page explains where Speccy spends model tokens, how the estimate and the monthly budget work, and how to lower the cost.
+
+## What costs tokens
+
+Lint calls no model. It runs on every save and costs nothing. Every other step calls the model of a role, and each call counts its input and output tokens.
+
+| Work | Role | Calls |
+|---|---|---|
+| Rubric stage | reviewer | One call per batch of 8 checks, for the doc. A check with section scope adds one batch for each section. |
+| Grounding stage | reviewer | One call per section of 12 words or more to find the claims. Then calls that label the claims, with web search when the backend has it. |
+| Divergence stage | reviewer, readers, judge | One call to write the build questions, when the version has none yet. One call per reader per batch of 10 questions. About one judge call per question, when 2 or more readers answer. |
+| Coherence stage | reviewer | One call per linked doc that the contradiction check reads. |
+| A suggested fix, an AI answer in a thread, a diff summary | writer | One call each. |
+| A verification run | reviewer, judge | The reviewer maps trace IDs to the code. The judge reads each cited target. A contradiction gets a second judgement from the model of another role. |
+| **Test** on a backend | the tested backend | One short call. |
+
+Speccy retries a call up to 2 times after an HTTP 429 or 5xx answer. It asks again once when an answer is not valid JSON for the step. Every attempt counts.
+
+An agent CLI that reports no token counts gets an estimate: the length of the prompt and the answer, divided by 4.
+
+## The cache
+
+Speccy caches the answer of each step. A step with the same input, profile version, prompt version and model reads the answer from the cache, and it costs nothing. An unchanged section therefore costs nothing on the next review. Its AI findings stay as carried findings.
+
+The cache key holds the backend kind and the model. When you change the model of a role, the next review calls that model for every step again.
+
+## The estimate before a review
+
+A full review starts from the next action **Check this doc**, or from **More → Run a review** in the control row. Both open the **Run a full review** dialog before any call. The dialog shows:
+
+- **Model calls**: the calls that the cache cannot answer.
+- **Steps from the cache**: the steps with a cached answer.
+- **Tokens (estimate)**: the input and output tokens together, at about 4 characters per token.
+- **Cost (estimate)**: the tokens times the prices of the roles, or `No prices set`.
+
+The estimate needs a model for the reviewer, the readers and the judge. When a role has none, the dialog says so and links to **Admin**.
+
+To get a cost in dollars, set the prices of each role in **Admin → Models → Roles**. The two fields, `$ in / M` and `$ out / M`, take the price per million input tokens and per million output tokens. Speccy uses them for the estimate and the run report only. It never reads prices from a provider.
+
+The estimate is a rough count. It counts every reader and judge call, although the cache can answer some of them. It leaves out rubric checks with section scope.
+
+After the run, the verdict shows the real count: `Full review of v3: 48,210 tokens, about $0.41, 12 steps from the cache.`
+
+## The monthly budget
+
+The budget caps the tokens of one workspace in one calendar month, in UTC. Every model call counts against it: reviews, verification runs, writer calls and **Test**. A cached step does not count.
+
+### Set the budget
+
+1. Open **Admin → Models**.
+2. Under **Monthly token budget**, type the limit in tokens.
+3. Select **Save**.
+
+An empty field means no limit. The section shows the tokens used this month, and a bar when a limit exists. The bar turns red at 90%.
+
+The limit carries into the next month. The count of used tokens starts at 0 on the first day of each month.
+
+A limit of 0 stops every model call.
+
+### At the limit
+
+Speccy checks the budget before each model call. When the used tokens reach the limit, the call fails with this message:
+
+```text
+Review stopped: the monthly token budget is spent. An admin can raise it in Admin → Models.
+```
+
+- A review run fails at the stage that made the call, and gives no verdict. The control row shows **The last review failed**, and the verdict details show the cause.
+- Lint still runs on every save.
+- **Test**, a suggested fix and an AI answer in a thread fail with the same message.
+
+Speccy checks before each call, not during it. Calls that already started finish and count, so the used tokens can pass the limit by the size of those calls. **Model calls at a time** in **Admin → Workspace settings** sets how many calls one review runs at once. The default is 4.
+
+To go on, raise the limit or clear the field, and select **Save**. Then run the review again.
+
+### The budget and CI
+
+Each store has its own budget. `speccy review` and `speccy action` use the budget of the store they open:
+
+- With `.speccy/state/` in the folder, they share the budget of local mode.
+- With `SPECCY_STATE_DIR`, they use the budget in that folder.
+- With `--server`, the server spends its own budget.
+- With no store, they use a temporary one with no limit.
+
+The GitHub Action sets no budget.
+
+## Spend less
+
+- **Review after the doc settles.** Lint runs on every save for free. Run a full review when a draft is ready for its verdict.
+- **Let the cache work.** Change the sections that need it, and leave the rest alone. Keep the same model on the reviewer role between reviews.
+- **Use a cheaper model for the readers.** A reader answers build questions from the doc alone. Each role takes its own backend and model. The judge also decides the outcomes of a verification run, so keep a strong model there.
+- **Mix model families for the readers.** Diversity costs nothing extra. When fewer than 2 different models answer as readers, the run report says `Low reader diversity`. The note never blocks the verdict.
+- **Ask fewer build questions, with fewer readers.** In the profile, `divergence.readers` takes 1 to 3, and `divergence.questions.max` caps the questions. With one reader, the divergence test calls no judge, and it can find gaps but no divergence. [Change a profile](/how-to/change-a-profile/) shows how.
+- **Choose the stages in the CLI.** `speccy review --stages lint,rubric` runs lint and the rubric only. The verdict then counts only those stages, and the run report says so.
+- **Run lint only.** `speccy review --stages lint` calls no model. In the GitHub Action, leave out the `models` input, and only lint runs.
+
+```sh
+speccy review docs/specs --stages lint,rubric,coherence
+```
+
+The app always runs every stage in a full review.

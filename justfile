@@ -90,25 +90,47 @@ build: build-web
     go build -trimpath -ldflags '{{ldflags}}' -o bin/speccy ./cmd/speccy
 
 # Everything that gates a PR.
-verify: gen-check lint test test-pg budget
+verify: gen-check lint test test-pg budget docs-ref-check
+
+# Write the docs site's generated pages: the Check catalog, the profile schema, the GitHub
+# Action, the MCP tools, the CLI, the DomainWords Vale rule, and the app's catalog slugs.
+docs-ref:
+    go run ./tools/buildtool docs-ref
+
+# Fail when a generated docs page is stale, a YAML sample does not load, a sample runs a
+# command the CLI does not have, the Configuration page misses a SPECCY_ variable, or a
+# handwritten page breaks the Speccy Vale style.
+docs-ref-check:
+    go run ./tools/buildtool docs-ref-check
+    go tool vale --config site/.vale.ini --glob='!**/reference/{checks,cli,github-action,mcp-tools,profile-schema}.md' site/src/content/docs
+
+# Build the docs site into site/dist.
+docs:
+    cd site && {{pnpm}} install --frozen-lockfile && {{pnpm}} run build
+
+# Run the docs site with live reload on http://127.0.0.1:4321.
+docs-dev:
+    cd site && {{pnpm}} install --frozen-lockfile && {{pnpm}} run dev
+
+# Deploy site/dist to the Cloudflare Pages project speccy-docs with the logged-in wrangler.
+# main is the production branch: speccy-docs.pages.dev.
+docs-deploy: docs
+    npx --yes wrangler@4 pages deploy site/dist --project-name=speccy-docs --branch=main
 
 # Screenshot the gauntlet screens (BUILD.md §6.2) into docs/gauntlet/<run>/. Needs agent-browser,
 # Docker for hosted mode, and the claude CLI for the full reviews (model: GAUNTLET_MODEL, default haiku).
 gauntlet run: build
     go run ./tools/buildtool gauntlet {{run}}
 
-# Capture every picture of docs/guide.md and docs/linked-docs.md from the real app into
-# docs/images; `just docs-shots linked` captures only docs/linked-docs.md. Needs agent-browser,
+# Capture the docs site's pictures of the app, in the dark theme, into site/src/assets/shots;
+# `just docs-shots linked` captures only the tutorial Link an SDD to a PRD, and `howto` adds the
+# how-to pictures that build on it. Needs agent-browser,
 # ffmpeg, and the claude CLI for the review (model: DOCS_MODEL, default haiku).
 docs-shots part="": build
-    #!/usr/bin/env bash
-    set -euo pipefail
-    mkdir -p build
-    test -d build/dev-bundles || cp -R testdata/bundles build/dev-bundles
     go run ./tools/buildtool docs-shots {{part}}
 
-# Capture the pull request pictures of docs/github.md from a real pull request on the public
-# scratch repo (BUILD.md §6.3). Needs agent-browser and a gh login.
+# Capture the pull request pictures of the how-to Adopt a repo from a real pull request on
+# the public scratch repo (BUILD.md §6.3), in the dark theme. Needs agent-browser and a gh login.
 docs-shots-github: build
     go run ./tools/buildtool docs-shots-github
 

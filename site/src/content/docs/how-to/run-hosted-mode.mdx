@@ -1,0 +1,211 @@
+---
+title: Run hosted mode
+description: Run Speccy for a team on Postgres, with accounts, roles, share links and the container image.
+sidebar:
+  order: 11
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide runs Speccy for a team. Hosted mode adds accounts, roles, visibility, share links, review requests and approvals to local mode. It stores everything in Postgres.
+
+## What you need
+
+- A Postgres database that Speccy can own.
+- A public HTTPS address, such as `https://speccy.example.com`.
+- A master key: 32 random bytes in base64, from `openssl rand -base64 32`.
+
+## Start the server
+
+The image `ghcr.io/alternayte/speccy` runs `speccy serve --hosted` as a non-root user on port 8080. It needs no volume. Each release has a tag with its version, such as `0.18.0`.
+
+Make the master key once, and keep it in your secret store. A new key on each start makes the stored API keys unreadable.
+
+```sh
+openssl rand -base64 32 > speccy-master-key
+docker run -p 8080:8080 \
+  -e SPECCY_DATABASE_URL=postgres://speccy:secret@db:5432/speccy \
+  -e SPECCY_MASTER_KEY="$(cat speccy-master-key)" \
+  -e SPECCY_BASE_URL=https://speccy.example.com \
+  ghcr.io/alternayte/speccy:0.18.0
+```
+
+[The master key](/operations/master-key/) explains the key. [Configuration](/reference/configuration/) lists every variable, with the optional ones for sign-in, the address and the log level.
+
+At start, Speccy applies its database migrations. Then it prints one line:
+
+```text
+Speccy (hosted) is listening on [::]:8080 for https://speccy.example.com
+```
+
+A missing or bad variable stops the start, and the message names each problem at once. Hosted mode writes JSON logs to standard error.
+
+Serve Speccy behind TLS. With an `http://` base URL, the cookies lose the Secure flag. Use that for development only.
+
+`GET /healthz` answers `200` with `ok`, with no sign-in.
+
+## Make the first admin
+
+Speccy has no open sign-up, and it sends no mail. Every account comes from an invite link.
+
+<Steps>
+
+1. Run the invite command with the same environment as the server. In the container:
+
+   ```sh
+   docker exec <container> /usr/local/bin/speccy admin invite --role admin
+   ```
+
+   It prints the link, and the date the link expires. The link works once, for 7 days by default.
+
+2. Open the link. On **Join Speccy**, type your name, email and a password of at least 12 characters.
+
+3. Select **Make my account**. Speccy signs you in.
+
+</Steps>
+
+The email is the sign-in name. Speccy does not check it by mail.
+
+## Invite people
+
+<Steps>
+
+1. Open **Admin**. The **People** part has **Accounts** and **Invite links**.
+
+2. Under **Invite links**, choose **Member** or **Admin**, and select **Make an invite link**.
+
+3. Copy the link. Speccy shows it one time.
+
+4. Send the link to the person yourself, for example in a direct message.
+
+</Steps>
+
+**Revoke** ends an open invite link. `speccy admin invite --role member` makes a member link from the command line.
+
+Under **Accounts**, an admin changes the role of a person, and selects **Disable** to stop an account. **Reset link** makes a password reset link. It works once, for 24 hours, and the new password signs the person out everywhere. `speccy admin reset-link <email>` makes the same link from the command line.
+
+## Sign in with OIDC or GitHub
+
+A provider signs in a person who has an account already. It never makes an account. Speccy does not match a provider account to a Speccy account by email.
+
+<Steps>
+
+1. Register Speccy at the provider, with this callback URL:
+
+   | Provider | Callback URL |
+   |---|---|
+   | OpenID Connect, such as Entra ID | `<SPECCY_BASE_URL>/api/auth/oauth/oidc/callback` |
+   | GitHub OAuth app | `<SPECCY_BASE_URL>/api/auth/oauth/github/callback` |
+
+2. Set the variables, and restart Speccy:
+   - OIDC: `SPECCY_OIDC_ISSUER`, `SPECCY_OIDC_CLIENT_ID` and `SPECCY_OIDC_CLIENT_SECRET`, all three.
+   - GitHub: `SPECCY_GITHUB_OAUTH_CLIENT_ID` and `SPECCY_GITHUB_OAUTH_CLIENT_SECRET`, both.
+
+3. Each person signs in with their password once. Under **Account → Sign-in providers**, they select **Link** next to the provider.
+
+</Steps>
+
+From then on, the sign-in page shows **Sign in with single sign-on** or **Sign in with GitHub**.
+
+## Roles
+
+| Role | Can |
+|---|---|
+| Admin | Everything. Only an admin sees **Admin**: the models, the budget, the people, GitHub and the workspace settings. An admin also creates and deletes profiles. |
+| Member | Create bundles, and edit the bundles they author. Read the internal bundles and the bundles they review. Run reviews, ask for waivers, approve, and take build packets. |
+| Guest | Read one shared bundle, and write in its threads. A guest cannot edit, run a review, ask the AI, waive or approve. |
+
+An admin names the maintainers of each profile on the profile page. A maintainer edits that profile, and sees **Insights**.
+
+## Choose who sees a bundle
+
+An author or an admin selects **Share** on the bundle page.
+
+| Visibility | Who sees the bundle |
+|---|---|
+| Private | Its authors, its named reviewers, and admins. |
+| Internal | Every member. A new bundle starts here. |
+| Link | Every member, and anyone with the share link, as a guest. |
+
+**Make a share link** sets the visibility to Link and shows the link one time. **Make a new link** replaces the old link. **Revoke the link** ends every guest's access at once. A move away from Link also revokes the link.
+
+A guest opens the link, types a name, and selects **Open the spec**. Speccy then keeps the guest signed in with a cookie for 30 days, while the link stays live.
+
+## Reviewer mode
+
+A person who cannot edit a bundle sees it in reviewer mode. Members who are not authors, and guests, get it. Reviewer mode shows the spec doc, its assets, one status line, and the threads. It hides the findings, the score and every author tool. An author can see the same screen with `?as=reviewer` at the end of the bundle URL.
+
+## Ask for a review and approve
+
+The author selects **Request review** and names the reviewers. The bundle moves from Draft to In review, and the reviewers see it in their **Inbox**. A reviewer selects **Approve** on the current version.
+
+- Approval needs a current Build Ready verdict.
+- An author cannot approve their own bundle.
+- A change to the doc after approval revokes the approvals.
+
+The profile sets how many approvals a bundle needs, and who approves a waiver. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) covers waivers.
+
+## API tokens and MCP
+
+Each person makes personal API tokens under **Account → API tokens**, with **Make a token**. A token starts with `spy_` and has the role of its owner. It stops working when the owner loses the role.
+
+- `speccy review --server https://speccy.example.com` reads the token from `SPECCY_TOKEN`.
+- The GitHub Action takes it in its `token` input, with `server`.
+- MCP clients reach the Speccy tools at `/mcp` over streamable HTTP, with `Authorization: Bearer <token>`. A tool can do what the owner of the token can do in the app, and nothing more.
+
+## Models and GitHub
+
+An admin adds the model backends and assigns the roles under **Admin**. [Add a model backend](/how-to/add-a-model-backend/) has the steps. The image holds no agent CLI, so use API backends.
+
+An admin sets one GitHub token for the workspace under **Admin → GitHub token**. Speccy reads each GitHub source again every 5 minutes. [Adopt a repo](/how-to/adopt-a-repo/) covers sources.
+
+## Run on Kubernetes
+
+Run one replica. Each instance keeps the live progress of its review runs in memory, so a second replica shows no progress for runs on the first. Use the `Recreate` strategy, so an old and a new version never run at once.
+
+```yaml k8s
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: speccy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: speccy }
+  template:
+    metadata:
+      labels: { app: speccy }
+    spec:
+      containers:
+        - name: speccy
+          image: ghcr.io/alternayte/speccy:0.18.0
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: speccy-env # SPECCY_DATABASE_URL, SPECCY_MASTER_KEY, SPECCY_BASE_URL
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+```
+
+`/healthz` says only that the process serves HTTP. It does not check the database.
+
+Make the first admin in the pod:
+
+```sh
+kubectl exec deploy/speccy -- /usr/local/bin/speccy admin invite --role admin
+```
+
+<Aside type="caution">
+Keep `SPECCY_MASTER_KEY` in the Secret, and keep a copy of it outside the cluster. [Back up and restore](/operations/back-up-and-restore/) says what else to keep.
+</Aside>
+
+## Limits and rate limits
+
+Under **Admin → Workspace settings**, an admin sets four limits. They are the largest file, the largest bundle, the life of an invite link, and the model calls at a time. [Configuration](/reference/configuration/#workspace-settings) has the defaults.
+
+Speccy limits sign-in, invite links, reset links and password changes for each client address. It keeps the counts in the database. A refused request gets `429`.

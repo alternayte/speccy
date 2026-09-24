@@ -2,6 +2,7 @@ import { Info } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { docsBase } from "@/lib/docs";
 
 // key is one top-level key of the profile schema, with what it decides. profileKeys is checked
 // against the schema by a test, so a new key cannot ship with nothing said about it.
@@ -28,7 +29,8 @@ const keys: { key: string; text: string }[] = [
 export const profileKeys = keys.map((k) => k.key);
 
 // ProfileHelp explains the profile and its template where a maintainer edits them. The long
-// form is docs/profiles.md; this says enough to make the next change without leaving the page.
+// form is the docs site's Change a profile page; this says enough to make the next change
+// without leaving the page.
 export function ProfileHelp() {
   const [open, setOpen] = useState(false);
   return (
@@ -111,7 +113,16 @@ export function ProfileHelp() {
 
           <p className="text-ink-3">
             Every save is a new version, and an earlier review keeps the version it used. Versions below diffs any two
-            and rolls an old one forward. The long form is <code className="font-mono">docs/profiles.md</code>.
+            and rolls an old one forward. The long form is{" "}
+            <a
+              href={`${docsBase}/how-to/change-a-profile/`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent hover:underline"
+            >
+              Change a profile
+            </a>
+            .
           </p>
         </div>
       </Dialog>

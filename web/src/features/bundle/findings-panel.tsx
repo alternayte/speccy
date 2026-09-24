@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { Loader2, ShieldCheck, Unlink, Wand2, X } from "lucide-react";
+import { ExternalLink, Loader2, ShieldCheck, Unlink, Wand2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -19,6 +19,7 @@ import {
   requestWaiverMutation,
   suggestFixMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
+import { checkDocsURL } from "@/lib/docs";
 import { problemMessage } from "@/lib/problem";
 import { levelStyle } from "./verdict";
 import { GapAnswer } from "@/features/trace/gap-answer";
@@ -137,6 +138,7 @@ export function FindingsPanel({
       <ul className="divide-y divide-line">
         {items.map((f) => {
           const { icon: Icon, tone, label } = levelStyle[f.level];
+          const docs = checkDocsURL(f.check_slug);
           return (
             <li
               key={ident(f)}
@@ -192,8 +194,8 @@ export function FindingsPanel({
                   />
                 );
               })()}
-              {f.waived || member ? (
-                <div className="flex items-center gap-3 px-4 pb-3.5 text-xs">
+              {f.waived || member || docs ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-3.5 text-xs">
                   {f.waived ? (
                     <span className="inline-flex items-center gap-1 font-medium text-ok">
                       <ShieldCheck aria-hidden className="size-3.5" /> Waived
@@ -222,6 +224,16 @@ export function FindingsPanel({
                         </button>
                       ) : null}
                     </>
+                  ) : null}
+                  {docs ? (
+                    <a
+                      href={docs}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-ink-2 hover:text-ink"
+                    >
+                      What this check means <ExternalLink aria-hidden className="size-3" />
+                    </a>
                   ) : null}
                 </div>
               ) : null}

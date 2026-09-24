@@ -1,0 +1,6 @@
+extends: occurrence
+message: "Keep sentences to 25 words or fewer."
+level: error
+scope: sentence
+max: 25
+token: \b(\w+)\b

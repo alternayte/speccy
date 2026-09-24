@@ -1,0 +1,155 @@
+---
+title: Profiles and size
+description: What a profile holds, how size changes what a doc must answer, and how Speccy picks the profile of a spec doc.
+sidebar:
+  order: 3
+---
+
+This page explains what a profile is, what the size of a doc changes, and how Speccy picks the profile for a spec doc.
+
+## A profile configures one doc type
+
+A profile is the versioned configuration for one doc type. It holds the template, the checks, the limits and the policies that decide a verdict. The `type` in a doc's frontmatter names the profile by its key, such as `prd` or `sdd`.
+
+| Key | What it does |
+|---|---|
+| `key`, `name` | The doc type that a frontmatter `type` selects, and its label. |
+| `template` | The template file. Its required markers give the required headings. |
+| `limits` | The prose limits: words in a doc, in a section and in a sentence, lines in a code block, rows in a table. |
+| `links` | `upstream` names the doc types this one links to, and whether the doc needs the link. `children` names the size from which a doc must link the bundles it covers. |
+| `trace` | `prefixes` are the trace ID prefixes this doc defines. `cover` are the upstream prefixes a downstream doc must reference. |
+| `verify` | The trace ID prefixes a verification run checks, and the bounds of its scan of the repo. |
+| `waivers` | Who approves a waiver of a SHOULD finding, and of a MUST finding. |
+| `approvals` | How many approvals a spec doc needs. |
+| `divergence` | How many readers answer the build questions, how many questions the reviewer writes, and their themes. |
+| `grounding` | The source policy of the grounding stage. |
+| `lint` | `overrides` change the level of a lint rule, or turn it `off`. `slop_extra` adds phrases to the slop list. |
+| `checks` | The rubric and the other checks, each with a slug, a level, a stage and a question. |
+
+The [Profile schema](/reference/profile-schema/) lists every key and its values.
+
+### A check
+
+Each check has a slug, a level and a stage.
+
+- **The level** decides what a failed check does. A MUST finding blocks the verdict. A SHOULD finding lowers the score. An INFO finding is a hint.
+- **The stage** decides when the check runs and what it reads: rubric, grounding, divergence or coherence.
+- **`scope`** is `doc` or `section`. A section check runs once for each section.
+- **`sizes`** limits the check to the doc sizes it names. An empty list means every size.
+- **`question`** and **`pass_when`** are what the reviewer model answers.
+- **`waiver`** gives the check its own waiver policy, in place of the policy for its level.
+
+The [Check catalog](/reference/checks/) lists each check of the built-in profiles.
+
+## Profile versions
+
+Each save of a profile makes a new version. The profile YAML and the template text together decide the version. A review run records the profile version it used, so an earlier run keeps the rules it read.
+
+A new profile version lints each spec doc of that type again, so the verdicts follow the new rules at once. The AI findings of the last full review carry into the new lint verdict. A full review with the new rules needs a new run.
+
+The **Versions** list on the profile page holds each version. Pick an older version to compare its YAML and its template with the current one. **Roll back** writes a new version with the text of the version you pick.
+
+Local mode reads the built-in profiles, then the files in `.speccy/profiles/`. A file there with `key: sdd` replaces the built-in SDD profile. Hosted mode keeps the profiles in its store, and an admin or a maintainer of the profile edits them in the app. A profile that does not load shows as a problem, and the last good set of profiles stays in use.
+
+[Change a profile](/how-to/change-a-profile/) shows the edits people make most often.
+
+## The built-in PRD and SDD
+
+Speccy ships two profiles.
+
+A **PRD** states the problem, who has it, what must be true, and what is out of scope. It does not say how the thing works. Its trace IDs use the prefixes REQ and NFR.
+
+An **SDD** states how the thing works: the decisions, the parts, the data, the interfaces, and what happens when something fails. The built-in SDD requires an `implements` link to a PRD. Its trace IDs use REQ, DEC and NFR, and it must reference each REQ and NFR of its PRD.
+
+Write the PRD first, then the SDD that implements it. The coherence stage checks that the SDD covers the requirements of the PRD and does not contradict them.
+
+Both built-in profiles share these settings:
+
+- A non-author approves a waiver of a SHOULD finding. A maintainer of the profile approves a waiver of a MUST finding.
+- A spec doc needs one approval.
+- Three readers answer 10 to 20 build questions.
+- A sentence has 25 words or fewer, a code block has 40 lines or fewer, and a table has 15 rows or fewer.
+
+The PRD allows 6,000 words, and 800 words in a section. The SDD allows 8,000 words, and 900 words in a section.
+
+## The template
+
+A template is a markdown file with the headings of the doc type. New bundle writes it into a new spec doc. A marker at the end of a heading makes the heading required:
+
+```markdown
+## Decisions <!-- required -->
+## Data model <!-- required: app -->
+```
+
+`<!-- required -->` requires the heading at every size. `<!-- required: app -->` requires it at `app` and at `initiative`, and not at `feature`. A missing required heading is the MUST finding `lint.required-headings`.
+
+| Profile | Required at every size | Required from `app` up |
+|---|---|---|
+| PRD | Problem, Users, Goals, Non-goals, Requirements | Dependencies, Open questions |
+| SDD | Context, Non-goals, Decisions | Components, Data model, Interfaces, Failure modes, Limits, Security, Testing, Open questions |
+
+The required headings also let Speccy guess the type of a doc that names none. The guess is the profile whose required headings the doc has the largest share of. Import and Adopt prefill the doc type with the guess, and a person confirms it.
+
+## Size
+
+Each spec doc covers one size: a feature, an app or an initiative.
+
+| Size | What it covers | Example |
+|---|---|---|
+| `feature` | One change a team ships together. | Retry a refused card payment. |
+| `app` | A system with parts that call each other. | The payments service. |
+| `initiative` | Work that several systems share. | Move every service to the new ledger. |
+
+Size is not importance, and it is not effort. It is how much of the world the doc has to describe. A doc declares its size in its frontmatter:
+
+```markdown
+---
+type: sdd
+title: Payment retries
+size: feature
+---
+```
+
+Size decides three things:
+
+- **The required headings.** A heading marked `required: app` applies only at `app` and `initiative`.
+- **The checks that apply.** A check with `sizes: [app, initiative]` does not run on a feature doc. The built-in PRD asks for goal baselines, dependencies and non-functional requirements only from `app` up.
+- **The links a doc needs.** The built-in SDD at `initiative` must link at least one bundle it covers, with a `references` or `refines` link.
+
+So Speccy does not judge a feature doc by the standard of an app doc. A size larger than the work makes Speccy ask for sections nobody needs. A size smaller than the work hides the questions an implementer asks.
+
+A check's `scope` field is a different thing from size. Scope says whether a check reads the whole doc or one section.
+
+### A doc with no size
+
+When the frontmatter names no size, Speccy infers one from the doc:
+
+- `initiative` when the frontmatter has 3 links or more, or the doc has 4,000 words or more.
+- `app` when the doc has 1,200 words or more.
+- `feature` for a shorter doc.
+
+The run then adds a note, such as "The doc names no size, so the review used size app." Add the size to the frontmatter to fix it.
+
+## How Speccy picks the profile
+
+Speccy picks the profile of a markdown file in this order:
+
+1. **The `type` in the frontmatter.** The doc names its own type, and this always wins.
+2. **A `map` glob in `.speccy.yaml`.** A file with no type that matches a glob takes the glob's profile. The first glob that matches wins.
+3. **An adopted type.** A person accepted a type in Speccy for a doc in a GitHub source. Speccy keeps it and writes nothing into the repo.
+
+```yaml speccy-config
+map:
+  - glob: docs/prd-*.md
+    profile: prd
+  - glob: docs/sdd-*.md
+    profile: sdd
+```
+
+The repo replaces an adopted type as soon as it names its own. A new `type` in the file, or a new glob that covers the file, takes over. The spec doc keeps its ID, its threads and its waivers.
+
+A doc on your disk takes no adopted type. **Adopt** writes one line, `type: <key>`, into the file instead.
+
+A markdown file with none of the three is a skipped doc, and Speccy offers to adopt it. **Not a spec** makes it a dismissed doc, and Speccy stops offering it. [Review docs you already have](/how-to/review-docs-you-already-have/) covers each way in.
+
+A doc that names a type with no profile gets no review. The run says that no profile has that key, and lists the keys that exist.

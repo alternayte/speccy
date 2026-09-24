@@ -1,0 +1,131 @@
+---
+// The five stages of a review, in the order a full review runs them. The viewBox is as wide
+// as a phone column, so the text stays at 13px or more at 390px.
+const stages = [
+  { y: 158, name: "Rubric", model: "reviewer", out: "One answer for each profile check" },
+  { y: 250, name: "Grounding", model: "reviewer, search", out: "Claims: verified, unverified, contradicted" },
+  { y: 342, name: "Divergence", model: "reviewer, readers, judge", out: "Build questions: agree, divergence, gap" },
+  { y: 434, name: "Coherence", model: "reviewer", out: "Conflicts with linked docs and pages" },
+];
+// Each arrow runs from the bottom of one shape to the top of the next.
+const arrows = [
+  [92, 126],
+  [224, 250],
+  [316, 342],
+  [408, 434],
+  [512, 542],
+];
+---
+
+<figure class="diagram">
+  <svg viewBox="0 0 360 616" role="img" aria-labelledby="review-pipeline-title review-pipeline-desc">
+    <title id="review-pipeline-title">The review pipeline</title>
+    <desc id="review-pipeline-desc">
+      Lint runs on every save with no model. A full review adds four model stages in order: rubric with the
+      reviewer, grounding with the reviewer and a search source, divergence with the reviewer, the readers and the
+      judge, and coherence with the reviewer. The verdict comes last and needs no model.
+    </desc>
+
+    <text class="label" x="12" y="16">Every save</text>
+    <rect class="box" x="12" y="26" width="336" height="66" rx="8"></rect>
+    <text class="name" x="28" y="52">Lint</text>
+    <text class="tag" x="332" y="52" text-anchor="end">No model</text>
+    <text class="out" x="28" y="77">Writing, structure, links, coverage</text>
+
+    <rect class="frame" x="4" y="126" width="352" height="386" rx="12"></rect>
+    <text class="label" x="20" y="148">Full review only</text>
+
+    {
+      stages.map((s) => (
+        <g>
+          <rect class="box" x="12" y={s.y} width="336" height="66" rx="8" />
+          <text class="name" x="28" y={s.y + 26}>{s.name}</text>
+          <text class="tag model" x="332" y={s.y + 26} text-anchor="end">{s.model}</text>
+          <text class="out" x="28" y={s.y + 51}>{s.out}</text>
+        </g>
+      ))
+    }
+
+    {
+      arrows.map(([from, to]) => (
+        <g>
+          <line class="arrow" x1="180" y1={from} x2="180" y2={to - 8} />
+          <path class="head" d={`M174 ${to - 8} L186 ${to - 8} L180 ${to - 1} Z`} />
+        </g>
+      ))
+    }
+
+    <rect class="box verdict" x="12" y="542" width="336" height="66" rx="8"></rect>
+    <text class="name accent" x="28" y="568">Verdict</text>
+    <text class="tag" x="332" y="568" text-anchor="end">No model</text>
+    <text class="out" x="28" y="593">Build Ready or Not Build Ready</text>
+  </svg>
+  <figcaption>
+    Lint runs on every save. A full review runs lint and the four model stages in this order, then decides the
+    verdict.
+  </figcaption>
+</figure>
+
+<style>
+  figure.diagram {
+    margin: 1.5rem auto;
+    max-width: 26rem;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--sl-font);
+  }
+  figcaption {
+    margin-top: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    text-align: center;
+  }
+  .box {
+    fill: var(--sl-color-gray-6);
+    stroke: var(--sl-color-gray-5);
+    stroke-width: 1.5;
+  }
+  .verdict {
+    stroke: var(--sl-color-accent);
+  }
+  .frame {
+    fill: none;
+    stroke: var(--sl-color-gray-4);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 5;
+  }
+  .name {
+    fill: var(--sl-color-white);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .accent {
+    fill: var(--sl-color-accent-high);
+  }
+  .tag {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+  }
+  .model {
+    fill: var(--sl-color-accent-high);
+  }
+  .out {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+  }
+  .label {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .arrow {
+    stroke: var(--sl-color-gray-3);
+    stroke-width: 1.5;
+  }
+  .head {
+    fill: var(--sl-color-gray-3);
+  }
+</style>

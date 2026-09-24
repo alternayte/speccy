@@ -1,0 +1,176 @@
+---
+title: Keep the verdict in CI
+description: Run the Speccy GitHub Action with models, choose standalone or connected mode, make Not Build Ready fail the job, and run speccy review in another CI system.
+sidebar:
+  order: 9
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide sets up the Speccy GitHub Action for the full review, and shows how to gate another CI system on the verdict. [Adopt a repo and decide in a pull request](/how-to/adopt-a-repo/) covers the comments and the replies. [The GitHub Action reference](/reference/github-action/) lists each input.
+
+## Add the workflow
+
+<Steps>
+
+1. Add your model API key as a repository secret, such as `ANTHROPIC_API_KEY`.
+2. Write `.github/workflows/speccy.yml`:
+
+   ```yaml workflow
+   name: Speccy
+   on:
+     pull_request:
+       paths: ["**/*.md", ".speccy.yaml"]
+   permissions:
+     contents: write        # commit a decision that a reply asked for
+     pull-requests: write   # the summary and inline comments
+     checks: write          # one check per bundle
+   jobs:
+     review:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: alternayte/speccy@v0.18.0
+           with:
+             models: all=anthropic:<model>
+             anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+             enforcement: blocking
+   ```
+
+3. Open a pull request that changes a spec doc. The Action reviews each bundle that the pull request changes.
+
+</Steps>
+
+The Action downloads the Speccy release that the `version` input names, `latest` by default. It runs on Linux and macOS runners, on x64 and ARM64. It changes to the folder of the file that the `config` input names, `.speccy.yaml` at the root by default. It reviews the bundles of that folder.
+
+On an event with no pull request, such as a push to `main`, the Action reviews every bundle of the repo. It prints the results in the job log and posts no comment. In blocking mode, any bundle that is not Build Ready fails the job.
+
+## Choose the models
+
+The `models` input sets the model of each review role, one `role=backend:model` per line. `all` sets every role. A later line for one role replaces what `all` set for it:
+
+```yaml workflow
+with:
+  models: |
+    all=anthropic:<model>
+    reader_2=openai:<model>
+  anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+  openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+The roles are `reviewer`, `reader_1`, `reader_2`, `reader_3`, `judge` and `writer`. The backends are `anthropic`, `openai`, `openrouter` and `deepseek`. Each backend that `models` uses needs its key input, such as `openrouter-api-key`. Speccy picks no default model.
+
+If a backend has no key, the review stops with `SPECCY_MODELS uses openai, but SPECCY_OPENAI_API_KEY is not set`, and the job fails.
+
+With an empty `models` input, the Action runs the lint checks only. The lint checks need no key and make no model call. The check of each bundle then says `Lint checks only.`
+
+## Standalone mode and connected mode
+
+The Action runs in one of two modes.
+
+| | Standalone mode | Connected mode |
+|---|---|---|
+| Who reviews | The Speccy binary in the runner | Your Speccy server, with its own models |
+| Models and keys | The `models` input and the key inputs | Set on the server. The `models` input has no effect |
+| Full report | An HTML file per bundle, in the run artifacts | A page on the server |
+| Review cache | Kept between runs in the Actions cache | Not used |
+| Relaxed checks that now pass | Offered in the summary comment | Not offered |
+
+Standalone mode is the default.
+
+### Turn on connected mode
+
+<Steps>
+
+1. On your Speccy server, make a personal API token under **Account → API tokens**.
+2. Add the token as a repository secret, such as `SPECCY_TOKEN`.
+3. Pass the server and the token to the Action:
+
+   ```yaml workflow
+   with:
+     server: https://speccy.example.com
+     token: ${{ secrets.SPECCY_TOKEN }}
+   ```
+
+</Steps>
+
+You can name the server in `.speccy.yaml` instead. The `server` input then stays empty, and the `token` input still holds the token:
+
+```yaml speccy-config
+mode: connected
+server: https://speccy.example.com
+```
+
+The server reviews the files that the runner sends. It changes no bundle on the server. It keeps the files and the result for 90 days, for the report. Each bundle name in the summary comment links to its report on the server. The token acts with the role of the person who made it.
+
+## Make the verdict fail the job
+
+Enforcement is `advisory` by default. In advisory mode, a Not Build Ready verdict shows in the comment and in a neutral check, and the job passes. The summary comment says `Advisory mode: the verdict does not fail the check.`
+
+In `blocking` mode, a Not Build Ready verdict fails the check of the bundle and the job. Set it in one of two places:
+
+- The `enforcement` input of the Action.
+- The `enforcement` key in `.speccy.yaml`:
+
+  ```yaml speccy-config
+  enforcement: blocking
+  ```
+
+The input wins over the key. To make a failed job stop a merge, mark the job, or a `speccy: <bundle slug>` check, as required in your branch protection.
+
+A review that cannot finish fails the job in both modes. A missing key, a server that does not answer, or a bad `.speccy.yaml` does this.
+
+## The review cache
+
+In standalone mode, the Action keeps the Speccy store between runs, in the Actions cache. The cache key holds the pull request number and the commit. A new push restores the cache of the last run on the same pull request, or else the newest Speccy cache.
+
+The store holds the result of each model step. Speccy keys a result by the section text, the check or stage, the profile version, the model and the prompt version. So a section that did not change costs no model call on the next run. A change to the model or the profile makes new calls.
+
+The Action sets `SPECCY_STATE_DIR` to the cached folder. Another CI system gets the same cache when it keeps that folder between runs.
+
+## The HTML reports
+
+In standalone mode, the Action writes one HTML report per bundle, and uploads them as the artifact `speccy-reports`. A report file takes its name from the bundle slug, with each `/` changed to `_`, such as `docs_prd-payments.html`.
+
+The summary comment links to the run that holds the reports. The job summary gets a copy of the summary comment.
+
+## Gate another CI system
+
+`speccy review` gives the same verdict outside GitHub. It posts no comment. It prints the result and sets its exit code:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Each bundle is Build Ready, or enforcement is advisory. |
+| `1` | A bundle is not Build Ready, and enforcement is blocking. |
+| `2` | A usage or configuration error, such as a bad flag or a bad `.speccy.yaml`. |
+| `3` | A run error. The review did not finish. |
+
+Run it in the job:
+
+```sh
+speccy review docs --enforcement blocking --format md
+```
+
+A folder names every bundle in it. `--format` takes `text`, `json` or `md`, and `--summary` prints one table for all bundles. [The CLI reference](/reference/cli/) lists every flag.
+
+Set the same environment that the Action sets:
+
+| Variable | What it holds |
+|---|---|
+| `SPECCY_MODELS` | The models, as in the `models` input. Separate the entries with `;` or new lines. |
+| `SPECCY_ANTHROPIC_API_KEY`, `SPECCY_OPENAI_API_KEY`, `SPECCY_OPENROUTER_API_KEY`, `SPECCY_DEEPSEEK_API_KEY` | The key of each backend that `SPECCY_MODELS` uses. |
+| `SPECCY_STATE_DIR` | A folder that your CI keeps between runs, for the review cache. |
+| `SPECCY_TOKEN` | The API token, when you pass `--server <URL>` for connected mode. |
+
+With no `SPECCY_MODELS` and no `.speccy/state/` in the repo, `speccy review` runs the lint checks only. It says so on standard error. Pass `--stages lint` to ask for the lint checks only and silence that line.
+
+<Aside>
+`speccy review` finds `.speccy.yaml` from the current folder up. It reads `enforcement` there when you pass no `--enforcement` flag.
+</Aside>
+
+## Next steps
+
+- [Adopt a repo and decide in a pull request](/how-to/adopt-a-repo/) covers the comments, the replies and adoption mode.
+- [Reply commands](/reference/reply-commands/) lists each reply that records a decision.
+- [Verify a build](/how-to/verify-a-build/) checks the code against the spec after the build.
+- [Budget and model cost](/operations/budget-and-model-cost/) covers what a review costs.
