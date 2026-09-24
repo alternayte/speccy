@@ -92,6 +92,12 @@ When the upstream doc defines no IDs, the matrix says "No trace IDs", and covera
 
 A gap has three answers. "This doc covers it" adds the line `Covers REQ-001.` at the end of the section you pick, as a new version. "Another doc covers it" and "Out of scope" are acknowledgements, with a reason. They follow the waiver policy of `trace.coverage`, so a maintainer approves them in the built-in profiles. [Close a coverage gap](/how-to/close-a-coverage-gap/) shows each answer.
 
+The matrix acts on its cells for a person who can edit the downstream doc of that column:
+
+- A **Not covered** cell has **Answer**. It opens the three answers for the doc of that column.
+- A **Covered by another doc** or **Out of scope** cell has **Withdraw**. It takes the acknowledgement out of the sidecar at once, with no approval, and the gap opens again.
+- A **Referenced** cell links to each reference, and opens the doc at that line. It has no **Withdraw**, because the reference is prose in the doc.
+
 ## Restatement
 
 An SDD that copies its PRD falls out of step with it the first time either one changes. `coherence.restatement` compares each paragraph of the doc with each paragraph of the docs it implements or refines. It fires when more than half of a paragraph's 8-word runs appear in one upstream paragraph. It is a SHOULD, and it needs no model.

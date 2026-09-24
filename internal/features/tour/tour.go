@@ -134,16 +134,22 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 	}
 	// A gap whose Acknowledgement waits for approval has one point: the approval. The author
 	// answered it, so the tour does not ask again.
+	// A missing upstream link whose standalone Acknowledgement waits likewise.
 	asked := map[string]bool{}
+	askedStandalone := false
 	for _, w := range wres.(api.ListWaivers200JSONResponse).Items {
 		if w.Status == api.WaiverStatusRequested && w.Trace != nil {
 			asked[w.Trace.Id] = true
 		}
+		if w.Status == api.WaiverStatusRequested && w.Standalone != nil && *w.Standalone {
+			askedStandalone = true
+		}
 	}
 	for _, p := range findingPoints {
-		if p.TraceId == nil || !asked[*p.TraceId] {
-			out.Points = append(out.Points, p)
+		if p.TraceId != nil && asked[*p.TraceId] || askedStandalone && *p.CheckSlug == review.HasUpstreamSlug {
+			continue
 		}
+		out.Points = append(out.Points, p)
 	}
 	for _, w := range wres.(api.ListWaivers200JSONResponse).Items {
 		if w.Status != api.WaiverStatusRequested {
@@ -161,6 +167,9 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 			if t.Status == api.TraceAckStatusCoveredBy && t.Target != nil {
 				ask = fmt.Sprintf("Approve or reject: %s covers %s.", *t.Target, t.Id)
 			}
+		}
+		if w.Standalone != nil && *w.Standalone {
+			ask = "Approve or reject: this doc is standalone, with no upstream doc."
 		}
 		out.Points = append(out.Points, api.TourPoint{
 			Key: "waiver:" + w.Id.String(), Kind: api.TourPointKindWaiver,

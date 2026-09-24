@@ -108,7 +108,7 @@ The target is the path of the PRD, relative to the SDD. For a doc in a GitHub so
 
 If you picked the wrong PRD, open **More → Traceability** on the SDD. Under **Links**, click **Remove** next to the link, then **Remove the link**. Speccy takes the link out of the frontmatter as a new version, or forgets an adopted link. Then use **Suggest fix** again. A link that the repo or a link rule holds shows "(in the repo)" or "(link rule)" and has no **Remove**. Change it in the repo or in `.speccy.yaml`.
 
-A doc with no upstream doc says so once, in its sidecar, and the check passes:
+A doc with no upstream doc says so once, in its sidecar, and the check passes. Click **Mark it standalone** next to **Suggest fix**, give the reason, and click **Ask for approval**. On approval, Speccy writes the entry:
 
 ```yaml sidecar
 standalone:
@@ -152,7 +152,7 @@ On the PRD's Traceability page, **Coverage** shows each PRD ID against each doc 
 
 A cell says one of four things:
 
-- **Referenced**: the SDD names the ID. The detail says how many times.
+- **Referenced**: the SDD names the ID. The cell links to each section that names it, and a click opens the SDD there.
 - **Covered by another doc**: an approved acknowledgement names the doc that covers it.
 - **Out of scope**: an approved acknowledgement says this doc does not cover it, with a reason.
 - **Not covered**: none of the above. This is a gap, and it blocks the verdict.
@@ -204,7 +204,7 @@ trace:
     acknowledged_by: nathan
 ```
 
-An acknowledgement is about the ID, not a section. An edit to the SDD does not end it. The matrix shows each answer, with its reason.
+An acknowledgement is about the ID, not a section. An edit to the SDD does not end it. The matrix shows each answer, with its reason. **Withdraw** in the cell takes the acknowledgement back at once, and the gap opens again. A gap cell has **Answer**, which opens the same three answers as the tour.
 
 ![The matrix after the answers: referenced, out of scope, and covered by another doc](../../../assets/shots/linked-ack.png)
 

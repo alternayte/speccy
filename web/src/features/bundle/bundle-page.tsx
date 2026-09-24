@@ -187,6 +187,14 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
     opened.current = id;
     openWaiver(w);
   }, [search.waiver, waivers.data, findings.data, openWaiver]);
+  // A link to a range of the file, such as a reference in the traceability matrix, names it in
+  // the URL. Focus it once, then drop the param.
+  useEffect(() => {
+    if (!search.at) return;
+    const [start = 0, end = 0] = search.at.split("-").map(Number);
+    setSearch({ ...search, at: undefined });
+    setFocus((prev) => ({ start, end, seq: (prev?.seq ?? 0) + 1, docId }));
+  }, [search, setSearch, docId]);
 
   // The two dividers of the bundle screen. Below lg and xl the panes are overlays, so the widths
   // apply only where the panes sit side by side.

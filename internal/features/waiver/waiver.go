@@ -28,6 +28,8 @@ const (
 	// Restored brings back an ended waiver whose section returned to the text it was approved
 	// for: the sidecar's entry applies again (DEC-009).
 	Restored = "WaiverRestored"
+	// Withdrawn records that a person took an approved Acknowledgement out of the sidecar.
+	Withdrawn = "WaiverWithdrawn"
 )
 
 // Status values (§9.2).
@@ -36,6 +38,7 @@ const (
 	StatusApproved    = "approved"
 	StatusRejected    = "rejected"
 	StatusInvalidated = "invalidated"
+	StatusWithdrawn   = "withdrawn"
 )
 
 // MinReason is REQ-072's shortest reason.
@@ -45,19 +48,29 @@ const MinReason = 20
 // verification waiver excuses one trace ID in one code repo, and it never goes in the
 // sidecar: the sidecar travels with the doc into every build, and this fact belongs to one
 // build. A trace waiver is an Acknowledgement: it says one upstream trace ID is out of scope,
-// or covered by another doc, and its approval writes the sidecar's trace entry.
+// or covered by another doc, and its approval writes the sidecar's trace entry. A standalone
+// waiver is an Acknowledgement that the doc has no upstream doc, and its approval writes the
+// sidecar's standalone entry (SDD §9.4).
 const (
-	ScopeCheck  = "check"
-	ScopeVerify = "verify"
-	ScopeTrace  = "trace"
+	ScopeCheck      = "check"
+	ScopeVerify     = "verify"
+	ScopeTrace      = "trace"
+	ScopeStandalone = "standalone"
 )
+
+// Acknowledgement reports whether a waiver of scope is an Acknowledgement. It is about the doc
+// as a whole or one upstream ID, not a section, so an edit to the doc does not end it, and a
+// person who can edit the doc can withdraw it.
+func Acknowledgement(scope string) bool {
+	return scope == ScopeTrace || scope == ScopeStandalone
+}
 
 // State is a waiver.
 type State struct {
 	ID       uuid.UUID `json:"id"`
 	BundleID uuid.UUID `json:"bundle_id"`
 	Check    string    `json:"check"`
-	// Scope is ScopeCheck or ScopeVerify. An empty value is ScopeCheck, for the waivers that
+	// Scope is one of the Scope values. An empty value is ScopeCheck, for the waivers that
 	// exist already.
 	Scope string `json:"scope,omitempty"`
 	// TraceID and Repo name what a verification waiver excuses. TraceID, AckStatus and
@@ -80,6 +93,8 @@ type State struct {
 	DecidedBy   string         `json:"decided_by"`
 	// DecisionReason is why the waiver is rejected. Only a rejection has one.
 	DecisionReason string `json:"decision_reason"`
+	// WithdrawnBy is who took an approved Acknowledgement out of the sidecar.
+	WithdrawnBy string `json:"withdrawn_by,omitempty"`
 }
 
 // Approver is who acts on a waiver, and their relation to the bundle and its profile.
@@ -215,6 +230,18 @@ func DecideRestore(s State, currentHash string, inSidecar bool) ([]es.Event, err
 	return []es.Event{es.NewEvent(Restored, byV1{V: 1, By: "system", Hash: currentHash})}, nil
 }
 
+// DecideWithdraw withdraws an approved Acknowledgement. It needs no approval: a withdrawal
+// only makes the verdict stricter. The API checks that by can edit the doc.
+func DecideWithdraw(s State, by string) ([]es.Event, error) {
+	if !Acknowledgement(s.Scope) {
+		return nil, kernel.Invalid("not_an_acknowledgement", "Only an acknowledgement can be withdrawn. A waiver ends when its section changes.")
+	}
+	if s.Status != StatusApproved {
+		return nil, kernel.Conflict("waiver_not_approved", "This acknowledgement is %s, so it cannot be withdrawn.", orNone(s.Status))
+	}
+	return []es.Event{es.NewEvent(Withdrawn, byV1{V: 1, By: by})}, nil
+}
+
 // Evolve applies one event.
 func Evolve(s State, e es.Event) State {
 	switch e.Type {
@@ -245,6 +272,10 @@ func Evolve(s State, e es.Event) State {
 		s.Status = StatusInvalidated
 	case Restored:
 		s.Status = StatusApproved
+	case Withdrawn:
+		var p byV1
+		_ = json.Unmarshal(e.Payload, &p)
+		s.Status, s.WithdrawnBy = StatusWithdrawn, p.By
 	}
 	return s
 }

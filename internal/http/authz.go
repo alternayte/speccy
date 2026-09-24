@@ -102,6 +102,10 @@ var operations = map[string]access{
 	"approveBundle":   bundleAI,
 	"requestReview":   bundleEdit,
 
+	// A withdrawal takes an Acknowledgement out of the sidecar with no approval, so only a
+	// person who can edit the doc may do it.
+	"withdrawAcknowledgement": bundleEdit,
+
 	"listPeople":        member,
 	"getInbox":          member,
 	"markInboxSeen":     member,

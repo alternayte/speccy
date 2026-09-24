@@ -106,11 +106,11 @@ So an edit to the words of a section ends its waivers. A change to trailing spac
 
 | Writer | What it writes |
 |---|---|
-| The app | A waiver or a trace acknowledgement, when the last approval that the profile's waiver policy needs arrives. For a folder on disk, the write makes no new version, because the doc text does not change. |
+| The app | A waiver, a trace acknowledgement or a standalone acknowledgement, when the last approval that the profile's waiver policy needs arrives. A withdrawal of a trace or standalone acknowledgement takes the entry out, with no approval. For a folder on disk, the write makes no new version, because the doc text does not change. |
 | The GitHub Action | A waiver, a trace acknowledgement or a standalone acknowledgement, from a [reply command](/reference/reply-commands/). The Action commits the sidecar to the pull request's branch. |
 | You | Any entry. Speccy treats an entry you write by hand in the same way as its own. |
 
-The app has no control that writes `standalone`. Write it by hand, or reply `/speccy ack <reason>` to a `links.has-upstream` comment in a pull request.
+In the app, **Mark it standalone** on a `links.has-upstream` finding asks for the `standalone` entry. **Withdraw** on the Traceability page takes a `trace` entry or the `standalone` entry out. Only a person who can edit the doc can withdraw an entry. The event log records who withdrew it. A withdrawal also takes out an entry that a reply command or a person wrote.
 
 A pull request from a fork gives the Action no write token. The Action then prints the sidecar in its summary comment, and you commit it yourself. While a waiver is in the branch and not in the base branch, the summary comment gives the verdict with and without it.
 

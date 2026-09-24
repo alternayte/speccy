@@ -436,6 +436,24 @@ type ClientInterface interface {
 	// Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
 	GetSpecDoc(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// WithdrawAcknowledgementWithBody Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+	//
+	// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+	WithdrawAcknowledgementWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// WithdrawAcknowledgement Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+	//
+	// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+	WithdrawAcknowledgement(ctx context.Context, docId DocId, body WithdrawAcknowledgementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
 	//
 	// Corresponds with POST /docs/{docId}/adopt (the `AdoptFrontmatter` operationId).
@@ -2103,6 +2121,44 @@ func (c *Client) DismissDoc(ctx context.Context, body DismissDocJSONRequestBody,
 // Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
 func (c *Client) GetSpecDoc(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetSpecDocRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// WithdrawAcknowledgementWithBody Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+//
+// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+func (c *Client) WithdrawAcknowledgementWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWithdrawAcknowledgementRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// WithdrawAcknowledgement Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+//
+// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+func (c *Client) WithdrawAcknowledgement(ctx context.Context, docId DocId, body WithdrawAcknowledgementJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewWithdrawAcknowledgementRequest(c.Server, docId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5635,6 +5691,53 @@ func NewGetSpecDocRequest(server string, docId DocId) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewWithdrawAcknowledgementRequest calls the generic WithdrawAcknowledgement builder with application/json body
+func NewWithdrawAcknowledgementRequest(server string, docId DocId, body WithdrawAcknowledgementJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewWithdrawAcknowledgementRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewWithdrawAcknowledgementRequestWithBody constructs an http.Request for the WithdrawAcknowledgement method, with any body, and a specified content type
+func NewWithdrawAcknowledgementRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/acknowledgements/withdraw", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -9865,6 +9968,24 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /docs/{docId} (the `GetSpecDoc` operationId).
 	GetSpecDocWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetSpecDocResponse, error)
 
+	// WithdrawAcknowledgementWithBodyWithResponse Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+	//
+	// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+	WithdrawAcknowledgementWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WithdrawAcknowledgementResponse, error)
+
+	// WithdrawAcknowledgementWithResponse Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+	//
+	// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+	WithdrawAcknowledgementWithResponse(ctx context.Context, docId DocId, body WithdrawAcknowledgementJSONRequestBody, reqEditors ...RequestEditorFn) (*WithdrawAcknowledgementResponse, error)
+
 	// AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -12641,6 +12762,54 @@ func (r GetSpecDocResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetSpecDocResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type WithdrawAcknowledgementResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Withdrawal
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r WithdrawAcknowledgementResponse) GetJSON200() *Withdrawal {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r WithdrawAcknowledgementResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r WithdrawAcknowledgementResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r WithdrawAcknowledgementResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r WithdrawAcknowledgementResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r WithdrawAcknowledgementResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17636,6 +17805,36 @@ func (c *ClientWithResponses) GetSpecDocWithResponse(ctx context.Context, docId 
 	return ParseGetSpecDocResponse(rsp)
 }
 
+// WithdrawAcknowledgementWithBodyWithResponse Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+//
+// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+func (c *ClientWithResponses) WithdrawAcknowledgementWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*WithdrawAcknowledgementResponse, error) {
+	rsp, err := c.WithdrawAcknowledgementWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWithdrawAcknowledgementResponse(rsp)
+}
+
+// WithdrawAcknowledgementWithResponse Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+//
+// The entry leaves the doc's sidecar through the write an approval uses: a local bundle's sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/acknowledgements/withdraw (the `WithdrawAcknowledgement` operationId).
+func (c *ClientWithResponses) WithdrawAcknowledgementWithResponse(ctx context.Context, docId DocId, body WithdrawAcknowledgementJSONRequestBody, reqEditors ...RequestEditorFn) (*WithdrawAcknowledgementResponse, error) {
+	rsp, err := c.WithdrawAcknowledgement(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseWithdrawAcknowledgementResponse(rsp)
+}
+
 // AdoptFrontmatterWithResponse Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -20558,6 +20757,39 @@ func ParseGetSpecDocResponse(rsp *http.Response) (*GetSpecDocResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest SpecDoc
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseWithdrawAcknowledgementResponse parses an HTTP response from a WithdrawAcknowledgementWithResponse call
+func ParseWithdrawAcknowledgementResponse(rsp *http.Response) (*WithdrawAcknowledgementResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &WithdrawAcknowledgementResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Withdrawal
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

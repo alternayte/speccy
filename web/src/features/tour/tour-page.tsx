@@ -25,6 +25,7 @@ import {
 import { useReviewerMode } from "@/features/review/mode";
 import { problemMessage } from "@/lib/problem";
 import { GapAnswer } from "@/features/trace/gap-answer";
+import { MarkStandalone } from "@/features/trace/mark-standalone";
 
 const kindLabel: Record<TourPoint["kind"], string> = {
   blocking_thread: "Blocking thread",
@@ -33,7 +34,16 @@ const kindLabel: Record<TourPoint["kind"], string> = {
   open_decision: "Open decision",
 };
 
-type Mode = "decide" | "waive" | "comment";
+type Mode = "decide" | "waive" | "comment" | "standalone";
+
+// upstreamSlug is the check a standalone Acknowledgement answers (SDD §9.4).
+const upstreamSlug = "links.has-upstream";
+
+// waivable says whether a point takes a plain waiver. A coverage gap and a missing upstream
+// link take an Acknowledgement instead.
+function waivable(p: TourPoint): boolean {
+  return p.kind === "finding" && !p.trace_id && p.check_slug !== upstreamSlug;
+}
 
 // TourPage steps through the points that need a human decision (SDD §13.3). The section of the
 // current point is in focus; the rest of the doc is dimmed. Keys: j and k move, d decides,
@@ -104,7 +114,7 @@ export function TourPage({ docId }: { docId: string }) {
           if (!reviewer && point.kind !== "waiver") setMode("decide");
           break;
         case "w":
-          if (!reviewer && point.kind === "finding" && !point.trace_id) setMode("waive");
+          if (!reviewer && waivable(point)) setMode("waive");
           break;
         case "c":
           setMode("comment");
@@ -417,15 +427,32 @@ function PointCard({
               Decide <Kbd>d</Kbd>
             </Button>
           ) : null}
-          {!reviewer && point.kind === "finding" && !point.trace_id ? (
+          {!reviewer && waivable(point) ? (
             <Button size="sm" onClick={() => setMode("waive")}>
               Ask for a waiver <Kbd>w</Kbd>
+            </Button>
+          ) : null}
+          {!reviewer && point.kind === "finding" && point.check_slug === upstreamSlug ? (
+            <Button size="sm" onClick={() => setMode("standalone")}>
+              Mark it standalone
             </Button>
           ) : null}
           <Button size="sm" onClick={() => setMode("comment")}>
             Comment <Kbd>c</Kbd>
           </Button>
         </div>
+      ) : mode === "standalone" ? (
+        // A missing upstream link can take the standalone answer, an Acknowledgement whose
+        // approval writes standalone: to the sidecar.
+        point.finding_id ? (
+          <MarkStandalone
+            className="mt-4"
+            docId={docId}
+            findingId={point.finding_id}
+            onCancel={() => setMode(undefined)}
+            onDone={() => onDone()}
+          />
+        ) : null
       ) : mode === "decide" && point.trace_id && point.finding_id ? (
         // A coverage gap has three answers, and each one closes the gap in the verdict and in
         // the matrix. Free text in a thread would close nothing.
@@ -448,7 +475,10 @@ function PointCard({
   );
 }
 
-const prompts: Record<Mode, { label: string; placeholder: string; submit: string; min: number }> = {
+// ActMode is a mode that Act writes as text. The standalone answer has its own form.
+type ActMode = Exclude<Mode, "standalone">;
+
+const prompts: Record<ActMode, { label: string; placeholder: string; submit: string; min: number }> = {
   decide: {
     label: "Your decision",
     placeholder: "State the decision in one or two sentences.",
@@ -475,7 +505,7 @@ function Act({
 }: {
   docId: string;
   point: TourPoint;
-  mode: Mode;
+  mode: ActMode;
   onCancel: () => void;
   onDone: () => void;
 }) {

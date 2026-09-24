@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { ExternalLink, Loader2, ShieldCheck, Unlink, Wand2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
@@ -23,8 +23,12 @@ import { checkDocsURL } from "@/lib/docs";
 import { problemMessage } from "@/lib/problem";
 import { levelStyle } from "./verdict";
 import { GapAnswer } from "@/features/trace/gap-answer";
+import { MarkStandalone } from "@/features/trace/mark-standalone";
 
 const order = { MUST: 0, SHOULD: 1, INFO: 2 } as const;
+
+// upstreamSlug is the check a standalone Acknowledgement answers (SDD §9.4).
+const upstreamSlug = "links.has-upstream";
 
 // FindingsPanel lists the findings of a run: MUST first, then in document order. A click
 // opens the text the finding points at. A member can discuss a finding or ask for a waiver
@@ -59,7 +63,7 @@ export function FindingsPanel({
   // notice is the result of the last accepted fix or gap answer. It sits above the list,
   // because a fixed finding leaves the list with the next run.
   const [notice, setNotice] = useState<{ slug: string; text: string; bad?: boolean }>();
-  // answering is the coverage gap whose answer form is open.
+  // answering is the coverage gap, or the missing upstream link, whose answer form is open.
   const [answering, setAnswering] = useState<string>();
   const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
   const selectedRef = useRef<HTMLLIElement>(null);
@@ -214,7 +218,7 @@ export function FindingsPanel({
                         >
                           Answer the gap
                         </button>
-                      ) : !f.waived && f.level !== "INFO" && !f.trace_id ? (
+                      ) : !f.waived && f.level !== "INFO" && !f.trace_id && f.check_slug !== upstreamSlug ? (
                         <button
                           type="button"
                           onClick={() => setWaiving({ finding: f })}
@@ -255,6 +259,31 @@ export function FindingsPanel({
                   docId={docId}
                   finding={f}
                   onAccepted={(result) => setNotice({ slug: f.check_slug, ...fixText(result) })}
+                  aside={
+                    // A missing upstream link has a second answer: the doc stands alone. A
+                    // request that waits for approval sits on the finding above instead.
+                    f.check_slug === upstreamSlug && f.level !== "INFO" && !pending(f) ? (
+                      <button
+                        type="button"
+                        onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
+                        className="text-xs text-ink-2 hover:text-ink"
+                      >
+                        Mark it standalone
+                      </button>
+                    ) : null
+                  }
+                />
+              ) : null}
+              {f.check_slug === upstreamSlug && answering === f.id && !pending(f) ? (
+                <MarkStandalone
+                  className="mx-4 mb-3"
+                  docId={docId}
+                  findingId={f.id}
+                  onCancel={() => setAnswering(undefined)}
+                  onDone={(text) => {
+                    setAnswering(undefined);
+                    setNotice({ slug: f.check_slug, text });
+                  }}
                 />
               ) : null}
             </li>
@@ -428,7 +457,9 @@ function WaiverCard({
       <p className="font-semibold text-ink">
         {w.trace
           ? `${w.trace.id} ${w.trace.status === "out_of_scope" ? "is out of scope" : `is covered by ${w.trace.target ?? "another doc"}`}: asked by ${w.requested_by}`
-          : `Waiver requested by ${w.requested_by}`}
+          : w.standalone
+            ? `This doc is standalone: asked by ${w.requested_by}`
+            : `Waiver requested by ${w.requested_by}`}
       </p>
       <p className="mt-0.5 text-ink-2">{w.reason}</p>
       <p className="mt-0.5 text-ink-3">
@@ -455,7 +486,11 @@ function WaiverCard({
       ) : null}
       {w.status === "approved" ? (
         <p className="mt-2 font-semibold text-ok">
-          {w.trace ? "Approved. The gap is closed." : "Approved. This check no longer fails here."}
+          {w.trace
+            ? "Approved. The gap is closed."
+            : w.standalone
+              ? "Approved. The sidecar says the doc is standalone."
+              : "Approved. This check no longer fails here."}
         </p>
       ) : null}
       {w.status === "rejected" ? (
@@ -538,6 +573,7 @@ const waiverStatus = {
   approved: "text-ok",
   rejected: "text-ink-3",
   invalidated: "text-ink-3",
+  withdrawn: "text-ink-3",
 } as const;
 
 // WaiversList is the record of the bundle's decided waivers. A request sits on its finding
@@ -584,6 +620,11 @@ function WaiversList({
                   Ended: someone edited {sectionName(w)} after this was approved. Run the review again.
                 </p>
               ) : null}
+              {w.status === "withdrawn" ? (
+                <p className="mt-1 text-xs text-ink-2">
+                  Withdrawn by {w.withdrawn_by ?? "someone"}. The sidecar no longer holds it.
+                </p>
+              ) : null}
               {again ? (
                 <button
                   type="button"
@@ -610,11 +651,14 @@ function SuggestFix({
   docId,
   finding,
   onAccepted,
+  aside,
 }: {
   runId: string;
   docId: string;
   finding: Finding;
   onAccepted: (r: AcceptedFix) => void;
+  // aside is another answer to the finding, beside Suggest fix.
+  aside?: ReactNode;
 }) {
   const qc = useQueryClient();
   const [patch, setPatch] = useState<FixSuggestion>();
@@ -641,22 +685,25 @@ function SuggestFix({
   if (!patch)
     return (
       <div className="px-4 pb-3">
-        <button
-          type="button"
-          onClick={() => {
-            setAsked(path);
-            suggest.mutate({ path });
-          }}
-          disabled={suggest.isPending}
-          className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
-        >
-          {suggest.isPending ? (
-            <Loader2 aria-hidden className="size-3.5 animate-spin text-accent" />
-          ) : (
-            <Wand2 aria-hidden className="size-3.5" />
-          )}
-          {suggest.isPending ? "Writing a fix" : "Suggest fix"}
-        </button>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={() => {
+              setAsked(path);
+              suggest.mutate({ path });
+            }}
+            disabled={suggest.isPending}
+            className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
+          >
+            {suggest.isPending ? (
+              <Loader2 aria-hidden className="size-3.5 animate-spin text-accent" />
+            ) : (
+              <Wand2 aria-hidden className="size-3.5" />
+            )}
+            {suggest.isPending ? "Writing a fix" : "Suggest fix"}
+          </button>
+          {aside}
+        </div>
         {suggest.isError ? (
           <div className="mt-1.5">
             <ErrorState message={problemMessage(suggest.error)} />
