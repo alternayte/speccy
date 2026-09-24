@@ -7,6 +7,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
 
@@ -36,6 +37,33 @@ func TestHandoff_RefusalNamesTheBlockingThread(t *testing.T) {
 			}
 			if !strings.Contains(ke.Detail, "--acknowledged") || !strings.Contains(ke.Detail, "acknowledged: true") {
 				t.Errorf("the refusal does not say how to take the packet anyway: %s", ke.Detail)
+			}
+		})
+	}
+}
+
+// The build packet of a database-held bundle leaves out the sidecar: the waivers are Speccy's
+// record, not part of the design, and HANDOFF.md does not list the sidecar as an asset.
+func TestHandoff_PacketLeavesOutTheSidecar(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			e := newEnv(t, eng)
+			e.waive(t)
+			if r, _ := e.verdict(t); r != "build_ready" {
+				t.Fatalf("fixture verdict %s", r)
+			}
+			res, err := e.app.API.TakeHandoff(as("author"), api.TakeHandoffRequestObject{DocId: e.b.ID, Body: &api.TakeHandoffJSONRequestBody{}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := api.BuildPacket(res.(api.TakeHandoff200JSONResponse))
+			for _, f := range p.Files {
+				if source.IsSidecar(f.Path) {
+					t.Errorf("the packet holds the sidecar %s", f.Path)
+				}
+			}
+			if strings.Contains(p.HandoffMd, source.SidecarDir) {
+				t.Errorf("HANDOFF.md lists the sidecar:\n%s", p.HandoffMd)
 			}
 		})
 	}

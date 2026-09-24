@@ -22,6 +22,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/store"
 )
 
@@ -146,6 +147,11 @@ func (a *API) packet(ctx context.Context, b pgdb.SpecDoc) (api.BuildPacket, erro
 	for _, f := range files {
 		if f.Path == b.DocPath {
 			main = f.Content
+		}
+		// A sidecar is Speccy's record of the waivers, not part of the design, so the builder
+		// does not get it.
+		if source.IsSidecar(f.Path) {
+			continue
 		}
 		out.Files = append(out.Files, contentFile(f.Path, f.Content))
 	}
