@@ -146,6 +146,7 @@ var operations = map[string]access{
 	"deleteFile":     bundleEdit,
 	"renameFile":     bundleEdit,
 	"addTraceIds":    bundleEdit,
+	"coverTraceId":   bundleEdit,
 	// REQ-025: the author asks for a fix and accepts it.
 	"suggestFix": bundleEdit,
 	"acceptFix":  bundleEdit,

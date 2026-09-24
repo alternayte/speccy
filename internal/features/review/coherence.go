@@ -80,6 +80,11 @@ func coherenceChecks(in input, ev *evaluation) {
 	for _, l := range in.linked {
 		if slices.Contains(coverageKinds, l.kind) && len(covered) > 0 {
 			defs := lint.Definitions(l.main, covered)
+			// An upstream doc with no ID gives coverage nothing to check: the check does not
+			// apply, and it never passes on nothing.
+			if len(defs) == 0 {
+				ev.items = append(ev.items, verdict.Item{Slug: CoverageSlug, Category: verdict.Coherence, Level: coverLevel, Applicable: false})
+			}
 			ids := make([]string, len(defs))
 			byID := map[string]lint.Definition{}
 			for i, d := range defs {
@@ -99,7 +104,7 @@ func coherenceChecks(in input, ev *evaluation) {
 				}
 				ev.findings = append(ev.findings, pending{
 					slug: CoverageSlug, level: coverLevel, stage: StageCoherence, anchor: docAnchor(in), message: msg,
-					fix: fmt.Sprintf("Reference %s where the design covers it, or acknowledge it in the sidecar under trace: as covered_by or out_of_scope, with a reason.", c.ID),
+					fix: fmt.Sprintf("Answer the gap: name %s in the section that covers it, name the doc that covers it, or mark it out of scope with a reason.", c.ID),
 					evidence: map[string]any{"id": c.ID, "text": strings.TrimSpace(d.Text), "upstream": l.target.Slug,
 						"upstream_bundle_id": l.target.ID, "upstream_anchor": up},
 				})

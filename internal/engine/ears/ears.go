@@ -43,7 +43,7 @@ type Requirement struct {
 var keywordRe = regexp.MustCompile(`(?:^|\s)(MUST NOT|MUST|SHALL NOT|SHALL|SHOULD NOT|SHOULD|MAY|must not|must|shall not|shall|should not|should|may)(?:\s|$)`)
 
 // leadRe strips a trace ID and its colon from the front of a definition.
-var leadRe = regexp.MustCompile(`^\**\s*[A-Z]{2,6}-\d{3,}\**\s*[:.\-—]?\s*`)
+var leadRe = regexp.MustCompile(`^\**\s*[A-Z]{2,6}-\d+\**\s*[:.\-—]?\s*`)
 
 // triggers maps a leading keyword to its shape.
 var triggers = []struct {

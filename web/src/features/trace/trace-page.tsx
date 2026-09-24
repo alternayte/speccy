@@ -19,7 +19,7 @@ import { problemMessage } from "@/lib/problem";
 
 const cellStyle = {
   referenced: { icon: CircleCheck, tone: "text-ok", text: "Referenced" },
-  covered_by: { icon: Share2, tone: "text-ink-2", text: "Covered by another bundle" },
+  covered_by: { icon: Share2, tone: "text-ink-2", text: "Covered by another doc" },
   out_of_scope: { icon: CircleMinus, tone: "text-ink-2", text: "Out of scope" },
   gap: { icon: CircleX, tone: "text-bad", text: "Not covered" },
 } as const;
@@ -49,6 +49,9 @@ export function TracePage({ docId }: { docId: string }) {
   const hosted = useMe().data?.mode === "hosted";
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
   const canEdit = !hosted || !!access.data?.can_edit;
+  // added says what the last Add IDs did. The suggestions leave the page with the new version,
+  // so the page, not the list, keeps the message.
+  const [added, setAdded] = useState<string>();
 
   return (
     <div className="h-full overflow-y-auto">
@@ -62,6 +65,11 @@ export function TracePage({ docId }: { docId: string }) {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Traceability</h1>
         {bundle.data ? <p className="mt-0.5 text-sm text-ink-2">{bundle.data.title}</p> : null}
+        {added ? (
+          <p role="status" className="mt-3 text-sm text-ok">
+            {added}
+          </p>
+        ) : null}
 
         {trace.isPending ? (
           <Loading label="Loading links and trace IDs" />
@@ -127,6 +135,7 @@ export function TracePage({ docId }: { docId: string }) {
                 docId={docId}
                 baseVersion={bundle.data.current_version.id}
                 items={trace.data.suggestions}
+                onAdded={setAdded}
               />
             ) : null}
           </>
@@ -182,7 +191,7 @@ function ExternalLinks({ links }: { links: BundleLink[] }) {
 }
 
 function LinkRow({ link: l, incoming }: { link: BundleLink; incoming?: boolean }) {
-  const label = incoming ? `${kindText[l.kind]} this bundle` : kindText[l.kind];
+  const label = incoming ? `${kindText[l.kind]} this doc` : kindText[l.kind];
   return (
     <li className="flex flex-wrap items-baseline gap-x-2">
       {incoming && l.bundle ? <BundleName id={l.bundle.id} title={l.bundle.title} slug={l.bundle.slug} /> : null}
@@ -276,6 +285,7 @@ function CodeAndTests({ docId }: { docId: string }) {
 
 function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
   const gaps = m.cells.flat().filter((c) => c.state === "gap").length;
+  const none = m.rows.length === 0;
   return (
     <div className="mt-3">
       <p className="text-sm">
@@ -284,11 +294,14 @@ function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
           {m.upstream.title}
         </Link>
         <span className={clsx("ml-2 text-xs", gaps ? "text-bad" : "text-ink-3")}>
-          {gaps ? `${gaps} gap${gaps === 1 ? "" : "s"}` : "No gaps"}
+          {none ? "No trace IDs" : gaps ? `${gaps} gap${gaps === 1 ? "" : "s"}` : "No gaps"}
         </span>
       </p>
-      {m.rows.length === 0 ? (
-        <p className="mt-1 text-sm text-ink-3">The upstream doc defines no trace IDs that the downstream docs cover.</p>
+      {none ? (
+        <p className="mt-1 text-sm text-ink-3">
+          {m.upstream.title} defines no trace IDs, so coverage does not apply. Open it, and add IDs from its
+          Traceability page.
+        </p>
       ) : (
         <div className="mt-2 overflow-x-auto rounded-md border border-line">
           <table className="w-full border-collapse text-sm">
@@ -354,16 +367,21 @@ function Suggestions({
   docId,
   baseVersion,
   items,
+  onAdded,
 }: {
   docId: string;
   baseVersion: string;
   items: { id: string; text: string }[];
+  onAdded: (message: string) => void;
 }) {
   const qc = useQueryClient();
   const [picked, setPicked] = useState<Set<string>>(() => new Set(items.map((s) => s.id)));
   const add = useMutation({
     ...addTraceIdsMutation(),
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: (r) => {
+      onAdded(`Added ${picked.size} ID${picked.size === 1 ? "" : "s"} as version ${r.version.number}.`);
+      qc.invalidateQueries();
+    },
   });
   if (items.length === 0) return null;
   const toggle = (id: string) =>
@@ -446,11 +464,11 @@ function WhyEmpty({ trace, docId }: { trace: TraceView; docId: string }) {
       </>
     );
   } else if (bundleLinks.length === 0 && trace.incoming.length === 0) {
-    why = "This doc links to no other bundle, and no bundle links to it.";
+    why = "This doc links to no other doc, and no doc links to it.";
     next = (
       <>
-        Add a link under <code>links:</code> in the frontmatter, for example <code>kind: implements</code> and the
-        PRD&apos;s slug. A PRD and an SDD imported together get the link offered in the import dialog.
+        On an SDD, Suggest fix on <code>links.has-upstream</code> lists the PRDs and writes the link. Or add it under{" "}
+        <code>links:</code> in the frontmatter: <code>kind: implements</code> and the path of the PRD.
       </>
     );
   } else {

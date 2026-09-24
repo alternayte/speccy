@@ -630,6 +630,20 @@ type ClientInterface interface {
 	// Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
 	GetTrace(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CoverTraceIdWithBody Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+	CoverTraceIdWithBody(ctx context.Context, docId DocId, params *CoverTraceIdParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CoverTraceId Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+	CoverTraceId(ctx context.Context, docId DocId, params *CoverTraceIdParams, body CoverTraceIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// AddTraceIdsWithBody Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
 	//
 	// Takes any type of body and a specified content type.
@@ -2582,6 +2596,40 @@ func (c *Client) GetTour(ctx context.Context, docId DocId, reqEditors ...Request
 // Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
 func (c *Client) GetTrace(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetTraceRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CoverTraceIdWithBody Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+func (c *Client) CoverTraceIdWithBody(ctx context.Context, docId DocId, params *CoverTraceIdParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCoverTraceIdRequestWithBody(c.Server, docId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CoverTraceId Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+func (c *Client) CoverTraceId(ctx context.Context, docId DocId, params *CoverTraceIdParams, body CoverTraceIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCoverTraceIdRequest(c.Server, docId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6714,6 +6762,76 @@ func NewGetTraceRequest(server string, docId DocId) (*http.Request, error) {
 	return req, nil
 }
 
+// NewCoverTraceIdRequest calls the generic CoverTraceId builder with application/json body
+func NewCoverTraceIdRequest(server string, docId DocId, params *CoverTraceIdParams, body CoverTraceIdJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCoverTraceIdRequestWithBody(server, docId, params, "application/json", bodyReader)
+}
+
+// NewCoverTraceIdRequestWithBody constructs an http.Request for the CoverTraceId method, with any body, and a specified content type
+func NewCoverTraceIdRequestWithBody(server string, docId DocId, params *CoverTraceIdParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/trace/cover", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewAddTraceIdsRequest calls the generic AddTraceIds builder with application/json body
 func NewAddTraceIdsRequest(server string, docId DocId, params *AddTraceIdsParams, body AddTraceIdsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -9782,6 +9900,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /docs/{docId}/trace (the `GetTrace` operationId).
 	GetTraceWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTraceResponse, error)
+
+	// CoverTraceIdWithBodyWithResponse Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+	CoverTraceIdWithBodyWithResponse(ctx context.Context, docId DocId, params *CoverTraceIdParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CoverTraceIdResponse, error)
+
+	// CoverTraceIdWithResponse Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+	CoverTraceIdWithResponse(ctx context.Context, docId DocId, params *CoverTraceIdParams, body CoverTraceIdJSONRequestBody, reqEditors ...RequestEditorFn) (*CoverTraceIdResponse, error)
 
 	// AddTraceIdsWithBodyWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
 	//
@@ -13494,6 +13626,54 @@ func (r GetTraceResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetTraceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CoverTraceIdResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *WriteResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CoverTraceIdResponse) GetJSON200() *WriteResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CoverTraceIdResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CoverTraceIdResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CoverTraceIdResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CoverTraceIdResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CoverTraceIdResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17572,6 +17752,32 @@ func (c *ClientWithResponses) GetTraceWithResponse(ctx context.Context, docId Do
 	return ParseGetTraceResponse(rsp)
 }
 
+// CoverTraceIdWithBodyWithResponse Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+func (c *ClientWithResponses) CoverTraceIdWithBodyWithResponse(ctx context.Context, docId DocId, params *CoverTraceIdParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CoverTraceIdResponse, error) {
+	rsp, err := c.CoverTraceIdWithBody(ctx, docId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCoverTraceIdResponse(rsp)
+}
+
+// CoverTraceIdWithResponse Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/trace/cover (the `CoverTraceId` operationId).
+func (c *ClientWithResponses) CoverTraceIdWithResponse(ctx context.Context, docId DocId, params *CoverTraceIdParams, body CoverTraceIdJSONRequestBody, reqEditors ...RequestEditorFn) (*CoverTraceIdResponse, error) {
+	rsp, err := c.CoverTraceId(ctx, docId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCoverTraceIdResponse(rsp)
+}
+
 // AddTraceIdsWithBodyWithResponse Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -20825,6 +21031,39 @@ func ParseGetTraceResponse(rsp *http.Response) (*GetTraceResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest TraceView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCoverTraceIdResponse parses an HTTP response from a CoverTraceIdWithResponse call
+func ParseCoverTraceIdResponse(rsp *http.Response) (*CoverTraceIdResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CoverTraceIdResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WriteResult
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

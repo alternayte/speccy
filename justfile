@@ -97,14 +97,15 @@ verify: gen-check lint test test-pg budget
 gauntlet run: build
     go run ./tools/buildtool gauntlet {{run}}
 
-# Capture every picture of docs/guide.md from the real app into docs/images. Needs agent-browser,
+# Capture every picture of docs/guide.md and docs/linked-docs.md from the real app into
+# docs/images; `just docs-shots linked` captures only docs/linked-docs.md. Needs agent-browser,
 # ffmpeg, and the claude CLI for the review (model: DOCS_MODEL, default haiku).
-docs-shots: build
+docs-shots part="": build
     #!/usr/bin/env bash
     set -euo pipefail
     mkdir -p build
     test -d build/dev-bundles || cp -R testdata/bundles build/dev-bundles
-    go run ./tools/buildtool docs-shots
+    go run ./tools/buildtool docs-shots {{part}}
 
 # Capture the pull request pictures of docs/github.md from a real pull request on the public
 # scratch repo (BUILD.md §6.3). Needs agent-browser and a gh login.

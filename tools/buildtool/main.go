@@ -9,8 +9,11 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || (os.Args[1] == "gauntlet") != (len(os.Args) == 3) || len(os.Args) > 3 {
-		fmt.Fprintln(os.Stderr, "usage: buildtool budget|conventions|sqladapter|docs-shots|docs-shots-github|gauntlet <run>")
+	// gauntlet needs its run, docs-shots takes an optional part, and the rest take nothing.
+	args := os.Args[1:]
+	ok := len(args) == 1 && args[0] != "gauntlet" || len(args) == 2 && (args[0] == "gauntlet" || args[0] == "docs-shots")
+	if !ok {
+		fmt.Fprintln(os.Stderr, "usage: buildtool budget|conventions|sqladapter|docs-shots [linked]|docs-shots-github|gauntlet <run>")
 		os.Exit(2)
 	}
 	var err error
@@ -24,7 +27,11 @@ func main() {
 	case "docs-shots-github":
 		err = cmdDocsShotsGitHub()
 	case "docs-shots":
-		err = cmdDocsShots()
+		part := ""
+		if len(os.Args) == 3 {
+			part = os.Args[2]
+		}
+		err = cmdDocsShots(part)
 	case "gauntlet":
 		err = cmdGauntlet(os.Args[2])
 	default:

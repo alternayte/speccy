@@ -38,7 +38,7 @@ const LowDiversityNote = "Low reader diversity: fewer than 2 different models an
 // readerBatch is the most questions one reader call answers.
 const readerBatch = 10
 
-var traceIDRe = regexp.MustCompile(`^[A-Z]{2,6}-\d{3,}$`)
+var traceIDRe = regexp.MustCompile(`^[A-Z]{2,6}-\d+$`)
 var mustRe = regexp.MustCompile(`\bMUST\b`)
 
 // readerRoles returns the roles of n readers (REQ-101 names three).

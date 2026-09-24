@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -197,7 +198,9 @@ func nodeSpan(n ast.Node, body []byte) (int, int) {
 }
 
 // traceIDs checks definitions and references (REQ-051): duplicates and dangling references.
-var idRe = regexp.MustCompile(`\b([A-Z]{2,6})-(\d{3,})\b`)
+// It also says when an ID-like token at a definition place has a prefix the profile does not
+// read, and when a requirements section defines no ID at all.
+var idRe = regexp.MustCompile(`\b([A-Z]{2,6})-(\d+)\b`)
 
 func traceIDs(d *doc, cfg Config, emit emitter) {
 	own := set(cfg.Prefixes)
@@ -208,19 +211,23 @@ func traceIDs(d *doc, cfg Config, emit emitter) {
 		id string
 		use
 	}
+	unknown := map[string][]use{}
+	var unknownOrder []string
 	for _, p := range d.blocks {
-		isDef := false
-		if p.kind != kindCell {
-			isDef = isDefinitionBlock(p.node)
-		}
 		for i, m := range idRe.FindAllSubmatchIndex(p.text, -1) {
 			prefix := string(p.text[m[2]:m[3]])
+			s, e := p.span(m[0], m[1])
 			if !own[prefix] && !upstream[prefix] {
+				if i == 0 && defines(p, m[0], m[1]) {
+					if _, ok := unknown[prefix]; !ok {
+						unknownOrder = append(unknownOrder, prefix)
+					}
+					unknown[prefix] = append(unknown[prefix], use{s, e})
+				}
 				continue
 			}
 			id := string(p.text[m[0]:m[1]])
-			s, e := p.span(m[0], m[1])
-			if i == 0 && isDef && definitionAt(p.text, m[0], m[1]) {
+			if i == 0 && defines(p, m[0], m[1]) {
 				defs[id] = append(defs[id], use{s, e})
 				continue
 			}
@@ -250,26 +257,89 @@ func traceIDs(d *doc, cfg Config, emit emitter) {
 				fmt.Sprintf("Define %s, or fix the reference.", r.id))
 		}
 	}
-}
-
-// isDefinitionBlock reports whether a prose block starts a list item or is a heading: the
-// places where a trace ID definition can be.
-func isDefinitionBlock(n ast.Node) bool {
-	if n.Kind() == ast.KindHeading {
-		return true
+	// One finding per prefix: a table of forty FR rows is one fact, not forty.
+	for _, prefix := range unknownOrder {
+		uses := unknown[prefix]
+		emit(UnknownPrefix, uses[0].start, uses[0].end,
+			fmt.Sprintf("%s-… looks like a trace ID in %d place%s, but this doc type reads only %s, so Speccy does not trace it.",
+				prefix, len(uses), plural(len(uses)), strings.Join(cfg.Prefixes, ", ")),
+			fmt.Sprintf("Use one of %s, or add %s to trace.prefixes in the profile.", strings.Join(cfg.Prefixes, ", "), prefix))
 	}
-	parent := n.Parent()
-	return parent != nil && parent.Kind() == ast.KindListItem && parent.FirstChild() == n
+	if len(defs) == 0 {
+		noIDs(d, cfg, emit)
+	}
 }
 
-// definitionAt reports whether the ID at text[s:e] starts the block and a colon follows it,
-// optionally inside bold: "REQ-012: …" or "**REQ-012:** …" or "**REQ-012**: …".
-func definitionAt(text []byte, s, e int) bool {
-	if strings.TrimSpace(string(text[:s])) != "" {
+// noIDs reports the first section whose heading names requirements, decisions or
+// non-functional requirements when the doc defines no trace ID. It is a hint: a doc without
+// IDs is not wrong, but no other doc can reference its items.
+func noIDs(d *doc, cfg Config, emit emitter) {
+	for _, sec := range d.sections.Sections {
+		if sec.Level == 0 || SectionPrefix(sec.Path, cfg.Prefixes) == "" {
+			continue
+		}
+		if len(strings.TrimSpace(string(sec.Own(d.src)))) == 0 {
+			continue
+		}
+		start, end := sec.Start-d.offset, sec.BodyStart-d.offset
+		emit(NoIDs, start, end,
+			fmt.Sprintf("The %q section has no trace IDs, so a linked doc cannot say which of its items it covers.", sec.Title),
+			fmt.Sprintf("Open Traceability and add the IDs Speccy suggests, or start each item with an ID such as %s-001:.", SectionPrefix(sec.Path, cfg.Prefixes)))
+		return
+	}
+}
+
+// sectionWords maps a word in a heading to the prefix of the items under it. The first match
+// wins, so "Non-functional requirements" gives NFR.
+var sectionWords = []struct {
+	prefix string
+	words  []string
+}{
+	{"NFR", []string{"non-functional", "nonfunctional", "quality"}},
+	{"REQ", []string{"requirement"}},
+	{"DEC", []string{"decision"}},
+}
+
+// SectionPrefix returns the trace ID prefix of the items under the heading path, or "" when the
+// headings name none of prefixes.
+func SectionPrefix(path []string, prefixes []string) string {
+	heading := strings.ToLower(strings.Join(path, " "))
+	for _, h := range sectionWords {
+		if !slices.Contains(prefixes, h.prefix) {
+			continue
+		}
+		for _, w := range h.words {
+			if strings.Contains(heading, w) {
+				return h.prefix
+			}
+		}
+	}
+	return ""
+}
+
+// defines reports whether the ID at p.text[s:e] defines it (REQ-051): the ID starts the block.
+// A heading and the first cell of a table body row define an ID as their first word. A list
+// item or a paragraph defines it only with a colon, a dash or an em dash after it, so a
+// sentence that starts with an ID stays a reference: "REQ-012: …", "**REQ-012:** …" or
+// "REQ-012 — …".
+func defines(p prose, s, e int) bool {
+	if strings.TrimSpace(string(p.text[:s])) != "" {
 		return false
 	}
-	rest := strings.TrimLeft(string(text[e:]), " ")
-	return strings.HasPrefix(rest, ":")
+	switch p.kind {
+	case kindHeading:
+		return true
+	case kindCell:
+		parent := p.node.Parent()
+		return p.node.PreviousSibling() == nil && parent != nil && parent.Kind() == extast.KindTableRow
+	}
+	rest := strings.TrimLeft(string(p.text[e:]), " ")
+	for _, sep := range []string{":", "—", "–", "- "} {
+		if strings.HasPrefix(rest, sep) {
+			return true
+		}
+	}
+	return false
 }
 
 func set(xs []string) map[string]bool {
@@ -499,7 +569,7 @@ func rfc2119(d *doc, cfg Config, emit emitter) {
 		}
 		first := item[0]
 		m := idRe.FindSubmatchIndex(first.text)
-		if m == nil || !reqPrefixes[string(first.text[m[2]:m[3]])] || !definitionAt(first.text, m[0], m[1]) {
+		if m == nil || !reqPrefixes[string(first.text[m[2]:m[3]])] || !defines(first, m[0], m[1]) {
 			return ast.WalkContinue, nil
 		}
 		for _, p := range item {
@@ -604,4 +674,11 @@ func requirementGrammar(d *doc, cfg Config, emit emitter) {
 		emit(RequirementGrammar, def.Start-d.offset, def.End-d.offset,
 			fmt.Sprintf("%s does not state a trigger and a response, so a check cannot verify it.", def.ID), ears.Fix)
 	}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }

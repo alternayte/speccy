@@ -22,10 +22,11 @@ const docsWidth = 1200
 
 const shotWidth = 1440
 
-// cmdDocsShots captures the pictures of docs/guide.md from the real app. It serves a copy of
-// build/dev-bundles in local mode, drives it with agent-browser, and writes docs/images.
-// The review calls a real model through the local claude CLI, with the model in DOCS_MODEL.
-func cmdDocsShots() error {
+// cmdDocsShots captures the pictures of docs/guide.md and docs/linked-docs.md from the real
+// app. It serves a copy of build/dev-bundles in local mode, drives it with agent-browser, and
+// writes docs/images. The review calls a real model through the local claude CLI, with the
+// model in DOCS_MODEL. part "linked" captures only the pictures of docs/linked-docs.md.
+func cmdDocsShots(part string) error {
 	root, err := os.Getwd()
 	if err != nil {
 		return err
@@ -74,10 +75,98 @@ func cmdDocsShots() error {
 	if _, err := d.ab("set", "viewport", fmt.Sprint(shotWidth), "900"); err != nil {
 		return err
 	}
+	if part == "linked" {
+		if err := s.models(model); err != nil {
+			return err
+		}
+		return d.linked(s, dir)
+	}
 	if err := d.guide(s, dir, model); err != nil {
 		return err
 	}
-	return d.linked(s, dir, model)
+	return d.linked(s, dir)
+}
+
+// models points every role at the local claude CLI, with model.
+func (s *server) models(model string) error {
+	var backend struct{ ID string }
+	if err := s.call("POST", "/admin/backends", map[string]string{"kind": "agent_cli", "name": "claude", "preset": "claude"}, &backend); err != nil {
+		return err
+	}
+	for _, role := range []string{"reviewer", "reader_1", "reader_2", "reader_3", "judge", "writer"} {
+		if err := s.call("PUT", "/admin/roles/"+role, map[string]string{"backend_id": backend.ID, "model": model}, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// specDoc is one spec doc, as the list of bundles names it.
+type specDoc struct {
+	ID       string `json:"id"`
+	BundleID string `json:"bundle_id"`
+	Slug     string `json:"slug"`
+	Verdict  *struct {
+		RunID string `json:"run_id"`
+	} `json:"verdict"`
+	Version struct {
+		ID string `json:"id"`
+	} `json:"current_version"`
+}
+
+// page is the doc's page in its bundle.
+func (d specDoc) page() string { return "/bundles/" + d.BundleID + "/docs/" + d.ID }
+
+// docs returns every spec doc, by slug.
+func (s *server) docs() (map[string]specDoc, error) {
+	var l struct {
+		Items []struct{ Docs []specDoc }
+	}
+	if err := s.call("GET", "/bundles?limit=100", nil, &l); err != nil {
+		return nil, err
+	}
+	m := map[string]specDoc{}
+	for _, b := range l.Items {
+		for _, d := range b.Docs {
+			m[d.Slug] = d
+		}
+	}
+	return m, nil
+}
+
+// doc returns one spec doc as it is now.
+func (s *server) doc(id string) (specDoc, error) {
+	var d specDoc
+	err := s.call("GET", "/docs/"+id, nil, &d)
+	return d, err
+}
+
+// finding returns the finding of the doc's latest verdict with slug whose message holds text.
+func (s *server) finding(id, slug, text string) (run, finding string, err error) {
+	d, err := s.doc(id)
+	if err != nil {
+		return "", "", err
+	}
+	if d.Verdict == nil {
+		return "", "", fmt.Errorf("doc %s has no verdict", d.Slug)
+	}
+	var l struct {
+		Items []struct {
+			ID        string `json:"id"`
+			RunID     string `json:"run_id"`
+			CheckSlug string `json:"check_slug"`
+			Message   string `json:"message"`
+		}
+	}
+	if err := s.call("GET", "/runs/"+d.Verdict.RunID+"/findings", nil, &l); err != nil {
+		return "", "", err
+	}
+	for _, f := range l.Items {
+		if f.CheckSlug == slug && strings.Contains(f.Message, text) {
+			return f.RunID, f.ID, nil
+		}
+	}
+	return "", "", fmt.Errorf("doc %s has no %s finding about %q", d.Slug, slug, text)
 }
 
 type shots struct {
@@ -367,40 +456,207 @@ func (d *shots) guide(s *server, dir, model string) error {
 	return nil
 }
 
-// linked captures the pictures of docs/linked-docs.md: two docs that must agree. It uses the
-// payments PRD and the SDD that implements it, and the two SDDs that break a rule on purpose.
-func (d *shots) linked(s *server, dir, model string) error {
+// linkedPRD and linkedSDD are the two docs of docs/linked-docs.md, in one folder. The PRD's
+// requirements have no IDs yet, and the SDD has no link yet: the pictures follow the steps
+// that add both.
+const linkedPRD = `---
+type: prd
+---
+# PRD - Refunds
+
+## Problem
+
+Support staff refund orders by hand, and each refund takes a day.
+
+## Users
+
+Support staff, and the customers they refund.
+
+## Goals
+
+- Refund a paid order in one click.
+
+## Non-goals
+
+- No partial refunds.
+
+## Requirements
+
+- Support staff can refund a paid order from the order page.
+- The customer gets an email when the refund starts.
+- The refund reaches the customer within 5 working days.
+`
+
+const linkedSDD = `---
+type: sdd
+---
+# SDD - Refunds
+
+## Context
+
+Support staff refund orders by hand today.
+
+## Design
+
+The order page gets a Refund button. The service calls the payment provider's refund API and records the refund.
+
+## Decisions
+
+- DEC-001: We use the provider's refund API, not a manual bank transfer.
+
+## Non-goals
+
+No partial refunds.
+`
+
+// linked captures the pictures of docs/linked-docs.md in the order of its steps: one folder
+// with a PRD and an SDD, the link, the IDs, the matrix, the three answers to a gap, then the
+// restatement, the contradiction and the stale verdict of the payments fixtures.
+func (d *shots) linked(s *server, dir string) error {
 	u := func(p string) string { return s.base + p }
-	bs, err := s.bundles()
-	if err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "refunds"), 0o755); err != nil {
 		return err
 	}
-	for _, slug := range []string{"payments-prd", "payments-sdd", "restated-sdd", "contradicting-sdd"} {
-		if _, ok := bs[slug]; !ok {
-			return fmt.Errorf("no bundle %s in build/dev-bundles", slug)
+	for name, body := range map[string]string{"PRD - Refunds.md": linkedPRD, "SDD - Refunds.md": linkedSDD} {
+		if err := os.WriteFile(filepath.Join(dir, "refunds", name), []byte(body), 0o644); err != nil {
+			return err
 		}
-	}
-	prd, sdd := bs["payments-prd"], bs["payments-sdd"]
-
-	// The matrix: every upstream ID against the docs that implement it.
-	if err := d.png("linked-matrix", u("/bundles/"+prd.ID+"/trace"), nil); err != nil {
-		return err
-	}
-
-	// A coverage gap: the sidecar of the SDD holds the acknowledgement of REQ-003, so taking
-	// it away opens the gap that a reader of the doc meets first.
-	sidecar := filepath.Join(dir, ".speccy", "decisions", "payments-sdd", "SPEC.md.yaml")
-	kept, err := os.ReadFile(sidecar)
-	if err != nil {
-		return fmt.Errorf("the sidecar of payments-sdd is missing: %w", err)
-	}
-	if err := os.Remove(sidecar); err != nil {
-		return err
 	}
 	if _, err := d.ab("wait", "5000"); err != nil {
 		return err
 	}
-	if err := d.png("linked-gap", u("/bundles/"+sdd.ID+"?view=preview"), func() error {
+	ds, err := s.docs()
+	if err != nil {
+		return err
+	}
+	for _, slug := range []string{"refunds/PRD - Refunds", "refunds/SDD - Refunds", "payments-prd", "payments-sdd", "restated-sdd", "contradicting-sdd"} {
+		if _, ok := ds[slug]; !ok {
+			return fmt.Errorf("no spec doc %s", slug)
+		}
+	}
+	prd, sdd := ds["refunds/PRD - Refunds"], ds["refunds/SDD - Refunds"]
+
+	// 1. One folder, one bundle, two spec docs.
+	if err := d.png("linked-folder", u(sdd.page()+"?view=preview"), nil); err != nil {
+		return err
+	}
+
+	// 2. The link: Suggest fix on links.has-upstream lists the PRDs.
+	if err := d.png("linked-link", u(sdd.page()+"?view=preview"), func() error {
+		if err := d.tab("Findings"); err != nil {
+			return err
+		}
+		js := `(() => { const li=[...document.querySelectorAll("li")].find(x=>x.textContent.includes("links.has-upstream")); if(!li) throw new Error("no has-upstream finding"); const b=[...li.querySelectorAll("button")].find(x=>x.textContent.trim()==="Suggest fix"); b.click(); return true; })()`
+		if _, err := d.ab("eval", js); err != nil {
+			return err
+		}
+		_, err := d.ab("wait", "1500")
+		return err
+	}); err != nil {
+		return err
+	}
+	run, up, err := s.finding(sdd.ID, "links.has-upstream", "")
+	if err != nil {
+		return err
+	}
+	if err := s.call("POST", "/runs/"+run+"/findings/"+up+"/fix", nil, nil); err != nil {
+		return err
+	}
+	if err := s.call("POST", "/runs/"+run+"/findings/"+up+"/fix/accept", map[string]string{"link_to": prd.ID}, nil); err != nil {
+		return err
+	}
+
+	// 3. The IDs: the PRD's Traceability page suggests them, and Add IDs writes them in.
+	if err := d.png("linked-ids", u(prd.page()+"/trace"), nil); err != nil {
+		return err
+	}
+	if _, err := d.ab("find", "role", "button", "click", "--name", "Add 3 IDs"); err != nil {
+		return err
+	}
+	if _, err := d.ab("wait", "3000"); err != nil {
+		return err
+	}
+
+	// 4. The matrix: three PRD IDs, three gaps.
+	if err := d.png("linked-matrix", u(prd.page()+"/trace"), nil); err != nil {
+		return err
+	}
+
+	// 5. The three answers to a gap, in the tour.
+	var trace struct{ Sections [][]string }
+	if err := s.call("GET", "/docs/"+sdd.ID+"/trace", nil, &trace); err != nil {
+		return err
+	}
+	design := -1
+	for i, p := range trace.Sections {
+		if len(p) > 0 && p[len(p)-1] == "Design" {
+			design = i
+		}
+	}
+	if design < 0 {
+		return errors.New("the SDD has no Design section")
+	}
+	if err := d.png("linked-gap", u(sdd.page()+"/tour"), func() error {
+		if _, err := d.ab("press", "d"); err != nil {
+			return err
+		}
+		if _, err := d.ab("wait", "500"); err != nil {
+			return err
+		}
+		if _, err := d.ab("find", "role", "radio", "click", "--name", "This doc covers it"); err != nil {
+			return err
+		}
+		if _, err := d.ab("wait", "800"); err != nil {
+			return err
+		}
+		if _, err := d.ab("select", "aside select, select", fmt.Sprint(design)); err != nil {
+			return err
+		}
+		_, err := d.ab("wait", "500")
+		return err
+	}); err != nil {
+		return err
+	}
+	now, err := s.doc(sdd.ID)
+	if err != nil {
+		return err
+	}
+	if err := s.call("POST", "/docs/"+sdd.ID+"/trace/cover?base_version="+now.Version.ID,
+		map[string]any{"trace_id": "REQ-001", "section": trace.Sections[design]}, nil); err != nil {
+		return err
+	}
+	if _, err := d.ab("wait", "2000"); err != nil {
+		return err
+	}
+	for _, a := range []struct{ id, status, target, reason string }{
+		{"REQ-002", "out_of_scope", "", "The mail service sends every customer email, not this service."},
+		{"REQ-003", "covered_by", "payments-sdd", "The payments service owns the provider's refund timing."},
+	} {
+		_, f, err := s.finding(sdd.ID, "trace.coverage", a.id+" ")
+		if err != nil {
+			return err
+		}
+		answer := map[string]string{"status": a.status}
+		if a.target != "" {
+			answer["target"] = a.target
+		}
+		var w struct{ ID string }
+		if err := s.call("POST", "/docs/"+sdd.ID+"/waivers", map[string]any{"finding_id": f, "reason": a.reason, "trace": answer}, &w); err != nil {
+			return err
+		}
+		if err := s.call("POST", "/waivers/"+w.ID+"/approve", nil, nil); err != nil {
+			return err
+		}
+	}
+	if _, err := d.ab("wait", "3000"); err != nil {
+		return err
+	}
+	if err := d.png("linked-ack", u(prd.page()+"/trace"), nil); err != nil {
+		return err
+	}
+
+	// 6. A restatement: a downstream paragraph that repeats the upstream instead of linking.
+	if err := d.png("linked-restatement", u(ds["restated-sdd"].page()+"?view=preview"), func() error {
 		if err := d.tab("Findings"); err != nil {
 			return err
 		}
@@ -409,38 +665,17 @@ func (d *shots) linked(s *server, dir, model string) error {
 	}); err != nil {
 		return err
 	}
-	// The acknowledgement closes it, and the doc itself does not change.
-	if err := os.WriteFile(sidecar, kept, 0o644); err != nil {
-		return err
-	}
-	if _, err := d.ab("wait", "5000"); err != nil {
-		return err
-	}
-	if err := d.png("linked-ack", u("/bundles/"+sdd.ID+"/trace"), nil); err != nil {
-		return err
-	}
 
-	// A restatement: a downstream paragraph that repeats the upstream instead of linking.
-	if err := d.png("linked-restatement", u("/bundles/"+bs["restated-sdd"].ID+"?view=preview"), func() error {
-		if err := d.tab("Findings"); err != nil {
-			return err
-		}
-		_, err := d.ab("wait", "800")
-		return err
-	}); err != nil {
-		return err
-	}
-
-	// A contradiction: the coherence stage reads both docs, so this one calls the model.
+	// 7. A contradiction: the coherence stage reads both docs, so this one calls the model.
 	var started struct{ ID string }
-	if err := s.call("POST", "/bundles/"+bs["contradicting-sdd"].ID+"/runs", nil, &started); err != nil {
+	if err := s.call("POST", "/docs/"+ds["contradicting-sdd"].ID+"/runs", nil, &started); err != nil {
 		return err
 	}
 	if err := s.waitRun(started.ID); err != nil {
 		return err
 	}
 	// The Contradicted overlay layer shows the conflict itself, not every other finding.
-	if err := d.png("linked-contradiction", u("/bundles/"+bs["contradicting-sdd"].ID+"?view=preview"), func() error {
+	if err := d.png("linked-contradiction", u(ds["contradicting-sdd"].page()+"?view=preview"), func() error {
 		if _, err := d.ab("find", "text", "Contradicted", "click"); err != nil {
 			return err
 		}
@@ -450,10 +685,10 @@ func (d *shots) linked(s *server, dir, model string) error {
 		return err
 	}
 
-	// An upstream edit makes the downstream verdict stale. Only a full verdict goes stale: a
+	// 8. An upstream edit makes the downstream verdict stale. Only a full verdict goes stale: a
 	// lint verdict is cheap, so Speccy lints it again instead.
 	var full struct{ ID string }
-	if err := s.call("POST", "/bundles/"+sdd.ID+"/runs", nil, &full); err != nil {
+	if err := s.call("POST", "/docs/"+ds["payments-sdd"].ID+"/runs", nil, &full); err != nil {
 		return err
 	}
 	if err := s.waitRun(full.ID); err != nil {
@@ -474,7 +709,7 @@ func (d *shots) linked(s *server, dir, model string) error {
 	if _, err := d.ab("wait", "6000"); err != nil {
 		return err
 	}
-	if err := d.png("linked-stale", u("/bundles/"+sdd.ID+"?view=preview"), nil); err != nil {
+	if err := d.png("linked-stale", u(ds["payments-sdd"].page()+"?view=preview"), nil); err != nil {
 		return err
 	}
 	if err := os.WriteFile(prdDoc, text, 0o644); err != nil {

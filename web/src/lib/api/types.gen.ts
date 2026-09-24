@@ -559,6 +559,21 @@ export type TraceView = {
      */
     matrices: Array<TraceMatrix>;
     suggestions: Array<IdSuggestion>;
+    /**
+     * The heading path of each section of this doc, in order, for the answer "This doc covers it".
+     */
+    sections?: Array<Array<string>>;
+};
+
+/**
+ * The answer to a coverage gap that says the ID is intentionally absent from this doc. It is an Acknowledgement, and it follows the profile's waiver policy.
+ */
+export type TraceAnswer = {
+    status: 'out_of_scope' | 'covered_by';
+    /**
+     * For covered_by, the slug of the doc that covers the ID.
+     */
+    target?: string;
 };
 
 export type BundleRef = {
@@ -778,6 +793,10 @@ export type Finding = {
      */
     verify_target?: string;
     /**
+     * For a coverage gap, the upstream trace ID it is about.
+     */
+    trace_id?: string;
+    /**
      * The anchor in the bundle's current version, re-anchored when the run read an older version.
      */
     anchor: Anchor;
@@ -812,6 +831,10 @@ export type TourPoint = {
      * For a waiver, the caller can approve or reject it now.
      */
     can_approve?: boolean;
+    /**
+     * For a coverage gap, the upstream trace ID it is about.
+     */
+    trace_id?: string;
 };
 
 export type RunReport = {
@@ -1246,7 +1269,17 @@ export type Waiver = {
      */
     decision_reason?: string;
     section_range?: SectionRange;
+    trace?: TraceAck;
     created_at: string;
+};
+
+/**
+ * An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
+ */
+export type TraceAck = {
+    id: string;
+    status: 'out_of_scope' | 'covered_by';
+    target?: string;
 };
 
 export type HandoffList = {
@@ -3337,6 +3370,48 @@ export type AddTraceIdsResponses = {
 
 export type AddTraceIdsResponse = AddTraceIdsResponses[keyof AddTraceIdsResponses];
 
+export type CoverTraceIdData = {
+    body: {
+        trace_id: string;
+        /**
+         * The heading path of the section that covers the ID.
+         */
+        section: Array<string>;
+    };
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query: {
+        /**
+         * The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+         *
+         */
+        base_version: string;
+    };
+    url: '/docs/{docId}/trace/cover';
+};
+
+export type CoverTraceIdErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CoverTraceIdError = CoverTraceIdErrors[keyof CoverTraceIdErrors];
+
+export type CoverTraceIdResponses = {
+    /**
+     * The new version.
+     */
+    200: WriteResult;
+};
+
+export type CoverTraceIdResponse = CoverTraceIdResponses[keyof CoverTraceIdResponses];
+
 export type RunEventsData = {
     body?: never;
     path: {
@@ -4110,6 +4185,7 @@ export type RequestWaiverData = {
     body: {
         finding_id: string;
         reason: string;
+        trace?: TraceAnswer;
     };
     path: {
         /**

@@ -188,7 +188,7 @@ type Waiver struct {
 type TraceAck struct {
 	ID             string `yaml:"id"`
 	Status         string `yaml:"status"` // covered_by | out_of_scope
-	Target         string `yaml:"target"`
+	Target         string `yaml:"target,omitempty"`
 	Reason         string `yaml:"reason"`
 	AcknowledgedBy string `yaml:"acknowledged_by"`
 }

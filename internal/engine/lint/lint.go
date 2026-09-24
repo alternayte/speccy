@@ -4,6 +4,7 @@ package lint
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
@@ -33,6 +34,10 @@ const (
 	// shapes. It is off until a profile names a level, because forcing a grammar on a doc
 	// that never used one turns an adopted repo into a wall of findings.
 	RequirementGrammar = "lint.requirement-grammar"
+	// UnknownPrefix and NoIDs are hints about trace IDs: an ID-like token Speccy does not read,
+	// and a requirements section with no ID. Neither is a defect in the doc.
+	UnknownPrefix = "trace.unknown-prefix"
+	NoIDs         = "trace.no-ids"
 )
 
 // Rules lists every rule with its default level. A rule marked Off runs only when the
@@ -56,6 +61,8 @@ var Rules = []struct {
 	{ProseLimit, kernel.Should, false},
 	{AssetNudge, kernel.Should, false},
 	{PassiveVoice, kernel.Info, false},
+	{UnknownPrefix, kernel.Info, false},
+	{NoIDs, kernel.Info, false},
 }
 
 // Heading is a heading that the profile template requires, and the smallest doc size that
@@ -262,15 +269,18 @@ func traceUses(src []byte, prefixes []string) (defs, refs []Definition) {
 	sd := section.Parse(src)
 	body := src[sd.BodyStart:]
 	own := set(prefixes)
-	for _, p := range collectProse(section.Markdown().Parser().Parse(text.NewReader(body)), body) {
-		isDef := p.kind != kindCell && isDefinitionBlock(p.node)
+	blocks := collectProse(section.Markdown().Parser().Parse(text.NewReader(body)), body)
+	for _, p := range blocks {
 		for i, m := range idRe.FindAllSubmatchIndex(p.text, -1) {
 			if !own[string(p.text[m[2]:m[3]])] {
 				continue
 			}
 			s, e := p.span(m[0], m[1])
 			d := Definition{ID: string(p.text[m[0]:m[1]]), Start: s + sd.BodyStart, End: e + sd.BodyStart, Text: string(p.text)}
-			if i == 0 && isDef && definitionAt(p.text, m[0], m[1]) {
+			if i == 0 && defines(p, m[0], m[1]) {
+				if p.kind == kindCell {
+					d.Text = rowText(blocks, p)
+				}
 				defs = append(defs, d)
 			} else {
 				refs = append(refs, d)
@@ -278,6 +288,20 @@ func traceUses(src []byte, prefixes []string) (defs, refs []Definition) {
 		}
 	}
 	return defs, refs
+}
+
+// rowText is the text of the table row that cell starts: "REQ-001: the other cells", so a
+// row reads as a list item does.
+func rowText(blocks []prose, cell prose) string {
+	var rest []string
+	for _, p := range blocks {
+		if p.kind == kindCell && p.node.Parent() == cell.node.Parent() && p.node != cell.node {
+			if t := strings.TrimSpace(string(p.text)); t != "" {
+				rest = append(rest, t)
+			}
+		}
+	}
+	return strings.TrimSpace(string(cell.text)) + ": " + strings.Join(rest, " · ")
 }
 
 // Paragraph is the plain text of one paragraph or list item paragraph, with its offsets in
