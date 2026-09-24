@@ -154,7 +154,7 @@ func attachmentName(header, fallback string) string {
 }
 
 // defaultRepoConfig is the .speccy.yaml that speccy init writes (SDD §10.4).
-const defaultRepoConfig = `# Speccy repo configuration. The format is in SDD §10.4.
+const defaultRepoConfig = `# Speccy repo configuration. The format is at https://speccy-docs.pages.dev/reference/speccy-yaml/
 
 # Folder bundles: a folder with one markdown file that has a type field in its frontmatter.
 # With no entry here, every such folder is a bundle.

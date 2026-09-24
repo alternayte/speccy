@@ -270,7 +270,7 @@ func markdownCount(root, dir string) int {
 // repoConfigFor is the .speccy.yaml of an adopted repo.
 func repoConfigFor(mappings []source.Mapping, relaxed []string) string {
 	var b strings.Builder
-	b.WriteString("# Speccy repo configuration, written by speccy init --github. The format is in SDD §10.4.\n\n" +
+	b.WriteString("# Speccy repo configuration, written by speccy init --github.\n# The format is at https://speccy-docs.pages.dev/reference/speccy-yaml/\n\n" +
 		"# Each markdown file that matches a glob is a bundle, reviewed with that profile.\n" +
 		"# A frontmatter type in the file wins over the mapping.\nmap:\n")
 	for _, m := range mappings {
