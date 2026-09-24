@@ -379,23 +379,44 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 	fp := assigned.Backend.Kind + ":" + assigned.Model
 	bundleTokens := int64(len(bundleData(in.bundle.DocPath, in.main, textAssets(in)))) / 4
 	var scratch struct{}
-	// Rubric: a call per batch of uncached doc checks.
-	docUncached := 0
+	// Rubric: a call per batch of uncached doc checks, and for each section with text, a call
+	// per batch of its uncached section checks.
+	rubricUnit := func(inputHash string, slugs []string, extraTokens int64) {
+		uncached := 0
+		for _, slug := range slugs {
+			k := cacheKey{Step: "rubric:" + slug, InputHash: inputHash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
+			if hit, _ := s.cached(ctx, k, &scratch); hit {
+				est.CachedHits++
+			} else {
+				uncached++
+			}
+		}
+		calls := (uncached + rubricBatch - 1) / rubricBatch
+		est.Calls += calls
+		est.TokensIn += int64(calls) * (bundleTokens + extraTokens + 1500)
+		est.TokensOut += int64(calls) * 1500
+	}
+	var docSlugs, sectionSlugs []string
 	for _, c := range p.Profile.Checks {
-		if c.Stage != StageRubric || c.Scope == "section" || !c.AppliesAt(in.size) {
+		if c.Stage != StageRubric || !c.AppliesAt(in.size) {
 			continue
 		}
-		k := cacheKey{Step: "rubric:" + c.Slug, InputHash: bundleHash(in), ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
-		if hit, _ := s.cached(ctx, k, &scratch); hit {
-			est.CachedHits++
+		if c.Scope == "section" {
+			sectionSlugs = append(sectionSlugs, c.Slug)
 		} else {
-			docUncached++
+			docSlugs = append(docSlugs, c.Slug)
 		}
 	}
-	rubricCalls := (docUncached + rubricBatch - 1) / rubricBatch
-	est.Calls += rubricCalls
-	est.TokensIn += int64(rubricCalls) * (bundleTokens + 1500)
-	est.TokensOut += int64(rubricCalls) * 1500
+	rubricUnit(bundleHash(in), docSlugs, 0)
+	if len(sectionSlugs) > 0 {
+		for i := range in.doc.Sections {
+			sec := in.doc.Sections[i]
+			if sec.Level == 0 || len(strings.Fields(section.Normalize(sec.Own(in.main)))) == 0 {
+				continue
+			}
+			rubricUnit(sec.Hash, sectionSlugs, int64(len(sec.Own(in.main)))/4)
+		}
+	}
 	// Grounding: a claims call per uncached section, and about one label call per two sections.
 	sections := 0
 	for i := range in.doc.Sections {

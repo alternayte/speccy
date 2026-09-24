@@ -539,3 +539,37 @@ func TestRun_FailureNamesStage(t *testing.T) {
 		t.Error("a failed run has a verdict")
 	}
 }
+
+// REQ-104: the estimate counts a rubric call per batch of section checks for each section
+// with text, as the run makes them.
+func TestEstimate_CountsSectionChecks(t *testing.T) {
+	for _, e := range storetest.Engines() {
+		t.Run(e.Name, func(t *testing.T) {
+			ctx := context.Background()
+			pe := newPipeline(t, e, map[string]string{"pay/SPEC.md": groundedSDD}, "fake-1")
+			b, err := pe.bundles.DB.Queries().GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := pe.reviews.EstimateRun(ctx, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sdd := pe.reviews.Profiles()["sdd"]
+			sdd.Profile.Checks = append(append([]profile.Check{}, sdd.Profile.Checks...), profile.Check{
+				Slug: "sdd.section-numbers", Level: "SHOULD", Stage: review.StageRubric, Scope: "section",
+				Question: "Does the section give numbers?", PassWhen: "The section gives numbers.",
+			})
+			versions := map[string]profile.Versioned{"sdd": sdd}
+			pe.reviews.Profiles = func() map[string]profile.Versioned { return versions }
+			after, err := pe.reviews.EstimateRun(ctx, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Context, Limits and Risks have text: one call each.
+			if n := after.Calls - before.Calls; n != 3 {
+				t.Errorf("a section check adds %d calls to the estimate, want 3", n)
+			}
+		})
+	}
+}
