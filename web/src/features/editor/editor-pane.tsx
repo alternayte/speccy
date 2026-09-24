@@ -423,6 +423,7 @@ export function EditorPane({
             <CodeEditor
               docKey={`${path}@${loadVersion.id}`}
               initial={file.data.text}
+              value={text ?? file.data.text}
               path={path}
               onChange={change}
               onView={attachView}

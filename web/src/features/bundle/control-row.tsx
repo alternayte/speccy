@@ -123,8 +123,18 @@ export function ControlRow({
       ) : null}
       {extra}
       {next ? (
-        <Button variant="primary" size="sm" icon={kindIcon[next.kind]} disabled={busy} onClick={onNext}>
-          {busy ? "Reviewing" : next.sentence}
+        // On a phone the row wraps, and a long next action stays inside it: the sentence
+        // truncates, and its title holds the whole of it.
+        <Button
+          variant="primary"
+          size="sm"
+          icon={kindIcon[next.kind]}
+          disabled={busy}
+          onClick={onNext}
+          title={busy ? undefined : next.sentence}
+          className="max-w-full"
+        >
+          <span className="min-w-0 truncate">{busy ? "Reviewing" : next.sentence}</span>
         </Button>
       ) : null}
       <Menu

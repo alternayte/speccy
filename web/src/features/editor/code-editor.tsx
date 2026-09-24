@@ -77,6 +77,7 @@ export function languageFor(path: string): Extension[] {
 export function CodeEditor({
   docKey,
   initial,
+  value,
   path,
   readOnly = false,
   onChange,
@@ -86,6 +87,9 @@ export function CodeEditor({
   // A new docKey replaces the document; the same key keeps the editor and its undo history.
   docKey: string;
   initial: string;
+  // value is the text as the host holds it now. A change from outside the editor, such as an
+  // edit in the preview, goes into the editor, so its next keystroke does not send back old text.
+  value?: string;
   path: string;
   readOnly?: boolean;
   onChange: (text: string) => void;
@@ -93,15 +97,16 @@ export function CodeEditor({
   onView?: (view: EditorView | null) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const view = useRef<EditorView | null>(null);
   const handlers = useRef({ onChange, onSave });
   handlers.current = { onChange, onSave };
 
   useEffect(() => {
     if (!host.current) return;
-    const view = new EditorView({
+    const v = new EditorView({
       parent: host.current,
       state: EditorState.create({
-        doc: initial,
+        doc: value ?? initial,
         extensions: [
           lineNumbers(),
           history(),
@@ -136,14 +141,35 @@ export function CodeEditor({
         ],
       }),
     });
-    onView?.(view);
+    view.current = v;
+    onView?.(v);
     return () => {
       onView?.(null);
-      view.destroy();
+      view.current = null;
+      v.destroy();
     };
     // The editor is created once per document. Later changes to initial come from the user.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docKey, readOnly]);
+
+  // An outside change replaces only the range that differs, so the cursor and the undo history
+  // around it stay.
+  useEffect(() => {
+    const v = view.current;
+    if (!v || value === undefined) return;
+    const doc = v.state.doc.toString();
+    if (doc === value) return;
+    let from = 0;
+    while (from < doc.length && from < value.length && doc[from] === value[from]) from++;
+    let end = 0;
+    while (
+      end < doc.length - from &&
+      end < value.length - from &&
+      doc[doc.length - 1 - end] === value[value.length - 1 - end]
+    )
+      end++;
+    v.dispatch({ changes: { from, to: doc.length - end, insert: value.slice(from, value.length - end) } });
+  }, [value]);
 
   return <div ref={host} className="h-full min-h-0" />;
 }
