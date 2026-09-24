@@ -43,7 +43,7 @@ func runMCP(args []string, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
 		return exitUsage
 	}
-	a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"))
+	a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"), filepath.Join(root.Dir(), ".speccy", "state", "key"))
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
 		return exitRun
