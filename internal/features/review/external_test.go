@@ -98,6 +98,27 @@ func TestExternal_BadTargetIsMust(t *testing.T) {
 	}
 }
 
+// A github: link of another kind than implemented-by is read by no stage: its reason says so,
+// and does not send the reader to an MCP connection.
+func TestExternal_GitHubReferenceReason(t *testing.T) {
+	for _, e := range storetest.Engines() {
+		t.Run(e.Name, func(t *testing.T) {
+			ctx := context.Background()
+			en := newEnv(t, e, map[string]string{
+				"refunds-sdd/SPEC.md":          strings.Replace(codeSDD, "implemented-by", "references", 1),
+				ackPath("refunds-sdd/SPEC.md"): standaloneAck,
+			})
+			states, err := en.bundles.DB.Queries().ListLinkStates(ctx, bundleRow(t, en, "refunds-sdd").ID)
+			if err != nil || len(states) != 1 {
+				t.Fatalf("link states = %+v, %v", states, err)
+			}
+			if st := states[0]; st.State != "unchecked" || strings.Contains(st.Reason, "MCP") || !strings.Contains(st.Reason, "implemented-by") {
+				t.Errorf("state %s, reason %q; want unchecked, with a reason that names implemented-by and no MCP connection", st.State, st.Reason)
+			}
+		})
+	}
+}
+
 func bundleRow(t *testing.T, en *env, slug string) (id pgdb.SpecDoc) {
 	t.Helper()
 	b, err := en.bundles.DB.Queries().GetSpecDocBySlug(context.Background(),

@@ -65,12 +65,20 @@ func (s *Service) driftStage(ctx context.Context, rc *runCtx, in input, ev *eval
 		if rc != nil {
 			rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Reading " + t.URL, Done: i, Total: len(external)})
 		}
-		if t.Scheme != source.GitHubScheme || l.kind != source.ExternalKind {
+		if t.Scheme == source.GitHubScheme && l.kind != source.ExternalKind {
+			// No stage reads a code target of another kind: drift is for the code that
+			// implements this doc, and the conflict stage reads pages and issues only.
+			ev.setExternal(externalState{ref: l.ref, state: stateUnchecked,
+				reason: "Speccy reads a github: link for drift only when its kind is " + source.ExternalKind +
+					", so no review run reads this " + l.kind + " link."})
+			continue
+		}
+		if t.Scheme != source.GitHubScheme {
 			// A target that is not code is read by the conflict stage, when a connection covers
 			// its host. Say which of the two is missing.
 			reason := "A review run reads this link with the MCP connection for " + t.Host + "."
 			if f, err := s.fetcherFor(ctx, t.Host); err != nil || f == nil {
-				reason = "No MCP connection reads " + t.Host + ". An admin adds the host in Admin → MCP."
+				reason = "No MCP connection reads " + t.Host + ". An admin adds the host in Admin → MCP connections."
 			}
 			ev.setExternal(externalState{ref: l.ref, state: stateUnchecked, reason: reason})
 			continue
@@ -225,7 +233,7 @@ func (s *Service) conflictStage(ctx context.Context, rc *runCtx, in input, ev *e
 		}
 		if f == nil {
 			ev.setExternal(externalState{ref: l.ref, state: stateUnchecked,
-				reason: "No MCP connection reads " + t.Host + ". An admin adds the host in Admin → MCP."})
+				reason: "No MCP connection reads " + t.Host + ". An admin adds the host in Admin → MCP connections."})
 			continue
 		}
 		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Reading " + t.URL})
