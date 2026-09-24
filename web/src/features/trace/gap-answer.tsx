@@ -62,12 +62,8 @@ export function GapAnswer({
   });
   const ack = useMutation({
     ...requestWaiverMutation(),
-    onSuccess: (w) =>
-      finish(
-        w.status === "approved"
-          ? `${traceId} is acknowledged. The gap is closed.`
-          : `Asked for approval of ${traceId}. The gap closes when it is approved.`,
-      ),
+    // A request never approves itself, so the gap stays open until someone approves it.
+    onSuccess: () => finish(`Asked for approval of ${traceId}. The gap closes when it is approved.`),
   });
   const sections = trace.data?.sections ?? [];
   const others = (bundles.data?.items ?? []).flatMap((b) => b.docs).filter((d) => d.id !== docId);
