@@ -163,6 +163,9 @@ func (a *API) saveMCP(ctx context.Context, id uuid.UUID, in api.MCPConnectionInp
 		sealed, last4 = existing.SecretEncrypted, existing.SecretLast4
 	}
 	secret := ""
+	// otherKey is set when the stored secret was sealed with another key. The row keeps it, so
+	// the connection works again if the old key comes back, and the tools check runs without it.
+	var otherKey *kernel.Error
 	if in.Secret != nil && strings.TrimSpace(*in.Secret) != "" {
 		secret = strings.TrimSpace(*in.Secret)
 		if sealed, last4, err = a.seal(secret); err != nil {
@@ -170,13 +173,20 @@ func (a *API) saveMCP(ctx context.Context, id uuid.UUID, in api.MCPConnectionInp
 		}
 	} else if existing != nil && len(existing.SecretEncrypted) > 0 {
 		plain, err := a.Sealer.Open(existing.SecretEncrypted)
-		if err != nil {
+		switch {
+		case errors.Is(err, kernel.ErrOtherKey):
+			otherKey = mcpOtherKey(existing.Name)
+		case err != nil:
 			return pgdb.McpConnection{}, err
+		default:
+			secret = string(plain)
 		}
-		secret = string(plain)
 	}
 	conn := mcpclient.Connection{Transport: string(in.Transport), Command: t.Command, URL: t.URL, Secret: secret, SecretEnv: t.SecretEnv}
 	if err := a.checkAllowlist(ctx, conn, allow); err != nil {
+		if otherKey != nil {
+			return pgdb.McpConnection{}, otherKey
+		}
 		return pgdb.McpConnection{}, err
 	}
 	target, _ := json.Marshal(t)
@@ -262,12 +272,19 @@ func (a *API) connection(c pgdb.McpConnection) (mcpclient.Connection, error) {
 	conn := mcpclient.Connection{Transport: c.Transport, Command: t.Command, URL: t.URL, SecretEnv: t.SecretEnv}
 	if len(c.SecretEncrypted) > 0 {
 		plain, err := a.Sealer.Open(c.SecretEncrypted)
+		if errors.Is(err, kernel.ErrOtherKey) {
+			return conn, mcpOtherKey(c.Name)
+		}
 		if err != nil {
 			return conn, err
 		}
 		conn.Secret = string(plain)
 	}
 	return conn, nil
+}
+
+func mcpOtherKey(name string) *kernel.Error {
+	return kernel.OtherKey(fmt.Sprintf("The secret of the %s connection", name), "Admin → MCP connections")
 }
 
 // ListMCPTools connects to the server and lists its tools, for the allowlist.

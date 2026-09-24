@@ -88,6 +88,11 @@ func (s *Sealer) Seal(plain []byte) ([]byte, error) {
 	return s.aead.Seal(nonce, nonce, plain, nil), nil
 }
 
+// ErrOtherKey is the error of Open for a secret that another key sealed: the key file was
+// lost and Speccy made a new one, or SPECCY_MASTER_KEY changed. The caller says with OtherKey
+// which secret it is and where a person enters it again.
+var ErrOtherKey = errors.New("the secret was sealed with another key; the key file or SPECCY_MASTER_KEY changed")
+
 // Open decrypts what Seal returned.
 func (s *Sealer) Open(sealed []byte) ([]byte, error) {
 	n := s.aead.NonceSize()
@@ -96,9 +101,16 @@ func (s *Sealer) Open(sealed []byte) ([]byte, error) {
 	}
 	plain, err := s.aead.Open(nil, sealed[:n], sealed[n:], nil)
 	if err != nil {
-		return nil, errors.New("the secret does not decrypt with this key; the key file or SPECCY_MASTER_KEY changed")
+		return nil, ErrOtherKey
 	}
 	return plain, nil
+}
+
+// OtherKey is the error at use of a secret that another key sealed. what names the secret, such
+// as "The secret of the Claude backend", and where the admin page that takes it again.
+func OtherKey(what, where string) *Error {
+	return Invalid("secret_other_key", "%s was sealed with another key: the key file or SPECCY_MASTER_KEY changed after it was stored. "+
+		"Enter the secret again in %s.", what, where)
 }
 
 // Last4 returns the last 4 characters of a secret, which is all the API shows (SDD §14.1).

@@ -57,13 +57,13 @@ Keep the key in a secret store, such as a Kubernetes Secret with its own backup.
 
 ## When the key changes or is gone
 
-A secret that Speccy encrypted with one key does not decrypt with another. Speccy starts with a new key, but each use of an old secret fails with this cause:
+A secret that Speccy encrypted with one key does not decrypt with another. Speccy starts with a new key, but each use of an old secret fails with a message that names the secret and the admin page that takes it again:
 
 ```text
-the secret does not decrypt with this key; the key file or SPECCY_MASTER_KEY changed
+The secret of the Claude backend was sealed with another key: the key file or SPECCY_MASTER_KEY changed after it was stored. Enter the secret again in Admin → Models.
 ```
 
-You see it in a failed review run, in the result of **Test** on a backend, or in a failed GitHub sync. The reviews, the threads, the waivers and every other record stay readable. Only the three kinds of secret are lost.
+You see it in a failed review run, in the result of **Test** on a backend, in the tools of an MCP connection, or in a failed GitHub sync. The reviews, the threads, the waivers and every other record stay readable. Only the three kinds of secret are lost.
 
 In local mode, a missing key file is not an error. Speccy makes a new key at start, so the first sign is the message above.
 
@@ -86,7 +86,7 @@ Speccy has no command that rotates the master key. It holds one key at a time, a
 
 5. Enter the GitHub token again, when you set one. Open **Admin → GitHub**, paste the token in **New token**, and select **Save**.
 
-6. Delete and add again each MCP connection that has a secret. The tools of a connection cannot take a new secret, and **Save tools** needs the old one.
+6. Enter the secret of each MCP connection again. Open **Admin → MCP connections**, and select **Tools** on each connection with a secret. Paste the secret in **New secret**, and select **Save secret**.
 
 7. Select **Test** on each backend to check it.
 
