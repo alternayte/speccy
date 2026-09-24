@@ -5,6 +5,7 @@ package handoff
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -91,6 +92,10 @@ func verdictOf(v *api.BundleVerdict) string {
 	return string(v.Result)
 }
 
+// takeAnyway says how to take a packet the verdict does not allow. The CLI, the MCP tool and
+// the API all show the refusal, so it names the flag and the field.
+const takeAnyway = "take it anyway with speccy handoff --acknowledged, or with acknowledged: true in the API."
+
 // allow refuses a handoff that the verdict does not allow. The verdict is the only lever
 // Speccy has, so it bites first; acknowledged takes the packet anyway.
 func allow(result string, v *api.BundleVerdict, ack bool) error {
@@ -99,16 +104,22 @@ func allow(result string, v *api.BundleVerdict, ack bool) error {
 	}
 	switch result {
 	case "none":
-		return kernel.Conflict("no_verdict", "This bundle has no review, so Speccy cannot say it is Build Ready. Run a review, or take it anyway with acknowledged.")
+		return kernel.Conflict("no_verdict", "This bundle has no review, so Speccy cannot say it is Build Ready. Run a review, or "+takeAnyway)
 	case string(verdict.Stale):
-		return kernel.Conflict("stale_verdict", "The verdict is stale: it belongs to an older version. Run the review again, or take it anyway with acknowledged.")
+		return kernel.Conflict("stale_verdict", "The verdict is stale: it belongs to an older version. Run the review again, or "+takeAnyway)
 	}
-	must := 0
-	if v != nil {
-		must = v.Must
+	var fix []string
+	if v != nil && v.Must > 0 {
+		fix = append(fix, fmt.Sprintf("%d MUST finding%s to fix", v.Must, plural(v.Must)))
 	}
-	return kernel.Conflict("not_build_ready", "This bundle is Not Build Ready: %d MUST finding%s to fix. Fix them, or take it anyway with acknowledged.",
-		must, plural(must))
+	if v != nil && v.BlockingThreads != nil && *v.BlockingThreads > 0 {
+		n := *v.BlockingThreads
+		fix = append(fix, fmt.Sprintf("%d open blocking thread%s to resolve", n, plural(n)))
+	}
+	if len(fix) == 0 {
+		return kernel.Conflict("not_build_ready", "This bundle is Not Build Ready. Open it to see why, or "+takeAnyway)
+	}
+	return kernel.Conflict("not_build_ready", "This bundle is Not Build Ready: %s. Clear these first, or "+takeAnyway, strings.Join(fix, " and "))
 }
 
 // packet builds the build packet of b's current version.
