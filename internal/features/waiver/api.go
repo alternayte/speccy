@@ -392,12 +392,8 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 }
 
 // Invalidate ends each approved waiver of b whose section changed (REQ-074, T-010). It runs
-// after every new version. An ended waiver first leaves the sidecar, as an approval first
-// writes it there (DEC-009): a reader of the sidecar alone, such as CI, then agrees with the
-// store, and the waiver does not come back when the section returns to the text it had.
-func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
-	decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error),
-	setDecisions func(ctx context.Context, b pgdb.SpecDoc, d source.Decisions, by, message string) error) error {
+// after every new version.
+func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
@@ -408,12 +404,6 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 	var main []byte
 	var doc section.Doc
 	loaded := false
-	type end struct {
-		row  pgdb.WaiverView
-		path []string
-		hash string
-	}
-	var ends []end
 	for _, r := range rows {
 		if r.Status != StatusApproved || r.Scope == ScopeTrace {
 			continue
@@ -433,34 +423,7 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 		var path []string
 		_ = json.Unmarshal(r.SectionPath, &path)
 		hash, _ := section.HashAt(doc, main, path)
-		if hash != r.SectionHash {
-			ends = append(ends, end{row: r, path: path, hash: hash})
-		}
-	}
-	if len(ends) == 0 {
-		return nil
-	}
-	dec, err := decisions(ctx, b)
-	if err != nil {
-		return err
-	}
-	var checks []string
-	for _, e := range ends {
-		if e.row.Scope == ScopeVerify {
-			continue // never in the sidecar
-		}
-		var removed bool
-		if dec, removed = dec.WithoutWaiver(e.row.CheckSlug, e.path, e.row.SectionHash); removed {
-			checks = append(checks, e.row.CheckSlug)
-		}
-	}
-	if len(checks) > 0 {
-		if err := setDecisions(ctx, b, dec, "system", "Ended the waiver for "+strings.Join(checks, ", ")+": its section changed"); err != nil {
-			return err
-		}
-	}
-	for _, e := range ends {
-		if _, err := es.Run(ctx, st, StreamType, e.row.ID, func(s State) ([]es.Event, error) { return DecideInvalidate(s, e.hash) }, Evolve); err != nil {
+		if _, err := es.Run(ctx, st, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideInvalidate(s, hash) }, Evolve); err != nil {
 			return err
 		}
 	}
