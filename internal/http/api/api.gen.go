@@ -1427,6 +1427,7 @@ const (
 	WaiverStatusInvalidated WaiverStatus = "invalidated"
 	WaiverStatusRejected    WaiverStatus = "rejected"
 	WaiverStatusRequested   WaiverStatus = "requested"
+	WaiverStatusWithdrawn   WaiverStatus = "withdrawn"
 )
 
 // Valid indicates whether the value is a known member of the WaiverStatus enum.
@@ -1439,6 +1440,8 @@ func (e WaiverStatus) Valid() bool {
 	case WaiverStatusRejected:
 		return true
 	case WaiverStatusRequested:
+		return true
+	case WaiverStatusWithdrawn:
 		return true
 	default:
 		return false
@@ -1457,6 +1460,24 @@ func (e CreateInviteJSONBodyRole) Valid() bool {
 	case CreateInviteJSONBodyRoleAdmin:
 		return true
 	case CreateInviteJSONBodyRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WithdrawAcknowledgementJSONBodyKind.
+const (
+	WithdrawAcknowledgementJSONBodyKindStandalone WithdrawAcknowledgementJSONBodyKind = "standalone"
+	WithdrawAcknowledgementJSONBodyKindTrace      WithdrawAcknowledgementJSONBodyKind = "trace"
+)
+
+// Valid indicates whether the value is a known member of the WithdrawAcknowledgementJSONBodyKind enum.
+func (e WithdrawAcknowledgementJSONBodyKind) Valid() bool {
+	switch e {
+	case WithdrawAcknowledgementJSONBodyKindStandalone:
+		return true
+	case WithdrawAcknowledgementJSONBodyKindTrace:
 		return true
 	default:
 		return false
@@ -1812,6 +1833,8 @@ type BundleProblem struct {
 
 // BundleRef defines model for BundleRef.
 type BundleRef struct {
+	// BundleId The bundle that holds the spec doc.
+	BundleId   openapi_types.UUID `json:"bundle_id"`
 	Id         openapi_types.UUID `json:"id"`
 	ProfileKey string             `json:"profile_key"`
 	Slug       string             `json:"slug"`
@@ -3106,10 +3129,12 @@ type TraceAnswerStatus string
 
 // TraceCell defines model for TraceCell.
 type TraceCell struct {
-	Reason *string        `json:"reason,omitempty"`
-	Refs   []Anchor       `json:"refs"`
-	State  TraceCellState `json:"state"`
-	Target *string        `json:"target,omitempty"`
+	// FindingId For a gap, the trace.coverage finding of the column's spec doc for this ID, from the run behind its verdict. An answer to the gap names it.
+	FindingId *openapi_types.UUID `json:"finding_id,omitempty"`
+	Reason    *string             `json:"reason,omitempty"`
+	Refs      []Anchor            `json:"refs"`
+	State     TraceCellState      `json:"state"`
+	Target    *string             `json:"target,omitempty"`
 }
 
 // TraceCellState defines model for TraceCell.State.
@@ -3118,10 +3143,13 @@ type TraceCellState string
 // TraceMatrix defines model for TraceMatrix.
 type TraceMatrix struct {
 	// Cells cells[row][column].
-	Cells    [][]TraceCell `json:"cells"`
-	Columns  []BundleRef   `json:"columns"`
-	Rows     []TraceRow    `json:"rows"`
-	Upstream BundleRef     `json:"upstream"`
+	Cells   [][]TraceCell `json:"cells"`
+	Columns []BundleRef   `json:"columns"`
+
+	// Editable editable[column] says whether the caller can edit that column's spec doc, and so answer its gaps and withdraw its acknowledgements.
+	Editable []bool     `json:"editable"`
+	Rows     []TraceRow `json:"rows"`
+	Upstream BundleRef  `json:"upstream"`
 }
 
 // TraceRow defines model for TraceRow.
@@ -3352,14 +3380,27 @@ type Waiver struct {
 
 	// SectionRange The byte range of the waiver's section in the current main doc. Absent when the section is gone.
 	SectionRange *SectionRange `json:"section_range,omitempty"`
-	Status       WaiverStatus  `json:"status"`
+
+	// Standalone True for a standalone Acknowledgement. On approval it goes in the sidecar under standalone.
+	Standalone *bool `json:"standalone,omitempty"`
+
+	// Status withdrawn is an approved Acknowledgement that a person took out of the sidecar.
+	Status WaiverStatus `json:"status"`
 
 	// Trace An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
 	Trace *TraceAck `json:"trace,omitempty"`
+
+	// WithdrawnBy Who withdrew the Acknowledgement. Only a withdrawn one has it.
+	WithdrawnBy *string `json:"withdrawn_by,omitempty"`
 }
 
-// WaiverStatus defines model for Waiver.Status.
+// WaiverStatus withdrawn is an approved Acknowledgement that a person took out of the sidecar.
 type WaiverStatus string
+
+// Withdrawal defines model for Withdrawal.
+type Withdrawal struct {
+	Version *Version `json:"version,omitempty"`
+}
 
 // WriteResult defines model for WriteResult.
 type WriteResult struct {
@@ -3474,6 +3515,17 @@ type UndismissDocParams struct {
 	Path     string              `form:"path" json:"path"`
 	SourceId *openapi_types.UUID `form:"source_id,omitempty" json:"source_id,omitempty"`
 }
+
+// WithdrawAcknowledgementJSONBody defines parameters for WithdrawAcknowledgement.
+type WithdrawAcknowledgementJSONBody struct {
+	Kind WithdrawAcknowledgementJSONBodyKind `json:"kind"`
+
+	// TraceId For kind trace, the upstream trace ID whose acknowledgement to withdraw.
+	TraceId *string `json:"trace_id,omitempty"`
+}
+
+// WithdrawAcknowledgementJSONBodyKind defines parameters for WithdrawAcknowledgement.
+type WithdrawAcknowledgementJSONBodyKind string
 
 // DiffVersionsParams defines parameters for DiffVersions.
 type DiffVersionsParams struct {
@@ -3615,6 +3667,9 @@ type ListVersionsParams struct {
 type RequestWaiverJSONBody struct {
 	FindingId openapi_types.UUID `json:"finding_id"`
 	Reason    string             `json:"reason"`
+
+	// Standalone Mark the doc standalone: the answer to a links.has-upstream finding. It is an Acknowledgement, and its approval writes standalone to the doc's sidecar.
+	Standalone *bool `json:"standalone,omitempty"`
 
 	// Trace The answer to a coverage gap that says the ID is intentionally absent from this doc. It is an Acknowledgement, and it follows the profile's waiver policy.
 	Trace *TraceAnswer `json:"trace,omitempty"`
@@ -3763,6 +3818,9 @@ type SetVisibilityJSONRequestBody SetVisibilityJSONBody
 
 // DismissDocJSONRequestBody defines body for DismissDoc for application/json ContentType.
 type DismissDocJSONRequestBody = DismissedDoc
+
+// WithdrawAcknowledgementJSONRequestBody defines body for WithdrawAcknowledgement for application/json ContentType.
+type WithdrawAcknowledgementJSONRequestBody WithdrawAcknowledgementJSONBody
 
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
@@ -3991,6 +4049,9 @@ type ServerInterface interface {
 	// GetSpecDoc Get one spec doc.
 	// (GET /docs/{docId})
 	GetSpecDoc(w http.ResponseWriter, r *http.Request, docId DocId)
+	// WithdrawAcknowledgement Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+	// (POST /docs/{docId}/acknowledgements/withdraw)
+	WithdrawAcknowledgement(w http.ResponseWriter, r *http.Request, docId DocId)
 	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
 	// (POST /docs/{docId}/adopt)
 	AdoptFrontmatter(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -5101,6 +5162,32 @@ func (siw *ServerInterfaceWrapper) GetSpecDoc(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSpecDoc(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// WithdrawAcknowledgement operation middleware
+func (siw *ServerInterfaceWrapper) WithdrawAcknowledgement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.WithdrawAcknowledgement(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7738,6 +7825,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/threads/{threadId}/status", wrapper.SetThreadStatus)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.ListWaivers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.RequestWaiver)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/acknowledgements/withdraw", wrapper.WithdrawAcknowledgement)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/approve", wrapper.ApproveWaiver)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/reject", wrapper.RejectWaiver)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/status", wrapper.GetBundleStatus)
@@ -9306,6 +9394,46 @@ type GetSpecDocdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetSpecDocdefaultApplicationProblemPlusJSONResponse) VisitGetSpecDocResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawAcknowledgementRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *WithdrawAcknowledgementJSONRequestBody
+}
+
+type WithdrawAcknowledgementResponseObject interface {
+	VisitWithdrawAcknowledgementResponse(w http.ResponseWriter) error
+}
+
+type WithdrawAcknowledgement200JSONResponse Withdrawal
+
+func (response WithdrawAcknowledgement200JSONResponse) VisitWithdrawAcknowledgementResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type WithdrawAcknowledgementdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response WithdrawAcknowledgementdefaultApplicationProblemPlusJSONResponse) VisitWithdrawAcknowledgementResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -13009,6 +13137,9 @@ type StrictServerInterface interface {
 	// GetSpecDoc Get one spec doc.
 	// (GET /docs/{docId})
 	GetSpecDoc(ctx context.Context, request GetSpecDocRequestObject) (GetSpecDocResponseObject, error)
+	// WithdrawAcknowledgement Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+	// (POST /docs/{docId}/acknowledgements/withdraw)
+	WithdrawAcknowledgement(ctx context.Context, request WithdrawAcknowledgementRequestObject) (WithdrawAcknowledgementResponseObject, error)
 	// AdoptFrontmatter Write the type and the size that the review used into the main doc's frontmatter (REQ-135).
 	// (POST /docs/{docId}/adopt)
 	AdoptFrontmatter(ctx context.Context, request AdoptFrontmatterRequestObject) (AdoptFrontmatterResponseObject, error)
@@ -14425,6 +14556,39 @@ func (sh *strictHandler) GetSpecDoc(w http.ResponseWriter, r *http.Request, docI
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetSpecDocResponseObject); ok {
 		if err := validResponse.VisitGetSpecDocResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// WithdrawAcknowledgement operation middleware
+func (sh *strictHandler) WithdrawAcknowledgement(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request WithdrawAcknowledgementRequestObject
+
+	request.DocId = docId
+
+	var body WithdrawAcknowledgementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.WithdrawAcknowledgement(ctx, request.(WithdrawAcknowledgementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "WithdrawAcknowledgement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(WithdrawAcknowledgementResponseObject); ok {
+		if err := validResponse.VisitWithdrawAcknowledgementResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

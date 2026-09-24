@@ -1678,6 +1678,11 @@ paths:
                   type: string
                 trace:
                   $ref: "#/components/schemas/TraceAnswer"
+                standalone:
+                  type: boolean
+                  description: >
+                    Mark the doc standalone: the answer to a links.has-upstream finding. It is an
+                    Acknowledgement, and its approval writes standalone to the doc's sidecar.
       responses:
         "200":
           description: The waiver.
@@ -1685,6 +1690,41 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Waiver"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/acknowledgements/withdraw:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    post:
+      operationId: withdrawAcknowledgement
+      summary: Withdraw one acknowledgement of the doc, a trace entry or standalone. It takes effect at once, with no approval.
+      description: >
+        The entry leaves the doc's sidecar through the write an approval uses: a local bundle's
+        sidecar changes on disk, and a db or GitHub bundle gets a new version (a GitHub bundle's is
+        a draft to publish). The waiver stream of the acknowledgement records who withdrew it. A
+        withdrawal only makes the verdict stricter, so only a person who can edit the doc may do it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [trace, standalone]
+                trace_id:
+                  type: string
+                  description: For kind trace, the upstream trace ID whose acknowledgement to withdraw.
+      responses:
+        "200":
+          description: The acknowledgement is gone. version is absent when no version was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Withdrawal"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3531,11 +3571,15 @@ components:
 
     BundleRef:
       type: object
-      required: [id, slug, title, profile_key]
+      required: [id, bundle_id, slug, title, profile_key]
       properties:
         id:
           type: string
           format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+          description: The bundle that holds the spec doc.
         slug:
           type: string
         title:
@@ -3599,7 +3643,7 @@ components:
 
     TraceMatrix:
       type: object
-      required: [upstream, rows, columns, cells]
+      required: [upstream, rows, columns, cells, editable]
       properties:
         upstream:
           $ref: "#/components/schemas/BundleRef"
@@ -3618,6 +3662,11 @@ components:
             type: array
             items:
               $ref: "#/components/schemas/TraceCell"
+        editable:
+          type: array
+          description: editable[column] says whether the caller can edit that column's spec doc, and so answer its gaps and withdraw its acknowledgements.
+          items:
+            type: boolean
 
     TraceRow:
       type: object
@@ -3645,6 +3694,10 @@ components:
           type: string
         target:
           type: string
+        finding_id:
+          type: string
+          format: uuid
+          description: For a gap, the trace.coverage finding of the column's spec doc for this ID, from the run behind its verdict. An answer to the gap names it.
 
     IdSuggestion:
       type: object
@@ -4564,7 +4617,8 @@ components:
           type: string
         status:
           type: string
-          enum: [requested, approved, rejected, invalidated]
+          enum: [requested, approved, rejected, invalidated, withdrawn]
+          description: withdrawn is an approved Acknowledgement that a person took out of the sidecar.
         requested_by:
           type: string
         approvals:
@@ -4587,9 +4641,21 @@ components:
           $ref: "#/components/schemas/SectionRange"
         trace:
           $ref: "#/components/schemas/TraceAck"
+        standalone:
+          type: boolean
+          description: True for a standalone Acknowledgement. On approval it goes in the sidecar under standalone.
+        withdrawn_by:
+          type: string
+          description: Who withdrew the Acknowledgement. Only a withdrawn one has it.
         created_at:
           type: string
           format: date-time
+
+    Withdrawal:
+      type: object
+      properties:
+        version:
+          $ref: "#/components/schemas/Version"
 
     TraceAck:
       type: object
