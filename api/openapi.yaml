@@ -141,14 +141,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                acknowledged:
-                  type: boolean
-                  description: Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
-                label:
-                  type: string
-                  description: What the builder calls this work, such as a repo, a branch, or a ticket.
+              $ref: "#/components/schemas/HandoffRequest"
       responses:
         "200":
           description: The build packet.
@@ -156,6 +149,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BuildPacket"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/handoff/zip:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    post:
+      operationId: takeHandoffZip
+      summary: Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HandoffRequest"
+      responses:
+        "200":
+          description: The build packet as a .zip file, in one folder.
+          content:
+            application/zip:
+              schema:
+                type: string
+                contentMediaType: application/zip
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3060,6 +3076,11 @@ components:
           type: string
           enum: [upstream_changed]
           description: Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
+        stale_upstream:
+          type: array
+          description: With stale_reason upstream_changed, the linked spec docs that have a newer version than the run read.
+          items:
+            $ref: "#/components/schemas/BundleRef"
 
     VerdictResult:
       type: string
@@ -4603,6 +4624,16 @@ components:
           enum: [out_of_scope, covered_by]
         target:
           type: string
+
+    HandoffRequest:
+      type: object
+      properties:
+        acknowledged:
+          type: boolean
+          description: Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+        label:
+          type: string
+          description: What the builder calls this work, such as a repo, a branch, or a ticket.
 
     HandoffList:
       type: object

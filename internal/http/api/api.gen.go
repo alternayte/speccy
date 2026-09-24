@@ -1868,9 +1868,12 @@ type BundleVerdict struct {
 	Should          int  `json:"should"`
 
 	// StaleReason Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
-	StaleReason   *BundleVerdictStaleReason `json:"stale_reason,omitempty"`
-	VersionNumber int64                     `json:"version_number"`
-	WaiverCount   int                       `json:"waiver_count"`
+	StaleReason *BundleVerdictStaleReason `json:"stale_reason,omitempty"`
+
+	// StaleUpstream With stale_reason upstream_changed, the linked spec docs that have a newer version than the run read.
+	StaleUpstream *[]BundleRef `json:"stale_upstream,omitempty"`
+	VersionNumber int64        `json:"version_number"`
+	WaiverCount   int          `json:"waiver_count"`
 }
 
 // BundleVerdictKind lint means only the lint stage ran.
@@ -2234,6 +2237,15 @@ type Handoff struct {
 // HandoffList defines model for HandoffList.
 type HandoffList struct {
 	Items []Handoff `json:"items"`
+}
+
+// HandoffRequest defines model for HandoffRequest.
+type HandoffRequest struct {
+	// Acknowledged Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+	Acknowledged *bool `json:"acknowledged,omitempty"`
+
+	// Label What the builder calls this work, such as a repo, a branch, or a ticket.
+	Label *string `json:"label,omitempty"`
 }
 
 // IdSuggestion defines model for IdSuggestion.
@@ -3527,15 +3539,6 @@ type PutFileContentParams struct {
 	Path PathQuery `form:"path" json:"path"`
 }
 
-// TakeHandoffJSONBody defines parameters for TakeHandoff.
-type TakeHandoffJSONBody struct {
-	// Acknowledged Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
-	Acknowledged *bool `json:"acknowledged,omitempty"`
-
-	// Label What the builder calls this work, such as a repo, a branch, or a ticket.
-	Label *string `json:"label,omitempty"`
-}
-
 // RemoveLinkParams defines parameters for RemoveLink.
 type RemoveLinkParams struct {
 	// BaseVersion The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
@@ -3768,7 +3771,10 @@ type DismissDocJSONRequestBody = DismissedDoc
 type RenameFileJSONRequestBody = RenameRequest
 
 // TakeHandoffJSONRequestBody defines body for TakeHandoff for application/json ContentType.
-type TakeHandoffJSONRequestBody TakeHandoffJSONBody
+type TakeHandoffJSONRequestBody = HandoffRequest
+
+// TakeHandoffZipJSONRequestBody defines body for TakeHandoffZip for application/json ContentType.
+type TakeHandoffZipJSONRequestBody = HandoffRequest
 
 // SetBundleProfileJSONRequestBody defines body for SetBundleProfile for application/json ContentType.
 type SetBundleProfileJSONRequestBody SetBundleProfileJSONBody
@@ -4033,6 +4039,9 @@ type ServerInterface interface {
 	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
 	// (POST /docs/{docId}/handoff)
 	TakeHandoff(w http.ResponseWriter, r *http.Request, docId DocId)
+	// TakeHandoffZip Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+	// (POST /docs/{docId}/handoff/zip)
+	TakeHandoffZip(w http.ResponseWriter, r *http.Request, docId DocId)
 	// RemoveLink Remove one outgoing link that Speccy holds for the doc.
 	// (DELETE /docs/{docId}/links)
 	RemoveLink(w http.ResponseWriter, r *http.Request, docId DocId, params RemoveLinkParams)
@@ -5655,6 +5664,32 @@ func (siw *ServerInterfaceWrapper) TakeHandoff(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TakeHandoff(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TakeHandoffZip operation middleware
+func (siw *ServerInterfaceWrapper) TakeHandoffZip(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TakeHandoffZip(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7666,6 +7701,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/handoffs/{handoffId}/report", wrapper.ReportBuild)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.ListHandoffs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.TakeHandoff)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff/zip", wrapper.TakeHandoffZip)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/verification-waivers", wrapper.RequestVerificationWaiver)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/delete-plan", wrapper.DeleteBundlePlan)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/verifications", wrapper.ListVerifications)
@@ -9896,6 +9932,52 @@ type TakeHandoffdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response TakeHandoffdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TakeHandoffZipRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *TakeHandoffZipJSONRequestBody
+}
+
+type TakeHandoffZipResponseObject interface {
+	VisitTakeHandoffZipResponse(w http.ResponseWriter) error
+}
+
+type TakeHandoffZip200ApplicationzipResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response TakeHandoffZip200ApplicationzipResponse) VisitTakeHandoffZipResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "application/zip")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type TakeHandoffZipdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response TakeHandoffZipdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffZipResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -13051,6 +13133,9 @@ type StrictServerInterface interface {
 	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
 	// (POST /docs/{docId}/handoff)
 	TakeHandoff(ctx context.Context, request TakeHandoffRequestObject) (TakeHandoffResponseObject, error)
+	// TakeHandoffZip Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+	// (POST /docs/{docId}/handoff/zip)
+	TakeHandoffZip(ctx context.Context, request TakeHandoffZipRequestObject) (TakeHandoffZipResponseObject, error)
 	// RemoveLink Remove one outgoing link that Speccy holds for the doc.
 	// (DELETE /docs/{docId}/links)
 	RemoveLink(ctx context.Context, request RemoveLinkRequestObject) (RemoveLinkResponseObject, error)
@@ -14815,6 +14900,42 @@ func (sh *strictHandler) TakeHandoff(w http.ResponseWriter, r *http.Request, doc
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(TakeHandoffResponseObject); ok {
 		if err := validResponse.VisitTakeHandoffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TakeHandoffZip operation middleware
+func (sh *strictHandler) TakeHandoffZip(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request TakeHandoffZipRequestObject
+
+	request.DocId = docId
+
+	var body TakeHandoffZipJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TakeHandoffZip(ctx, request.(TakeHandoffZipRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TakeHandoffZip")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TakeHandoffZipResponseObject); ok {
+		if err := validResponse.VisitTakeHandoffZipResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

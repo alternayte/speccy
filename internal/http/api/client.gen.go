@@ -526,6 +526,20 @@ type ClientInterface interface {
 	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
 	TakeHandoff(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// TakeHandoffZipWithBody Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+	TakeHandoffZipWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TakeHandoffZip Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+	TakeHandoffZip(ctx context.Context, docId DocId, body TakeHandoffZipJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RemoveLink Remove one outgoing link that Speccy holds for the doc.
 	//
 	// An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
@@ -2339,6 +2353,40 @@ func (c *Client) TakeHandoffWithBody(ctx context.Context, docId DocId, contentTy
 // Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
 func (c *Client) TakeHandoff(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTakeHandoffRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TakeHandoffZipWithBody Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+func (c *Client) TakeHandoffZipWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeHandoffZipRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TakeHandoffZip Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+func (c *Client) TakeHandoffZip(ctx context.Context, docId DocId, body TakeHandoffZipJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTakeHandoffZipRequest(c.Server, docId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6320,6 +6368,53 @@ func NewTakeHandoffRequestWithBody(server string, docId DocId, contentType strin
 	return req, nil
 }
 
+// NewTakeHandoffZipRequest calls the generic TakeHandoffZip builder with application/json body
+func NewTakeHandoffZipRequest(server string, docId DocId, body TakeHandoffZipJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewTakeHandoffZipRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewTakeHandoffZipRequestWithBody constructs an http.Request for the TakeHandoffZip method, with any body, and a specified content type
+func NewTakeHandoffZipRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/handoff/zip", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRemoveLinkRequest constructs an http.Request for the RemoveLink method
 func NewRemoveLinkRequest(server string, docId DocId, params *RemoveLinkParams) (*http.Request, error) {
 	var err error
@@ -9882,6 +9977,20 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
 	TakeHandoffWithResponse(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
 
+	// TakeHandoffZipWithBodyWithResponse Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+	TakeHandoffZipWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffZipResponse, error)
+
+	// TakeHandoffZipWithResponse Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+	TakeHandoffZipWithResponse(ctx context.Context, docId DocId, body TakeHandoffZipJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffZipResponse, error)
+
 	// RemoveLinkWithResponse Remove one outgoing link that Speccy holds for the doc.
 	//
 	// An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
@@ -13194,6 +13303,47 @@ func (r TakeHandoffResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r TakeHandoffResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type TakeHandoffZipResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r TakeHandoffZipResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r TakeHandoffZipResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r TakeHandoffZipResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TakeHandoffZipResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r TakeHandoffZipResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17694,6 +17844,32 @@ func (c *ClientWithResponses) TakeHandoffWithResponse(ctx context.Context, docId
 	return ParseTakeHandoffResponse(rsp)
 }
 
+// TakeHandoffZipWithBodyWithResponse Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+func (c *ClientWithResponses) TakeHandoffZipWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*TakeHandoffZipResponse, error) {
+	rsp, err := c.TakeHandoffZipWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeHandoffZipResponse(rsp)
+}
+
+// TakeHandoffZipWithResponse Take the build packet as a .zip file, and record the handoff. The .zip holds the files that speccy handoff --out writes.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/handoff/zip (the `TakeHandoffZip` operationId).
+func (c *ClientWithResponses) TakeHandoffZipWithResponse(ctx context.Context, docId DocId, body TakeHandoffZipJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffZipResponse, error) {
+	rsp, err := c.TakeHandoffZip(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTakeHandoffZipResponse(rsp)
+}
+
 // RemoveLinkWithResponse Remove one outgoing link that Speccy holds for the doc.
 //
 // An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
@@ -20837,6 +21013,32 @@ func ParseTakeHandoffResponse(rsp *http.Response) (*TakeHandoffResponse, error) 
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTakeHandoffZipResponse parses an HTTP response from a TakeHandoffZipWithResponse call
+func ParseTakeHandoffZipResponse(rsp *http.Response) (*TakeHandoffZipResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TakeHandoffZipResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {

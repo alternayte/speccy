@@ -98,12 +98,18 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.R
 	out := &api.BundleVerdict{
 		RunId: run.ID, VersionNumber: ver.Number, Kind: api.BundleVerdictKind(run.Kind),
 		// §8.6 rule 4, REQ-056: a verdict that read an old version of a linked bundle is stale.
-		Result: api.VerdictResult(verdict.For(verdict.Result(vd.Result), current && !moved)),
+		Result: api.VerdictResult(verdict.For(verdict.Result(vd.Result), current && len(moved) == 0)),
 		Score:  int(vd.Score), WaiverCount: int(vd.WaiverCount), RelaxedCount: int(vd.RelaxedCount), Radar: map[string]int{},
 	}
-	if current && moved {
+	if current && len(moved) > 0 {
 		reason := api.UpstreamChanged
 		out.StaleReason = &reason
+		// The control row names the spec docs that changed, so the author knows what to read.
+		refs := make([]api.BundleRef, 0, len(moved))
+		for _, m := range moved {
+			refs = append(refs, api.BundleRef{Id: m.ID, Slug: m.Slug, Title: m.Title, ProfileKey: m.ProfileKey})
+		}
+		out.StaleUpstream = &refs
 	}
 	_ = json.Unmarshal(vd.Radar, &out.Radar)
 	carried, err := carriedRows(ctx, q, run.ID)

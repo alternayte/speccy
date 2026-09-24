@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/alternayte/speccy/internal/features/handoff"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
@@ -93,45 +93,30 @@ func runHandoff(args []string, stdout, stderr io.Writer) int {
 	}
 	p := *res.JSON200
 	fmt.Fprintf(stdout, "Wrote the build packet of %s version %d to %s.\n", p.Bundle, p.VersionNumber, out)
-	fmt.Fprintf(stdout, "Start the build from %s.\n", filepath.Join(out, handoffFile))
+	fmt.Fprintf(stdout, "Start the build from %s.\n", filepath.Join(out, handoff.File))
 	return exitOK
 }
 
-// handoffFile is the re-entry prompt in the packet folder.
-const handoffFile = "HANDOFF.md"
-
-// writePacket writes the packet as files: the main doc and its assets at the top, the linked
-// docs under links/, and the re-entry prompt.
+// writePacket writes the packet as the folder dir: the files handoff.Files names, which are
+// also the files of the .zip the app downloads.
 func writePacket(dir string, p api.BuildPacket) error {
+	files, err := handoff.Files(p)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	write := func(rel, content string, encoded bool) error {
-		target := filepath.Join(dir, filepath.FromSlash(rel))
+	for _, f := range files {
+		target := filepath.Join(dir, filepath.FromSlash(f.Path))
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		body := []byte(content)
-		if encoded {
-			raw, err := base64.StdEncoding.DecodeString(content)
-			if err != nil {
-				return fmt.Errorf("%s is not valid base64: %w", rel, err)
-			}
-			body = raw
-		}
-		return os.WriteFile(target, body, 0o644)
-	}
-	for _, f := range p.Files {
-		if err := write(f.Path, f.Content, f.Encoding != nil && *f.Encoding == api.ContentFileEncodingBase64); err != nil {
+		if err := os.WriteFile(target, f.Content, 0o644); err != nil {
 			return err
 		}
 	}
-	for _, l := range p.Links {
-		if err := write(l.Path, l.Content, false); err != nil {
-			return err
-		}
-	}
-	return write(handoffFile, p.HandoffMd, false)
+	return nil
 }
 
 // oneBundle resolves the paths to exactly one saved bundle, in an open local session.

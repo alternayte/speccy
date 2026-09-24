@@ -814,22 +814,26 @@ func profileKeys(ps map[string]profile.Versioned) []string {
 	return keys
 }
 
-// upstreamMoved reports whether a bundle that the run read has a newer version now (REQ-056).
-func upstreamMoved(ctx context.Context, q store.Querier, workspace, runID uuid.UUID) (bool, error) {
+// upstreamMoved returns the linked spec docs that the run read and that have a newer version
+// now (REQ-056). Any one makes the verdict stale.
+func upstreamMoved(ctx context.Context, q store.Querier, workspace, runID uuid.UUID) ([]pgdb.SpecDoc, error) {
 	links, err := q.ListRunLinks(ctx, runID)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var out []pgdb.SpecDoc
+	seen := map[uuid.UUID]bool{}
 	for _, l := range links {
 		b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: workspace, ID: l.SpecDocID})
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		if !b.CurrentVersionID.Valid || b.CurrentVersionID.UUID != l.VersionID {
-			return true, nil
+		if (!b.CurrentVersionID.Valid || b.CurrentVersionID.UUID != l.VersionID) && !seen[b.ID] {
+			seen[b.ID] = true
+			out = append(out, b)
 		}
 	}
-	return false, nil
+	return out, nil
 }
 
 // quoteList names at most 5 slugs, quoted, and says how many more there are.
