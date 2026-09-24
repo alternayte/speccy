@@ -44,6 +44,9 @@ DELETE FROM adopted_type WHERE source_id = sqlc.arg(source_id) AND path = sqlc.a
 -- name: SetGithubSourceSkipped :exec
 UPDATE github_source SET skipped = sqlc.arg(skipped) WHERE id = sqlc.arg(id);
 
+-- name: SetGithubSourceRepoConfig :exec
+UPDATE github_source SET repo_config = sqlc.arg(repo_config) WHERE id = sqlc.arg(id);
+
 -- name: ListDismissedDocs :many
 SELECT * FROM dismissed_doc WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY path;
 
