@@ -116,7 +116,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		if err := reviews.EnsureLinted(ctx); err != nil {
 			return err
 		}
-		if err := invalidateWaivers(ctx, db, events, ws); err != nil {
+		if err := invalidateWaivers(ctx, db, events, ws, svc); err != nil {
 			return err
 		}
 		return approval.OnNewVersions(ctx, db, events, ws)
@@ -172,15 +172,16 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}, nil
 }
 
-// invalidateWaivers ends the approved waivers of every bundle whose section changed (REQ-074).
-func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws uuid.UUID) error {
+// invalidateWaivers ends the approved waivers of every bundle whose section changed (REQ-074),
+// and brings back an ended one whose section returned to its approved text.
+func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws uuid.UUID, svc *bundle.Service) error {
 	rows, err := db.Queries().ListWorkspaceWaivers(ctx, ws)
 	if err != nil {
 		return err
 	}
 	seen := map[uuid.UUID]bool{}
 	for _, w := range rows {
-		if w.Status != waiver.StatusApproved || seen[w.SpecDocID] {
+		if w.Status != waiver.StatusApproved && w.Status != waiver.StatusInvalidated || seen[w.SpecDocID] {
 			continue
 		}
 		seen[w.SpecDocID] = true
@@ -188,7 +189,7 @@ func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws u
 		if err != nil {
 			return err
 		}
-		if err := waiver.Invalidate(ctx, db, events, b); err != nil {
+		if err := waiver.Invalidate(ctx, db, events, b, svc.Decisions); err != nil {
 			return err
 		}
 	}

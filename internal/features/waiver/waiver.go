@@ -25,6 +25,9 @@ const (
 	Approved    = "WaiverApproved"
 	Rejected    = "WaiverRejected"
 	Invalidated = "WaiverInvalidated"
+	// Restored brings back an ended waiver whose section returned to the text it was approved
+	// for: the sidecar's entry applies again (DEC-009).
+	Restored = "WaiverRestored"
 )
 
 // Status values (§9.2).
@@ -199,6 +202,15 @@ func DecideInvalidate(s State, currentHash string) ([]es.Event, error) {
 	return []es.Event{es.NewEvent(Invalidated, byV1{V: 1, By: "system", Hash: currentHash})}, nil
 }
 
+// DecideRestore brings back an ended waiver when its section hash is again the one it was
+// approved for, and the sidecar still holds its entry.
+func DecideRestore(s State, currentHash string, inSidecar bool) ([]es.Event, error) {
+	if s.Status != StatusInvalidated || s.SectionHash != currentHash || !inSidecar {
+		return nil, nil
+	}
+	return []es.Event{es.NewEvent(Restored, byV1{V: 1, By: "system", Hash: currentHash})}, nil
+}
+
 // Evolve applies one event.
 func Evolve(s State, e es.Event) State {
 	switch e.Type {
@@ -227,6 +239,8 @@ func Evolve(s State, e es.Event) State {
 		s.Status, s.DecidedBy, s.DecisionReason = StatusRejected, p.By, p.Reason
 	case Invalidated:
 		s.Status = StatusInvalidated
+	case Restored:
+		s.Status = StatusApproved
 	}
 	return s
 }

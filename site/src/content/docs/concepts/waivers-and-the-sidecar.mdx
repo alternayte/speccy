@@ -93,7 +93,7 @@ So the hash follows these rules:
 
 Each new version of a spec doc tests the approved waivers. When the section hash differs, Speccy ends the waiver, and its status becomes invalidated. The next lint counts the finding in the verdict again. Ask for a new waiver if the reason still holds.
 
-The entry stays in the sidecar. It excuses nothing while the text of the section differs from the text it hashed.
+The entry stays in the sidecar. It excuses nothing while the text of the section differs from the text it hashed. When the section returns to exactly that text, the entry applies again, and the waiver's status becomes approved again. The sidecar decides, so the app and CI give the same verdict.
 
 A section can also change between the request and the approval. The approval then fails with "The section changed after the request, so this waiver no longer fits it. Ask for a new waiver."
 
