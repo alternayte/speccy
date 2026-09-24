@@ -526,6 +526,13 @@ type ClientInterface interface {
 	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
 	TakeHandoff(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RemoveLink Remove one outgoing link that Speccy holds for the doc.
+	//
+	// An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
+	//
+	// Corresponds with DELETE /docs/{docId}/links (the `RemoveLink` operationId).
+	RemoveLink(ctx context.Context, docId DocId, params *RemoveLinkParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SetBundleProfileWithBody Change the profile of the bundle's main doc.
 	//
 	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
@@ -2332,6 +2339,23 @@ func (c *Client) TakeHandoffWithBody(ctx context.Context, docId DocId, contentTy
 // Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
 func (c *Client) TakeHandoff(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewTakeHandoffRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RemoveLink Remove one outgoing link that Speccy holds for the doc.
+//
+// An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
+//
+// Corresponds with DELETE /docs/{docId}/links (the `RemoveLink` operationId).
+func (c *Client) RemoveLink(ctx context.Context, docId DocId, params *RemoveLinkParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRemoveLinkRequest(c.Server, docId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6296,6 +6320,79 @@ func NewTakeHandoffRequestWithBody(server string, docId DocId, contentType strin
 	return req, nil
 }
 
+// NewRemoveLinkRequest constructs an http.Request for the RemoveLink method
+func NewRemoveLinkRequest(server string, docId DocId, params *RemoveLinkParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/links", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "base_version", params.BaseVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewSetBundleProfileRequest calls the generic SetBundleProfile builder with application/json body
 func NewSetBundleProfileRequest(server string, docId DocId, body SetBundleProfileJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -9785,6 +9882,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /docs/{docId}/handoff (the `TakeHandoff` operationId).
 	TakeHandoffWithResponse(ctx context.Context, docId DocId, body TakeHandoffJSONRequestBody, reqEditors ...RequestEditorFn) (*TakeHandoffResponse, error)
 
+	// RemoveLinkWithResponse Remove one outgoing link that Speccy holds for the doc.
+	//
+	// An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /docs/{docId}/links (the `RemoveLink` operationId).
+	RemoveLinkWithResponse(ctx context.Context, docId DocId, params *RemoveLinkParams, reqEditors ...RequestEditorFn) (*RemoveLinkResponse, error)
+
 	// SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
 	//
 	// A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
@@ -13088,6 +13194,54 @@ func (r TakeHandoffResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r TakeHandoffResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RemoveLinkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *RemovedLink
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RemoveLinkResponse) GetJSON200() *RemovedLink {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RemoveLinkResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RemoveLinkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RemoveLinkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RemoveLinkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RemoveLinkResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -17540,6 +17694,21 @@ func (c *ClientWithResponses) TakeHandoffWithResponse(ctx context.Context, docId
 	return ParseTakeHandoffResponse(rsp)
 }
 
+// RemoveLinkWithResponse Remove one outgoing link that Speccy holds for the doc.
+//
+// An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /docs/{docId}/links (the `RemoveLink` operationId).
+func (c *ClientWithResponses) RemoveLinkWithResponse(ctx context.Context, docId DocId, params *RemoveLinkParams, reqEditors ...RequestEditorFn) (*RemoveLinkResponse, error) {
+	rsp, err := c.RemoveLink(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRemoveLinkResponse(rsp)
+}
+
 // SetBundleProfileWithBodyWithResponse Change the profile of the bundle's main doc.
 //
 // A doc Speccy owns, on disk or in the store, gets the type written into its frontmatter as a new version. A doc in a repo source gets an adopted type, and the repo takes no commit.
@@ -20663,6 +20832,39 @@ func ParseTakeHandoffResponse(rsp *http.Response) (*TakeHandoffResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest BuildPacket
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRemoveLinkResponse parses an HTTP response from a RemoveLinkWithResponse call
+func ParseRemoveLinkResponse(rsp *http.Response) (*RemoveLinkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RemoveLinkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RemovedLink
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

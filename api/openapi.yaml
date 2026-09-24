@@ -992,6 +992,40 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /docs/{docId}/links:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    delete:
+      operationId: removeLink
+      summary: Remove one outgoing link that Speccy holds for the doc.
+      description: >
+        An adopted link leaves the store, and the repo takes no commit. A link in the frontmatter
+        of a doc Speccy writes leaves the frontmatter as a new version. A link that a repo doc
+        names, or that a link rule makes, stays: the repo or .speccy.yaml holds it.
+      parameters:
+        - $ref: "#/components/parameters/BaseVersion"
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [implements, refines, references, supersedes, implemented-by]
+        - name: target
+          in: query
+          required: true
+          description: The target as written, the target_ref of the link.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The link is gone. version is absent when no version was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemovedLink"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /docs/{docId}/trace/ids:
     parameters:
       - $ref: "#/components/parameters/DocId"
@@ -3542,6 +3576,17 @@ components:
           type: string
           format: date-time
           description: When a run last read the external target.
+        removable:
+          type: boolean
+          description: >
+            True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a
+            frontmatter link of a doc Speccy writes. Absent on an incoming link.
+
+    RemovedLink:
+      type: object
+      properties:
+        version:
+          $ref: "#/components/schemas/Version"
 
     Standalone:
       type: object

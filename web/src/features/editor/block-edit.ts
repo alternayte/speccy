@@ -5,9 +5,10 @@
 
 export type Block = { start: number; end: number; el: HTMLElement };
 
-// blockAt returns the smallest block that holds the click, with its source range.
-export function blockAt(target: HTMLElement | null): Block | null {
-  const el = target?.closest<HTMLElement>("[data-src-start]");
+// blockAt returns the smallest block that holds the click, with its source range. A table is
+// one block: its rows and cells carry ranges too, but a cell's range is one line of the table.
+export function blockAt(target: Element | null): Block | null {
+  const el = target?.closest<HTMLElement>("table[data-src-start]") ?? target?.closest<HTMLElement>("[data-src-start]");
   if (!el) return null;
   const start = Number(el.dataset.srcStart);
   const end = Number(el.dataset.srcEnd);

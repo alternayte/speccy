@@ -57,6 +57,23 @@ func TestAcceptLink_WrappedJSON(t *testing.T) {
 			if _, fs, _ := en.latest(t, b.Slug); len(findingsOf(fs, review.HasUpstreamSlug)) != 0 {
 				t.Error("the new version still fails links.has-upstream")
 			}
+
+			// Remove takes the link out again, and the block keeps its form.
+			rm, err := a.RemoveLink(ctx, api.RemoveLinkRequestObject{DocId: b.ID, Params: api.RemoveLinkParams{
+				BaseVersion: b.CurrentVersionID.UUID, Kind: api.RemoveLinkParamsKindImplements, Target: "PRD - Pay.md"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rm.(api.RemoveLink200JSONResponse).Version == nil {
+				t.Fatal("the removal made no version")
+			}
+			disk, _ = os.ReadFile(filepath.Join(en.dir, "pay", "SDD - Pay.md"))
+			if string(disk) != sdd {
+				t.Fatalf("file after the removal:\n%s", disk)
+			}
+			if _, fs, _ := en.latest(t, b.Slug); len(findingsOf(fs, review.HasUpstreamSlug)) != 1 {
+				t.Error("the version without the link passes links.has-upstream")
+			}
 		})
 	}
 }

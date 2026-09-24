@@ -117,7 +117,8 @@ export const Preview = forwardRef<
   useLayoutEffect(() => {
     const el = box.current;
     if (!el || !caretKey) return;
-    el.focus();
+    // The box opens where the block was, so focus must not scroll the preview.
+    el.focus({ preventScroll: true });
     el.setSelectionRange(caret.current, caret.current);
   }, [caretKey]);
 
@@ -149,9 +150,15 @@ export const Preview = forwardRef<
       onOpenPath(a.dataset.bundlePath!);
       return;
     }
-    if (!onChange || editing) return;
-    const block = blockAt(e.target as HTMLElement);
+    if (!onChange || editing || !article) return;
+    const block = blockAt(e.target as Element);
     if (!block) return;
+    // The box sits in the article's positioned parent. offsetTop counts from the offsetParent,
+    // which for a table cell is the table, so the place comes from the two rectangles. The box
+    // runs to the article's right edge, so a narrow table's markdown does not wrap.
+    const frame = article.parentElement!.getBoundingClientRect();
+    const r = block.el.getBoundingClientRect();
+    const right = article.getBoundingClientRect().right;
     const raw = slice(markdown, block);
     // The block range ends with the blank line that follows it. The editor holds the text only,
     // and the commit puts the blank line back, so typing at the end stays inside the block.
@@ -164,10 +171,10 @@ export const Preview = forwardRef<
       caret: caretInSource(source, visiblePrefix(block.el, e.clientX, e.clientY)),
       seq: 0,
       sel: [0, 0],
-      top: block.el.offsetTop,
-      left: block.el.offsetLeft,
-      width: block.el.offsetWidth,
-      height: block.el.offsetHeight,
+      top: r.top - frame.top,
+      left: r.left - frame.left,
+      width: Math.max(r.width, right - r.left),
+      height: r.height,
       el: block.el,
     });
   };

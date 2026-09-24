@@ -166,25 +166,25 @@ func (e BundleSourceKind) Valid() bool {
 
 // Defines values for BundleLinkKind.
 const (
-	ImplementedBy BundleLinkKind = "implemented-by"
-	Implements    BundleLinkKind = "implements"
-	References    BundleLinkKind = "references"
-	Refines       BundleLinkKind = "refines"
-	Supersedes    BundleLinkKind = "supersedes"
+	BundleLinkKindImplementedBy BundleLinkKind = "implemented-by"
+	BundleLinkKindImplements    BundleLinkKind = "implements"
+	BundleLinkKindReferences    BundleLinkKind = "references"
+	BundleLinkKindRefines       BundleLinkKind = "refines"
+	BundleLinkKindSupersedes    BundleLinkKind = "supersedes"
 )
 
 // Valid indicates whether the value is a known member of the BundleLinkKind enum.
 func (e BundleLinkKind) Valid() bool {
 	switch e {
-	case ImplementedBy:
+	case BundleLinkKindImplementedBy:
 		return true
-	case Implements:
+	case BundleLinkKindImplements:
 		return true
-	case References:
+	case BundleLinkKindReferences:
 		return true
-	case Refines:
+	case BundleLinkKindRefines:
 		return true
-	case Supersedes:
+	case BundleLinkKindSupersedes:
 		return true
 	default:
 		return false
@@ -1481,6 +1481,33 @@ func (e ExportBundleParamsFormat) Valid() bool {
 	}
 }
 
+// Defines values for RemoveLinkParamsKind.
+const (
+	RemoveLinkParamsKindImplementedBy RemoveLinkParamsKind = "implemented-by"
+	RemoveLinkParamsKindImplements    RemoveLinkParamsKind = "implements"
+	RemoveLinkParamsKindReferences    RemoveLinkParamsKind = "references"
+	RemoveLinkParamsKindRefines       RemoveLinkParamsKind = "refines"
+	RemoveLinkParamsKindSupersedes    RemoveLinkParamsKind = "supersedes"
+)
+
+// Valid indicates whether the value is a known member of the RemoveLinkParamsKind enum.
+func (e RemoveLinkParamsKind) Valid() bool {
+	switch e {
+	case RemoveLinkParamsKindImplementedBy:
+		return true
+	case RemoveLinkParamsKindImplements:
+		return true
+	case RemoveLinkParamsKindReferences:
+		return true
+	case RemoveLinkParamsKindRefines:
+		return true
+	case RemoveLinkParamsKindSupersedes:
+		return true
+	default:
+		return false
+	}
+}
+
 // AcceptFixRequest defines model for AcceptFixRequest.
 type AcceptFixRequest struct {
 	// LinkTo For a missing upstream link, the spec doc the link names. It must be one of the suggestion's link choices.
@@ -1738,6 +1765,9 @@ type BundleLink struct {
 	CheckedAt *time.Time       `json:"checked_at,omitempty"`
 	Kind      BundleLinkKind   `json:"kind"`
 	Origin    BundleLinkOrigin `json:"origin"`
+
+	// Removable True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a frontmatter link of a doc Speccy writes. Absent on an incoming link.
+	Removable *bool `json:"removable,omitempty"`
 
 	// State The state of an external link, as the last review run read it.
 	State *BundleLinkState `json:"state,omitempty"`
@@ -2664,6 +2694,11 @@ type ReaderDiversity struct {
 	Readers        int  `json:"readers"`
 }
 
+// RemovedLink defines model for RemovedLink.
+type RemovedLink struct {
+	Version *Version `json:"version,omitempty"`
+}
+
 // RenameRequest defines model for RenameRequest.
 type RenameRequest struct {
 	BaseVersion openapi_types.UUID `json:"base_version"`
@@ -3501,6 +3536,19 @@ type TakeHandoffJSONBody struct {
 	Label *string `json:"label,omitempty"`
 }
 
+// RemoveLinkParams defines parameters for RemoveLink.
+type RemoveLinkParams struct {
+	// BaseVersion The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+	BaseVersion BaseVersion          `form:"base_version" json:"base_version"`
+	Kind        RemoveLinkParamsKind `form:"kind" json:"kind"`
+
+	// Target The target as written, the target_ref of the link.
+	Target string `form:"target" json:"target"`
+}
+
+// RemoveLinkParamsKind defines parameters for RemoveLink.
+type RemoveLinkParamsKind string
+
 // SetBundleProfileJSONBody defines parameters for SetBundleProfile.
 type SetBundleProfileJSONBody struct {
 	Profile string `json:"profile"`
@@ -3985,6 +4033,9 @@ type ServerInterface interface {
 	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
 	// (POST /docs/{docId}/handoff)
 	TakeHandoff(w http.ResponseWriter, r *http.Request, docId DocId)
+	// RemoveLink Remove one outgoing link that Speccy holds for the doc.
+	// (DELETE /docs/{docId}/links)
+	RemoveLink(w http.ResponseWriter, r *http.Request, docId DocId, params RemoveLinkParams)
 	// SetBundleProfile Change the profile of the bundle's main doc.
 	// (PUT /docs/{docId}/profile)
 	SetBundleProfile(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -5604,6 +5655,74 @@ func (siw *ServerInterfaceWrapper) TakeHandoff(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.TakeHandoff(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveLink operation middleware
+func (siw *ServerInterfaceWrapper) RemoveLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params RemoveLinkParams
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "kind" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "kind", r.URL.Query(), &params.Kind, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "target" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "target", r.URL.Query(), &params.Target, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "target"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "target", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveLink(w, r, docId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7588,6 +7707,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs/estimate", wrapper.EstimateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/assumptions", wrapper.ListAssumptions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/trace", wrapper.GetTrace)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/docs/{docId}/links", wrapper.RemoveLink)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/trace/ids", wrapper.AddTraceIds)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/trace/cover", wrapper.CoverTraceId)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/events", wrapper.RunEvents)
@@ -9776,6 +9896,46 @@ type TakeHandoffdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response TakeHandoffdefaultApplicationProblemPlusJSONResponse) VisitTakeHandoffResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveLinkRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params RemoveLinkParams
+}
+
+type RemoveLinkResponseObject interface {
+	VisitRemoveLinkResponse(w http.ResponseWriter) error
+}
+
+type RemoveLink200JSONResponse RemovedLink
+
+func (response RemoveLink200JSONResponse) VisitRemoveLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveLinkdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RemoveLinkdefaultApplicationProblemPlusJSONResponse) VisitRemoveLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12891,6 +13051,9 @@ type StrictServerInterface interface {
 	// TakeHandoff Take the build packet of a Build Ready bundle, and record the handoff (REQ-136).
 	// (POST /docs/{docId}/handoff)
 	TakeHandoff(ctx context.Context, request TakeHandoffRequestObject) (TakeHandoffResponseObject, error)
+	// RemoveLink Remove one outgoing link that Speccy holds for the doc.
+	// (DELETE /docs/{docId}/links)
+	RemoveLink(ctx context.Context, request RemoveLinkRequestObject) (RemoveLinkResponseObject, error)
 	// SetBundleProfile Change the profile of the bundle's main doc.
 	// (PUT /docs/{docId}/profile)
 	SetBundleProfile(ctx context.Context, request SetBundleProfileRequestObject) (SetBundleProfileResponseObject, error)
@@ -14652,6 +14815,33 @@ func (sh *strictHandler) TakeHandoff(w http.ResponseWriter, r *http.Request, doc
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(TakeHandoffResponseObject); ok {
 		if err := validResponse.VisitTakeHandoffResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveLink operation middleware
+func (sh *strictHandler) RemoveLink(w http.ResponseWriter, r *http.Request, docId DocId, params RemoveLinkParams) {
+	var request RemoveLinkRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveLink(ctx, request.(RemoveLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveLinkResponseObject); ok {
+		if err := validResponse.VisitRemoveLinkResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

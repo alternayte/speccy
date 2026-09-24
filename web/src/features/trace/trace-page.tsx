@@ -13,6 +13,7 @@ import {
   getSpecDocOptions,
   getTraceOptions,
   listVerificationsOptions,
+  removeLinkMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { problemMessage } from "@/lib/problem";
@@ -49,9 +50,12 @@ export function TracePage({ docId }: { docId: string }) {
   const hosted = useMe().data?.mode === "hosted";
   const access = useQuery({ ...getBundleAccessOptions({ path: { bundleId } }), enabled: hosted });
   const canEdit = !hosted || !!access.data?.can_edit;
-  // added says what the last Add IDs did. The suggestions leave the page with the new version,
-  // so the page, not the list, keeps the message.
-  const [added, setAdded] = useState<string>();
+  // notice says what the last Add IDs or Remove did. The suggestions and the link leave the
+  // page with the new version, so the page, not the list, keeps the message.
+  const [notice, setNotice] = useState<string>();
+  // unlink is how a row removes its link. It is absent when this person cannot.
+  const unlink =
+    bundle.data && canEdit ? { docId, baseVersion: bundle.data.current_version.id, onDone: setNotice } : undefined;
 
   return (
     <div className="h-full overflow-y-auto">
@@ -65,9 +69,9 @@ export function TracePage({ docId }: { docId: string }) {
         </Link>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Traceability</h1>
         {bundle.data ? <p className="mt-0.5 text-sm text-ink-2">{bundle.data.title}</p> : null}
-        {added ? (
+        {notice ? (
           <p role="status" className="mt-3 text-sm text-ok">
-            {added}
+            {notice}
           </p>
         ) : null}
 
@@ -103,7 +107,7 @@ export function TracePage({ docId }: { docId: string }) {
                   {trace.data.links
                     .filter((l) => l.target_kind !== "external")
                     .map((l) => (
-                      <LinkRow key={`out-${l.kind}-${l.target_ref}`} link={l} />
+                      <LinkRow key={`out-${l.kind}-${l.target_ref}`} link={l} unlink={unlink} />
                     ))}
                   {trace.data.incoming.map((l) => (
                     <LinkRow key={`in-${l.kind}-${l.target_ref}`} link={l} incoming />
@@ -112,7 +116,7 @@ export function TracePage({ docId }: { docId: string }) {
               )}
             </section>
 
-            <ExternalLinks links={trace.data.links.filter((l) => l.target_kind === "external")} />
+            <ExternalLinks links={trace.data.links.filter((l) => l.target_kind === "external")} unlink={unlink} />
 
             <CodeAndTests docId={docId} />
 
@@ -135,7 +139,7 @@ export function TracePage({ docId }: { docId: string }) {
                 docId={docId}
                 baseVersion={bundle.data.current_version.id}
                 items={trace.data.suggestions}
-                onAdded={setAdded}
+                onAdded={setNotice}
               />
             ) : null}
           </>
@@ -147,7 +151,7 @@ export function TracePage({ docId }: { docId: string }) {
 
 // ExternalLinks is the one table of the issues, pages, and code this doc links to, with the
 // state the last review run read (DEC-021).
-function ExternalLinks({ links }: { links: BundleLink[] }) {
+function ExternalLinks({ links, unlink }: { links: BundleLink[]; unlink?: UnlinkProps }) {
   if (links.length === 0) return null;
   return (
     <section className="mt-8">
@@ -158,7 +162,7 @@ function ExternalLinks({ links }: { links: BundleLink[] }) {
           return (
             <li
               key={`${l.kind}-${l.target_ref}`}
-              className="grid grid-cols-[minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 px-3 py-2 sm:grid-cols-[minmax(0,22rem)_5.5rem_7rem_minmax(0,1fr)_auto]"
+              className="grid grid-cols-[minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 px-3 py-2 sm:grid-cols-[minmax(0,22rem)_5.5rem_7rem_minmax(0,1fr)_auto_auto]"
             >
               {l.target_url ? (
                 <a
@@ -182,6 +186,9 @@ function ExternalLinks({ links }: { links: BundleLink[] }) {
               <span className="text-2xs text-ink-3">
                 {l.checked_at ? `read ${new Date(l.checked_at).toLocaleDateString()}` : ""}
               </span>
+              <span className="justify-self-start sm:justify-self-end">
+                <LinkSource link={l} unlink={unlink} />
+              </span>
             </li>
           );
         })}
@@ -190,7 +197,7 @@ function ExternalLinks({ links }: { links: BundleLink[] }) {
   );
 }
 
-function LinkRow({ link: l, incoming }: { link: BundleLink; incoming?: boolean }) {
+function LinkRow({ link: l, incoming, unlink }: { link: BundleLink; incoming?: boolean; unlink?: UnlinkProps }) {
   const label = incoming ? `${kindText[l.kind]} this doc` : kindText[l.kind];
   return (
     <li className="flex flex-wrap items-baseline gap-x-2">
@@ -207,8 +214,72 @@ function LinkRow({ link: l, incoming }: { link: BundleLink; incoming?: boolean }
           </span>
         )
       ) : null}
-      {l.origin === "rule" ? <span className="text-xs text-ink-3">(link rule)</span> : null}
+      {incoming ? (
+        l.origin === "rule" ? (
+          <span className="text-xs text-ink-3">(link rule)</span>
+        ) : null
+      ) : (
+        <LinkSource link={l} unlink={unlink} />
+      )}
     </li>
+  );
+}
+
+type UnlinkProps = { docId: string; baseVersion: string; onDone: (message: string) => void };
+
+// LinkSource says where an outgoing link lives, and removes it where Speccy holds it: an adopted
+// link, or the frontmatter of a doc Speccy writes. A link rule and a repo doc's frontmatter stay
+// with .speccy.yaml and the repo. Remove asks once, because an implements link may be what
+// passes links.has-upstream and what draws the coverage matrix.
+function LinkSource({ link: l, unlink }: { link: BundleLink; unlink?: UnlinkProps }) {
+  const qc = useQueryClient();
+  const [asking, setAsking] = useState(false);
+  const name = l.bundle?.title ?? l.target_ref;
+  const remove = useMutation({
+    ...removeLinkMutation(),
+    onSuccess: (r) => {
+      unlink?.onDone(`Removed the link to ${name}${r.version ? ` as version ${r.version.number}` : ""}.`);
+      qc.invalidateQueries();
+    },
+  });
+  if (l.origin === "rule") return <span className="text-xs text-ink-3">(link rule)</span>;
+  if (!l.removable)
+    return l.origin === "frontmatter" ? <span className="text-xs text-ink-3">(in the repo)</span> : null;
+  if (!unlink) return null;
+  if (!asking)
+    return (
+      <button type="button" onClick={() => setAsking(true)} className="text-xs text-ink-3 hover:text-bad">
+        Remove
+      </button>
+    );
+  const where =
+    l.origin === "adopted"
+      ? "Speccy forgets the link. The repo takes no commit."
+      : "Speccy takes the link out of the frontmatter as a new version.";
+  return (
+    <span className="flex basis-full flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      <span className="text-ink-2">
+        {where}
+        {l.kind === "implements" ? " Without it, the doc can fail links.has-upstream." : ""}
+      </span>
+      <Button
+        size="sm"
+        variant="danger"
+        disabled={remove.isPending}
+        onClick={() =>
+          remove.mutate({
+            path: { docId: unlink.docId },
+            query: { base_version: unlink.baseVersion, kind: l.kind, target: l.target_ref },
+          })
+        }
+      >
+        {remove.isPending ? "Removing" : "Remove the link"}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>
+        Cancel
+      </Button>
+      {remove.isError ? <span className="basis-full text-bad">{problemMessage(remove.error)}</span> : null}
+    </span>
   );
 }
 

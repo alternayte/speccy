@@ -27,6 +27,27 @@ func TestAddLink(t *testing.T) {
 	}
 }
 
+// RemoveLink takes out only the named link, drops the links key with the last one, and leaves
+// the body and the other keys as they are.
+func TestRemoveLink(t *testing.T) {
+	doc := []byte("---\ntype: sdd\nlinks:\n  - kind: implements\n    target: prd\n  - kind: references\n    target: github:o/r#1\n---\n\n# Pay\n")
+	got, ok, err := RemoveLink(doc, "implements", "prd")
+	if err != nil || !ok {
+		t.Fatalf("ok %v, err %v", ok, err)
+	}
+	fm, _, _ := ReadFrontmatter(got)
+	if fm.Type != "sdd" || len(fm.Links) != 1 || fm.Links[0].Kind != "references" || !strings.HasSuffix(string(got), "\n# Pay\n") {
+		t.Errorf("RemoveLink gave %q", got)
+	}
+	got, _, _ = RemoveLink(got, "references", "github:o/r#1")
+	if strings.Contains(string(got), "links") {
+		t.Errorf("the empty links key stayed: %q", got)
+	}
+	if same, ok, _ := RemoveLink(doc, "implements", "other"); ok || string(same) != string(doc) {
+		t.Errorf("a link the doc does not name changed the doc: %q", same)
+	}
+}
+
 // A link written into a JSON block inside an HTML comment keeps the comment, the JSON, the
 // indent and the key order, so the wiki still hides the block (#76).
 func TestAddLink_KeepsWrappedJSON(t *testing.T) {
