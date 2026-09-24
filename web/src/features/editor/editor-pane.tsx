@@ -215,7 +215,29 @@ export function EditorPane({
   useEffect(() => {
     if (!focus || file.data?.kind !== "text") return;
     const text = file.data.text;
-    const timer = setTimeout(() => {
+    // The preview renders on the server. A link that opens the page at a range can arrive
+    // before the preview's blocks do, so the preview waits for them a little.
+    let timer: ReturnType<typeof setTimeout>;
+    const scrollPreview = (tries: number) => {
+      const blocks = previewRef.current?.querySelectorAll<HTMLElement>("article [data-src-start]");
+      if (!previewRef.current) return;
+      if (!blocks?.length) {
+        if (tries > 0) timer = setTimeout(() => scrollPreview(tries - 1), 100);
+        return;
+      }
+      let target: HTMLElement | null = null;
+      blocks.forEach((el) => {
+        if (Number(el.dataset.srcStart) <= focus.start && focus.start < Number(el.dataset.srcEnd)) target = el;
+      });
+      const el = target as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.remove("flash");
+        void el.offsetWidth; // restart the animation
+        el.classList.add("flash");
+      }
+    };
+    timer = setTimeout(() => {
       const view = editorView.current;
       if (view) {
         const from = Math.min(byteToIndex(text, focus.start), view.state.doc.length);
@@ -225,20 +247,7 @@ export function EditorPane({
         flashRange(view, from, to);
         view.focus();
       }
-      const preview = previewRef.current;
-      if (preview) {
-        let target: HTMLElement | null = null;
-        preview.querySelectorAll<HTMLElement>("article [data-src-start]").forEach((el) => {
-          if (Number(el.dataset.srcStart) <= focus.start && focus.start < Number(el.dataset.srcEnd)) target = el;
-        });
-        const el = target as HTMLElement | null;
-        if (el) {
-          el.scrollIntoView({ block: "center", behavior: "smooth" });
-          el.classList.remove("flash");
-          void el.offsetWidth; // restart the animation
-          el.classList.add("flash");
-        }
-      }
+      scrollPreview(30);
     }, 80);
     return () => clearTimeout(timer);
   }, [focus, file.data]);

@@ -5,8 +5,9 @@ import { clsx } from "clsx";
 import { ArrowLeft, CircleCheck, CircleMinus, CircleX, Hash, Share2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { BundleLink, TraceCell, TraceMatrix, TraceView } from "@/lib/api";
+import type { BundleLink, BundleRef, TraceCell, TraceMatrix, TraceView } from "@/lib/api";
 import {
   addTraceIdsMutation,
   getBundleAccessOptions,
@@ -17,6 +18,8 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { problemMessage } from "@/lib/problem";
+import { GapAnswer } from "@/features/trace/gap-answer";
+import { Withdraw } from "@/features/trace/withdraw";
 
 const cellStyle = {
   referenced: { icon: CircleCheck, tone: "text-ok", text: "Referenced" },
@@ -94,6 +97,7 @@ export function TracePage({ docId }: { docId: string }) {
                   <span className="text-ink-2">
                     {trace.data.standalone.reason} — {trace.data.standalone.acknowledged_by}
                   </span>
+                  {canEdit ? <Withdraw docId={docId} onDone={setNotice} className="ml-2" /> : null}
                 </p>
               ) : null}
               {trace.data.links.filter((l) => l.target_kind !== "external").length === 0 &&
@@ -129,7 +133,7 @@ export function TracePage({ docId }: { docId: string }) {
                   </Empty>
                 </div>
               ) : (
-                trace.data.matrices.map((m) => <Matrix key={m.upstream.id} matrix={m} />)
+                trace.data.matrices.map((m) => <Matrix key={m.upstream.id} matrix={m} onNotice={setNotice} />)
               )}
             </section>
 
@@ -354,7 +358,12 @@ function CodeAndTests({ docId }: { docId: string }) {
   );
 }
 
-function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
+// Answering is the gap cell whose three answers are open: the column's spec doc, the row's ID,
+// and the coverage finding the answer closes.
+type Answering = { doc: BundleRef; traceId: string; findingId: string };
+
+function Matrix({ matrix: m, onNotice }: { matrix: TraceMatrix; onNotice: (message: string) => void }) {
+  const [answering, setAnswering] = useState<Answering>();
   const gaps = m.cells.flat().filter((c) => c.state === "gap").length;
   const none = m.rows.length === 0;
   return (
@@ -402,34 +411,111 @@ function Matrix({ matrix: m }: { matrix: TraceMatrix }) {
                       {r.text.replace(/^\S+:\s*/, "")}
                     </span>
                   </th>
-                  {(m.cells[i] ?? []).map((c, j) => (
-                    <Cell key={m.columns[j]?.id ?? j} cell={c} />
-                  ))}
+                  {(m.cells[i] ?? []).map((c, j) => {
+                    const doc = m.columns[j];
+                    if (!doc) return null;
+                    return (
+                      <Cell
+                        key={doc.id}
+                        cell={c}
+                        doc={doc}
+                        traceId={r.id}
+                        editable={!!m.editable[j]}
+                        onNotice={onNotice}
+                        onAnswer={() => c.finding_id && setAnswering({ doc, traceId: r.id, findingId: c.finding_id })}
+                      />
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      <Dialog
+        open={!!answering}
+        onOpenChange={(o) => {
+          if (!o) setAnswering(undefined);
+        }}
+        title={answering ? `Answer ${answering.traceId} for ${answering.doc.title}` : "Answer the gap"}
+        description={answering ? `Does ${answering.doc.title} cover ${answering.traceId}?` : undefined}
+      >
+        {answering ? (
+          <GapAnswer
+            docId={answering.doc.id}
+            findingId={answering.findingId}
+            traceId={answering.traceId}
+            question={false}
+            onDone={(message) => {
+              setAnswering(undefined);
+              onNotice(`${answering.doc.title}: ${message}`);
+            }}
+          />
+        ) : null}
+      </Dialog>
     </div>
   );
 }
 
-function Cell({ cell: c }: { cell: TraceCell }) {
+// Cell is one column's coverage of one upstream ID. A person who can edit the column's spec
+// doc answers a gap there, and withdraws an acknowledgement. A reference is prose the author
+// wrote, so it links to its place in the editor and has no Withdraw.
+function Cell({
+  cell: c,
+  doc,
+  traceId,
+  editable,
+  onNotice,
+  onAnswer,
+}: {
+  cell: TraceCell;
+  doc: BundleRef;
+  traceId: string;
+  editable: boolean;
+  onNotice: (message: string) => void;
+  onAnswer: () => void;
+}) {
   const { icon: Icon, tone, text } = cellStyle[c.state];
-  const detail =
-    c.state === "referenced"
-      ? `${c.refs.length} reference${c.refs.length === 1 ? "" : "s"}`
-      : c.state === "covered_by"
-        ? `${c.target ?? ""}: ${c.reason ?? ""}`
-        : (c.reason ?? "");
+  const detail = c.state === "covered_by" ? `${c.target ?? ""}: ${c.reason ?? ""}` : (c.reason ?? "");
   return (
     <td className={clsx("px-4 py-3 align-top", c.state === "gap" && "bg-bad/10")}>
       <span className={clsx("inline-flex items-center gap-1 text-xs font-medium", tone)}>
         <Icon aria-hidden className="size-3.5" />
         {text}
       </span>
-      {detail ? <span className="mt-0.5 block text-xs text-ink-3">{detail}</span> : null}
+      {c.state === "referenced" ? (
+        <span className="mt-0.5 flex flex-col items-start gap-0.5">
+          {c.refs.map((ref) => (
+            <Link
+              key={`${ref.start}-${ref.end}`}
+              to="/bundles/$bundleId/docs/$docId"
+              params={{ bundleId: doc.bundle_id, docId: doc.id }}
+              search={{ file: ref.file, at: `${ref.start}-${ref.end}` }}
+              title={`Open this reference in ${doc.title}`}
+              className="max-w-[16rem] truncate text-xs text-ink-2 underline decoration-line-strong underline-offset-2 hover:text-accent hover:decoration-accent"
+            >
+              {/* The column names the doc, so the section says where in it. */}
+              {ref.heading_path.at(-1) ?? ref.file}
+            </Link>
+          ))}
+        </span>
+      ) : detail ? (
+        <span className="mt-0.5 block text-xs text-ink-3">{detail}</span>
+      ) : null}
+      {editable && (c.state === "covered_by" || c.state === "out_of_scope") ? (
+        <Withdraw
+          docId={doc.id}
+          docTitle={doc.title}
+          traceId={traceId}
+          onDone={(m) => onNotice(`${doc.title}: ${m}`)}
+          className="mt-1"
+        />
+      ) : null}
+      {editable && c.state === "gap" && c.finding_id ? (
+        <button type="button" onClick={onAnswer} className="mt-1 block text-xs font-medium text-accent hover:underline">
+          Answer
+        </button>
+      ) : null}
     </td>
   );
 }
@@ -539,7 +625,8 @@ function WhyEmpty({ trace, docId }: { trace: TraceView; docId: string }) {
     next = (
       <>
         On an SDD, Suggest fix on <code>links.has-upstream</code> lists the PRDs and writes the link. Or add it under{" "}
-        <code>links:</code> in the frontmatter: <code>kind: implements</code> and the path of the PRD.
+        <code>links:</code> in the frontmatter: <code>kind: implements</code> and the path of the PRD. A doc with no
+        upstream doc takes Mark it standalone on the same finding, with a reason.
       </>
     );
   } else {
