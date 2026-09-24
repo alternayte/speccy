@@ -123,8 +123,9 @@ func (d *DB) Migrations() (*goose.Provider, error) {
 // keeps no data from an older version.
 const Baseline = 31
 
-// Migrate applies every pending migration. A database from before 0.15.0 stops here with a
-// message that says what to do, not with a failed migration.
+// Migrate applies every pending migration. A database from before 0.15.0, or one that a newer
+// Speccy migrated, stops here with a message that says what to do, not with a failed migration
+// or a failed query later.
 func (d *DB) Migrate(ctx context.Context) error {
 	p, err := d.Migrations()
 	if err != nil {
@@ -136,6 +137,11 @@ func (d *DB) Migrate(ctx context.Context) error {
 	}
 	if v > 0 && v < Baseline {
 		return d.tooOld()
+	}
+	if sources := p.ListSources(); len(sources) > 0 {
+		if newest := sources[len(sources)-1].Version; v > newest {
+			return d.tooNew(v, newest)
+		}
 	}
 	if _, err := p.Up(ctx); err != nil {
 		return fmt.Errorf("migrate %s: %w", d.Engine, err)
@@ -184,4 +190,14 @@ func (d *DB) tooOld() error {
 	}
 	return errors.New("the database is from a Speccy before 0.15.0, and this Speccy cannot read it. " +
 		"Point SPECCY_DATABASE_URL at a new, empty database")
+}
+
+// tooNew says that a newer Speccy migrated the database, and what to do.
+func (d *DB) tooNew(v, newest int64) error {
+	where := "the database"
+	if d.Engine == SQLite {
+		where = "the state in " + filepath.Dir(d.path)
+	}
+	return fmt.Errorf("%s is at migration %d, and this Speccy knows migrations up to %d only: a newer Speccy migrated it. "+
+		"Run the newer Speccy on it", where, v, newest)
 }

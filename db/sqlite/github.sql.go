@@ -102,7 +102,7 @@ func (q *Queries) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID
 }
 
 const getGithubSource = `-- name: GetGithubSource :one
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped FROM github_source WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config FROM github_source WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetGithubSourceParams struct {
@@ -126,6 +126,7 @@ func (q *Queries) GetGithubSource(ctx context.Context, arg GetGithubSourceParams
 		&i.CreatedAt,
 		&i.ApiUrl,
 		&i.Skipped,
+		&i.RepoConfig,
 	)
 	return i, err
 }
@@ -279,7 +280,7 @@ func (q *Queries) ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) 
 }
 
 const listGithubSources = `-- name: ListGithubSources :many
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped FROM github_source WHERE workspace_id = ?1 ORDER BY repo, branch, path
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config FROM github_source WHERE workspace_id = ?1 ORDER BY repo, branch, path
 `
 
 func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error) {
@@ -304,6 +305,7 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 			&i.CreatedAt,
 			&i.ApiUrl,
 			&i.Skipped,
+			&i.RepoConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -383,6 +385,20 @@ type SetAdoptedTypeParams struct {
 
 func (q *Queries) SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) error {
 	_, err := q.db.ExecContext(ctx, setAdoptedType, arg.SourceID, arg.Path, arg.Profile)
+	return err
+}
+
+const setGithubSourceRepoConfig = `-- name: SetGithubSourceRepoConfig :exec
+UPDATE github_source SET repo_config = ?1 WHERE id = ?2
+`
+
+type SetGithubSourceRepoConfigParams struct {
+	RepoConfig string
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetGithubSourceRepoConfig(ctx context.Context, arg SetGithubSourceRepoConfigParams) error {
+	_, err := q.db.ExecContext(ctx, setGithubSourceRepoConfig, arg.RepoConfig, arg.ID)
 	return err
 }
 

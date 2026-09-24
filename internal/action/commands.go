@@ -55,11 +55,13 @@ type Command struct {
 
 // Commands returns the reply commands of the Speccy threads, oldest reply first. A thread with
 // more than one command keeps the last, because a person who writes a second reply means it.
+// A resolved thread is left out: a run that applied its command, or found its finding gone,
+// resolved it, so a command applies once.
 func Commands(threads []github.Thread) []Command {
 	var out []Command
 	for _, t := range threads {
 		k := keyIn(t.Body)
-		if k == "" {
+		if k == "" || t.Resolved {
 			continue
 		}
 		var last *Command
@@ -179,7 +181,9 @@ func summaryLine(d Decision, t target) string {
 	if d.Refused != "" {
 		return fmt.Sprintf("- `/speccy %s` by @%s on `%s`: %s.", d.Command.Kind, d.Command.By, d.Bundle, d.Refused)
 	}
-	return fmt.Sprintf("- @%s asked for %s on `%s`. Speccy wrote it to `%s`.", d.Command.By, what, d.Bundle, source.SidecarPath(d.Doc))
+	// The line holds for a commit and for a fork alike: the summary says below it whether
+	// Speccy committed the sidecar or gives the text to paste.
+	return fmt.Sprintf("- @%s asked for %s on `%s`. It goes in `%s`.", d.Command.By, what, d.Bundle, source.SidecarPath(d.Doc))
 }
 
 // docPath is the main doc's path in the repo.

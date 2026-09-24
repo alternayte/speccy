@@ -56,9 +56,10 @@ type Searcher interface {
 type Service struct {
 	DB        *store.DB
 	Workspace uuid.UUID
-	// Profiles returns the current profiles by key. Repo returns .speccy.yaml.
+	// Profiles returns the current profiles by key. Repo returns the .speccy.yaml that applies
+	// to a spec doc: its GitHub source's, or the served folder's.
 	Profiles func() map[string]profile.Versioned
-	Repo     func() source.RepoConfig
+	Repo     func(context.Context, pgdb.SpecDoc) (source.RepoConfig, error)
 	// Decisions returns a bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 	Decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error)
 	// GitHub returns the client for a GitHub host: the gh token in local mode, the source's
@@ -225,10 +226,12 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 	if in.linked, err = s.loadLinked(ctx, in.links); err != nil {
 		return input{}, err
 	}
-	if s.Repo != nil {
-		for _, slug := range s.Repo().Adoption.Relaxed {
-			in.relaxed[slug] = true
-		}
+	repo, err := s.repoConfig(ctx, b)
+	if err != nil {
+		return input{}, err
+	}
+	for _, slug := range repo.Adoption.Relaxed {
+		in.relaxed[slug] = true
 	}
 	return in, nil
 }
@@ -552,7 +555,11 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.S
 	if err != nil {
 		return err
 	}
-	links := resolveLinksIn(all, place, b, main, adopted, s.linkRules(), s.linkPatterns(), s.accepts(b))
+	repo, err := s.repoConfig(ctx, b)
+	if err != nil {
+		return err
+	}
+	links := resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b))
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
 		return err
@@ -654,7 +661,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 	}
 	run.DecisionsHash = decisionsHash(in.dec)
 	if in.sizeInferred {
-		run.Notes, _ = json.Marshal([]string{sizeNote(in.size)})
+		run.Notes, _ = json.Marshal([]string{sizeNote(in.fm.Size, in.size)})
 	}
 	run.Status = "complete"
 	ev := lintStage(in)

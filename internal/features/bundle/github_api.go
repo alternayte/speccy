@@ -63,7 +63,7 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	s := a.Service
 	ref, err := github.ParseURL(raw)
 	if err != nil {
-		return ref, api.GithubResolved{}, kernel.Invalid("bad_url", "%s.", sentence(err.Error()))
+		return ref, api.GithubResolved{}, kernel.Invalid("bad_url", "%s", sentence(err.Error()))
 	}
 	c, err := s.github(ctx, ref.APIURL())
 	if err != nil {
@@ -72,6 +72,12 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	def, err := c.Repo(ctx, ref.Repo)
 	if err != nil {
 		return ref, api.GithubResolved{}, github.UnreadableRepo(ref.Repo, err)
+	}
+	if ref, err = c.ResolveBranch(ctx, ref); err != nil {
+		return ref, api.GithubResolved{}, github.UnreadableRepo(ref.Repo, err)
+	}
+	if ref.File && ref.Path == "." {
+		return ref, api.GithubResolved{}, kernel.Invalid("bad_url", "%s is the branch %s of %s. Paste the URL of a doc on it, or of a folder.", raw, ref.Branch, ref.Repo)
 	}
 	if ref.Branch == "" {
 		ref.Branch = def

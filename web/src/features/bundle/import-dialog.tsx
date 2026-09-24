@@ -23,8 +23,9 @@ type Mode = "file" | "text";
 type Upload = { file: File } | { files: File[] } | { text: string };
 
 // ImportDialog lists every markdown file of an import with a profile picker, prefilled with the
-// type the file names or the profile its headings fit. Each file given a profile becomes its own
-// bundle. The links Speccy offers between them are prechecked, and never made without a person.
+// type the file names or the profile its headings fit. Each file given a profile becomes a spec
+// doc, and each folder becomes one bundle. The links Speccy offers between them are prechecked,
+// and never made without a person.
 export function ImportDialog({
   open,
   onOpenChange,

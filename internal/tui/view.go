@@ -10,7 +10,7 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 )
 
-// The frame: a title bar, one body that fills the terminal, a status line that never moves, and
+// The frame: a title bar, one body that fills the terminal, a message line that never moves, and
 // a key bar. Every screen uses it, so nothing shifts when data arrives.
 const (
 	minWidth  = 80 // the floor: the body drops columns below it, it never scrolls sideways
@@ -38,7 +38,7 @@ func (m *model) View() string {
 	for _, line := range fit(body, h-5) {
 		b.WriteString(pad(line, w) + "\n")
 	}
-	b.WriteString(pad(m.statusLine(w), w) + "\n")
+	b.WriteString(pad(m.messageLine(w), w) + "\n")
 	b.WriteString(rule.Render(strings.Repeat(ruleGlyf, w)) + "\n")
 	b.WriteString(pad(keyBar(keys, w), w))
 	return b.String()
@@ -112,7 +112,7 @@ func (m *model) bundlePreview(w int) []string {
 	if b.RunError != nil {
 		out[5] = "  " + bad.Render("The last review failed: ") + truncate(*b.RunError, max(10, w-30))
 	} else if b.NextAction != nil {
-		// The server names the next thing, so the preview and the status line agree.
+		// The server names the next thing, so the preview and the message line agree.
 		out[5] = "  " + keyGlyph.Render("n") + " " + faint.Render(truncate(b.NextAction.Sentence, max(10, w-30)))
 	}
 	return out
@@ -214,9 +214,9 @@ func (m *model) tourBody(w, rows int) (string, string, []string, [][2]string) {
 	return "tour", meta, out, keys
 }
 
-// statusLine holds one line for progress, feedback, or an error. It is always there, so the body
-// above it keeps its height.
-func (m *model) statusLine(w int) string {
+// messageLine holds one line for progress, feedback, an error, or the next action. It is always
+// there, so the body above it keeps its height.
+func (m *model) messageLine(w int) string {
 	switch {
 	case m.err != nil:
 		return "  " + bad.Render("Error: ") + truncate(m.err.Error(), max(10, w-12))
@@ -242,7 +242,7 @@ func (m *model) keysWithNext(keys [][2]string) [][2]string {
 
 func helpBody(s screen) []string {
 	rows := [][2]string{
-		{"n", "do the next thing the status line names"},
+		{"n", "do the next action the message line names"},
 		{"j / k, ↓ / ↑", "move"},
 		{"enter", "open the bundle, or the finding in $EDITOR"},
 		{"e", "open the file in $EDITOR at the finding"},

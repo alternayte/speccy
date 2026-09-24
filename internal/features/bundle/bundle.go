@@ -59,11 +59,25 @@ type Service struct {
 	blobs    blobCache
 }
 
-// RepoConfig returns the .speccy.yaml of the last local scan.
-func (s *Service) RepoConfig() source.RepoConfig {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.repo
+// RepoConfig returns the .speccy.yaml that applies to spec doc b: for a doc of a GitHub
+// source, the one at the root of its repo, as the last sync read it; for any other doc, the
+// served folder's, from the last local scan.
+func (s *Service) RepoConfig(ctx context.Context, b pgdb.SpecDoc) (source.RepoConfig, error) {
+	if b.SourceKind != KindGitHub {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.repo, nil
+	}
+	var ref githubRef
+	_ = json.Unmarshal(b.SourceRef, &ref)
+	src, err := s.DB.Queries().GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: ref.Source})
+	if errors.Is(err, sql.ErrNoRows) {
+		return source.RepoConfig{}, nil // the source is gone
+	}
+	if err != nil {
+		return source.RepoConfig{}, err
+	}
+	return source.ParseRepoConfig([]byte(src.RepoConfig))
 }
 
 // Sync scans the local folder and records a version for each bundle whose files changed.

@@ -265,6 +265,10 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 	if p.Verify.MaxMapperFiles <= 0 {
 		p.Verify.MaxMapperFiles = defaults.Verify.MaxMapperFiles
 	}
+	// A children check with no min needs one link. The schema refuses 0, so 0 means left out.
+	if p.Links.Children != nil && p.Links.Children.Min <= 0 {
+		p.Links.Children.Min = 1
+	}
 	if err := p.Grounding.Sources.Validate(); err != nil {
 		problems = append(problems, "/grounding/sources: "+err.Error())
 	}
@@ -341,7 +345,7 @@ func LoadLocal(dir string) (map[string]Loaded, error) {
 		out[l.Profile.Key] = l
 	}
 	if dir == "" {
-		return out, nil // hosted mode: built-ins only (REQ-013 profile editing comes later)
+		return out, nil // no profiles folder: built-ins only. Hosted mode reads the store instead.
 	}
 	files, err := filepath.Glob(filepath.Join(dir, "*.yaml"))
 	if err != nil {

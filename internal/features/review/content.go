@@ -93,7 +93,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		rc.note(profile.GuessNote(key, profileKeys(s.Profiles())))
 	}
 	if in.sizeInferred {
-		rc.note(sizeNote(in.size))
+		rc.note(sizeNote(in.fm.Size, in.size))
 	}
 	if rc.progress == nil {
 		rc.progress = NewBroker()

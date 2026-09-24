@@ -349,6 +349,44 @@ func TestGitHubSource_OneDoc(t *testing.T) {
 	}
 }
 
+// REQ-128: a source URL on a branch whose name has a slash names that branch. The URL does not
+// say where the branch ends, so the resolver asks the repo, as GitHub does.
+func TestResolveGithubUrl_BranchWithASlash(t *testing.T) {
+	ctx := as(context.Background(), "user-1")
+	s := services()[0].open(t)
+	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+	files := map[string]string{"docs/prd.md": "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n"}
+	gh.refs["main"] = gh.commit(files)
+	gh.refs["feature/retries"] = gh.commit(files)
+	gh.refs["release/v1.2"] = gh.commit(files)
+	srv := httptest.NewServer(gh)
+	defer srv.Close()
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return &github.Client{API: srv.URL, Token: "t"}, nil
+	}
+	a := sourceAPI(t, s)
+	cases := []struct {
+		url, branch, path string
+		file              bool
+	}{
+		{url: "/acme/specs/blob/main/docs/prd.md", branch: "main", path: "docs/prd.md", file: true},
+		{url: "/acme/specs/blob/feature/retries/docs/prd.md", branch: "feature/retries", path: "docs/prd.md", file: true},
+		{url: "/acme/specs/tree/feature/retries/docs", branch: "feature/retries", path: "docs"},
+		{url: "/acme/specs/tree/release/v1.2", branch: "release/v1.2", path: "."},
+	}
+	for _, c := range cases {
+		res, err := a.ResolveGithubUrl(ctx, api.ResolveGithubUrlRequestObject{Body: &api.ResolveGithubUrlJSONRequestBody{Url: srv.URL + c.url}})
+		if err != nil {
+			t.Errorf("%s: %v", c.url, err)
+			continue
+		}
+		got := res.(api.ResolveGithubUrl200JSONResponse)
+		if got.Branch != c.branch || got.Path != c.path || got.File != c.file {
+			t.Errorf("%s gave branch %q, path %q, file %v; want %q, %q, %v", c.url, got.Branch, got.Path, got.File, c.branch, c.path, c.file)
+		}
+	}
+}
+
 // TestGitHubSource_AdoptedType pins that a type accepted in Speccy makes a bundle with no
 // commit to the repo, and that the repo's own answer replaces it later (REQ-133).
 func TestGitHubSource_AdoptedType(t *testing.T) {
@@ -561,5 +599,46 @@ func TestGitHubSource_NoCredentialKeepsTheError(t *testing.T) {
 	row, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: src.ID})
 	if err != nil || !strings.Contains(row.Error, "gh login") {
 		t.Errorf("source error = %q, %v; want the credential error", row.Error, err)
+	}
+}
+
+// A spec doc of a GitHub source reads the .speccy.yaml of its source's repo, as the last sync
+// read it: its link patterns reach the review in hosted mode, where no folder is served.
+func TestGitHubSource_RepoConfigOfSpecDoc(t *testing.T) {
+	for _, svc := range services() {
+		t.Run(svc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := svc.open(t)
+			gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+			gh.refs["main"] = gh.commit(map[string]string{
+				".speccy.yaml":     "link_patterns:\n  jira: https://acme.atlassian.net/browse/{key}\nadoption:\n  relaxed: [lint.placeholder]\n",
+				"docs/pay/SPEC.md": mainDoc,
+			})
+			srv := httptest.NewServer(gh)
+			defer srv.Close()
+			s.GitHub = func(context.Context, string) (*github.Client, error) {
+				return &github.Client{API: srv.URL, Token: "t"}, nil
+			}
+			q := s.DB.Queries()
+			src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main", Path: "docs",
+				CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+			if err := q.InsertGithubSource(ctx, src); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SyncSource(ctx, src.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := s.RepoConfig(ctx, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.LinkPatterns["jira"] == "" || len(cfg.Adoption.Relaxed) != 1 {
+				t.Errorf("repo config of the GitHub spec doc = %+v, want the repo's link pattern and adoption", cfg)
+			}
+		})
 	}
 }

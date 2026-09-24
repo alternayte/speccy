@@ -17,8 +17,10 @@ type applied struct {
 	decisions []Decision
 	// threads holds the review threads to resolve, because their decision is written.
 	threads []string
-	// paste is the YAML for the author of a fork's pull request to paste, by sidecar path.
+	// paste is the YAML for the author to paste, by sidecar path, when Speccy did not commit it.
 	paste map[string]string
+	// uncommitted says why Speccy did not commit the paste itself.
+	uncommitted string
 	// committed is the commit the Action made, or "".
 	committed string
 	// enforced are the checks this run took out of adoption mode.
@@ -126,11 +128,14 @@ func apply(ctx context.Context, o Options, bundles []Bundle, threads []github.Th
 		return out, warn
 	}
 	if o.Fork || o.HeadRef == "" {
-		return out, warn // the summary comment carries the text to paste
+		// The summary comment carries the text to paste.
+		out.uncommitted = "This pull request comes from a fork, so Speccy cannot commit to its branch."
+		return out, warn
 	}
 	sha, err := o.GitHub.Commit(ctx, o.Repo, o.HeadRef, commitMessage(byDoc, docs), changes)
 	if err != nil {
 		warn = append(warn, "Speccy could not commit the decisions: "+err.Error())
+		out.uncommitted = "Speccy could not commit to this pull request's branch: " + strings.TrimSuffix(err.Error(), ".") + "."
 		return out, warn
 	}
 	out.committed, out.threads, out.paste = sha, wrote, map[string]string{}
@@ -207,8 +212,8 @@ func levelOf(b Bundle, check string) api.FindingLevel {
 	return api.FindingLevelSHOULD
 }
 
-// pasteBlock is the sidecar text for the author of a fork's pull request to paste.
-func pasteBlock(paste map[string]string) string {
+// pasteBlock is the sidecar text for the author to paste, after why Speccy did not commit it.
+func pasteBlock(paste map[string]string, why string) string {
 	if len(paste) == 0 {
 		return ""
 	}
@@ -218,8 +223,7 @@ func pasteBlock(paste map[string]string) string {
 	}
 	sort.Strings(paths)
 	var b strings.Builder
-	b.WriteString("\nThis pull request comes from a fork, so Speccy cannot commit to its branch. " +
-		"Put this in your branch:\n")
+	b.WriteString("\n" + why + " Put this in your branch:\n")
 	for _, p := range paths {
 		fmt.Fprintf(&b, "\n`%s`:\n\n```yaml\n%s```\n", p, paste[p])
 	}

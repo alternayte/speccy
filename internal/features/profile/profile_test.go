@@ -55,6 +55,19 @@ func TestParse_ErrorsHavePaths(t *testing.T) {
 	}
 }
 
+// REQ-134: a children link check with no min needs one link, so the check never passes a doc
+// with none.
+func TestParse_ChildrenMinDefaultsToOne(t *testing.T) {
+	src := []byte("key: plan\nname: Plan\ntemplate: t.md\nlinks:\n  children: { kinds: [refines], min_at: app }\nchecks: []\n")
+	l, err := Parse("p.yaml", src, func(string) ([]byte, error) { return []byte("# T\n"), nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := l.Profile.Links.Children.Min; got != 1 {
+		t.Errorf("children min = %d, want 1 when the profile names none", got)
+	}
+}
+
 // REQ-013
 func TestLoadLocal_Overrides(t *testing.T) {
 	dir := t.TempDir()

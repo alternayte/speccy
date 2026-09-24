@@ -13,6 +13,7 @@ import {
   listMcpConnectionsOptions,
   listMcpConnectionsQueryKey,
   listMcpToolsOptions,
+  listMcpToolsQueryKey,
   updateMcpConnectionMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
@@ -123,6 +124,7 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
       </div>
       {choosing ? (
         <div className="mt-3 rounded-md border border-line p-3">
+          <SecretForm conn={c} />
           {tools.isPending ? (
             <Loading label={`Connecting to ${c.name}`} />
           ) : tools.isError ? (
@@ -232,6 +234,67 @@ function ConnectionRow({ conn: c }: { conn: McpConnection }) {
       ) : null}
       {del.isError ? <ErrorState message={problemMessage(del.error)} /> : null}
     </li>
+  );
+}
+
+// SecretForm takes a new secret for a connection, such as after the master key changed and the
+// stored secret no longer opens. It saves the stored tools as they are.
+function SecretForm({ conn: c }: { conn: McpConnection }) {
+  const qc = useQueryClient();
+  const [secret, setSecret] = useState("");
+  const [secretEnv, setSecretEnv] = useState(c.secret_env ?? "");
+  const save = useMutation({
+    ...updateMcpConnectionMutation(),
+    onSuccess: () => {
+      setSecret("");
+      qc.invalidateQueries({ queryKey: listMcpConnectionsQueryKey() });
+      qc.invalidateQueries({ queryKey: listMcpToolsQueryKey({ path: { connectionId: c.id } }) });
+    },
+  });
+  return (
+    <form
+      className="mb-3 space-y-2 border-b border-line pb-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const body = { ...inputOf(c), secret: secret.trim() };
+        if (c.transport === "stdio") {
+          if (secretEnv.trim()) body.secret_env = secretEnv.trim();
+          else delete body.secret_env;
+        }
+        save.mutate({ path: { connectionId: c.id }, body });
+      }}
+    >
+      <div>
+        <Label htmlFor={`mcp-secret-${c.id}`}>New secret</Label>
+        <Input
+          id={`mcp-secret-${c.id}`}
+          type="password"
+          autoComplete="off"
+          value={secret}
+          onChange={(e) => setSecret(e.target.value)}
+          placeholder={c.has_secret ? `Stored, ends in ${c.secret_last4}.` : ""}
+        />
+        {c.transport === "stdio" ? (
+          <div className="mt-2">
+            <Label htmlFor={`mcp-env-${c.id}`}>Pass the secret as the environment variable</Label>
+            <Input
+              id={`mcp-env-${c.id}`}
+              value={secretEnv}
+              onChange={(e) => setSecretEnv(e.target.value)}
+              placeholder="API_KEY"
+            />
+          </div>
+        ) : (
+          <p className="mt-1 text-xs text-ink-3">Sent as a bearer token. Speccy encrypts it.</p>
+        )}
+      </div>
+      {save.isError ? <ErrorState message={problemMessage(save.error)} /> : null}
+      <div className="flex justify-end">
+        <Button type="submit" size="sm" disabled={!secret.trim() || save.isPending}>
+          Save secret
+        </Button>
+      </div>
+    </form>
   );
 }
 

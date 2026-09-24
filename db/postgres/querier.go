@@ -230,6 +230,7 @@ type Querier interface {
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
 	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
+	SetGithubSourceRepoConfig(ctx context.Context, arg SetGithubSourceRepoConfigParams) error
 	SetGithubSourceSkipped(ctx context.Context, arg SetGithubSourceSkippedParams) error
 	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error

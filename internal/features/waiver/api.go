@@ -391,9 +391,13 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 	return w, nil
 }
 
-// Invalidate ends each approved waiver of b whose section changed (REQ-074, T-010). It runs
-// after every new version.
-func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc) error {
+// Invalidate ends each approved waiver of b whose section changed (REQ-074, T-010), and brings
+// back an ended one whose section returned to the text it was approved for. The sidecar is
+// the truth (DEC-009): its entry applies whenever the section hash matches, so the status
+// follows it, and a reader of the sidecar alone (CI) agrees with the app. It runs after every
+// new version.
+func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
+	decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error)) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
@@ -404,8 +408,10 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc)
 	var main []byte
 	var doc section.Doc
 	loaded := false
+	var dec *source.Decisions
 	for _, r := range rows {
-		if r.Status != StatusApproved || r.Scope == ScopeTrace {
+		ended := r.Status == StatusInvalidated && r.Scope == ScopeCheck
+		if r.Status != StatusApproved && !ended || r.Scope == ScopeTrace {
 			continue
 		}
 		if !loaded {
@@ -423,7 +429,24 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc)
 		var path []string
 		_ = json.Unmarshal(r.SectionPath, &path)
 		hash, _ := section.HashAt(doc, main, path)
-		if _, err := es.Run(ctx, st, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideInvalidate(s, hash) }, Evolve); err != nil {
+		decide := func(s State) ([]es.Event, error) { return DecideInvalidate(s, hash) }
+		if ended {
+			if hash != r.SectionHash {
+				continue
+			}
+			if dec == nil {
+				d, err := decisions(ctx, b)
+				if err != nil {
+					return err
+				}
+				dec = &d
+			}
+			inSidecar := slices.ContainsFunc(dec.Waivers, func(w source.Waiver) bool {
+				return w.Check == r.CheckSlug && slices.Equal(w.Section, path) && w.SectionHash == r.SectionHash
+			})
+			decide = func(s State) ([]es.Event, error) { return DecideRestore(s, hash, inSidecar) }
+		}
+		if _, err := es.Run(ctx, st, StreamType, r.ID, decide, Evolve); err != nil {
 			return err
 		}
 	}

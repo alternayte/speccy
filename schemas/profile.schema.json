@@ -64,7 +64,7 @@
               "items": { "enum": ["implements", "refines", "references", "supersedes"] },
               "description": "The link kinds that count as a link to a covered bundle."
             },
-            "min": { "type": "integer", "minimum": 1, "description": "The fewest links of those kinds that the doc needs." },
+            "min": { "type": "integer", "minimum": 1, "description": "The fewest links of those kinds that the doc needs. Default 1." },
             "min_at": { "enum": ["feature", "app", "initiative"], "description": "The smallest doc size that the check applies to." }
           }
         }

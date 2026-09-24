@@ -258,6 +258,9 @@ func (g *Gateway) backendFor(row pgdb.ModelBackend) (Backend, error) {
 			return nil, errors.New("no secret key is loaded")
 		}
 		plain, err := g.Sealer.Open(row.SecretEncrypted)
+		if errors.Is(err, kernel.ErrOtherKey) {
+			return nil, kernel.OtherKey(fmt.Sprintf("The secret of the %s backend", row.Name), "Admin → Models")
+		}
 		if err != nil {
 			return nil, err
 		}

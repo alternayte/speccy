@@ -161,7 +161,11 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte)
 	if err != nil {
 		return nil, err
 	}
-	return resolveLinksIn(all, place, b, main, adopted, s.linkRules(), s.linkPatterns(), s.accepts(b)), nil
+	repo, err := s.repoConfig(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	return resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b)), nil
 }
 
 // accepts returns which spec docs a link of b may resolve to when its target names a bundle:
@@ -182,26 +186,24 @@ func (s *Service) accepts(b pgdb.SpecDoc) func(kind, profileKey string) bool {
 	}
 }
 
-// linkRules returns the valid link rules of .speccy.yaml. The scan reports a bad rule.
-func (s *Service) linkRules() []source.LinkRule {
+// repoConfig returns the .speccy.yaml that applies to b: its GitHub source's for a doc of a
+// GitHub source, else the served folder's.
+func (s *Service) repoConfig(ctx context.Context, b pgdb.SpecDoc) (source.RepoConfig, error) {
 	if s.Repo == nil {
-		return nil
+		return source.RepoConfig{}, nil
 	}
+	return s.Repo(ctx, b)
+}
+
+// linkRules returns the valid link rules of repo. The scan reports a bad rule.
+func linkRules(repo source.RepoConfig) []source.LinkRule {
 	var out []source.LinkRule
-	for _, raw := range s.Repo().LinkRules {
+	for _, raw := range repo.LinkRules {
 		if r, err := source.ParseLinkRule(raw); err == nil {
 			out = append(out, r)
 		}
 	}
 	return out
-}
-
-// linkPatterns returns the external link patterns of .speccy.yaml, by scheme.
-func (s *Service) linkPatterns() map[string]string {
-	if s.Repo == nil {
-		return nil
-	}
-	return s.Repo().LinkPatterns
 }
 
 // resolveLinksIn resolves b's links against all spec docs: frontmatter links first, then the

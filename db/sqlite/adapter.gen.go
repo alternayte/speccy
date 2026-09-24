@@ -1265,6 +1265,10 @@ func (a Adapter) SetFindingSuggestion(ctx context.Context, arg pgdb.SetFindingSu
 	return a.q.SetFindingSuggestion(ctx, SetFindingSuggestionParams(arg))
 }
 
+func (a Adapter) SetGithubSourceRepoConfig(ctx context.Context, arg pgdb.SetGithubSourceRepoConfigParams) error {
+	return a.q.SetGithubSourceRepoConfig(ctx, SetGithubSourceRepoConfigParams(arg))
+}
+
 func (a Adapter) SetGithubSourceSkipped(ctx context.Context, arg pgdb.SetGithubSourceSkippedParams) error {
 	return a.q.SetGithubSourceSkipped(ctx, SetGithubSourceSkippedParams(arg))
 }

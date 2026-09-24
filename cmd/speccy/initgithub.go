@@ -1,19 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 )
@@ -21,8 +26,10 @@ import (
 // workflowPath is the workflow that speccy init --github writes.
 const workflowPath = ".github/workflows/speccy.yml"
 
-// workflowFile needs no secret: lint checks only, advisory, on the docs a mapping names.
-const workflowFile = `# Speccy reviews the specs that a pull request changes (SDD §12.4).
+// workflowFile needs no secret: lint checks only, advisory, on the docs a mapping names. The
+// %s is the step that uses the Action.
+const workflowFile = `# Speccy reviews the specs that a pull request changes.
+# https://speccy-docs.pages.dev/how-to/keep-the-verdict-in-ci/
 name: Speccy
 on:
   pull_request:
@@ -36,12 +43,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alternayte/speccy@v0.1.0
-        # Lint checks only. For the model stages, set a key and pass it here:
-        # with:
-        #   models: all=anthropic:<model>
-        #   anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+%s`
+
+// modelsHint is the commented model setup under the Action's with:.
+const modelsHint = `          # Lint checks only. For the model stages, set a key and pass it here:
+          # models: all=anthropic:<model>
+          # anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 `
+
+// releaseVersion is a release tag, as the release build sets kernel.Version: v1.2.3 or 1.2.3.
+var releaseVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// workflowFor is the workflow, with the Action pinned at the release of the binary that wrote
+// it. The version input pins the binary the Action downloads too: without it, the Action runs
+// the latest release. A dev build, or a build between two tags, is no release, so the workflow
+// uses main and the latest release, and says to pin a tag.
+func workflowFor(version string) string {
+	if !releaseVersion.MatchString(version) {
+		return fmt.Sprintf(workflowFile, "      # A build of speccy that is not a release wrote this, so it uses main. Pin a release tag.\n"+
+			"      - uses: alternayte/speccy@main\n"+
+			"        with:\n"+modelsHint)
+	}
+	tag := "v" + strings.TrimPrefix(version, "v")
+	return fmt.Sprintf(workflowFile, "      - uses: alternayte/speccy@"+tag+"\n"+
+		"        with:\n"+
+		"          version: "+tag+"   # the speccy binary: keep it at the Action's tag\n"+modelsHint)
+}
 
 // initGitHub is speccy init --github: the one command that adopts a repo Speccy did not
 // write. It guesses a profile for each loose markdown doc, writes the path mappings, runs a
@@ -67,20 +94,61 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "Speccy found no markdown file that reads like a spec. Add \"type: <profile>\" to one, or write a mapping by hand.")
 		return exitOK
 	}
-	mappings := mapDocs(dir, docs)
 	cfgPath := filepath.Join(dir, source.RepoConfigFile)
-	if err := os.WriteFile(cfgPath, []byte(repoConfigFor(mappings, nil)), 0o644); err != nil {
+	// A repo with a .speccy.yaml keeps it: the mappings and the relaxed checks are added to it,
+	// as the app adds a mapping, and a doc it maps already keeps its mapping.
+	was, err := os.ReadFile(cfgPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 		return exitRun
 	}
-	fmt.Fprintf(stdout, "Wrote %s: %d mapping%s for %d doc%s.\n", source.RepoConfigFile,
-		len(mappings), pluralS(len(mappings)), len(docs), pluralS(len(docs)))
+	existing := len(bytes.TrimSpace(was)) > 0
+	if existing {
+		cfg, err := source.ParseRepoConfig(was)
+		if err != nil {
+			fmt.Fprintf(stderr, "speccy init: %v. Fix it, then run speccy init --github again.\n", err)
+			return exitRun
+		}
+		docs = slices.DeleteFunc(docs, func(g guessed) bool {
+			_, mapped := cfg.MappedProfile(g.path)
+			return mapped
+		})
+	}
+	mappings := mapDocs(dir, docs)
+	next := []byte(repoConfigFor(mappings, nil))
+	if existing {
+		if next, err = source.AddMappings(was, mappings); err != nil {
+			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
+			return exitRun
+		}
+	}
+	if err := os.WriteFile(cfgPath, next, 0o644); err != nil {
+		fmt.Fprintf(stderr, "speccy init: %v.\n", err)
+		return exitRun
+	}
+	switch {
+	case !existing:
+		fmt.Fprintf(stdout, "Wrote %s: %d mapping%s for %d doc%s.\n", source.RepoConfigFile,
+			len(mappings), pluralS(len(mappings)), len(docs), pluralS(len(docs)))
+	case len(mappings) == 0:
+		fmt.Fprintf(stdout, "%s maps every doc Speccy found already.\n", source.RepoConfigFile)
+	default:
+		fmt.Fprintf(stdout, "Added %d mapping%s for %d doc%s to %s. Its other keys are as they were.\n",
+			len(mappings), pluralS(len(mappings)), len(docs), pluralS(len(docs)), source.RepoConfigFile)
+	}
 
 	relaxed, err := failingChecks(dir, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy init: the first review did not run, so no check is relaxed: %v.\n", err)
 	} else if len(relaxed) > 0 {
-		if err := os.WriteFile(cfgPath, []byte(repoConfigFor(mappings, relaxed)), 0o644); err != nil {
+		out := []byte(repoConfigFor(mappings, relaxed))
+		if existing {
+			if out, err = source.Relax(next, relaxed); err != nil {
+				fmt.Fprintf(stderr, "speccy init: %v.\n", err)
+				return exitRun
+			}
+		}
+		if err := os.WriteFile(cfgPath, out, 0o644); err != nil {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
@@ -96,11 +164,11 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
-		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(workflowPath)), []byte(workflowFile), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(workflowPath)), []byte(workflowFor(kernel.Version)), 0o644); err != nil {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
-		fmt.Fprintf(stdout, "Wrote %s. It needs no secret and fails no job. The comment says what the model stages add.\n", workflowPath)
+		fmt.Fprintf(stdout, "Wrote %s. It needs no secret and fails no job. A comment in it says how to turn on the model stages.\n", workflowPath)
 	}
 	if added, err := ensureIgnored(filepath.Join(dir, ".gitignore"), ".speccy/state/"); err == nil && added {
 		fmt.Fprintln(stdout, "Added .speccy/state/ to .gitignore. It holds the local database and key.")
@@ -209,7 +277,7 @@ func markdownCount(root, dir string) int {
 // repoConfigFor is the .speccy.yaml of an adopted repo.
 func repoConfigFor(mappings []source.Mapping, relaxed []string) string {
 	var b strings.Builder
-	b.WriteString("# Speccy repo configuration, written by speccy init --github. The format is in SDD §10.4.\n\n" +
+	b.WriteString("# Speccy repo configuration, written by speccy init --github.\n# The format is at https://speccy-docs.pages.dev/reference/speccy-yaml/\n\n" +
 		"# Each markdown file that matches a glob is a bundle, reviewed with that profile.\n" +
 		"# A frontmatter type in the file wins over the mapping.\nmap:\n")
 	for _, m := range mappings {

@@ -17,7 +17,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemCode, problemMessage } from "@/lib/problem";
 import { importBundle } from "@/lib/api";
-import type { Bundle, Profile } from "@/lib/api";
+import type { Bundle, BundleProblem, Profile } from "@/lib/api";
 import { useLinkOffers } from "./adopt-link";
 import { listBundlesQueryKey, listGithubSourcesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { type DroppedBundle, bundlesFromDrop, filesFromDrop, isMarkdown, isZip } from "./drop";
@@ -204,27 +204,7 @@ export function BundlesPage() {
         <SkippedDocs />
         <SourceDocs />
 
-        {bundles.data && bundles.data.problems.length > 0 ? (
-          <section className="mt-6" aria-labelledby="problems">
-            <h2 id="problems" className="text-sm font-semibold text-ink">
-              Folders that are not bundles
-            </h2>
-            <ul className="mt-2 space-y-2">
-              {bundles.data.problems.map((p) => (
-                <li
-                  key={p.path + p.message}
-                  className="flex gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2"
-                >
-                  <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warn" />
-                  <span className="min-w-0 text-sm">
-                    <span className="font-mono text-xs text-ink-2">{p.path}</span>
-                    <span className="block text-ink">{p.message}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        <ScanProblems problems={bundles.data?.problems ?? []} />
       </div>
       <GitHubDialog open={fromGitHub} onOpenChange={setFromGitHub} />
       <ImportDialog
@@ -237,6 +217,57 @@ export function BundlesPage() {
       />
       <NewBundleDialog open={creating} onOpenChange={setCreating} />
     </div>
+  );
+}
+
+// repoConfigFile is the path the server gives a problem with .speccy.yaml, at the root of the
+// served folder.
+const repoConfigFile = ".speccy.yaml";
+
+// ScanProblems shows what the last local scan could not use. A .speccy.yaml that does not load
+// is not a folder problem, so it has its own heading.
+function ScanProblems({ problems }: { problems: BundleProblem[] }) {
+  const config = problems.filter((p) => p.path === repoConfigFile);
+  const folders = problems.filter((p) => p.path !== repoConfigFile);
+  return (
+    <>
+      {config.length > 0 ? (
+        <section className="mt-6" aria-labelledby="config-problem">
+          <h2 id="config-problem" className="text-sm font-semibold text-ink">
+            .speccy.yaml does not load
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {config.map((p) => (
+              <ProblemItem key={p.message} message={p.message} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {folders.length > 0 ? (
+        <section className="mt-6" aria-labelledby="problems">
+          <h2 id="problems" className="text-sm font-semibold text-ink">
+            Folders that are not bundles
+          </h2>
+          <ul className="mt-2 space-y-2">
+            {folders.map((p) => (
+              <ProblemItem key={p.path + p.message} path={p.path} message={p.message} />
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </>
+  );
+}
+
+function ProblemItem({ path, message }: { path?: string; message: string }) {
+  return (
+    <li className="flex gap-2 rounded-md border border-warn/30 bg-warn-soft px-3 py-2">
+      <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warn" />
+      <span className="min-w-0 text-sm">
+        {path ? <span className="font-mono text-xs text-ink-2">{path}</span> : null}
+        <span className="block text-ink">{message}</span>
+      </span>
+    </li>
   );
 }
 

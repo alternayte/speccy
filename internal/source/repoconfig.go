@@ -155,9 +155,9 @@ var LinkKinds = []string{"implements", "refines", "references", "supersedes", Ex
 // BundleLinkKinds are the kinds a link rule may use: a rule links two bundles.
 var BundleLinkKinds = LinkKinds[:len(LinkKinds)-1]
 
-// LinkRule links bundles by path convention (REQ-132): "docs/sdd-{name}.md implements
-// docs/prd-{name}.md". A path is a single-file bundle's file, or a folder bundle's folder,
-// relative to the root. {name} matches one path segment or part of one.
+// LinkRule links spec docs by path convention (REQ-132): "docs/sdd-{name}.md implements
+// docs/prd-{name}.md". A path is a spec doc's file, relative to the root. {name} matches one
+// path segment or part of one.
 type LinkRule struct {
 	From string
 	Kind string
@@ -246,6 +246,52 @@ func Enforce(src []byte, slug string) (out []byte, ok bool, err error) {
 		return buf.Bytes(), true, nil
 	}
 	return nil, false, nil
+}
+
+// Relax adds check slugs to the adoption mode list of .speccy.yaml, so they report at level
+// INFO (REQ-133). A slug in the list already is left as it is. The rest of the file keeps its
+// keys and its comments.
+func Relax(src []byte, slugs []string) ([]byte, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(src, &doc); err != nil {
+		return nil, fmt.Errorf("%s does not parse: %w", RepoConfigFile, err)
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s is not a mapping", RepoConfigFile)
+	}
+	root := doc.Content[0]
+	adoption := findKey(root, "adoption")
+	if adoption == nil {
+		adoption = &yaml.Node{Kind: yaml.MappingNode}
+		root.Content = append(root.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "adoption"}, adoption)
+	}
+	if adoption.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("adoption in %s is not a mapping", RepoConfigFile)
+	}
+	list := findKey(adoption, "relaxed")
+	if list == nil {
+		list = &yaml.Node{Kind: yaml.SequenceNode}
+		adoption.Content = append(adoption.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "relaxed"}, list)
+	}
+	if list.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("adoption.relaxed in %s is not a list", RepoConfigFile)
+	}
+	for _, s := range slugs {
+		if slices.ContainsFunc(list.Content, func(n *yaml.Node) bool { return n.Value == s }) {
+			continue
+		}
+		list.Content = append(list.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: s})
+	}
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
+		return nil, err
+	}
+	if err := enc.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }
 
 // findKey returns the value node of key in a mapping, or nil.
