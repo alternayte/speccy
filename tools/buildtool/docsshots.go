@@ -101,13 +101,15 @@ func (s *server) models(model string) error {
 	return nil
 }
 
-// specDoc is one spec doc, as the list of bundles names it.
+// specDoc is one spec doc, as the list of bundles names it. A bundle is a folder; the
+// screens, the reviews and the tour belong to one spec doc in it.
 type specDoc struct {
 	ID       string `json:"id"`
 	BundleID string `json:"bundle_id"`
 	Slug     string `json:"slug"`
 	Verdict  *struct {
-		RunID string `json:"run_id"`
+		RunID  string `json:"run_id"`
+		Result string `json:"result"`
 	} `json:"verdict"`
 	Version struct {
 		ID string `json:"id"`
@@ -264,7 +266,7 @@ func scaleDown(file string) error {
 // guide captures the pictures of the guide in the order the guide tells the story.
 func (d *shots) guide(s *server, dir, model string) error {
 	u := func(p string) string { return s.base + p }
-	bs, err := s.bundles()
+	bs, err := s.docs()
 	if err != nil {
 		return err
 	}
@@ -320,10 +322,10 @@ func (d *shots) guide(s *server, dir, model string) error {
 	}
 
 	// 2. Writing the doc: the split view, and the click-to-edit in the preview.
-	if err := d.png("guide-editor", u("/bundles/"+draft.ID+"?view=split"), nil); err != nil {
+	if err := d.png("guide-editor", u(draft.page()+"?view=split"), nil); err != nil {
 		return err
 	}
-	if err := d.gif("guide-edit-preview", u("/bundles/"+draft.ID+"?view=preview"), 1, func() error {
+	if err := d.gif("guide-edit-preview", u(draft.page()+"?view=preview"), 1, func() error {
 		if _, err := d.ab("find", "first", "article p", "click"); err != nil {
 			return err
 		}
@@ -353,8 +355,8 @@ func (d *shots) guide(s *server, dir, model string) error {
 		return err
 	}
 	var started struct{ ID string }
-	if err := d.gif("guide-run-review", u("/bundles/"+draft.ID+"?view=preview"), 12, func() error {
-		if err := s.call("POST", "/bundles/"+draft.ID+"/runs", nil, &started); err != nil {
+	if err := d.gif("guide-run-review", u(draft.page()+"?view=preview"), 12, func() error {
+		if err := s.call("POST", "/docs/"+draft.ID+"/runs", nil, &started); err != nil {
 			return err
 		}
 		if err := s.waitRun(started.ID); err != nil {
@@ -365,10 +367,10 @@ func (d *shots) guide(s *server, dir, model string) error {
 	}); err != nil {
 		return err
 	}
-	if err := d.png("guide-verdict", u("/bundles/"+draft.ID+"?view=preview"), nil); err != nil {
+	if err := d.png("guide-verdict", u(draft.page()+"?view=preview"), nil); err != nil {
 		return err
 	}
-	if err := d.png("guide-findings", u("/bundles/"+draft.ID+"?view=preview"), func() error {
+	if err := d.png("guide-findings", u(draft.page()+"?view=preview"), func() error {
 		if err := d.tab("Findings"); err != nil {
 			return err
 		}
@@ -377,7 +379,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 	}); err != nil {
 		return err
 	}
-	if err := d.png("guide-questions", u("/bundles/"+draft.ID+"?view=preview"), func() error {
+	if err := d.png("guide-questions", u(draft.page()+"?view=preview"), func() error {
 		if err := d.tab("Evidence"); err != nil {
 			return err
 		}
@@ -386,19 +388,19 @@ func (d *shots) guide(s *server, dir, model string) error {
 	}); err != nil {
 		return err
 	}
-	fresh, err := s.bundle(draft.ID)
+	fresh, err := s.doc(draft.ID)
 	if err != nil {
 		return err
 	}
 	if fresh.Verdict == nil {
 		return errors.New("the review of draft-prd made no verdict")
 	}
-	if err := d.png("guide-run-report", u("/bundles/"+draft.ID+"/runs/"+fresh.Verdict.RunID), nil); err != nil {
+	if err := d.png("guide-run-report", u(draft.page()+"/runs/"+fresh.Verdict.RunID), nil); err != nil {
 		return err
 	}
 
 	// 4. The tour, point to point.
-	if err := d.gif("guide-tour", u("/bundles/"+draft.ID+"/tour"), 1, func() error {
+	if err := d.gif("guide-tour", u(draft.page()+"/tour"), 1, func() error {
 		for i := 0; i < 3; i++ {
 			if _, err := d.ab("press", "j"); err != nil {
 				return err
@@ -415,7 +417,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 	// 5. Reviewer mode: what a person who cannot edit the bundle sees. A blocking thread gives
 	// the reviewer's questions screen a real point to answer.
 	var thread struct{ ID string }
-	if err := s.call("POST", "/bundles/"+draft.ID+"/threads", map[string]any{
+	if err := s.call("POST", "/docs/"+draft.ID+"/threads", map[string]any{
 		"anchor_kind":  "section",
 		"anchor":       map[string]any{"heading_path": []string{"Loyalty points", "Users"}},
 		"addressed_to": "humans",
@@ -425,22 +427,22 @@ func (d *shots) guide(s *server, dir, model string) error {
 	}, &thread); err != nil {
 		return err
 	}
-	if err := d.png("guide-reviewer", u("/bundles/"+draft.ID+"?as=reviewer"), nil); err != nil {
+	if err := d.png("guide-reviewer", u(draft.page()+"?as=reviewer"), nil); err != nil {
 		return err
 	}
-	if err := d.png("guide-reviewer-questions", u("/bundles/"+draft.ID+"/tour?as=reviewer"), nil); err != nil {
+	if err := d.png("guide-reviewer-questions", u(draft.page()+"/tour?as=reviewer"), nil); err != nil {
 		return err
 	}
 
 	// 6. Build Ready, and the packet a builder takes. A builder takes the packet first, so the
 	// handoffs of the bundle are real.
-	if err := s.call("POST", "/bundles/"+ready.ID+"/handoff", map[string]any{}, nil); err != nil {
+	if err := s.call("POST", "/docs/"+ready.ID+"/handoff", map[string]any{}, nil); err != nil {
 		return err
 	}
-	if err := d.png("guide-build-ready", u("/bundles/"+ready.ID+"?view=preview"), nil); err != nil {
+	if err := d.png("guide-build-ready", u(ready.page()+"?view=preview"), nil); err != nil {
 		return err
 	}
-	if err := d.png("guide-handoff", u("/bundles/"+ready.ID+"?view=preview"), func() error {
+	if err := d.png("guide-handoff", u(ready.page()+"?view=preview"), func() error {
 		if err := d.tab("History"); err != nil {
 			return err
 		}
@@ -449,7 +451,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 	}); err != nil {
 		return err
 	}
-	if err := d.png("guide-trace", u("/bundles/"+ready.ID+"/trace"), nil); err != nil {
+	if err := d.png("guide-trace", u(ready.page()+"/trace"), nil); err != nil {
 		return err
 	}
 
