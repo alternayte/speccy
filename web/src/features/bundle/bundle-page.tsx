@@ -33,7 +33,8 @@ import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VersionsPanel } from "./versions-panel";
 import { DeleteBundleDialog } from "./delete-dialog";
 import { HandoffsPanel } from "./handoffs-panel";
-import { VerificationsPanel } from "./verifications-panel";
+import { HandoffDialog } from "./handoff-dialog";
+import { type RunFocus, VerificationsPanel } from "./verifications-panel";
 import { ReviewerPage } from "@/features/review/reviewer-page";
 import { ControlRow } from "./control-row";
 import { adoptFrontmatterMutation } from "@/lib/api/@tanstack/react-query.gen";
@@ -68,11 +69,14 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   const [tab, setTab] = useState<RailTab>("findings");
   // The build a drifted code link asked to verify, which prefills the verify field.
   const [verifyAt, setVerifyAt] = useState<string>();
+  // The verification run a verification waiver opens, in History.
+  const [runFocus, setRunFocus] = useState<RunFocus>();
   // focus names the doc it belongs to: an anchor in another spec doc waits until that doc's
   // files are on screen, so one doc's offsets never move another doc's editor (#74).
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number; docId: string }>();
   const [deleting, setDeleting] = useState(false);
   const [retyping, setRetyping] = useState(false);
+  const [handingOff, setHandingOff] = useState(false);
   // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
   const [selectedFinding, setSelectedFinding] = useState<string>();
   // newThread is the anchor of a thread the user is starting (REQ-087).
@@ -149,10 +153,19 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   // Waivers that wait for this person: the next action opens the first one.
   const waivers = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
   // openWaiver shows a waiver where it can be judged: the rail selects the finding it excuses,
-  // and the preview focuses the whole section the waiver covers (SDD §9.1).
+  // and the preview focuses the whole section the waiver covers (SDD §9.1). A verification
+  // waiver has no finding: History opens the verification run it came from.
   const mainDoc = bundle.data?.path;
   const openWaiver = useCallback(
     (w: Waiver) => {
+      if (w.verification) {
+        const v = w.verification;
+        setTab("history");
+        setPanel("rail");
+        setRunFocus((prev) => ({ ...v, seq: (prev?.seq ?? 0) + 1 }));
+        if (search.waiver) setSearch({ ...search, waiver: undefined });
+        return;
+      }
       setTab("findings");
       setPanel("rail");
       const f = (findings.data?.items ?? []).find((f) => waiverCovers(w, f));
@@ -170,10 +183,18 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
     const id = search.waiver;
     if (!id || opened.current === id) return;
     const w = waivers.data?.items.find((x) => x.id === id);
-    if (!w || !findings.data) return;
+    if (!w || (!w.verification && !findings.data)) return;
     opened.current = id;
     openWaiver(w);
   }, [search.waiver, waivers.data, findings.data, openWaiver]);
+  // A link to a range of the file, such as a reference in the traceability matrix, names it in
+  // the URL. Focus it once, then drop the param.
+  useEffect(() => {
+    if (!search.at) return;
+    const [start = 0, end = 0] = search.at.split("-").map(Number);
+    setSearch({ ...search, at: undefined });
+    setFocus((prev) => ({ start, end, seq: (prev?.seq ?? 0) + 1, docId }));
+  }, [search, setSearch, docId]);
 
   // The two dividers of the bundle screen. Below lg and xl the panes are overlays, so the widths
   // apply only where the panes sit side by side.
@@ -217,8 +238,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         askReview.current?.();
         return;
       case "handoff":
-        setTab("history");
-        setPanel("rail");
+        setHandingOff(true);
         return;
     }
   };
@@ -265,6 +285,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         onExport={(format) =>
           window.location.assign(`/api/v1/docs/${docId}/export${format === "html" ? "?format=html" : ""}`)
         }
+        onHandoff={guest ? undefined : () => setHandingOff(true)}
         onPrint={() => {
           if (view === "code") setSearch({ ...search, view: "preview" });
           setTimeout(() => window.print(), 300);
@@ -295,6 +316,17 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
 
       <DeleteBundleDialog bundleId={bundleId} open={deleting} onOpenChange={setDeleting} />
       <ProfileDialog bundle={b} open={retyping} onOpenChange={setRetyping} />
+      <HandoffDialog
+        doc={b}
+        folder={folder.data?.slug}
+        cli={!hosted && b.source_kind === "local"}
+        open={handingOff}
+        onOpenChange={setHandingOff}
+        onTaken={() => {
+          setTab("history");
+          setPanel("rail");
+        }}
+      />
 
       <div className="no-print">{run.active ? <RunProgress events={run.events} /> : null}</div>
 
@@ -493,7 +525,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
                 <>
                   <VersionsPanel docId={docId} current={b.current_version.id} />
                   <HandoffsPanel docId={docId} current={b.current_version.number} />
-                  <VerificationsPanel docId={docId} canVerify={!guest} prefill={verifyAt} />
+                  <VerificationsPanel docId={docId} canVerify={!guest} prefill={verifyAt} focus={runFocus} />
                 </>
               )}
             </div>

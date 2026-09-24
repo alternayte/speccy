@@ -188,6 +188,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 			verified += c.Implemented + c.Untested + c.Unproven + c.Missing + c.Breached
 			wrong += c.Missing + c.Breached
 		}
+		pi.VerifiedTraceIds = verified
 		if verified > 0 {
 			pi.BreachRate = float32(wrong) / float32(verified)
 		}
@@ -223,7 +224,8 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 			}
 			r := rate[w.CheckSlug]
 			r[1]++
-			if w.Status == "approved" || w.Status == "invalidated" {
+			// An ended waiver and a withdrawn Acknowledgement were approved once.
+			if w.Status == "approved" || w.Status == "invalidated" || w.Status == "withdrawn" {
 				r[0]++
 			}
 			rate[w.CheckSlug] = r

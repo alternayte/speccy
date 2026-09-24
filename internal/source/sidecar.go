@@ -95,3 +95,10 @@ func (d Decisions) WithTraceAck(t TraceAck) Decisions {
 	out.Trace = append(out.Trace, t)
 	return out
 }
+
+// WithoutTraceAck returns the sidecar without the acknowledgement of id, and whether it held one.
+func (d Decisions) WithoutTraceAck(id string) (Decisions, bool) {
+	out := d
+	out.Trace = slices.DeleteFunc(slices.Clone(d.Trace), func(t TraceAck) bool { return t.ID == id })
+	return out, len(out.Trace) != len(d.Trace)
+}

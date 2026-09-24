@@ -112,7 +112,13 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	var an anchor.Anchor
 	_ = json.Unmarshal(f.Anchor, &an)
 	path := an.HeadingPath
-	if path == nil || p.Profile.DocScope(f.CheckSlug) {
+	// A missing upstream link can take the standalone answer: an Acknowledgement that the doc
+	// has no upstream doc. It is about the whole doc.
+	standalone := req.Body.Standalone != nil && *req.Body.Standalone
+	if standalone && f.CheckSlug != upstreamSlug {
+		return nil, kernel.Invalid("not_upstream", "Only a missing upstream link takes the standalone answer.")
+	}
+	if path == nil || p.Profile.DocScope(f.CheckSlug) || standalone {
 		path = []string{}
 	}
 	main, doc, err := a.mainDoc(ctx, b)
@@ -154,6 +160,9 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 		r.Scope, r.TraceID, r.AckStatus, r.AckTarget = ScopeTrace, ev.ID, status, target
 	} else if req.Body.Trace != nil {
 		return nil, kernel.Invalid("not_a_gap", "Only a coverage gap takes a trace answer.")
+	}
+	if standalone {
+		r.Scope = ScopeStandalone
 	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
@@ -210,6 +219,16 @@ func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approve
 		dec = dec.WithTraceAck(source.TraceAck{ID: s.TraceID, Status: s.AckStatus, Target: s.AckTarget, Reason: s.Reason,
 			AcknowledgedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label()})
 		return a.SetDecisions(ctx, b, dec, approvedBy, "Acknowledged "+s.TraceID+" as "+strings.ReplaceAll(s.AckStatus, "_", " "))
+	}
+	// A standalone Acknowledgement says the doc has no upstream doc. Like a trace entry, it
+	// names the person who made the statement; the version and the stream name the approver.
+	if s.Scope == ScopeStandalone {
+		dec, err := a.Decisions(ctx, b)
+		if err != nil {
+			return err
+		}
+		dec.Standalone = &source.Standalone{Reason: s.Reason, AcknowledgedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label()}
+		return a.SetDecisions(ctx, b, dec, approvedBy, "Acknowledged the doc as standalone")
 	}
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
@@ -383,6 +402,21 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		}
 		w.Trace = &t
 	}
+	if s.Scope == ScopeVerify {
+		v := api.VerificationExcuse{TraceId: s.TraceID, Repo: s.Repo}
+		if s.RunID != uuid.Nil {
+			v.RunId = &s.RunID
+		}
+		w.Verification = &v
+	}
+	if s.Scope == ScopeStandalone {
+		yes := true
+		w.Standalone = &yes
+	}
+	if s.WithdrawnBy != "" {
+		by := kernel.PersonByID(ctx, a.People, s.WithdrawnBy).Label()
+		w.WithdrawnBy = &by
+	}
 	if main, doc, err := a.mainDoc(ctx, b); err == nil {
 		if start, end, ok := section.RangeAt(doc, main, s.Section); ok {
 			w.SectionRange = &api.SectionRange{Start: start, End: end}
@@ -411,7 +445,7 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 	var dec *source.Decisions
 	for _, r := range rows {
 		ended := r.Status == StatusInvalidated && r.Scope == ScopeCheck
-		if r.Status != StatusApproved && !ended || r.Scope == ScopeTrace {
+		if r.Status != StatusApproved && !ended || Acknowledgement(r.Scope) {
 			continue
 		}
 		if !loaded {
@@ -471,6 +505,19 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	if traceID == "" || repo == "" {
 		return nil, kernel.Invalid("no_target", "Name the trace ID and the repo this waiver excuses.")
 	}
+	// The run the request comes from must be a run of this doc in this repo: the inbox link
+	// to the request opens it.
+	var runID uuid.UUID
+	if req.Body.RunId != nil {
+		run, err := a.DB.Queries().GetVerificationRun(ctx, pgdb.GetVerificationRunParams{WorkspaceID: a.Workspace, ID: *req.Body.RunId})
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && (run.SpecDocID != b.ID || run.Repo != repo)) {
+			return nil, kernel.Invalid("run_not_found", "This doc has no verification run with this ID in %s.", repo)
+		}
+		if err != nil {
+			return nil, err
+		}
+		runID = run.ID
+	}
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return nil, err
@@ -497,7 +544,7 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	}
 	slug := "verify." + strings.ToLower(traceID)
 	r := Request{
-		ID: kernel.NewID(), BundleID: b.ID, Check: slug, Scope: ScopeVerify, TraceID: traceID, Repo: repo,
+		ID: kernel.NewID(), BundleID: b.ID, Check: slug, Scope: ScopeVerify, TraceID: traceID, Repo: repo, RunID: runID,
 		Level: kernel.Must, Section: path, SectionHash: hash, Reason: req.Body.Reason,
 		By: kernel.ActorFrom(ctx).UserID, Policy: p.Profile.Waivers.Must,
 	}
@@ -511,5 +558,85 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	return api.RequestVerificationWaiver200JSONResponse(w), nil
 }
 
-// coverageSlug is the review's trace.coverage check. A waiver of it is an Acknowledgement.
-const coverageSlug = "trace.coverage"
+// WithdrawAcknowledgement takes one Acknowledgement out of the doc's sidecar at once, with no
+// approval: a withdrawal only makes the verdict stricter. The role table lets only a person who
+// can edit the doc call it. The sidecar changes through the write an approval uses, and then
+// the approved waiver of the Acknowledgement records who withdrew it. An Acknowledgement
+// written outside Speccy (by hand, or by a reply command) has no waiver; the sidecar write
+// records who withdrew it, as a version of a db or GitHub bundle.
+func (a *API) WithdrawAcknowledgement(ctx context.Context, req api.WithdrawAcknowledgementRequestObject) (api.WithdrawAcknowledgementResponseObject, error) {
+	q := a.DB.Queries()
+	b, err := a.bundle(ctx, req.DocId)
+	if err != nil {
+		return nil, err
+	}
+	dec, err := a.Decisions(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	by := kernel.ActorFrom(ctx).UserID
+	var message string
+	var matches func(w pgdb.WaiverView) bool
+	switch req.Body.Kind {
+	case api.WithdrawAcknowledgementJSONBodyKindTrace:
+		id := ""
+		if req.Body.TraceId != nil {
+			id = strings.TrimSpace(*req.Body.TraceId)
+		}
+		if id == "" {
+			return nil, kernel.Invalid("no_trace_id", "Name the trace ID whose acknowledgement to withdraw.")
+		}
+		var held bool
+		if dec, held = dec.WithoutTraceAck(id); !held {
+			return nil, kernel.NotFound("no_acknowledgement", "The sidecar holds no acknowledgement of %s.", id)
+		}
+		message = "Withdrew the acknowledgement of " + id
+		matches = func(w pgdb.WaiverView) bool { return w.Scope == ScopeTrace && w.TraceID == id }
+	case api.WithdrawAcknowledgementJSONBodyKindStandalone:
+		if dec.Standalone == nil {
+			return nil, kernel.NotFound("no_acknowledgement", "The sidecar holds no standalone acknowledgement.")
+		}
+		dec.Standalone = nil
+		message = "Withdrew the standalone acknowledgement"
+		matches = func(w pgdb.WaiverView) bool { return w.Scope == ScopeStandalone }
+	default:
+		return nil, kernel.Invalid("bad_kind", "Name the kind of acknowledgement: trace or standalone.")
+	}
+	before := b.CurrentVersionID
+	if err := a.SetDecisions(ctx, b, dec, by, message); err != nil {
+		return nil, err
+	}
+	rows, err := q.ListSpecDocWaivers(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range rows {
+		if w.Status != StatusApproved || !matches(w) {
+			continue
+		}
+		if _, err := es.Run(ctx, a.ES, StreamType, w.ID, func(s State) ([]es.Event, error) { return DecideWithdraw(s, by) }, Evolve); err != nil {
+			return nil, err
+		}
+	}
+	out := api.WithdrawAcknowledgement200JSONResponse{}
+	after, err := a.bundle(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	if after.CurrentVersionID.Valid && after.CurrentVersionID != before {
+		v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: after.CurrentVersionID.UUID})
+		if err != nil {
+			return nil, err
+		}
+		av := version.ToAPI(v)
+		out.Version = &av
+	}
+	return out, nil
+}
+
+// The checks an Acknowledgement answers (SDD §9.4). coverageSlug is the review's
+// trace.coverage check, and upstreamSlug its links.has-upstream check.
+const (
+	coverageSlug = "trace.coverage"
+	upstreamSlug = "links.has-upstream"
+)

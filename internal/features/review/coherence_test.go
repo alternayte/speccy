@@ -119,6 +119,11 @@ func TestCoherence_UpstreamEditStales(t *testing.T) {
 				if v.StaleReason != nil {
 					s += "/" + string(*v.StaleReason)
 				}
+				if v.StaleUpstream != nil {
+					for _, u := range *v.StaleUpstream {
+						s += ":" + u.Slug
+					}
+				}
 				return &s
 			}
 			pe.run(t, "refunds-sdd")
@@ -126,8 +131,9 @@ func TestCoherence_UpstreamEditStales(t *testing.T) {
 				t.Fatalf("a fresh full run reads %s", got)
 			}
 			pe.write(t, "refunds-prd/PRD.md", strings.Replace(upstreamPRD, "5 working days", "3 working days", 1))
-			if got := *summary("refunds-sdd"); got != "stale/upstream_changed" {
-				t.Errorf("after an upstream edit the full verdict reads %s, want stale/upstream_changed", got)
+			// The verdict names the spec doc that changed, so the control row can say which.
+			if got := *summary("refunds-sdd"); got != "stale/upstream_changed:refunds-prd" {
+				t.Errorf("after an upstream edit the full verdict reads %s, want stale/upstream_changed:refunds-prd", got)
 			}
 
 			// A lint-only verdict is linted again instead.

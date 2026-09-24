@@ -45,31 +45,41 @@ const LinksDir = "links"
 
 // TakeHandoff returns the build packet and records the handoff (REQ-136).
 func (a *API) TakeHandoff(ctx context.Context, req api.TakeHandoffRequestObject) (api.TakeHandoffResponseObject, error) {
-	q := a.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Workspace, req.DocId)
+	packet, _, err := a.take(ctx, req.DocId, req.Body)
 	if err != nil {
 		return nil, err
 	}
+	return api.TakeHandoff200JSONResponse(packet), nil
+}
+
+// take records the handoff of b's current version and returns its build packet. It refuses
+// what the verdict does not allow, unless the caller acknowledged it.
+func (a *API) take(ctx context.Context, docID uuid.UUID, body *api.HandoffRequest) (api.BuildPacket, pgdb.SpecDoc, error) {
+	q := a.DB.Queries()
+	b, err := version.Bundle(ctx, q, a.Workspace, docID)
+	if err != nil {
+		return api.BuildPacket{}, b, err
+	}
 	ack, label := false, ""
-	if req.Body != nil {
-		if req.Body.Acknowledged != nil {
-			ack = *req.Body.Acknowledged
+	if body != nil {
+		if body.Acknowledged != nil {
+			ack = *body.Acknowledged
 		}
-		if req.Body.Label != nil {
-			label = strings.TrimSpace(*req.Body.Label)
+		if body.Label != nil {
+			label = strings.TrimSpace(*body.Label)
 		}
 	}
 	v, _, err := review.Summary(ctx, q, b)
 	if err != nil {
-		return nil, err
+		return api.BuildPacket{}, b, err
 	}
 	result := verdictOf(v)
 	if err := allow(result, v, ack); err != nil {
-		return nil, err
+		return api.BuildPacket{}, b, err
 	}
 	packet, err := a.packet(ctx, b)
 	if err != nil {
-		return nil, err
+		return api.BuildPacket{}, b, err
 	}
 	row := pgdb.Handoff{
 		ID: kernel.NewID(), WorkspaceID: a.Workspace, SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID,
@@ -77,12 +87,12 @@ func (a *API) TakeHandoff(ctx context.Context, req api.TakeHandoffRequestObject)
 		CreatedAt: time.Now().UTC(),
 	}
 	if err := q.InsertHandoff(ctx, pgdb.InsertHandoffParams(row)); err != nil {
-		return nil, err
+		return api.BuildPacket{}, b, err
 	}
 	// The re-entry prompt quotes the handoff ID, so it is written after the ID exists.
 	packet.HandoffId = row.ID
 	packet.HandoffMd = HandoffMarkdown(packet)
-	return api.TakeHandoff200JSONResponse(packet), nil
+	return packet, b, nil
 }
 
 // verdictOf names the bundle's verdict, or "none" when it has no run.

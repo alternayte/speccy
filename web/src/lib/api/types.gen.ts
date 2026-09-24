@@ -242,6 +242,10 @@ export type BundleVerdict = {
      * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
      */
     stale_reason?: 'upstream_changed';
+    /**
+     * With stale_reason upstream_changed, the linked spec docs that have a newer version than the run read.
+     */
+    stale_upstream?: Array<BundleRef>;
 };
 
 export type VerdictResult = 'build_ready' | 'not_build_ready' | 'stale';
@@ -578,6 +582,10 @@ export type TraceAnswer = {
 
 export type BundleRef = {
     id: string;
+    /**
+     * The bundle that holds the spec doc.
+     */
+    bundle_id: string;
     slug: string;
     title: string;
     profile_key: string;
@@ -635,6 +643,10 @@ export type TraceMatrix = {
      * cells[row][column].
      */
     cells: Array<Array<TraceCell>>;
+    /**
+     * editable[column] says whether the caller can edit that column's spec doc, and so answer its gaps and withdraw its acknowledgements.
+     */
+    editable: Array<boolean>;
 };
 
 export type TraceRow = {
@@ -648,6 +660,10 @@ export type TraceCell = {
     refs: Array<Anchor>;
     reason?: string;
     target?: string;
+    /**
+     * For a gap, the trace.coverage finding of the column's spec doc for this ID, from the run behind its verdict. An answer to the gap names it.
+     */
+    finding_id?: string;
 };
 
 export type IdSuggestion = {
@@ -1258,7 +1274,10 @@ export type Waiver = {
     level: string;
     section: Array<string>;
     reason: string;
-    status: 'requested' | 'approved' | 'rejected' | 'invalidated';
+    /**
+     * withdrawn is an approved Acknowledgement that a person took out of the sidecar.
+     */
+    status: 'requested' | 'approved' | 'rejected' | 'invalidated' | 'withdrawn';
     requested_by: string;
     approvals: Array<string>;
     /**
@@ -1279,7 +1298,35 @@ export type Waiver = {
     decision_reason?: string;
     section_range?: SectionRange;
     trace?: TraceAck;
+    verification?: VerificationExcuse;
+    /**
+     * True for a standalone Acknowledgement. On approval it goes in the sidecar under standalone.
+     */
+    standalone?: boolean;
+    /**
+     * Who withdrew the Acknowledgement. Only a withdrawn one has it.
+     */
+    withdrawn_by?: string;
     created_at: string;
+};
+
+/**
+ * What a verification waiver excuses. It never goes in the sidecar.
+ */
+export type VerificationExcuse = {
+    trace_id: string;
+    /**
+     * The code repo, or the folder, as the verification run names it.
+     */
+    repo: string;
+    /**
+     * The verification run the request came from. Empty for a request that named no run.
+     */
+    run_id?: string;
+};
+
+export type Withdrawal = {
+    version?: Version;
 };
 
 /**
@@ -1289,6 +1336,17 @@ export type TraceAck = {
     id: string;
     status: 'out_of_scope' | 'covered_by';
     target?: string;
+};
+
+export type HandoffRequest = {
+    /**
+     * Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
+     */
+    acknowledged?: boolean;
+    /**
+     * What the builder calls this work, such as a repo, a branch, or a ticket.
+     */
+    label?: string;
 };
 
 export type HandoffList = {
@@ -1471,7 +1529,7 @@ export type InboxItem = {
     bundle_title: string;
     thread_id?: string;
     /**
-     * The waiver an item is about. The bundle page opens on the finding it excuses.
+     * The waiver an item is about. The bundle page opens on the finding it excuses, or on the verification run a verification waiver came from.
      */
     waiver_id?: string;
     text: string;
@@ -1516,6 +1574,10 @@ export type ProfileInsights = {
      * The share of verified trace IDs of this profile that came back breached or missing. 0 with no verification runs.
      */
     breach_rate: number;
+    /**
+     * The trace IDs that the verification runs of this profile verified, which the breach rate divides by.
+     */
+    verified_trace_ids: number;
     /**
      * The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.
      */
@@ -2074,16 +2136,7 @@ export type ListHandoffsResponses = {
 export type ListHandoffsResponse = ListHandoffsResponses[keyof ListHandoffsResponses];
 
 export type TakeHandoffData = {
-    body?: {
-        /**
-         * Take the packet although the verdict is not Build Ready, or is stale. The handoff records the verdict it was taken at.
-         */
-        acknowledged?: boolean;
-        /**
-         * What the builder calls this work, such as a repo, a branch, or a ticket.
-         */
-        label?: string;
-    };
+    body?: HandoffRequest;
     path: {
         /**
          * The ID of one spec doc.
@@ -2112,6 +2165,36 @@ export type TakeHandoffResponses = {
 
 export type TakeHandoffResponse = TakeHandoffResponses[keyof TakeHandoffResponses];
 
+export type TakeHandoffZipData = {
+    body?: HandoffRequest;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/handoff/zip';
+};
+
+export type TakeHandoffZipErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type TakeHandoffZipError = TakeHandoffZipErrors[keyof TakeHandoffZipErrors];
+
+export type TakeHandoffZipResponses = {
+    /**
+     * The build packet as a .zip file, in one folder.
+     */
+    200: Blob | File;
+};
+
+export type TakeHandoffZipResponse = TakeHandoffZipResponses[keyof TakeHandoffZipResponses];
+
 export type RequestVerificationWaiverData = {
     body: {
         trace_id: string;
@@ -2120,6 +2203,10 @@ export type RequestVerificationWaiverData = {
          */
         repo: string;
         reason: string;
+        /**
+         * The verification run the request comes from, in the same repo. The inbox link to the request opens it.
+         */
+        run_id?: string;
     };
     path: {
         /**
@@ -4236,6 +4323,11 @@ export type RequestWaiverData = {
         finding_id: string;
         reason: string;
         trace?: TraceAnswer;
+        /**
+         * Mark the doc standalone: the answer to a links.has-upstream finding. It is an Acknowledgement, and its approval writes standalone to the doc's sidecar.
+         *
+         */
+        standalone?: boolean;
     };
     path: {
         /**
@@ -4264,6 +4356,42 @@ export type RequestWaiverResponses = {
 };
 
 export type RequestWaiverResponse = RequestWaiverResponses[keyof RequestWaiverResponses];
+
+export type WithdrawAcknowledgementData = {
+    body: {
+        kind: 'trace' | 'standalone';
+        /**
+         * For kind trace, the upstream trace ID whose acknowledgement to withdraw.
+         */
+        trace_id?: string;
+    };
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/acknowledgements/withdraw';
+};
+
+export type WithdrawAcknowledgementErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type WithdrawAcknowledgementError = WithdrawAcknowledgementErrors[keyof WithdrawAcknowledgementErrors];
+
+export type WithdrawAcknowledgementResponses = {
+    /**
+     * The acknowledgement is gone. version is absent when no version was created.
+     */
+    200: Withdrawal;
+};
+
+export type WithdrawAcknowledgementResponse = WithdrawAcknowledgementResponses[keyof WithdrawAcknowledgementResponses];
 
 export type ApproveWaiverData = {
     body?: never;

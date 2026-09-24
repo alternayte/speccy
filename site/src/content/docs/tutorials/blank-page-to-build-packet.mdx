@@ -100,7 +100,7 @@ The preview is an editable preview. The template holds placeholders in angle bra
 
 ![A click on a paragraph in the preview opens its markdown, and the typing goes in place](../../../assets/shots/guide-edit-preview.gif)
 
-In the Code or Split view, `⌘S` or `Ctrl+S` also saves.
+In every view, `⌘S` or `Ctrl+S` also saves. An open block in the preview goes into the save.
 
 **Controls** shows the control bar above the preview. Its markdown group writes headings, lists, links, tables and code blocks. Its profile group applies what the profile knows. It inserts a missing required heading, the next free trace ID, or a requirement with an acceptance criterion. It also moves a long block into `assets/`.
 
@@ -248,15 +248,25 @@ In hosted mode, a bundle also needs the approvals its profile requires. An autho
 
 ## 11. Hand it to a builder
 
-The next action now says **Hand it to a builder**. Click it, and the rail opens **History**, which lists the versions and the handoffs of the bundle.
+A build packet holds the spec doc, the bundle's assets, the linked spec docs and the trace IDs. It also holds the build questions with their agreed answers.
 
-A build packet holds the spec doc, the bundle's assets, the linked spec docs and the trace IDs. It also holds the build questions with their agreed answers. A coding agent takes it with the MCP tool `handoff_bundle`, or you write it to a folder:
+<Steps>
+
+1. The next action now says **Hand it to a builder**. Click it. The dialog opens.
+
+2. In **Label**, type `payment-retries-build`. The label is optional.
+
+3. Click **Download the build packet**.
+
+</Steps>
+
+Speccy records the handoff with the verdict at that moment, and your browser saves a .zip file. The .zip holds the packet and `HANDOFF.md`, the re-entry prompt. A coding agent reads it to resume the build after it loses its context. The rail opens **History**, which lists the versions and the handoffs of the bundle.
+
+A coding agent can also take the packet itself. Under **Copy for a coding agent**, the dialog shows a prompt that names the MCP tool `handoff_bundle`. It also shows the command that writes the packet to a folder:
 
 ```sh
-speccy handoff payment-retries --out ../payment-retries-build
+speccy handoff payment-retries/SPEC.md --out ../payment-retries-build-packet
 ```
-
-Speccy records the handoff with the verdict at that moment. The folder holds `HANDOFF.md`, the re-entry prompt. A coding agent reads it to resume the build after it loses its context.
 
 ![History: the versions of the bundle, and the handoffs a builder took](../../../assets/shots/guide-handoff.png)
 

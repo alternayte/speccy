@@ -81,7 +81,7 @@ func (a *API) GetInbox(ctx context.Context, _ api.GetInboxRequestObject) (api.Ge
 		items = append(items, api.InboxItem{Kind: kind, BundleId: b.BundleID, DocId: b.ID, BundleTitle: b.Title, ThreadId: thread, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}
 	// addWaiver is add for an item about one waiver: the bundle page opens on the finding it
-	// excuses (SDD §9.1).
+	// excuses (SDD §9.1), or on the verification run a verification waiver came from.
 	addWaiver := func(kind api.InboxItemKind, b pgdb.SpecDoc, id uuid.UUID, text string, at time.Time) {
 		items = append(items, api.InboxItem{Kind: kind, BundleId: b.BundleID, DocId: b.ID, BundleTitle: b.Title, WaiverId: &id, Text: text, At: at.UTC(), Unread: at.After(seen)})
 	}

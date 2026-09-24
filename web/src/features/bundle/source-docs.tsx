@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/states";
 import type { GithubSource, Profile, SourceSkippedDoc } from "@/lib/api";
+import { useMe } from "@/features/account/me";
 import { useLinkOffers } from "./adopt-link";
 import {
   adoptSkippedDocsMutation,
@@ -33,6 +34,9 @@ export function SourceDocs() {
 
 function SourceSection({ source }: { source: GithubSource }) {
   const qc = useQueryClient();
+  // Accepting a type and writing the mapping change what the workspace reviews, so only an
+  // admin does them. Local mode's one user is an admin. Any member marks a doc not a spec.
+  const admin = useMe().data?.role === "admin";
   const skipped = useQuery(listSkippedDocsOptions({ path: { sourceId: source.id } }));
   const profiles = useQuery(listProfilesOptions());
   const [picked, setPicked] = useState<Record<string, string>>({});
@@ -46,10 +50,9 @@ function SourceSection({ source }: { source: GithubSource }) {
   const items = skipped.data?.items ?? [];
   const total = skipped.data?.total ?? 0;
   const keyOf = (it: SourceSkippedDoc) => picked[it.path] || it.adopted || it.guess || "";
-  const offers = useLinkOffers(
-    items.map((it) => ({ path: it.path, profile: keyOf(it) })),
-    { source_id: source.id },
-  );
+  const offers = useLinkOffers(admin ? items.map((it) => ({ path: it.path, profile: keyOf(it) })) : [], {
+    source_id: source.id,
+  });
   // Accept all sends every doc with a type in one request, so the order of the Accept clicks
   // does not matter (#73).
   const ready = items.filter((it) => keyOf(it) && keyOf(it) !== it.adopted);
@@ -72,7 +75,9 @@ function SourceSection({ source }: { source: GithubSource }) {
       </h2>
       {items.length > 0 ? (
         <p className="mt-1 text-sm text-ink-2">
-          Accept a type to review the doc. Speccy holds the type, and the repo takes no commit.
+          {admin
+            ? "Accept a type to review the doc. Speccy holds the type, and the repo takes no commit."
+            : "An admin accepts these."}
           {total > items.length ? ` ${total} files name no type. Narrow the source to a folder to see the rest.` : ""}
         </p>
       ) : null}
@@ -92,6 +97,7 @@ function SourceSection({ source }: { source: GithubSource }) {
             <SourceSkippedRow
               key={it.path}
               doc={it}
+              admin={admin}
               profileKey={keyOf(it)}
               profiles={profiles.data?.items ?? []}
               onPick={(k) => setPicked({ ...picked, [it.path]: k })}
@@ -110,7 +116,7 @@ function SourceSection({ source }: { source: GithubSource }) {
           ))}
         </ul>
       ) : null}
-      {items.length > 1 ? (
+      {admin && items.length > 1 ? (
         <div className="mt-2 flex justify-end">
           <Button size="sm" variant="primary" disabled={ready.length === 0 || adopt.isPending} onClick={acceptAll}>
             Accept all picked types{ready.length > 0 ? ` (${ready.length})` : ""}
@@ -144,7 +150,7 @@ function SourceSection({ source }: { source: GithubSource }) {
           ) : null}
         </div>
       ) : null}
-      {(source.adopted ?? 0) > 0 ? (
+      {admin && (source.adopted ?? 0) > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Button
             size="sm"
@@ -168,9 +174,11 @@ function SourceSection({ source }: { source: GithubSource }) {
 }
 
 // SourceSkippedRow is one doc in a repo that names no type, with the link Speccy offers when a
-// person accepts a type. Speccy keeps the type and the link; the repo takes no commit.
+// person accepts a type. Speccy keeps the type and the link; the repo takes no commit. A member
+// who is not an admin sees the doc and its guess, and can mark it not a spec.
 function SourceSkippedRow({
   doc,
+  admin,
   profileKey,
   profiles,
   onPick,
@@ -181,6 +189,7 @@ function SourceSkippedRow({
   adopting,
 }: {
   doc: SourceSkippedDoc;
+  admin: boolean;
   profileKey: string;
   profiles: Profile[];
   onPick: (key: string) => void;
@@ -196,26 +205,30 @@ function SourceSkippedRow({
         {doc.path}
       </span>
       <span className="text-2xs text-ink-3">{doc.guess ? `guess: ${doc.guess}` : "No guess"}</span>
-      <select
-        aria-label={`Doc type for ${doc.path}`}
-        value={profileKey}
-        onChange={(e) => onPick(e.target.value)}
-        className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
-      >
-        <option value="">Pick a type</option>
-        {profiles.map((p) => (
-          <option key={p.key} value={p.key}>
-            {p.name}
-          </option>
-        ))}
-      </select>
+      {admin ? (
+        <select
+          aria-label={`Doc type for ${doc.path}`}
+          value={profileKey}
+          onChange={(e) => onPick(e.target.value)}
+          className="h-7 rounded-md border border-line-strong bg-surface px-2 text-xs text-ink"
+        >
+          <option value="">Pick a type</option>
+          {profiles.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
       <Button size="sm" variant="ghost" disabled={dismissing} onClick={onDismiss}>
         Not a spec
       </Button>
-      <Button size="sm" disabled={!profileKey || adopting} onClick={() => onAdopt(profileKey)}>
-        {doc.adopted ? "Change" : "Accept"}
-      </Button>
-      {link}
+      {admin ? (
+        <Button size="sm" disabled={!profileKey || adopting} onClick={() => onAdopt(profileKey)}>
+          {doc.adopted ? "Change" : "Accept"}
+        </Button>
+      ) : null}
+      {admin ? link : null}
     </li>
   );
 }

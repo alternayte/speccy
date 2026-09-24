@@ -42,11 +42,18 @@ type Inputs struct {
 func Of(in Inputs) *api.NextAction {
 	if w := in.WaiverWaiting; w != nil {
 		id := w.Id
-		return &api.NextAction{
-			Kind:     api.NextActionKindWaiver,
-			Sentence: fmt.Sprintf("Decide the waiver of %s", w.CheckSlug),
-			WaiverId: &id,
+		// An Acknowledgement uses the waiver mechanism, but the author asked for something else:
+		// the sentence names what they asked for.
+		sentence := fmt.Sprintf("Decide the waiver of %s", w.CheckSlug)
+		switch {
+		case w.Standalone != nil && *w.Standalone:
+			sentence = "Decide the standalone acknowledgement"
+		case w.Trace != nil:
+			sentence = fmt.Sprintf("Decide the acknowledgement of %s", w.Trace.Id)
+		case w.Verification != nil:
+			sentence = fmt.Sprintf("Decide the waiver of %s in %s", w.Verification.TraceId, w.Verification.Repo)
 		}
+		return &api.NextAction{Kind: api.NextActionKindWaiver, Sentence: sentence, WaiverId: &id}
 	}
 	if !in.CanEdit {
 		return nil

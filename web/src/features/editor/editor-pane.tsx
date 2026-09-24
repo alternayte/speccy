@@ -180,9 +180,34 @@ export function EditorPane({
     },
   });
 
+  // latest is the text as of the last change, which a save reads: the editable preview commits
+  // its open block just before the save, in the same event, before React renders the new text.
+  const latest = useRef(text);
+  latest.current = text;
+  const change = useCallback((t: string) => {
+    latest.current = t;
+    setText(t);
+  }, []);
+  // commitPreview puts the open block of the editable preview into the text.
+  const commitPreview = useRef<(() => void) | null>(null);
+
   const doSave = useCallback(() => {
-    if (!readOnly && text !== null && text !== saved && !save.isPending) save.mutate(text);
-  }, [readOnly, text, saved, save]);
+    commitPreview.current?.();
+    const body = latest.current;
+    if (!readOnly && body !== null && body !== saved && !save.isPending) save.mutate(body);
+  }, [readOnly, saved, save]);
+
+  // ⌘S and Ctrl+S save in every view, and the browser's own Save dialog never opens: the pane
+  // binds them once, for the whole page it is on.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      doSave();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [doSave]);
 
   const reload = () => {
     save.reset();
@@ -215,7 +240,29 @@ export function EditorPane({
   useEffect(() => {
     if (!focus || file.data?.kind !== "text") return;
     const text = file.data.text;
-    const timer = setTimeout(() => {
+    // The preview renders on the server. A link that opens the page at a range can arrive
+    // before the preview's blocks do, so the preview waits for them a little.
+    let timer: ReturnType<typeof setTimeout>;
+    const scrollPreview = (tries: number) => {
+      const blocks = previewRef.current?.querySelectorAll<HTMLElement>("article [data-src-start]");
+      if (!previewRef.current) return;
+      if (!blocks?.length) {
+        if (tries > 0) timer = setTimeout(() => scrollPreview(tries - 1), 100);
+        return;
+      }
+      let target: HTMLElement | null = null;
+      blocks.forEach((el) => {
+        if (Number(el.dataset.srcStart) <= focus.start && focus.start < Number(el.dataset.srcEnd)) target = el;
+      });
+      const el = target as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.remove("flash");
+        void el.offsetWidth; // restart the animation
+        el.classList.add("flash");
+      }
+    };
+    timer = setTimeout(() => {
       const view = editorView.current;
       if (view) {
         const from = Math.min(byteToIndex(text, focus.start), view.state.doc.length);
@@ -225,20 +272,7 @@ export function EditorPane({
         flashRange(view, from, to);
         view.focus();
       }
-      const preview = previewRef.current;
-      if (preview) {
-        let target: HTMLElement | null = null;
-        preview.querySelectorAll<HTMLElement>("article [data-src-start]").forEach((el) => {
-          if (Number(el.dataset.srcStart) <= focus.start && focus.start < Number(el.dataset.srcEnd)) target = el;
-        });
-        const el = target as HTMLElement | null;
-        if (el) {
-          el.scrollIntoView({ block: "center", behavior: "smooth" });
-          el.classList.remove("flash");
-          void el.offsetWidth; // restart the animation
-          el.classList.add("flash");
-        }
-      }
+      scrollPreview(30);
     }, 80);
     return () => clearTimeout(timer);
   }, [focus, file.data]);
@@ -355,7 +389,7 @@ export function EditorPane({
           target={target}
           profileKey={profileKey}
           markdown={text ?? ""}
-          onInsertSection={(next) => setText(next)}
+          onInsertSection={(next) => change(next)}
         />
       ) : null}
       {hint ? (
@@ -398,9 +432,9 @@ export function EditorPane({
             <CodeEditor
               docKey={`${path}@${loadVersion.id}`}
               initial={file.data.text}
+              value={text ?? file.data.text}
               path={path}
-              onChange={setText}
-              onSave={doSave}
+              onChange={change}
               onView={attachView}
               readOnly={readOnly}
             />
@@ -416,7 +450,8 @@ export function EditorPane({
               path={path}
               onOpenPath={onOpenPath}
               onScroll={onPreviewScroll}
-              onChange={readOnly || !isMarkdown(path) ? undefined : setText}
+              onChange={readOnly || !isMarkdown(path) ? undefined : change}
+              commitRef={commitPreview}
               onTarget={bar ? setTarget : undefined}
               findings={findings}
               onOpenFinding={onOpenFinding}

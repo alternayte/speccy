@@ -63,8 +63,8 @@ The control row names the review the carried findings come from, such as "AI rev
 
 A verdict belongs to one version of one spec doc, read against the versions of its linked docs. When one of those moves on, the verdict reads Stale:
 
-- **The spec doc has a newer version.** The control row says, for example, "This verdict is for version 3. The current version is 4."
-- **A linked doc has a newer version than the run read.** Speccy lints the spec doc again at once, so a lint verdict never stays stale for this reason. A full verdict stays stale, so its model results stay on the screen. The control row says "A linked doc changed after this review. Run the review again."
+- **The spec doc has a newer version.** The control row says **Stale**, followed by the current version, such as `v4`. The next review gives the current version its own verdict.
+- **A linked doc has a newer version than the run read.** Speccy lints the spec doc again at once, so a lint verdict never stays stale for this reason. A full verdict stays stale, so its model results stay on the screen. The control row names the linked doc that changed, such as "Stale · Refunds PRD changed after this review". The name links to that spec doc.
 - **The last full review of the current version failed.** The control row says "The last review failed, so this verdict is stale." and gives the cause.
 
 A stale verdict is not a finding. Only a new run replaces it. A builder cannot take the build packet of a stale verdict without the `acknowledged` flag, and nobody can approve a spec doc with a stale verdict.

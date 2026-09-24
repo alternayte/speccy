@@ -109,11 +109,17 @@ standalone:
   acknowledged_by: nathan
 ```
 
-A standalone acknowledgement comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
+In the app, **Mark it standalone** on a `links.has-upstream` finding, or on its tour point, asks for a standalone acknowledgement. It takes a reason of at least 20 characters. The request waits for approval under the policy of `links.has-upstream` at the level of the finding, as a waiver does. The approval writes `standalone:` to the sidecar. A standalone acknowledgement also comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
 
 **Trace** answers a coverage gap for one upstream trace ID. Its status is `out_of_scope`, or `covered_by` with the `target` doc that covers the ID. It closes the `trace.coverage` gap, and the matrix shows the answer with its reason. In the app, a trace acknowledgement is a request that waits for approval under the policy of `trace.coverage`, as a waiver does.
 
-A trace acknowledgement is about an upstream ID, not a section of this doc. An edit of the doc does not end it. [Traceability](/concepts/traceability/) explains coverage and the matrix.
+An acknowledgement is about the whole doc or an upstream ID, not a section of this doc. An edit of the doc does not end it. [Traceability](/concepts/traceability/) explains coverage and the matrix.
+
+## Withdrawn acknowledgements
+
+A person who can edit the spec doc withdraws an acknowledgement. **Withdraw** sits on an acknowledged cell of the traceability matrix, and on the "Standalone (acknowledged)" badge of the Traceability page. A withdrawal takes effect at once, with no approval, because it only makes the verdict stricter.
+
+Speccy takes the entry out of the sidecar with the same write that an approval uses. For a doc in a GitHub source, the change is a draft until you publish it. The next lint counts the finding in the verdict again. The event log of the acknowledgement records who withdrew it, and the waiver list shows its status as withdrawn. To close the finding again, answer it again.
 
 ## Verification waivers stay out of the sidecar
 

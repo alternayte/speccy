@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"slices"
@@ -16,10 +17,12 @@ import (
 	"github.com/alternayte/speccy/internal/engine/coherence"
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
+	"github.com/alternayte/speccy/internal/store"
 )
 
 // idSuggestion is a trace ID that Speccy suggests for an unnumbered item (REQ-052). Insert
@@ -252,7 +255,9 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 	}
 	sort.Slice(downs, func(i, j int) bool { return downs[i].Slug < downs[j].Slug })
 	upDoc := section.Parse(upMain)
-	m := &api.TraceMatrix{Upstream: bundleRefAPI(up), Rows: []api.TraceRow{}, Columns: []api.BundleRef{}, Cells: [][]api.TraceCell{}}
+	m := &api.TraceMatrix{Upstream: bundleRefAPI(up), Rows: []api.TraceRow{}, Columns: []api.BundleRef{}, Cells: [][]api.TraceCell{}, Editable: []bool{}}
+	q := a.DB.Queries()
+	actor := kernel.ActorFrom(ctx)
 	defs := lint.Definitions(upMain, prefixes)
 	for _, d := range defs {
 		m.Rows = append(m.Rows, api.TraceRow{Id: d.ID, Text: strings.TrimSpace(d.Text), Anchor: anchorAPI(anchor.New(up.DocPath, upMain, upDoc, d.Start, d.End))})
@@ -262,7 +267,7 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 		if !d.CurrentVersionID.Valid {
 			continue
 		}
-		files, err := version.Files(ctx, a.DB.Queries(), d.CurrentVersionID.UUID)
+		files, err := version.Files(ctx, q, d.CurrentVersionID.UUID)
 		if err != nil {
 			return nil, err
 		}
@@ -284,10 +289,24 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 			acks[t.ID] = coherence.Ack{Status: t.Status, Target: t.Target, Reason: t.Reason}
 		}
 		cover := profiles[d.ProfileKey].Profile.Trace.Cover
+		// A person who can edit the column's doc answers its gaps and withdraws its
+		// acknowledgements from the matrix.
+		editable, err := share.CanEditBundle(ctx, q, actor, d.BundleID)
+		if err != nil {
+			return nil, err
+		}
+		gaps, err := gapFindings(ctx, q, d)
+		if err != nil {
+			return nil, err
+		}
 		m.Columns = append(m.Columns, bundleRefAPI(d))
+		m.Editable = append(m.Editable, editable)
 		for i, def := range defs {
 			c := cellFor(def.ID, d.DocPath, main, doc, acks, cover)
 			cell := api.TraceCell{State: api.TraceCellState(c.State), Refs: []api.Anchor{}}
+			if id, ok := gaps[def.ID]; ok && c.State == "gap" {
+				cell.FindingId = &id
+			}
 			for _, r := range c.Refs {
 				cell.Refs = append(cell.Refs, anchorAPI(r))
 			}
@@ -301,6 +320,32 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 		}
 	}
 	return m, nil
+}
+
+// gapFindings returns the trace.coverage findings of d's verdict run by trace ID. An answer to
+// a gap names its finding, as the tour and the findings rail do.
+func gapFindings(ctx context.Context, q store.Querier, d pgdb.SpecDoc) (map[string]uuid.UUID, error) {
+	out := map[string]uuid.UUID{}
+	v, _, err := Summary(ctx, q, d)
+	if err != nil || v == nil {
+		return out, err
+	}
+	rows, err := q.ListFindings(ctx, v.RunId)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range rows {
+		if f.CheckSlug != CoverageSlug {
+			continue
+		}
+		var ev struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(f.Evidence, &ev) == nil && ev.ID != "" {
+			out[ev.ID] = f.ID
+		}
+	}
+	return out, nil
 }
 
 // AddTraceIds inserts the chosen suggested IDs into the main doc as a new version (REQ-052).
@@ -400,7 +445,7 @@ func (a *API) CoverTraceId(ctx context.Context, req api.CoverTraceIdRequestObjec
 }
 
 func bundleRefAPI(b pgdb.SpecDoc) api.BundleRef {
-	return api.BundleRef{Id: b.ID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey}
+	return api.BundleRef{Id: b.ID, BundleId: b.BundleID, Slug: b.Slug, Title: b.Title, ProfileKey: b.ProfileKey}
 }
 
 // IDSuggestion is a trace ID that Speccy suggests for an unnumbered item (REQ-052): insert

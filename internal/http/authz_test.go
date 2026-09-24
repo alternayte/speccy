@@ -151,6 +151,19 @@ func TestAuthz_PrivateBundle(t *testing.T) {
 	}
 }
 
+// A withdrawal takes an Acknowledgement out of the sidecar with no approval, so a member who
+// can read and waive on the bundle, but not edit it, is refused.
+func TestAuthz_WithdrawNeedsEdit(t *testing.T) {
+	env := newHosted(t, storetest.Engines()[0])
+	op := operation{id: "withdrawAcknowledgement", method: "POST", path: "/docs/{docId}/acknowledgements/withdraw"}
+	if status, code := env.call(t, op, kernel.Actor{UserID: "user-member", Role: kernel.RoleMember}); status != 403 || code != "not_author" {
+		t.Errorf("a member who cannot edit: status %d, code %q; want 403 not_author", status, code)
+	}
+	if status, code := env.call(t, op, kernel.Actor{UserID: "user-author", Role: kernel.RoleMember}); status == 403 {
+		t.Errorf("an author: status %d, code %q; want past the role check", status, code)
+	}
+}
+
 type hostedEnv struct {
 	app     *app.App
 	handler nethttp.Handler

@@ -38,7 +38,8 @@ function hours(h: number): string {
 }
 
 function ProfileCard({ p }: { p: ProfileInsights }) {
-  const stats: [string, string][] = [
+  // The third field says in words what a rate means, because a bare percentage does not.
+  const stats: [string, string, string?][] = [
     ["Bundles", String(p.bundles)],
     ["Build Ready now", String(p.build_ready)],
     ["Standalone", String(p.standalone)],
@@ -46,7 +47,20 @@ function ProfileCard({ p }: { p: ProfileInsights }) {
     ["First review to Build Ready", hours(p.hours_to_build_ready)],
     ["In review to approved", hours(p.hours_to_approval)],
     // REQ-137: the only measure of the review against reality.
-    ["False ready", p.blocked_sections.length || p.false_ready_rate ? `${Math.round(p.false_ready_rate * 100)}%` : "—"],
+    [
+      "False ready",
+      p.blocked_sections.length || p.false_ready_rate ? `${Math.round(p.false_ready_rate * 100)}%` : "—",
+      "Build Ready handoffs that came back blocked.",
+    ],
+    // The breach rate measures the review against the code: a profile whose requirements are
+    // built wrong has a weak rubric.
+    [
+      "Breach rate",
+      p.verified_trace_ids ? `${Math.round(p.breach_rate * 100)}%` : "—",
+      p.verified_trace_ids
+        ? `Of ${p.verified_trace_ids} verified trace IDs, the share that came back breached or missing.`
+        : "Verified trace IDs that came back breached or missing. No verification run yet.",
+    ],
   ];
   return (
     <section className="rounded-lg border border-line bg-surface">
@@ -54,10 +68,11 @@ function ProfileCard({ p }: { p: ProfileInsights }) {
         {p.name} <span className="font-mono text-xs font-normal text-ink-3">{p.key}</span>
       </h2>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 px-4 py-4 sm:grid-cols-3">
-        {stats.map(([k, v]) => (
+        {stats.map(([k, v, what]) => (
           <div key={k}>
             <dt className="text-xs text-ink-2">{k}</dt>
             <dd className="mt-0.5 font-mono text-lg">{v}</dd>
+            {what ? <dd className="mt-0.5 text-xs text-ink-3">{what}</dd> : null}
           </div>
         ))}
       </dl>
