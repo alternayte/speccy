@@ -334,6 +334,41 @@ func TestAction_ReplyCommandCommitsTheWaiver(t *testing.T) {
 	}
 }
 
+// A reply command applies once. The thread it answered is resolved, so the next push neither
+// commits the same decision again nor repeats a refusal.
+func TestAction_ReplyCommandAppliesOnce(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	side := sidecars{}
+	o.Sidecar, o.HeadRef, o.BaseRef = side.read, "topic", "main"
+	src := doc()
+	fs := []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD"),
+		finding(src, 9, "lint.placeholder", api.FindingLevelMUST, "TBD")}
+	b := Bundle{Slug: "docs/refunds", Dir: "docs/refunds", MainDoc: "PRD.md", Verdict: "not_build_ready", Must: 2,
+		Findings: fs, Files: map[string][]byte{"PRD.md": src}}
+	files := []github.PRFile{{Filename: "docs/refunds/PRD.md", Patch: patchFor(8, 9)}}
+	if res := Run(ctx, o, []Bundle{b}, files); res.Posted != 2 {
+		t.Fatalf("posted %d, want 2: %v", res.Posted, res.Warnings)
+	}
+	f.threads[0].replies = []github.Reply{{Author: "kim", Body: "/speccy waive The owner lands in the next doc."}}
+	f.threads[1].replies = []github.Reply{{Author: "kim", Body: "/speccy ack The owner lands in the next doc."}}
+	// The author fixes line 9, so the ack answers a finding that is gone.
+	b.Findings = fs[:1]
+	Run(ctx, o, []Bundle{b}, files)
+	if f.moved != 1 || !f.threads[0].resolved || !f.threads[1].resolved {
+		t.Fatalf("moved the branch %d times, threads resolved %v %v", f.moved, f.threads[0].resolved, f.threads[1].resolved)
+	}
+
+	// The next push.
+	res := Run(ctx, o, []Bundle{b}, files)
+	if res.Decided != 0 || f.moved != 1 {
+		t.Errorf("the next push applied the command again: decided %d, moved the branch %d times", res.Decided, f.moved)
+	}
+	if body := f.issue[0].Body; strings.Contains(body, "**Decisions**") {
+		t.Errorf("the next push repeats the decisions:\n%s", body)
+	}
+}
+
 // A fork's pull request gets the sidecar to paste, and no commit.
 func TestAction_ForkPastesTheSidecar(t *testing.T) {
 	ctx := context.Background()
