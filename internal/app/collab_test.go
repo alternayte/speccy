@@ -187,6 +187,31 @@ func TestWaiver_InvalidatedOnSectionEdit(t *testing.T) {
 	}
 }
 
+// An ended waiver leaves the sidecar, so it does not come back when the section returns to the
+// text it had, and a reader of the sidecar alone (CI) agrees with the store.
+func TestWaiver_EndedWaiverStaysEnded(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			e := newEnv(t, eng)
+			e.waive(t)
+			main, _ := bundleFiles(t, e)
+			e.edit(t, strings.Replace(string(main), "is TBD for now", "is TBD until June", 1))
+			if dec := sidecar(t, e); len(dec.Waivers) != 0 {
+				t.Errorf("the sidecar keeps the ended waiver: %+v", dec.Waivers)
+			}
+			// The section returns to the exact text it had when the waiver was approved.
+			e.edit(t, string(main))
+			if r, must := e.verdict(t); r != "not_build_ready" || must != 1 {
+				t.Errorf("after the section returned to its old text: %s with %d MUST, want not_build_ready with 1", r, must)
+			}
+			ws, _ := e.app.API.ListWaivers(as("author"), api.ListWaiversRequestObject{DocId: e.b.ID})
+			if items := ws.(api.ListWaivers200JSONResponse).Items; len(items) != 1 || items[0].Status != "invalidated" {
+				t.Errorf("waivers after the section returned: %+v", items)
+			}
+		})
+	}
+}
+
 // sidecar returns the bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 func sidecar(t *testing.T, e *env) source.Decisions {
 	t.Helper()
