@@ -27,11 +27,13 @@ import { InvitesSection, PeopleSection, SettingsSection } from "./people-section
 import { useMe } from "@/features/account/me";
 
 const roleHelp: Record<string, string> = {
-  reviewer: "Checks the rubric and facts, and writes build questions.",
+  reviewer:
+    "Checks the rubric and facts, and writes build questions. In a verification run, finds the code for a trace ID when no builder claim and no file names it.",
   reader_1: "Answers build questions from the doc only.",
   reader_2: "A second, independent reader. Use another model family for diversity.",
   reader_3: "A third reader.",
-  judge: "Groups reader answers by meaning.",
+  judge:
+    "Groups reader answers by meaning. In a verification run, judges whether the cited code implements or contradicts each requirement.",
   writer: "Suggests fixes, summarises diffs, and answers threads.",
 };
 
