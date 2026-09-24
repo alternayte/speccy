@@ -62,8 +62,11 @@ type State struct {
 	Scope string `json:"scope,omitempty"`
 	// TraceID and Repo name what a verification waiver excuses. TraceID, AckStatus and
 	// AckTarget name what an Acknowledgement says.
-	TraceID     string         `json:"trace_id,omitempty"`
-	Repo        string         `json:"repo,omitempty"`
+	TraceID string `json:"trace_id,omitempty"`
+	Repo    string `json:"repo,omitempty"`
+	// RunID is the verification run a verification waiver was asked from. The inbox link to
+	// the request opens it. A request that named no run has none.
+	RunID       uuid.UUID      `json:"run_id,omitzero"`
 	AckStatus   string         `json:"ack_status,omitempty"`
 	AckTarget   string         `json:"ack_target,omitempty"`
 	Level       kernel.Level   `json:"level"`
@@ -95,6 +98,7 @@ type Request struct {
 	Scope       string
 	TraceID     string
 	Repo        string
+	RunID       uuid.UUID `json:",omitzero"`
 	AckStatus   string
 	AckTarget   string
 	Level       kernel.Level
@@ -223,7 +227,7 @@ func Evolve(s State, e es.Event) State {
 			scope = ScopeCheck
 		}
 		return State{ID: r.ID, BundleID: r.BundleID, Check: r.Check, Scope: scope, TraceID: r.TraceID, Repo: r.Repo,
-			AckStatus: r.AckStatus, AckTarget: r.AckTarget,
+			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget,
 			Level: r.Level, Section: r.Section, SectionHash: r.SectionHash,
 			Reason: strings.TrimSpace(r.Reason), Policy: r.Policy, Status: StatusRequested, RequestedBy: r.By, Approvals: []string{}}
 	case Approved:

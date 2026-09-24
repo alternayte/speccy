@@ -181,6 +181,10 @@ paths:
                 reason:
                   type: string
                   minLength: 20
+                run_id:
+                  type: string
+                  format: uuid
+                  description: The verification run the request comes from, in the same repo. The inbox link to the request opens it.
       responses:
         "200":
           description: The waiver.
@@ -4587,9 +4591,26 @@ components:
           $ref: "#/components/schemas/SectionRange"
         trace:
           $ref: "#/components/schemas/TraceAck"
+        verification:
+          $ref: "#/components/schemas/VerificationExcuse"
         created_at:
           type: string
           format: date-time
+
+    VerificationExcuse:
+      type: object
+      description: What a verification waiver excuses. It never goes in the sidecar.
+      required: [trace_id, repo]
+      properties:
+        trace_id:
+          type: string
+        repo:
+          type: string
+          description: The code repo, or the folder, as the verification run names it.
+        run_id:
+          type: string
+          format: uuid
+          description: The verification run the request came from. Empty for a request that named no run.
 
     TraceAck:
       type: object
@@ -4867,7 +4888,7 @@ components:
         waiver_id:
           type: string
           format: uuid
-          description: The waiver an item is about. The bundle page opens on the finding it excuses.
+          description: The waiver an item is about. The bundle page opens on the finding it excuses, or on the verification run a verification waiver came from.
         text:
           type: string
         at:
@@ -4890,7 +4911,7 @@ components:
 
     ProfileInsights:
       type: object
-      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate, false_ready_rate, breach_rate, blocked_sections]
+      required: [key, name, bundles, standalone, build_ready, runs_to_build_ready, hours_to_build_ready, hours_to_approval, top_failing, waiver_rate, false_ready_rate, breach_rate, verified_trace_ids, blocked_sections]
       properties:
         key:
           type: string
@@ -4925,6 +4946,9 @@ components:
         breach_rate:
           type: number
           description: The share of verified trace IDs of this profile that came back breached or missing. 0 with no verification runs.
+        verified_trace_ids:
+          type: integer
+          description: The trace IDs that the verification runs of this profile verified, which the breach rate divides by.
         false_ready_rate:
           type: number
           description: The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.

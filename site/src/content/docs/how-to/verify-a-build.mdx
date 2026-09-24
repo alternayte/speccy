@@ -132,7 +132,9 @@ The run has its own verdict: **Verified** or **Not Verified**. A run is Not Veri
 
 For each MUST trace ID that is missing or breached, Speccy opens a blocking thread on the requirement. The title names the trace ID, the outcome and the repo. A blocking thread makes the bundle Not Build Ready until a person resolves it. Answer the thread: say where the code is, change the code, or change the requirement. Then click **Resolve**.
 
-The **History** tab lists the runs, newest first, with **Verified**, **Not Verified** or **Stale**, and the count of each outcome. **More → Traceability** shows the newest run under **Code and tests**: each trace ID, its outcome, the code target and the test cited.
+The **History** tab lists the runs, newest first, with **Verified**, **Not Verified** or **Stale**, and the count of each outcome. Click a finished run to see the outcome of each trace ID. **More → Traceability** shows the newest run under **Code and tests**: each trace ID, its outcome, the code target and the test cited.
+
+**Insights** shows the breach rate of each profile beside **False ready**. It is the share of the verified trace IDs that came back breached or missing. A high rate says that the requirements of the profile's docs are built wrong.
 
 A run is a statement about one commit. A new commit in the code repo makes no run stale. A new version of the spec doc makes every earlier run stale, because the requirements moved. Run the check again on the new version.
 
@@ -140,7 +142,19 @@ A run is a statement about one commit. A new commit in the code repo makes no ru
 
 A verification waiver excuses one trace ID in one code repo. It keeps the rest of the waiver mechanism. It needs a reason of at least 20 characters, and it follows the profile's policy for a MUST. It ends when the section of the requirement changes. It never goes in the sidecar. The sidecar travels with the doc into every build, and this exception belongs to one repo.
 
-The app, the CLI and the MCP server have no control that asks for a verification waiver. Ask through the HTTP API. The doc ID is the last part of the bundle page URL, `/bundles/<bundle id>/docs/<doc id>`:
+<Steps>
+
+1. Open the **History** tab, and click the run.
+
+2. Find the missing or breached trace ID, and click **Ask for a waiver**.
+
+3. Write the reason, and click **Ask**.
+
+</Steps>
+
+The outcome row shows the request, the approvals it has, and the approvals the policy needs. After the approval, the row says so.
+
+The CLI and the MCP server have no control that asks for a verification waiver. A script asks through the HTTP API. The doc ID is the last part of the bundle page URL, `/bundles/<bundle id>/docs/<doc id>`:
 
 ```sh
 curl -X POST http://127.0.0.1:7878/api/v1/docs/<doc id>/verification-waivers \
@@ -150,7 +164,7 @@ curl -X POST http://127.0.0.1:7878/api/v1/docs/<doc id>/verification-waivers \
 
 `repo` is the repo as the run names it, such as `acme/payments`. In hosted mode, send a personal API token as `Authorization: Bearer <token>`.
 
-The request waits in the approver's **Inbox** and in the tour, as any waiver does. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows the approval. The next run counts the trace ID as waived, and the run verdict counts the waivers.
+The request waits in the approver's **Inbox** and in the tour, as any waiver does. The inbox link opens the run that the request came from, and the approver clicks **Approve** or **Reject** on the outcome row. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows the approval. The next run counts the trace ID as waived, and the run verdict counts the waivers.
 
 ## Related
 

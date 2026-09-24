@@ -383,6 +383,13 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		}
 		w.Trace = &t
 	}
+	if s.Scope == ScopeVerify {
+		v := api.VerificationExcuse{TraceId: s.TraceID, Repo: s.Repo}
+		if s.RunID != uuid.Nil {
+			v.RunId = &s.RunID
+		}
+		w.Verification = &v
+	}
 	if main, doc, err := a.mainDoc(ctx, b); err == nil {
 		if start, end, ok := section.RangeAt(doc, main, s.Section); ok {
 			w.SectionRange = &api.SectionRange{Start: start, End: end}
@@ -471,6 +478,19 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	if traceID == "" || repo == "" {
 		return nil, kernel.Invalid("no_target", "Name the trace ID and the repo this waiver excuses.")
 	}
+	// The run the request comes from must be a run of this doc in this repo: the inbox link
+	// to the request opens it.
+	var runID uuid.UUID
+	if req.Body.RunId != nil {
+		run, err := a.DB.Queries().GetVerificationRun(ctx, pgdb.GetVerificationRunParams{WorkspaceID: a.Workspace, ID: *req.Body.RunId})
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && (run.SpecDocID != b.ID || run.Repo != repo)) {
+			return nil, kernel.Invalid("run_not_found", "This doc has no verification run with this ID in %s.", repo)
+		}
+		if err != nil {
+			return nil, err
+		}
+		runID = run.ID
+	}
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return nil, err
@@ -497,7 +517,7 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	}
 	slug := "verify." + strings.ToLower(traceID)
 	r := Request{
-		ID: kernel.NewID(), BundleID: b.ID, Check: slug, Scope: ScopeVerify, TraceID: traceID, Repo: repo,
+		ID: kernel.NewID(), BundleID: b.ID, Check: slug, Scope: ScopeVerify, TraceID: traceID, Repo: repo, RunID: runID,
 		Level: kernel.Must, Section: path, SectionHash: hash, Reason: req.Body.Reason,
 		By: kernel.ActorFrom(ctx).UserID, Policy: p.Profile.Waivers.Must,
 	}

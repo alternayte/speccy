@@ -86,6 +86,8 @@ A contradiction that only one judge finds is unproven, with the note "possible b
 
 The run has its own verdict: Verified or Not Verified. It computes no Build Ready verdict. Each missing or breached MUST opens a blocking thread on the spec doc. The blocking thread then makes the spec doc Not Build Ready. A person answers the thread. An approved verification waiver excuses that trace ID in that repo.
 
+**Insights** shows the breach rate of each profile beside "False ready". It is the share of the verified trace IDs that came back breached or missing. The false-ready rate measures the review against what builders meet. The breach rate measures it against the code that builders wrote.
+
 The `verify` section of the profile sets the prefixes a run checks, REQ and NFR by default, and the bounds of the scan. The Code and tests section of **Traceability** shows the result of the newest run. [Verify a build](/how-to/verify-a-build/) shows how to start a run.
 
 [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/) shows the handoff and the build reports step by step.

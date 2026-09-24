@@ -33,7 +33,7 @@ import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VersionsPanel } from "./versions-panel";
 import { DeleteBundleDialog } from "./delete-dialog";
 import { HandoffsPanel } from "./handoffs-panel";
-import { VerificationsPanel } from "./verifications-panel";
+import { type RunFocus, VerificationsPanel } from "./verifications-panel";
 import { ReviewerPage } from "@/features/review/reviewer-page";
 import { ControlRow } from "./control-row";
 import { adoptFrontmatterMutation } from "@/lib/api/@tanstack/react-query.gen";
@@ -68,6 +68,8 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   const [tab, setTab] = useState<RailTab>("findings");
   // The build a drifted code link asked to verify, which prefills the verify field.
   const [verifyAt, setVerifyAt] = useState<string>();
+  // The verification run a verification waiver opens, in History.
+  const [runFocus, setRunFocus] = useState<RunFocus>();
   // focus names the doc it belongs to: an anchor in another spec doc waits until that doc's
   // files are on screen, so one doc's offsets never move another doc's editor (#74).
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number; docId: string }>();
@@ -149,10 +151,19 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   // Waivers that wait for this person: the next action opens the first one.
   const waivers = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
   // openWaiver shows a waiver where it can be judged: the rail selects the finding it excuses,
-  // and the preview focuses the whole section the waiver covers (SDD §9.1).
+  // and the preview focuses the whole section the waiver covers (SDD §9.1). A verification
+  // waiver has no finding: History opens the verification run it came from.
   const mainDoc = bundle.data?.path;
   const openWaiver = useCallback(
     (w: Waiver) => {
+      if (w.verification) {
+        const v = w.verification;
+        setTab("history");
+        setPanel("rail");
+        setRunFocus((prev) => ({ ...v, seq: (prev?.seq ?? 0) + 1 }));
+        if (search.waiver) setSearch({ ...search, waiver: undefined });
+        return;
+      }
       setTab("findings");
       setPanel("rail");
       const f = (findings.data?.items ?? []).find((f) => waiverCovers(w, f));
@@ -170,7 +181,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
     const id = search.waiver;
     if (!id || opened.current === id) return;
     const w = waivers.data?.items.find((x) => x.id === id);
-    if (!w || !findings.data) return;
+    if (!w || (!w.verification && !findings.data)) return;
     opened.current = id;
     openWaiver(w);
   }, [search.waiver, waivers.data, findings.data, openWaiver]);
@@ -493,7 +504,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
                 <>
                   <VersionsPanel docId={docId} current={b.current_version.id} />
                   <HandoffsPanel docId={docId} current={b.current_version.number} />
-                  <VerificationsPanel docId={docId} canVerify={!guest} prefill={verifyAt} />
+                  <VerificationsPanel docId={docId} canVerify={!guest} prefill={verifyAt} focus={runFocus} />
                 </>
               )}
             </div>

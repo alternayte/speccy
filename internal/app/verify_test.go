@@ -229,6 +229,45 @@ func TestVerifyWaiverStopsTheBlockUntilTheSectionChanges(t *testing.T) {
 	}
 }
 
+// A verification waiver asked from a run names that run, so the inbox link to the request
+// opens it. A run of another repo is refused: the waiver would excuse the wrong build.
+func TestVerifyWaiverNamesTheRunItCameFrom(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			fakeModels(t, env)
+			tracePrefixes(t, env)
+			env.edit(t, specDoc)
+			repo := t.TempDir()
+			write(t, repo, "gateway.go", "package gateway\n\n// REQ-001: reject a request with no token.\nfunc Reject() bool { return true }\n")
+			v := runVerify(t, env, repo)
+
+			ask := func(repo string) (api.RequestVerificationWaiverResponseObject, error) {
+				return env.app.API.RequestVerificationWaiver(as("author"), api.RequestVerificationWaiverRequestObject{
+					DocId: env.b.ID,
+					Body: &api.RequestVerificationWaiverJSONRequestBody{
+						TraceId: "REQ-002", Repo: repo, RunId: &v.Id,
+						Reason: "The retry lives in the client library, which this repo does not hold.",
+					}})
+			}
+			if _, err := ask("acme/other"); err == nil {
+				t.Fatal("a run of another repo must be refused")
+			}
+			res, err := ask(v.Repo)
+			if err != nil {
+				t.Fatal(err)
+			}
+			w := api.Waiver(res.(api.RequestVerificationWaiver200JSONResponse))
+			if w.Verification == nil || w.Verification.TraceId != "REQ-002" || w.Verification.Repo != v.Repo {
+				t.Fatalf("Verification = %+v, want REQ-002 in %s", w.Verification, v.Repo)
+			}
+			if w.Verification.RunId == nil || *w.Verification.RunId != v.Id {
+				t.Errorf("RunId = %v, want the run %s", w.Verification.RunId, v.Id)
+			}
+		})
+	}
+}
+
 func runVerify(t *testing.T, e *env, repo string) api.Verification {
 	t.Helper()
 	// A folder run is local mode only; the test env serves hosted mode otherwise.
