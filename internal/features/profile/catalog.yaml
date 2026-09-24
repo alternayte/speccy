@@ -1,0 +1,112 @@
+# The Check catalog text for the checks the engine runs itself, beside the profile checks.
+# `go run ./tools/buildtool docs-ref` reads this file and the built-in profiles, and writes
+# site/src/content/docs/reference/checks.md. Each engine check needs an entry here; a profile
+# check takes its text from the profile. `level` is the default where the Go code does not
+# declare one in lint.Rules; `question` means the finding takes its build question's level.
+# A removed check keeps an entry with `removed`, so a link from an older Speccy still lands
+# on text.
+checks:
+  - slug: frontmatter.readable
+    stage: lint
+    level: MUST
+    what: Speccy reads the doc's frontmatter. The block parses, it sits where Speccy looks, and it holds links in the form Speccy reads.
+    fix: Correct the YAML or JSON of the block, move it to the top of the doc, and write each link as a kind and a target.
+  - slug: lint.placeholder
+    stage: lint
+    what: The prose has no placeholder, such as TBD, TODO, XXX, FIXME, a `{{…}}` or `<…>` marker, or lorem ipsum.
+    fix: Write the text that the placeholder holds a place for, or delete the placeholder.
+  - slug: lint.required-headings
+    stage: lint
+    what: The doc has each heading that the profile template requires for the doc's size.
+    fix: Add the missing heading and its text. A heading with a section number, such as "5. Decisions", counts.
+  - slug: lint.broken-link
+    stage: lint
+    what: Each relative link and image points at a file in the bundle.
+    fix: Correct the path, or add the file to the bundle.
+  - slug: lint.duplicate-id
+    stage: lint
+    what: No trace ID has two definitions in the doc.
+    fix: Give the second item a new ID.
+  - slug: lint.dangling-ref
+    stage: lint
+    what: Each referenced trace ID has a definition in this doc or in a doc it implements or refines.
+    fix: Define the ID, correct the reference, or link the doc that defines it.
+  - slug: lint.slop-phrase
+    stage: lint
+    what: The prose has no filler phrase from Speccy's list, such as "it is important to note that".
+    fix: Delete the phrase, and state the fact.
+  - slug: lint.sentence-length
+    stage: lint
+    what: No sentence is longer than the profile's sentence word limit. Headings and table cells do not count.
+    fix: Split the sentence. Put one statement in each sentence.
+  - slug: lint.weasel
+    stage: lint
+    what: The prose has no vague word from Speccy's list, such as "fast", "several" or "as needed".
+    fix: Replace the word with a number, a name or a condition that a builder can test.
+  - slug: lint.undefined-acronym
+    stage: lint
+    what: Each acronym has a definition at its first use, as "Full name (ABC)" or "ABC (Full name)".
+    fix: Write the full name next to the first use of the acronym.
+  - slug: lint.rfc2119-case
+    stage: lint
+    what: A requirement item writes MUST, SHOULD and MAY in upper case.
+    fix: Write the keyword in upper case, so that a reader sees the requirement level.
+  - slug: lint.prose-limit
+    stage: lint
+    what: The doc and each section's own text stay under the profile's word limits.
+    fix: Move detail into an asset or a linked doc, or split the section.
+  - slug: lint.asset-nudge
+    stage: lint
+    what: No code block and no table is longer than the profile's limits for the doc body.
+    fix: Move the code or the table into an asset in the bundle, and link to it.
+  - slug: lint.passive-voice
+    stage: lint
+    what: A sentence names who acts. Speccy marks passive voice, such as "the request is retried".
+    fix: Name the actor, such as "the service retries the request".
+  - slug: lint.requirement-grammar
+    stage: lint
+    what: A requirement definition parses into a trigger and a response, in one of the EARS shapes. The check is off until a profile gives it a level.
+    fix: Write the requirement as "When <trigger>, the <system> shall <response>", or as another EARS shape.
+  - slug: trace.unknown-prefix
+    stage: lint
+    what: A token that looks like a trace ID, at the place of a definition, has a prefix that the profile reads.
+    fix: Use one of the profile's prefixes, or add the prefix to the profile.
+  - slug: trace.no-ids
+    stage: lint
+    what: A section that names requirements, decisions or non-functional requirements defines at least one trace ID. The finding is a hint, not a defect.
+    fix: Use Add IDs on the Traceability page, or write an ID at the start of each item.
+  - slug: links.has-children
+    stage: coherence
+    level: MUST
+    what: A doc of the size the profile names links the docs it covers.
+    fix: Add a references or refines link for each doc that this doc covers.
+  - slug: coherence.contradiction
+    stage: coherence
+    level: MUST
+    what: No statement in this doc conflicts with a statement in a doc it implements, refines or references.
+    fix: Change one of the two statements, so that the docs agree.
+  - slug: coherence.restatement
+    stage: coherence
+    level: SHOULD
+    what: No paragraph repeats more than half of a paragraph in the upstream doc.
+    fix: Link to the upstream text, and do not repeat it.
+  - slug: divergence.ambiguous
+    stage: divergence
+    level: question
+    what: Independent readers give one meaning for each build question.
+    fix: Rewrite the text that the question cites, so that it has one meaning.
+  - slug: divergence.gap
+    stage: divergence
+    level: question
+    what: The doc answers each build question. All the readers answered that the doc does not say.
+    fix: Add the answer to the section that the question cites.
+  - slug: grounding.contradicted-claim
+    stage: grounding
+    level: MUST
+    what: No factual claim in the doc conflicts with a source that the profile's source policy accepts.
+    fix: Correct the claim, or cite a source that supports it.
+  - slug: grounding.unverified-claim
+    stage: grounding
+    level: SHOULD
+    what: Each factual claim in the doc has a source that the profile's source policy accepts.
+    fix: Cite a source for the claim, or state it as an assumption.

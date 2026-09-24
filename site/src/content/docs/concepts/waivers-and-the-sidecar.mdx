@@ -1,0 +1,120 @@
+---
+title: Waivers and the sidecar
+description: What a waiver and an acknowledgement are, who approves them, where Speccy keeps them, and when a waiver ends.
+sidebar:
+  order: 4
+---
+
+import WaiverFlow from '../../../components/diagrams/WaiverFlow.astro';
+
+This page explains waivers and acknowledgements, where Speccy keeps them, and when a waiver ends.
+
+<WaiverFlow />
+
+## A waiver
+
+A waiver is an approved exception for one check in one section, with a reason. A valid waiver takes its finding out of the verdict, and the score counts the check as passed. The reason must have 20 characters or more, so an approver can judge it.
+
+A waiver covers a check, not a finding. A new finding of the same check in the same section falls under the same waiver.
+
+The section of a waiver depends on the check:
+
+- A lint finding sits in one section, so its waiver covers that section.
+- A profile check with `scope: doc` reads the whole doc, so its waiver covers the whole doc body. Each rubric check of the built-in profiles has `scope: doc`.
+
+Two kinds of finding take no waiver. An INFO finding never changes the verdict, so it needs none. A coverage gap takes an answer instead: an acknowledgement, or a reference to the trace ID in the doc.
+
+## The waiver policy
+
+The profile says who may approve a waiver. `waivers.should` applies to a SHOULD finding, and `waivers.must` to a MUST finding. A check can set its own `waiver` policy, and that policy wins.
+
+| Policy | Who approves |
+|---|---|
+| `any_member` | Any member of the workspace. |
+| `non_author` | Any person who is not an author of the bundle. |
+| `n_approvals` | N different people who are not authors. The waiver holds after the last of them approves. |
+| `maintainer` | A maintainer of the profile, or an admin. |
+| `forbidden` | Nobody. Speccy refuses the request, and the doc needs a fix. |
+
+The built-in profiles use `non_author` for SHOULD and `maintainer` for MUST.
+
+A person who can approve a waiver can also reject it. A rejection needs a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and in the tour. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
+
+A waiver that people approve again and again points at a limit that is wrong. Change the limit in the profile instead.
+
+## The sidecar
+
+The sidecar is the file `.speccy/decisions/<doc path>.yaml`. It holds the approved waivers and acknowledgements of one spec doc. The doc path is the path of the spec doc from the root of the repo. The sidecar of `docs/sdd-retries.md` is `.speccy/decisions/docs/sdd-retries.md.yaml`.
+
+```yaml sidecar
+waivers:
+  - check: lint.sentence-length
+    section: [Payment retries, Failure modes]
+    reason: The provider's error table quotes its messages word for word.
+    section_hash: sha256:2e9c2d5ef71e25853f034c7f8b7d908d29ba51040ba19192b170e59a7395fc27
+    requested_by: nathan
+trace:
+  - id: REQ-002
+    status: out_of_scope
+    reason: The mail service sends every customer email.
+    acknowledged_by: nathan
+```
+
+When an approver gives the final approval, Speccy writes the entry into the sidecar. The doc itself does not change. The [Sidecar format](/reference/sidecar/) lists each key.
+
+### Why decisions live in the sidecar
+
+Speccy does not own the format of your doc, so it writes no decision into it. The sidecar sits next to the docs, in the same repo:
+
+- **Decisions travel with git.** A branch, a pull request and a merge carry the decisions with the text they excuse.
+- **A reviewer sees them.** A new waiver shows in the diff of a pull request, and branch protection decides who may merge it.
+- **Each tool reads the same file.** The app, `speccy review` and the GitHub Action read one sidecar, so they give one verdict.
+
+Speccy honours a waiver that a person writes into the sidecar by hand, in the same way. It checks the reason and the section hash. An unknown key in a sidecar is an error, so a typo cannot pass without a word.
+
+A reply command in a pull request also writes to the sidecar. The next run of the Action commits the entry to the branch of the pull request. [Reply commands](/reference/reply-commands/) lists them.
+
+A change to the sidecar lints the spec doc again, so an approved waiver changes the verdict at once. For a doc in a GitHub source, the sidecar is a file of the bundle version, and **Publish** puts it in the repo.
+
+## Heading path and section hash
+
+A waiver names its section with a heading path: the list of headings down to that section, such as `[Payment retries, Failure modes]`. The doc needs no trace IDs for this.
+
+The section hash is a SHA-256 of the text of the section at the time of the request. It covers the text under the heading, down to the first child heading. Before it hashes, Speccy removes trailing spaces, turns each line ending into one form, and folds runs of blank lines into one. An empty heading path stands for the whole doc body after the frontmatter.
+
+So the hash follows these rules:
+
+- A change of trailing spaces or blank lines keeps the waiver.
+- A change in a child section keeps the waiver of the parent section.
+- A change of one word in the section ends the waiver.
+- A new heading title changes the heading path, so the waiver no longer matches a section.
+
+## Ended waivers
+
+Each new version of a spec doc tests the approved waivers. When the section hash differs, Speccy ends the waiver, and its status becomes invalidated. The next lint counts the finding in the verdict again. Ask for a new waiver if the reason still holds.
+
+The entry stays in the sidecar. It excuses nothing while the text of the section differs from the text it hashed.
+
+A section can also change between the request and the approval. The approval then fails with "The section changed after the request, so this waiver no longer fits it. Ask for a new waiver."
+
+## Acknowledgements
+
+An acknowledgement is an author statement that a link or a trace item is absent on purpose. It uses the waiver mechanism: a reason, the waiver policy, and a record in the sidecar. The sidecar has two kinds.
+
+**Standalone** says that the doc has no upstream doc. It meets the `links.has-upstream` check, and coverage, restatement and contradiction no longer apply to the doc.
+
+```yaml sidecar
+standalone:
+  reason: Internal change to storage. No product change, so no PRD.
+  acknowledged_by: nathan
+```
+
+A standalone acknowledgement comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
+
+**Trace** answers a coverage gap for one upstream trace ID. Its status is `out_of_scope`, or `covered_by` with the `target` doc that covers the ID. It closes the `trace.coverage` gap, and the matrix shows the answer with its reason. In the app, a trace acknowledgement is a request that waits for approval under the policy of `trace.coverage`, as a waiver does.
+
+A trace acknowledgement is about an upstream ID, not a section of this doc. An edit of the doc does not end it. [Traceability](/concepts/traceability/) explains coverage and the matrix.
+
+## Verification waivers stay out of the sidecar
+
+A verification waiver excuses one trace ID in one code repo, after a verification run. It follows the same policy and ends when the section of the requirement changes. It never goes in the sidecar, because the sidecar travels with the doc into every build of it. [Handoffs and build reports](/concepts/handoffs-and-build-reports/) explains verification runs.

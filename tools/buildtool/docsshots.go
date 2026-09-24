@@ -11,7 +11,7 @@ import (
 
 // docsImages holds every picture of the guide. Only cmdDocsShots writes here, so no picture
 // of the guide can drift away from the app.
-const docsImages = "docs/images"
+const docsImages = "site/src/assets/shots"
 
 // maxDocsImages caps the pictures of the guide. `just verify` holds the repository to it.
 const maxDocsImages = 24 * 1000 * 1000
@@ -22,10 +22,11 @@ const docsWidth = 1200
 
 const shotWidth = 1440
 
-// cmdDocsShots captures the pictures of docs/guide.md and docs/linked-docs.md from the real
-// app. It serves a copy of build/dev-bundles in local mode, drives it with agent-browser, and
-// writes docs/images. The review calls a real model through the local claude CLI, with the
-// model in DOCS_MODEL. part "linked" captures only the pictures of docs/linked-docs.md.
+// cmdDocsShots captures the pictures of the docs site from the real app, in the dark theme.
+// It serves a copy of the testdata/bundles fixtures in local mode, so each run starts from
+// the same docs, drives it with agent-browser, and writes site/src/assets/shots. The review calls a real model through the local claude CLI, with the
+// model in DOCS_MODEL. part "linked" captures only the pictures of the tutorial Link an SDD to
+// a PRD, and part "howto" those and the how-to pictures that build on its docs.
 func cmdDocsShots(part string) error {
 	root, err := os.Getwd()
 	if err != nil {
@@ -35,10 +36,7 @@ func cmdDocsShots(part string) error {
 	if _, err := os.Stat(bin); err != nil {
 		return errors.New("bin/speccy is missing: run just build first")
 	}
-	seed := filepath.Join(root, "build", "dev-bundles")
-	if _, err := os.Stat(seed); err != nil {
-		return errors.New("build/dev-bundles is missing: run just dev once, or copy testdata/bundles there")
-	}
+	seed := filepath.Join(root, "testdata", "bundles")
 	out := filepath.Join(root, docsImages)
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
@@ -52,13 +50,11 @@ func cmdDocsShots(part string) error {
 	if err := os.CopyFS(dir, os.DirFS(seed)); err != nil {
 		return err
 	}
-	// The seed folder is also the dev server's folder, so it can hold a store. A copy of that
-	// store's key is readable by others, and the server refuses it; the shots start clean.
-	if err := os.RemoveAll(filepath.Join(dir, ".speccy", "state")); err != nil {
-		return err
-	}
 	for _, f := range mustGlob(filepath.Join(dir, "*", "*.golden.json")) {
 		_ = os.Remove(f)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".speccy.yaml"), []byte(linkPatterns), 0o644); err != nil {
+		return err
 	}
 	model := os.Getenv("DOCS_MODEL")
 	if model == "" {
@@ -75,16 +71,26 @@ func cmdDocsShots(part string) error {
 	if _, err := d.ab("set", "viewport", fmt.Sprint(shotWidth), "900"); err != nil {
 		return err
 	}
-	if part == "linked" {
+	if err := d.dark(); err != nil {
+		return err
+	}
+	defer func() { fmt.Printf("docs-shots: %d pictures in %s\n", d.count, d.out) }()
+	if part == "linked" || part == "howto" {
 		if err := s.models(model); err != nil {
 			return err
 		}
-		return d.linked(s, dir)
+		if err := d.linked(s, dir); err != nil || part == "linked" {
+			return err
+		}
+		return d.howto(s, dir, work)
 	}
 	if err := d.guide(s, dir, model); err != nil {
 		return err
 	}
-	return d.linked(s, dir)
+	if err := d.linked(s, dir); err != nil {
+		return err
+	}
+	return d.howto(s, dir, work)
 }
 
 // models points every role at the local claude CLI, with model.
@@ -187,12 +193,19 @@ func (d *shots) ab(args ...string) (string, error) {
 	return string(b), nil
 }
 
+// dark captures the dark theme only: the docs site shows the app as most people run it. The
+// app follows the colour scheme when it has no stored theme, and so does GitHub.
+func (d *shots) dark() error {
+	_, err := d.ab("set", "media", "dark")
+	return err
+}
+
 func (d *shots) settle() {
 	_, _ = d.ab("wait", "--load", "networkidle")
 	_, _ = d.ab("wait", "1200")
 }
 
-// png opens url, runs prep, and writes docs/images/<name>.png.
+// png opens url, runs prep, and writes site/src/assets/shots/<name>.png.
 func (d *shots) png(name, url string, prep func() error) error {
 	if _, err := d.ab("open", url); err != nil {
 		return err
@@ -215,7 +228,7 @@ func (d *shots) png(name, url string, prep func() error) error {
 	return nil
 }
 
-// gif records act and writes docs/images/<name>.gif. A GIF carries what the prose cannot:
+// gif records act and writes site/src/assets/shots/<name>.gif. A GIF carries what the prose cannot:
 // the review running, the click-to-edit, and the tour moving point to point.
 func (d *shots) gif(name, url string, speed int, act func() error) error {
 	if _, err := d.ab("open", url); err != nil {
@@ -458,7 +471,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 	return nil
 }
 
-// linkedPRD and linkedSDD are the two docs of docs/linked-docs.md, in one folder. The PRD's
+// linkedPRD and linkedSDD are the two docs of the tutorial Link an SDD to a PRD, in one folder. The PRD's
 // requirements have no IDs yet, and the SDD has no link yet: the pictures follow the steps
 // that add both.
 const linkedPRD = `---
@@ -511,7 +524,7 @@ The order page gets a Refund button. The service calls the payment provider's re
 No partial refunds.
 `
 
-// linked captures the pictures of docs/linked-docs.md in the order of its steps: one folder
+// linked captures the pictures of the tutorial Link an SDD to a PRD in the order of its steps: one folder
 // with a PRD and an SDD, the link, the IDs, the matrix, the three answers to a gap, then the
 // restatement, the contradiction and the stale verdict of the payments fixtures.
 func (d *shots) linked(s *server, dir string) error {
@@ -717,8 +730,6 @@ func (d *shots) linked(s *server, dir string) error {
 	if err := os.WriteFile(prdDoc, text, 0o644); err != nil {
 		return err
 	}
-
-	fmt.Printf("docs-shots: %d pictures in %s\n", d.count, d.out)
 	return nil
 }
 

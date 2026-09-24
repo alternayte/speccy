@@ -1,0 +1,128 @@
+---
+title: Back up and restore
+description: What to back up in local mode and in hosted mode, and how to restore it.
+sidebar:
+  order: 1
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This runbook tells you what to back up in each mode, and how to put it back.
+
+Speccy keeps two kinds of data. The doc text lives in git, on disk, or in the hosted database. The store holds everything Speccy learns about the docs: reviews, findings, threads, waiver requests, handoffs and the model setup. Each mode needs a copy of both, and a copy of the master key.
+
+## Local mode
+
+### What to back up
+
+| What | Where | How |
+|---|---|---|
+| The docs, the profiles, the sidecars and `.speccy.yaml` | The served folder | Commit them to git. Approved waivers and acknowledgements live in the sidecars, so git keeps them. |
+| The store | `.speccy/state/speccy.db` | Stop Speccy, then copy the whole `.speccy/state/` folder. |
+| The master key | `.speccy/state/key` | It is in the same folder. Keep it with the database it belongs to. |
+
+The store also holds the adopted types, the adopted links and the dismissed docs. Speccy never writes these into the repo, so the store is their only copy.
+
+The key decrypts the API keys, the GitHub token and the MCP secrets in the database. A copy of the folder therefore gives anyone who holds it your API keys. Keep the backup as private as the keys themselves.
+
+### Back up
+
+<Steps>
+
+1. Stop every Speccy process on the folder: the app, `speccy tui` and `speccy mcp`. Each one holds the SQLite database open.
+
+2. Copy the state folder:
+
+   ```sh
+   cp -Rp .speccy/state ~/backups/speccy-state-$(date +%F)
+   ```
+
+   The `-p` flag keeps mode `0600` on the key file.
+
+3. Start Speccy again.
+
+</Steps>
+
+SQLite writes to `speccy.db-wal` while Speccy runs. A copy of `speccy.db` alone, taken while Speccy runs, can miss the latest changes. Stop Speccy first.
+
+### Restore
+
+<Steps>
+
+1. Stop every Speccy process on the folder.
+
+2. Move the current state folder aside, and copy the backup into its place:
+
+   ```sh
+   mv .speccy/state .speccy/state.old
+   cp -Rp ~/backups/speccy-state-2026-09-01 .speccy/state
+   ```
+
+3. Check that only you can read the key. Speccy refuses to start when other users can read it.
+
+   ```sh
+   chmod 600 .speccy/state/key
+   ```
+
+4. Start Speccy. It scans the folder again. A doc that changed on disk since the backup gets a new version, and it needs a new review.
+
+</Steps>
+
+### Start from an empty state
+
+With no backup, move `.speccy/state/` aside and start Speccy. Speccy makes a new state and a new key, and it scans the docs again. The docs, the profiles and the sidecars stay as they are. You lose the reviews, the threads, the waiver requests, the handoffs and the model setup. Add the model backends again under **Admin → Models**.
+
+## Hosted mode
+
+### What to back up
+
+| What | Where | How |
+|---|---|---|
+| The database | The Postgres database in `SPECCY_DATABASE_URL` | `pg_dump`, or the backups of your Postgres service. |
+| The master key | `SPECCY_MASTER_KEY` | Keep it in a secret store, apart from the database backups. |
+| The environment | Your deployment | Keep the other `SPECCY_` variables, such as the OIDC client secret, with your deployment configuration. |
+
+One database holds all of hosted mode:
+
+- the files and versions of each bundle made in the app, and the unpublished edits of each bundle from GitHub;
+- the reviews, the findings, the threads, the waivers, the approvals, the handoffs and the verification runs;
+- the profiles and their versions;
+- the accounts, the sessions, the invite links and the API tokens, in the tables that start with `auth_`;
+- the model backends, the roles, the budget, the MCP connections, the GitHub token and the workspace settings.
+
+The text of a bundle from GitHub lives in its repo. Speccy reads the branch again on the next sync.
+
+<Aside type="caution">
+Without the master key, a restored database has unreadable API keys, GitHub token and MCP secrets. Everything else in it stays readable. Keep the key and the database backups in different places, so one leak does not expose both.
+</Aside>
+
+### Back up
+
+Speccy needs no downtime for `pg_dump`, because Postgres gives the dump one consistent snapshot.
+
+```sh
+pg_dump --format=custom --file=speccy-$(date +%F).dump "$SPECCY_DATABASE_URL"
+```
+
+### Restore
+
+<Steps>
+
+1. Stop Speccy. On Kubernetes, scale the deployment to 0 replicas.
+
+2. Restore the dump into a new, empty database:
+
+   ```sh
+   createdb speccy_restored
+   pg_restore --no-owner --dbname=speccy_restored speccy-2026-09-01.dump
+   ```
+
+3. Point `SPECCY_DATABASE_URL` at the restored database. Keep `SPECCY_MASTER_KEY` the same as when you took the dump.
+
+4. Start Speccy. It applies the migrations that the dump does not have yet, then it serves.
+
+</Steps>
+
+Restore a dump into the same Speccy version that made it, or a newer one. [Upgrade](/operations/upgrade/) explains why an older version must not read a newer database.
+
+A restore takes the workspace back to the time of the dump. People sign in again if their session started after the dump. Invite links, reset links and API tokens made after the dump no longer work.

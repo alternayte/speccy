@@ -1,0 +1,138 @@
+---
+// The life of one waiver, from the request to the end. The viewBox is as wide as a phone
+// column, so the text stays at 13px or more at 390px.
+// Each arrow runs from the bottom of one shape to the top of the next.
+const arrows = [
+  [74, 100],
+  [334, 360],
+  [448, 478],
+];
+---
+
+<figure class="diagram">
+  <svg viewBox="0 0 360 552" role="img" aria-labelledby="waiver-flow-title waiver-flow-desc">
+    <title id="waiver-flow-title">The life of a waiver</title>
+    <desc id="waiver-flow-desc">
+      A person asks for a waiver with a reason of at least 20 characters. The profile's waiver policy names who may
+      approve it. An approver approves it, and Speccy writes the entry to the sidecar, or rejects it with a decision
+      reason. The waiver holds while the section hash matches. When the section changes, the waiver ends, and the
+      check counts again.
+    </desc>
+
+    <rect class="box" x="12" y="8" width="336" height="66" rx="8"></rect>
+    <text class="name" x="28" y="34">Request</text>
+    <text class="out" x="28" y="58">One check, one section, a reason of 20+</text>
+
+    <rect class="box" x="12" y="100" width="336" height="110" rx="8"></rect>
+    <text class="name" x="28" y="126">Waiver policy</text>
+    <text class="out" x="28" y="150">The profile names who may approve:</text>
+    <text class="mono" x="28" y="172">any_member, non_author, n_approvals,</text>
+    <text class="mono" x="28" y="194">maintainer, or forbidden</text>
+
+    <line class="arrow" x1="180" y1="210" x2="180" y2="226"></line>
+    <line class="arrow" x1="92" y1="226" x2="268" y2="226"></line>
+    <line class="arrow" x1="92" y1="226" x2="92" y2="242"></line>
+    <path class="head" d="M86 242 L98 242 L92 249 Z"></path>
+    <line class="arrow" x1="268" y1="226" x2="268" y2="242"></line>
+    <path class="head" d="M262 242 L274 242 L268 249 Z"></path>
+
+    <rect class="box approved" x="12" y="250" width="160" height="84" rx="8"></rect>
+    <text class="name accent" x="28" y="276">Approved</text>
+    <text class="out" x="28" y="300">Speccy writes the</text>
+    <text class="out" x="28" y="321">sidecar entry.</text>
+
+    <rect class="box rejected" x="188" y="250" width="160" height="84" rx="8"></rect>
+    <text class="name red" x="204" y="276">Rejected</text>
+    <text class="out" x="204" y="300">The approver gives</text>
+    <text class="out" x="204" y="321">a decision reason.</text>
+
+    {
+      arrows.map(([from, to]) => {
+        const x = from === 334 ? 92 : 180;
+        return (
+          <g>
+            <line class="arrow" x1={x} y1={from} x2={x} y2={to - 8} />
+            <path class="head" d={`M${x - 6} ${to - 8} L${x + 6} ${to - 8} L${x} ${to - 1} Z`} />
+          </g>
+        );
+      })
+    }
+
+    <rect class="box" x="12" y="360" width="336" height="88" rx="8"></rect>
+    <text class="name" x="28" y="386">Sidecar entry</text>
+    <text class="mono" x="28" y="410">.speccy/decisions/&lt;doc path&gt;.yaml</text>
+    <text class="out" x="28" y="432">It holds while the section hash matches.</text>
+
+    <text class="label" x="192" y="468">The section changes</text>
+
+    <rect class="box" x="12" y="478" width="336" height="66" rx="8"></rect>
+    <text class="name" x="28" y="504">Ended</text>
+    <text class="out" x="28" y="528">The finding counts in the verdict again.</text>
+  </svg>
+  <figcaption>
+    A waiver from the request to the end. A trace acknowledgement follows the same path, and an edit of the doc
+    does not end it.
+  </figcaption>
+</figure>
+
+<style>
+  figure.diagram {
+    margin: 1.5rem auto;
+    max-width: 26rem;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--sl-font);
+  }
+  figcaption {
+    margin-top: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    text-align: center;
+  }
+  .box {
+    fill: var(--sl-color-gray-6);
+    stroke: var(--sl-color-gray-5);
+    stroke-width: 1.5;
+  }
+  .approved {
+    stroke: var(--sl-color-accent);
+  }
+  .rejected {
+    stroke: var(--sl-color-red);
+  }
+  .name {
+    fill: var(--sl-color-white);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .accent {
+    fill: var(--sl-color-accent-high);
+  }
+  .red {
+    fill: var(--sl-color-red-high);
+  }
+  .out {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+  }
+  .mono {
+    fill: var(--sl-color-gray-2);
+    font-family: var(--sl-font-mono);
+    font-size: 13px;
+  }
+  .label {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .arrow {
+    stroke: var(--sl-color-gray-3);
+    stroke-width: 1.5;
+  }
+  .head {
+    fill: var(--sl-color-gray-3);
+  }
+</style>

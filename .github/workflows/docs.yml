@@ -1,0 +1,73 @@
+name: Docs
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  NODE_VERSION: "24"
+  JUST_VERSION: "1.58.0"
+
+jobs:
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PUBLIC_CF_BEACON_TOKEN: ${{ secrets.CLOUDFLARE_BEACON_TOKEN }}
+    steps:
+      - name: Check out the repository.
+        uses: actions/checkout@v5
+
+      - name: Set up Go.
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install just.
+        uses: extractions/setup-just@v3
+        with:
+          just-version: ${{ env.JUST_VERSION }}
+
+      # The generated pages are current, each sample loads, and Vale passes.
+      - name: Check the docs.
+        run: just docs-ref-check
+
+      - name: Build the site.
+        run: just docs
+
+      # main deploys to speccy-docs.pages.dev; a pull request gets a preview on its own alias.
+      # Nothing deploys until the repository has the CLOUDFLARE_API_TOKEN secret.
+      - name: Deploy to Cloudflare Pages.
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        id: deploy
+        run: |
+          branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          url=$(npx --yes wrangler@4 pages deploy site/dist --project-name=speccy-docs --branch="$branch" | grep -oE 'https://[^ ]+\.pages\.dev' | tail -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment the preview URL.
+        if: github.event_name == 'pull_request' && steps.deploy.outputs.url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.number }}
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          gh pr comment "$PR" --body "Docs preview: $URL" --edit-last || gh pr comment "$PR" --body "Docs preview: $URL"

@@ -1,0 +1,73 @@
+/* The app's tokens (web/src/index.css): Inter and JetBrains Mono, a near-black ground with
+   Neon's electric green in dark mode, warm paper with a deep green in light mode. */
+:root {
+  --sl-font: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --sl-content-width: 46rem;
+
+  --sl-color-accent-low: #0e2a1f;
+  --sl-color-accent: #00c283;
+  --sl-color-accent-high: #00e599;
+  --sl-color-white: #ececea;
+  --sl-color-gray-1: #d9d9d6;
+  --sl-color-gray-2: #b3b3ae;
+  --sl-color-gray-3: #85857f;
+  --sl-color-gray-4: #4a4a47;
+  --sl-color-gray-5: #333434;
+  --sl-color-gray-6: #1a1b1b;
+  --sl-color-black: #0c0d0d;
+  --sl-color-bg-nav: #0c0d0d;
+  --sl-color-bg-sidebar: #0c0d0d;
+  --sl-color-hairline: #242525;
+  --sl-color-hairline-light: #242525;
+  --sl-color-hairline-shade: #0c0d0d;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: #e3f5ec;
+  --sl-color-accent: #00794f;
+  --sl-color-accent-high: #005c3c;
+  --sl-color-white: #1b1b1a;
+  --sl-color-gray-1: #2c2c2a;
+  --sl-color-gray-2: #4a4a47;
+  --sl-color-gray-3: #686863;
+  --sl-color-gray-4: #a3a39e;
+  --sl-color-gray-5: #d4d4ce;
+  --sl-color-gray-6: #f3f3f1;
+  --sl-color-gray-7: #f8f8f6;
+  --sl-color-black: #fbfbfa;
+  --sl-color-bg-nav: #ffffff;
+  --sl-color-bg-sidebar: #fbfbfa;
+  --sl-color-hairline: #e6e6e2;
+  --sl-color-hairline-light: #e6e6e2;
+  --sl-color-hairline-shade: #d4d4ce;
+}
+
+/* Screenshots of the app sit on a frame, so the app's dark ground does not melt into the page. */
+.sl-markdown-content img {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.5rem;
+}
+.sl-markdown-content figure.diagram img,
+.sl-markdown-content img.plain {
+  border: 0;
+  border-radius: 0;
+}
+
+/* The app's brand mark: a small green square before the name, in ink. */
+.site-title {
+  color: var(--sl-color-white);
+  gap: 0.5rem;
+}
+.site-title img {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+/* A Check catalog heading is a slug: code at heading size, without the code box. */
+.sl-markdown-content :is(h2, h3) code {
+  font-size: 0.95em;
+  background: none;
+  border: 0;
+  padding: 0;
+}

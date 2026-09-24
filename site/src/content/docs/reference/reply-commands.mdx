@@ -1,0 +1,132 @@
+---
+title: Reply commands
+description: Each /speccy reply that the GitHub Action turns into a commit, where it goes, what it writes, and why the Action refuses one.
+---
+
+This page lists each reply command that the Speccy GitHub Action reads in a pull request. It gives where each one goes, what the next run commits, and each reason for a refusal. [Adopt a repo and decide in a pull request](/how-to/adopt-a-repo/) shows the commands in use.
+
+## The commands
+
+| Reply | Where you write it | What the next run writes |
+|---|---|---|
+| `/speccy waive <reason>` | A reply to a Speccy inline comment | A waiver of that check for that section, in the sidecar of the doc |
+| `/speccy ack <reason>` | A reply to a Speccy inline comment on a [`links.has-upstream`](/reference/checks/#links.has-upstream) finding | A `standalone` acknowledgement: the doc has no upstream doc, for that reason |
+| `/speccy ack <trace ID> <reason>` | A reply to a Speccy inline comment on a [`trace.coverage`](/reference/checks/#trace.coverage) finding | A `trace` acknowledgement: the upstream trace ID is out of scope, for that reason |
+| `/speccy enforce <check slug>` | A comment in the conversation of the pull request | The removal of the check from `adoption.relaxed` in `.speccy.yaml` |
+
+The sidecar of a doc is `.speccy/decisions/<doc path>.yaml`, at the root of the repo. The doc path is the path of the spec doc in the repo, such as `.speccy/decisions/docs/prd-payments.md.yaml`. [Sidecar format](/reference/sidecar/) lists each key.
+
+## How the Action reads a reply
+
+- The command starts a line. Spaces before it do no harm. Write `/speccy` and the command word in lower case.
+- The reason is the rest of that line. A line break ends the reason.
+- `waive` and `ack` count only in a thread that a Speccy inline comment opened. A reply anywhere else does nothing.
+- One thread keeps its last command. To change a decision, write a new reply in the same thread.
+- `enforce` counts only in the conversation of the pull request, on a line that holds the command and the slug and nothing else.
+- A word after `/speccy` that is not `waive`, `ack` or `enforce` does nothing.
+
+The Action reads replies when it runs. The workflow runs on `pull_request` events, so a reply alone does not start it. Push to the branch, or run the job again.
+
+## What each command writes
+
+### `/speccy waive <reason>`
+
+The Action writes a waiver for the check of the finding, and the section of the finding:
+
+```yaml sidecar
+waivers:
+  - check: lint.placeholder
+    section: [Payment retries, Failure handling]
+    reason: The owner lands in the next doc.
+    section_hash: sha256:9f2c4e1a0b7d3c5e8f6a2b4c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+    requested_by: kim
+```
+
+- `section` is the heading path of the finding. For a check whose scope is the whole doc, or a finding with no heading, `section` is `[]` and the waiver covers the whole doc.
+- `section_hash` is the hash of the section text at that moment. The waiver ends when the section changes.
+- `requested_by` is the GitHub login of the person who wrote the reply.
+
+A new waiver for the same check and section replaces the old one.
+
+### `/speccy ack <reason>`
+
+On a `links.has-upstream` finding, the Action writes a `standalone` acknowledgement:
+
+```yaml sidecar
+standalone:
+  reason: Internal change to storage. No product change, so no PRD.
+  acknowledged_by: kim
+```
+
+The doc then needs no upstream link. A new `standalone` acknowledgement replaces the old one.
+
+### `/speccy ack <trace ID> <reason>`
+
+On a `trace.coverage` finding, the first word after `ack` is the upstream trace ID. The rest of the line is the reason:
+
+```text
+/speccy ack REQ-003 The checkout page shows this message.
+```
+
+The Action writes a `trace` acknowledgement with the status `out_of_scope`:
+
+```yaml sidecar
+trace:
+  - id: REQ-003
+    status: out_of_scope
+    reason: The checkout page shows this message.
+    acknowledged_by: kim
+```
+
+The trace ID must start with a prefix that the profile covers, such as `REQ-`. A new acknowledgement of the same ID replaces the old one.
+
+### `/speccy enforce <check slug>`
+
+The Action removes the slug from `adoption.relaxed` in `.speccy.yaml`. The check then reports at its own level from the next review. A slug that is not in `adoption.relaxed` does nothing.
+
+The summary comment offers this reply for each relaxed check that now passes on every spec doc. You can write it for any relaxed check.
+
+## What the run commits
+
+The Action commits to the branch of the pull request. It never commits to the base branch.
+
+- The sidecar entries of one run go in one commit. The message is `Speccy: record a decision on <doc path>` for one decision, or `Speccy: record <n> decisions` for more.
+- The `.speccy.yaml` change of `/speccy enforce` goes in its own commit, `Speccy: enforce <slug>`.
+
+After the commit, the Action resolves each thread whose decision it wrote. The summary comment lists the decisions under **Decisions**:
+
+```text
+- @kim asked for a waiver of `lint.placeholder` on `docs/prd-payments`. Speccy wrote it to `.speccy/decisions/docs/prd-payments.md.yaml`.
+
+Committed as `3e170ee`. A decision counts when this pull request merges.
+```
+
+An enforced check shows under **Adoption mode**, as ``@kim turned `links.has-upstream` back on. It counts from the next review.``
+
+From the next run, a waiver in the branch counts in the verdict of the pull request. When it covers a MUST finding, the summary comment and the check both say that the verdict depends on it, until the pull request merges.
+
+## Who may use a command
+
+Any person who can comment on the pull request can write a reply command. Speccy does not check the role of the author, and it approves nothing on its own. It records the login in the sidecar.
+
+A decision takes effect for the repo only when the pull request merges. Your branch protection and your CODEOWNERS file decide who may approve that merge. Name owners for `/.speccy/decisions/` and `/.speccy.yaml`.
+
+The workflow needs `contents: write` for the commit.
+
+## Why the Action refuses a command
+
+The Action writes nothing for a refused command. The summary comment gives the reason on one line, such as ``- `/speccy waive` by @kim on `docs/prd-payments`: the reason is shorter than 20 characters.``
+
+| The reason in the comment | What happened | What to do |
+|---|---|---|
+| `the finding it answers is gone, so nothing was written` | The review of this push has no finding for the thread. The text changed, or the check passes now. | Nothing, if you fixed the text. Else reply on the new comment. |
+| `the reason is shorter than 20 characters` | The reason has fewer than 20 characters. | Reply again with a longer reason. |
+| ``it names no trace ID. Write `/speccy ack REQ-001 <reason>` `` | An `ack` on a `trace.coverage` finding does not start with an upstream trace ID. The example uses the first upstream prefix of the profile. | Put the trace ID first. |
+| ``` `<check slug>` takes no acknowledgement. Use `/speccy waive <reason>` ``` | An `ack` on a finding of a check other than `links.has-upstream` or `trace.coverage`. | Use `/speccy waive`. |
+| `its section is not in the doc any more, so nothing was written` | A `waive` on a finding whose heading is gone from the doc. | Reply on the comment of the new finding. |
+
+In these cases the Action writes nothing:
+
+- **A pull request from a fork.** The Action has no write token. For `waive` and `ack`, the summary comment prints the sidecar text instead, under `This pull request comes from a fork, so Speccy cannot commit to its branch. Put this in your branch:`. For `enforce`, the job log says `Remove the slug from .speccy.yaml yourself.`
+- **A commit that fails**, such as with no `contents: write` permission. The job log says `Speccy could not commit the decisions:` and the error from GitHub.
+- **Review threads that the Action cannot read.** The Action records no decision and posts no inline comment.

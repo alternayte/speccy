@@ -1,0 +1,140 @@
+---
+title: Close a coverage gap
+description: Answer a trace.coverage finding in one of three ways, and undo the answer later.
+sidebar: { order: 3 }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide shows you how to close a coverage gap on a spec doc, and how to undo the answer.
+
+A coverage gap is a [`trace.coverage`](/reference/checks/#trace.coverage) finding. An upstream doc, such as a PRD, defines a trace ID. The spec doc that implements it does not name that ID. The finding is a MUST, so the doc stays Not Build Ready until you answer it.
+
+## Before you start
+
+- The spec doc has an `implements` link to the upstream doc. [Link an SDD to a PRD](/tutorials/link-an-sdd-to-a-prd/) shows how to add one.
+- The upstream doc defines trace IDs, such as `REQ-001`. When it defines none, coverage does not apply, and no gap exists.
+- You can edit the bundle. In hosted mode, an author of the bundle or an admin can edit it.
+
+## Pick the answer
+
+A gap has three answers. Each one closes the gap in the verdict and in the traceability matrix.
+
+| Answer | Use it when | What Speccy writes |
+|---|---|---|
+| **This doc covers it** | A section of this doc meets the requirement. | The line `Covers REQ-001.` at the end of that section, as a new version. |
+| **Another doc covers it** | A different spec doc meets the requirement. | An acknowledgement in the sidecar, after approval. |
+| **Out of scope** | No doc meets it, and none has to. | An acknowledgement in the sidecar, after approval. |
+
+The first answer changes the doc text, so a builder reads the ID next to the design. The other two are acknowledgements. They leave the doc text as it is.
+
+## Answer in the tour
+
+<Steps>
+
+1. Open the spec doc. The next action in the control row reads "Decide: does this doc cover REQ-001?". Click it to open the tour. **More → Tour** opens the same tour.
+
+2. On the gap, click **Decide**, or press `d`.
+
+   ![The tour asks whether the SDD covers a PRD requirement, and offers the three answers](../../../assets/shots/linked-gap.png)
+
+3. Pick one answer.
+   - **This doc covers it**: pick a section under **The section that covers it**. Speccy shows the line it adds.
+   - **Another doc covers it**: pick the doc under **The doc that covers it**, and write a **Reason**.
+   - **Out of scope**: write a **Reason**.
+
+   A reason needs at least 20 characters.
+
+4. Click **Add the line** for the first answer, or **Ask for approval** for the other two.
+
+</Steps>
+
+## Answer in the findings rail
+
+<Steps>
+
+1. Open the **Findings** tab of the rail, and find the `trace.coverage` finding. Its message names the trace ID.
+
+2. Click **Answer the gap** under the finding.
+
+3. Pick the answer and fill in the fields, as in the tour.
+
+4. Click **Add the line** or **Ask for approval**. A line above the list says what Speccy did.
+
+</Steps>
+
+A coverage gap has no **Ask for a waiver** control. Speccy refuses a plain waiver of `trace.coverage`, because an acknowledgement closes the gap in the verdict and in the matrix with one record.
+
+## Approve an acknowledgement
+
+The profile's waiver policy decides who approves an acknowledgement. `trace.coverage` is a MUST check. The built-in PRD and SDD profiles give a MUST to a maintainer of the profile.
+
+<Steps>
+
+1. Open the request. It waits in the approver's **Inbox**, in the tour, and on the finding in the findings rail.
+
+2. Read the reason. The tour asks, for example, "Approve or reject: REQ-002 is out of scope for this doc."
+
+3. Click **Approve**, or click **Reject** and give a decision reason of at least 20 characters.
+
+</Steps>
+
+In local mode, you are the only person, and you have every role. You approve your own request in the same way.
+
+[Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) covers the policies, the inbox and the next waiver control.
+
+## What happens
+
+- **This doc covers it.** Speccy writes the line as a new version of the spec doc. Lint runs on the new version. The finding goes, and the matrix cell reads **Referenced**. For a doc in a GitHub source, the new version is a draft until you publish it.
+- **Another doc covers it** or **Out of scope.** Speccy records a request, and the gap stays open. On the last approval the policy needs, Speccy writes a `trace:` entry to the sidecar, `.speccy/decisions/<doc path>.yaml`. The finding goes, and the matrix cell reads **Covered by another doc** or **Out of scope**, with the reason.
+
+The **Traceability** page shows the result. Open it from **More → Traceability**. It shows the matrix and each answer. It does not take an answer itself.
+
+![The matrix after the answers: referenced, out of scope, and covered by another doc](../../../assets/shots/linked-ack.png)
+
+An approved acknowledgement names the trace ID, not a section. An edit to the spec doc does not end it. A waiver of a check ends when its section changes, but an acknowledgement stays until a person removes it.
+
+This is the sidecar entry that Speccy writes:
+
+```yaml sidecar
+trace:
+  - id: REQ-002
+    status: out_of_scope
+    reason: The mail service sends every customer email.
+    acknowledged_by: nathan
+  - id: REQ-003
+    status: covered_by
+    target: refunds/SDD - Ledger
+    reason: The ledger design owns the refund entries.
+    acknowledged_by: nathan
+```
+
+## Undo an answer
+
+**This doc covers it.** The line `Covers REQ-001.` is plain prose in the doc. Delete it, or delete every other mention of the ID, and save. Lint runs on the new version, and the gap opens again.
+
+**Another doc covers it** or **Out of scope.** The app has no control that removes an approved acknowledgement. Remove the entry from the sidecar:
+
+<Steps>
+
+1. Open `.speccy/decisions/<doc path>.yaml`. For a folder that Speccy serves, the file sits under the root of that folder. For a doc in a GitHub repo, the file sits in the repo.
+
+2. Delete the item under `trace:` whose `id` is the trace ID. Delete the whole file when nothing else is left in it.
+
+3. Save the file. In a GitHub repo, commit the change.
+
+</Steps>
+
+Speccy watches the sidecar of a folder that it serves. It lints the doc again, and the gap opens again. A doc in a GitHub source takes the change on its next sync.
+
+<Aside type="caution">
+An open request is not an answer. Until the last approval, the gap still counts in the verdict. The tour then shows the approval, not the gap.
+</Aside>
+
+## Related
+
+- [Traceability](/concepts/traceability/): trace IDs, the matrix and coverage.
+- [Waivers and the sidecar](/concepts/waivers-and-the-sidecar/): how an acknowledgement uses the waiver mechanism.
+- [Sidecar format](/reference/sidecar/): every key of the sidecar.
+- [Reply commands](/reference/reply-commands/): `/speccy ack` answers a gap in a pull request.
+- [`trace.coverage` in the Check catalog](/reference/checks/#trace.coverage).

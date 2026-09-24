@@ -1,0 +1,97 @@
+---
+title: The master key
+description: What the master key protects, where it lives in each mode, and how to replace it.
+sidebar:
+  order: 3
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This runbook explains the master key, and what to do when you lose it or must replace it.
+
+## What the key protects
+
+The master key is 32 random bytes. Speccy encrypts these secrets with it, with AES-256-GCM, before it writes them to the database:
+
+- the API key of each model backend;
+- the workspace GitHub token from **Admin → GitHub**;
+- the secret of each MCP connection.
+
+In hosted mode, Speccy also signs the guest cookie with a key that it derives from the master key. A guest gets the cookie when they open a share link.
+
+The API shows only the last 4 characters of a stored secret. Nobody can read a stored secret back through the app or the API.
+
+Some secrets do not depend on the master key:
+
+- The sign-in stores passwords as argon2id hashes, and API tokens as SHA-256 hashes.
+- Speccy stores each share link token as a SHA-256 hash.
+- The OIDC and GitHub OAuth client secrets stay in the environment. Speccy never writes them to the database.
+
+## Where the key lives
+
+### Local mode
+
+Local mode keeps the key in `.speccy/state/key`, as base64 text. Speccy makes the file with mode `0600` on first start, when the file does not exist.
+
+Speccy refuses to start when the group or other users have any access to the file:
+
+```text
+Speccy did not start: /work/specs/.speccy/state/key can be read by other users; run chmod 600 /work/specs/.speccy/state/key.
+```
+
+Run the `chmod` command that the message names, then start Speccy again.
+
+`.speccy/state/` is in `.gitignore` after `speccy init`. Never commit the key.
+
+### Hosted mode
+
+Hosted mode reads the key from `SPECCY_MASTER_KEY`, as 32 bytes in standard base64. Make one:
+
+```sh
+openssl rand -base64 32
+```
+
+Speccy does not start with a bad value. The message names the problem, such as `the master key is not base64`, or `the secret key is 16 bytes; it must be 32`.
+
+Keep the key in a secret store, such as a Kubernetes Secret with its own backup. Keep it apart from the database backups. [Back up and restore](/operations/back-up-and-restore/) explains why.
+
+## When the key changes or is gone
+
+A secret that Speccy encrypted with one key does not decrypt with another. Speccy starts with a new key, but each use of an old secret fails with this cause:
+
+```text
+the secret does not decrypt with this key; the key file or SPECCY_MASTER_KEY changed
+```
+
+You see it in a failed review run, in the result of **Test** on a backend, or in a failed GitHub sync. The reviews, the threads, the waivers and every other record stay readable. Only the three kinds of secret are lost.
+
+In local mode, a missing key file is not an error. Speccy makes a new key at start, so the first sign is the message above.
+
+## Replace the key
+
+Speccy has no command that rotates the master key. It holds one key at a time, and it cannot re-encrypt the stored secrets with a new one. To replace the key, set a new key and enter each secret again.
+
+<Steps>
+
+1. Stop Speccy.
+
+2. Set the new key.
+
+   - Local mode: delete `.speccy/state/key`. Speccy makes a new key on the next start.
+   - Hosted mode: set `SPECCY_MASTER_KEY` to a new value from `openssl rand -base64 32`.
+
+3. Start Speccy.
+
+4. Enter each API key again. Open **Admin → Models**, and select the pencil of each backend with a key. Paste the key in **API key**, and select **Save**. An agent CLI backend has no key and needs nothing.
+
+5. Enter the GitHub token again, when you set one. Open **Admin → GitHub**, paste the token in **New token**, and select **Save**.
+
+6. Delete and add again each MCP connection that has a secret. The tools of a connection cannot take a new secret, and **Save tools** needs the old one.
+
+7. Select **Test** on each backend to check it.
+
+</Steps>
+
+In hosted mode, the new key also ends every guest cookie. A guest opens the share link again to get a new one.
+
+In CI, `SPECCY_MODELS` writes each API key again on each run, so the `ci-` backends need no step.

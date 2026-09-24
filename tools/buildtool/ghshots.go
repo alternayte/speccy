@@ -16,11 +16,11 @@ import (
 	"github.com/alternayte/speccy/internal/source/github"
 )
 
-// ghScratchRepo holds the docs of docs/github.md. It is public, so a headless browser reads
+// ghScratchRepo holds the docs of the how-to Adopt a repo. It is public, so a headless browser reads
 // its pull request with no login, and no credential lives in this job.
 const ghScratchRepo = "alternayte/speccy-guide"
 
-// cmdDocsShotsGitHub captures the pictures of docs/github.md from a real pull request. It
+// cmdDocsShotsGitHub captures the pictures of the how-to Adopt a repo from a real pull request. It
 // rebuilds the scratch repo, opens a pull request, runs speccy action against it so the
 // comment is the product's own, screenshots the pull request, then closes it and deletes the
 // branch. Nothing here is done by hand.
@@ -108,6 +108,9 @@ func cmdDocsShotsGitHub() error {
 
 	out := filepath.Join(root, docsImages)
 	d := &shots{out: out, session: "speccy-gh-docs"}
+	if err := d.dark(); err != nil {
+		return err
+	}
 	defer func() { _, _ = d.ab("close") }()
 	if _, err := d.ab("set", "viewport", fmt.Sprint(shotWidth), "1000"); err != nil {
 		return err
@@ -167,7 +170,7 @@ func cmdDocsShotsGitHub() error {
 	return nil
 }
 
-// adoptionShot captures docs/adoption.md's picture: the docs of a GitHub source that name no
+// adoptionShot captures the picture of the how-to Review docs you already have: the docs of a GitHub source that name no
 // type, with the guess Speccy reads from the headings. It runs the real app against the
 // scratch repo, so the list is the product's own.
 func adoptionShot(d *shots, bin, work string) error {

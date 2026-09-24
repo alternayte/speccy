@@ -1,0 +1,126 @@
+---
+title: Upgrade
+description: Move to a new Speccy release, what the migrations do at start, and how to roll back.
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This runbook moves a local install, a CI job or a hosted server to a new Speccy release.
+
+## What happens at start
+
+Each process that opens the store applies the pending migrations first. In local mode, that is the app, `speccy tui`, `speccy mcp` and the headless commands, on `.speccy/state/speccy.db`. In hosted mode, `speccy serve --hosted` and `speccy admin` apply them to the Postgres database. Hosted mode then applies the migrations of the sign-in tables, which have their own version table, `auth_goose_db_version`.
+
+You run no migration command. Speccy has no command that reverts a migration.
+
+## Upgrade the binary
+
+<Steps>
+
+1. Back up the state folder. [Back up and restore](/operations/back-up-and-restore/) has the steps.
+
+2. Install the new release. The install script takes the latest release, or the one in `SPECCY_VERSION`:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/alternayte/speccy/main/install.sh | SPECCY_VERSION=0.18.0 sh
+   ```
+
+   The [releases page](https://github.com/alternayte/speccy/releases) has the archives for an install by hand.
+
+3. Check the version:
+
+   ```sh
+   speccy version
+   ```
+
+4. Stop the running app, `speccy tui` and `speccy mcp`, and start them again. A process keeps the old binary until it restarts.
+
+</Steps>
+
+## Upgrade the GitHub Action
+
+The Action downloads the release whose tag its `version` input names. The default is `latest`, so an unpinned workflow moves to each release on its next run. Pin the version to upgrade on your own schedule:
+
+```yaml workflow
+- uses: alternayte/speccy@v0.18.0
+  with:
+    version: v0.18.0
+```
+
+The `@v0.18.0` ref picks the Action's own steps. The `version` input picks the binary.
+
+A CI job with a kept store, through `SPECCY_STATE_DIR`, migrates that store on its first run with the new release.
+
+## Upgrade a hosted server
+
+The image is `ghcr.io/alternayte/speccy`. Each release has a tag with its version, such as `0.18.0`, and the tag `latest` moves to each release. Pin a version tag.
+
+<Steps>
+
+1. Back up the database with `pg_dump`.
+
+2. Stop the old version before the new one starts. Speccy supports one replica, and two versions must not share one database. On Kubernetes, give the deployment the `Recreate` strategy. [Run hosted mode](/how-to/run-hosted-mode/) has a sample.
+
+3. Change the image tag, and deploy.
+
+4. Read the start log. Speccy prints `Speccy (hosted) is listening on` when the migrations are done. When a migration fails, Speccy prints `Speccy did not start:` with the cause, and exits.
+
+5. Check `GET /healthz`. It answers `ok`.
+
+</Steps>
+
+## A state from before 0.15.0
+
+Speccy 0.15.0 starts every store from one baseline migration. Speccy cannot read a store from an older version, and it keeps no data from one. It stops at start with a message, not with a failed migration.
+
+In local mode, the message names the state folder:
+
+```text
+Speccy did not start: the state in /work/specs/.speccy/state is from a Speccy before 0.15.0, and this Speccy cannot read it. Move that folder aside, then start Speccy again: Speccy makes a new state and scans the docs again. The reviews and threads of the old state stay in the folder you moved.
+```
+
+<Steps>
+
+1. Move the folder aside:
+
+   ```sh
+   mv .speccy/state .speccy/state-before-0.15
+   ```
+
+2. Start Speccy. It makes a new state and a new key, and it scans the docs again.
+
+3. Add the model backends again under **Admin → Models**. The new state has none.
+
+</Steps>
+
+The docs, the profiles and the sidecars stay as they are, so approved waivers and acknowledgements still apply.
+
+In hosted mode, the message asks for a new database:
+
+```text
+Speccy did not start: the database is from a Speccy before 0.15.0, and this Speccy cannot read it. Point SPECCY_DATABASE_URL at a new, empty database.
+```
+
+Make a new, empty database, and point `SPECCY_DATABASE_URL` at it. Then make the first admin again with `speccy admin invite --role admin`.
+
+## Roll back
+
+<Aside type="caution">
+An older Speccy does not check whether a newer one migrated the database. It starts, and a query on a changed table can fail later. Never point an older version at a store that a newer version opened.
+</Aside>
+
+To go back to the older version:
+
+<Steps>
+
+1. Stop Speccy.
+
+2. Restore the backup that you took before the upgrade. [Back up and restore](/operations/back-up-and-restore/) has the steps.
+
+3. Install or deploy the older version, and start it.
+
+</Steps>
+
+The restore drops every change since the backup: reviews, threads, waiver requests and handoffs. Docs on disk or in git stay as they are, and Speccy scans them again at start.

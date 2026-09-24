@@ -1,0 +1,236 @@
+---
+title: Change a profile
+description: Change a check's level, add a rubric check, change the limits and the required headings, and roll a profile back.
+sidebar: { order: 5 }
+---
+
+import { Steps, Aside, FileTree } from '@astrojs/starlight/components';
+
+This guide shows you how to change a profile, the configuration of one doc type, when a review says something you did not mean.
+
+A profile holds the template, the checks, the limits and the policies of one doc type. The frontmatter `type:` of a spec doc picks the profile. [Profile schema](/reference/profile-schema/) lists every key, and the [Check catalog](/reference/checks/) lists every built-in check.
+
+## Where the profiles live
+
+- **Local mode.** Speccy ships the `prd` and `sdd` profiles in the binary. A file in `.speccy/profiles/` at the root of the served folder replaces the built-in profile with the same key. It replaces the whole profile, so the file holds every key, not only the ones you change.
+- **Hosted mode.** The store holds the profiles. On the first start, Speccy copies the built-in profiles into the store. Hosted mode reads no `.speccy/profiles/` folder.
+
+`speccy review`, `speccy action` and the other commands read `.speccy/profiles/` from the folder with `.speccy.yaml`. Commit the folder, so CI reviews with the same profiles as your machine.
+
+## Edit a profile in the app
+
+In local mode, you can edit every profile. In hosted mode, an admin or a maintainer of the profile can edit it. Other members suggest a change under **Suggestions**, and a maintainer applies it.
+
+<Steps>
+
+1. Choose **Profiles** in the top bar, and click the profile.
+
+2. Change the YAML in the left pane, or the template in the right pane. **Help** explains each key.
+
+3. Click **Save a new version**, or press ⌘S. Speccy checks the profile against the schema first. A profile that is not valid stays unsaved, and Speccy lists each error with its path.
+
+</Steps>
+
+In local mode, the save writes `.speccy/profiles/<key>.yaml` and its template file. The first save of a built-in profile makes the files. In hosted mode, the save writes a new version in the store.
+
+## Edit a profile as a file
+
+In local mode, you can also write the files yourself.
+
+<FileTree>
+
+- .speccy/
+  - profiles/
+    - sdd.yaml
+    - templates/
+      - sdd.md
+
+</FileTree>
+
+<Steps>
+
+1. Put the profile in `.speccy/profiles/<key>.yaml`. Start from the whole built-in profile: the profile page in the app shows its YAML and its template.
+
+2. Put the template where the `template:` key points. The path is relative to the profile file, and it must stay inside `.speccy/profiles/`.
+
+3. Check the file:
+
+   ```sh
+   speccy profile validate .speccy/profiles/sdd.yaml
+   ```
+
+   A valid file prints its key, its name and the number of checks. A file that is not valid prints each error with its path, and the command exits with code 2.
+
+</Steps>
+
+A running Speccy watches `.speccy/profiles/`, and it loads a changed file at once. A file that does not load shows as an error on the **Profiles** page, and Speccy keeps the last profiles that loaded.
+
+## Change a check's level
+
+The level decides what a failed check does. A MUST finding makes the doc Not Build Ready. A SHOULD finding counts in the score. An INFO finding is a hint.
+
+For a check under `checks:`, change its `level`:
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+# The other keys and checks of the profile stay as they are.
+checks:
+  - slug: sdd.observability
+    level: MUST
+    stage: rubric
+    scope: doc
+    sizes: [app, initiative]
+    question: Are logs, metrics, and alerts stated?
+    pass_when: Logs, metrics, and alerts are stated.
+```
+
+A lint rule is not under `checks:`. Change its level under `lint.overrides`. `off` turns the rule off:
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+lint:
+  overrides:
+    lint.passive-voice: { level: "off" }
+    lint.sentence-length: { level: INFO }
+  slop_extra: [going forward]
+# The other keys and checks of the profile stay as they are.
+checks: []
+```
+
+`slop_extra` adds phrases to the list that [`lint.slop-phrase`](/reference/checks/#lint.slop-phrase) looks for.
+
+<Aside>
+A check that fires on every doc of a repo you adopted does not need a new level. Relax it in `.speccy.yaml` with `adoption.relaxed` while the repo catches up. The check still reports, and it does not block. [Adopt a repo](/how-to/adopt-a-repo/) shows how.
+</Aside>
+
+## Add a rubric check
+
+A rubric check is one question that a model answers about the doc. It runs in a full review, not on each save.
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+# The other keys and checks of the profile stay as they are.
+checks:
+  - slug: sdd.rollback
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    sizes: [app, initiative]
+    question: Does the doc say how to roll back each release step?
+    pass_when: Each release step has a named rollback, or the doc says it has none.
+```
+
+- `slug` is lower case, with at least one dot, such as `sdd.rollback`. Each slug appears once in a profile.
+- `stage` is `rubric`, `grounding`, `divergence` or `coherence`.
+- `scope` is `doc` or `section`. A waiver of a `doc` check covers the whole doc.
+- `sizes` limits the check to the doc sizes you name. With no `sizes`, the check applies at every size.
+- `question` and `pass_when` are what the model reads. Write one binary question.
+
+A finding of your own check has no "What this check means" link, because the Check catalog lists only the built-in checks.
+
+## Change the limits
+
+A waiver that people ask for again and again is a sign of a wrong limit. Change the limit, and stop approving the same waiver.
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+limits:
+  max_words: 8000
+  max_section_words: 1200
+  max_sentence_words: 25
+  max_code_block_lines: 40
+  max_table_rows: 15
+# The other keys and checks of the profile stay as they are.
+checks: []
+```
+
+[`lint.prose-limit`](/reference/checks/#lint.prose-limit), [`lint.sentence-length`](/reference/checks/#lint.sentence-length) and [`lint.asset-nudge`](/reference/checks/#lint.asset-nudge) read these limits.
+
+## Require a heading in the template
+
+The template marks the headings that a doc must have. [`lint.required-headings`](/reference/checks/#lint.required-headings) reports a heading that is missing.
+
+```markdown
+## Decisions <!-- required -->
+
+## Data model <!-- required: app -->
+```
+
+- `<!-- required -->` requires the heading at every size.
+- `<!-- required: app -->` requires it at `app` and `initiative`, and not at `feature`.
+
+Mark a section that only large docs need in the template, not in the checks. Speccy removes the markers from a new doc that it writes from the template.
+
+## Change who approves a waiver
+
+`waivers` names the policy for a SHOULD and for a MUST. A check can carry its own `waiver`, which wins over the policy of its level.
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+waivers:
+  should: any_member
+  must: { n_approvals: 2 }
+# The other keys and checks of the profile stay as they are.
+checks:
+  - slug: sdd.security
+    level: MUST
+    stage: rubric
+    scope: doc
+    sizes: [app, initiative]
+    waiver: forbidden
+    question: Are authentication, authorisation, secrets, and untrusted input addressed?
+    pass_when: Authentication, authorisation, secrets, and untrusted input are addressed.
+```
+
+[Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) explains each policy.
+
+## Make a new doc type
+
+<Steps>
+
+1. On the **Profiles** page, click **New profile**. Only an admin sees it.
+
+2. Enter a **Key**, such as `rfc`, and a **Name**.
+
+3. Under **Start from**, pick a profile to copy its YAML and its template. Pick **Nothing: an empty profile** to start with no checks.
+
+4. Click **Create**. The new profile opens, and you edit it as above.
+
+</Steps>
+
+A doc that names `type: rfc` in its frontmatter now uses the new profile. **Delete** on the profile page removes a profile that no bundle uses. A built-in profile cannot go.
+
+## What happens
+
+Each save is a new version of the profile. A review run records the profile version it used, and an earlier review keeps that version. Speccy lints each doc of that type again with the new version. A rubric check that you add runs at the next full review.
+
+## Roll a profile back
+
+<Steps>
+
+1. Open the profile, and go to **Versions**.
+
+2. Click an older version number. Speccy shows the diff of the YAML and of the template, from that version to the newest one.
+
+3. Click **Roll back** on the version you want.
+
+</Steps>
+
+A rollback writes a new version with the text of the version you picked. It reuses no number, so a version number always names the same text.
+
+## Related
+
+- [Profile schema](/reference/profile-schema/): every key and its values.
+- [Check catalog](/reference/checks/): every built-in check.
+- [Profiles and size](/concepts/profiles-and-size/): what size decides.
+- [Waivers and the sidecar](/concepts/waivers-and-the-sidecar/).

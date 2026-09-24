@@ -1,0 +1,168 @@
+---
+title: .speccy.yaml
+description: Every key of the repo configuration file, its type, its default, and the errors Speccy reports.
+sidebar:
+  order: 5
+---
+
+This page lists every key of `.speccy.yaml`, the repo configuration file. The file says which markdown files are spec docs, how docs link by path, and how the GitHub Action reports.
+
+Every key is optional. A missing file is an empty configuration: every folder with a spec doc is a bundle, and Speccy relaxes no check.
+
+```yaml speccy-config
+bundles:
+  - path: docs/specs/*
+map:
+  - glob: docs/prd-*.md
+    profile: prd
+  - glob: docs/sdd-*.md
+    profile: sdd
+link_rules:
+  - "docs/sdd-{name}.md implements docs/prd-{name}.md"
+link_patterns:
+  jira: https://company.atlassian.net/browse/{key}
+adoption:
+  relaxed: [links.has-upstream]
+mode: standalone
+enforcement: advisory
+pr:
+  inline_limit: 15
+```
+
+## Keys
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `bundles` | list of `path` entries | empty | Limits folder bundles to the folders that match a glob. |
+| `bundles[].path` | glob | none | A folder path, relative to the root. |
+| `map` | list of `glob` and `profile` entries | empty | Makes each markdown file that matches a glob a spec doc with that profile. |
+| `map[].glob` | glob | none; required | A file path, relative to the root. |
+| `map[].profile` | profile key | none; required | The profile of each file that matches. |
+| `link_rules` | list of text | empty | Links spec docs by path: `"<from> <kind> <to>"`. |
+| `link_patterns` | map of scheme to URL pattern | empty | Turns a short external link target, such as `jira:PAY-412`, into a URL. |
+| `adoption.relaxed` | list of check slugs | empty | Each check in the list reports at level INFO. |
+| `mode` | `standalone` or `connected` | `standalone` | With `connected`, `speccy action` sends the files to `server`. |
+| `server` | URL | none | The Speccy server of connected mode. |
+| `enforcement` | `advisory` or `blocking` | `advisory` | Whether a Not Build Ready verdict fails `speccy review` and `speccy action`. |
+| `pr.inline_limit` | integer | 15 | The most inline comments that `speccy action` posts on one bundle. |
+
+### bundles
+
+A folder bundle is a folder that directly holds a markdown file with a `type` in its frontmatter. With no `bundles` entry, every such folder is a bundle. With one or more entries, Speccy reads a frontmatter `type` only in a folder whose path matches a `path` glob. A file that `map` selects is a spec doc in any folder.
+
+### map
+
+A `map` entry makes a markdown file a spec doc without a change to the file. This is how Speccy reads docs that have no frontmatter.
+
+- The glob matches the file path relative to the root. `*` matches within one folder, and `**` matches any number of folders.
+- The first entry that matches a file gives its profile.
+- A `type` in the file's frontmatter wins over the map.
+- The slug of a mapped file is its path without the extension, such as `docs/prd-payments`.
+- Speccy does not check the profile key when it loads the file. A review of a doc with an unknown key stops, and the message lists the profiles.
+
+On a GitHub source in the app, **Write the mapping to the repo** opens a pull request. It adds a `map` entry for each adopted type. Speccy edits the file in place, so its comments and other keys stay.
+
+### link_rules
+
+A link rule links two spec docs by a path convention, so the docs need no `links` in their frontmatter.
+
+- A rule is three words: the path of the spec doc that links, the link kind, and the path of the target spec doc.
+- Both paths are file paths relative to the root.
+- `{name}` matches one path segment, or part of one. A variable name has lower-case letters and `_`.
+- The kind is `implements`, `refines`, `references` or `supersedes`.
+- A rule makes a link only when the target spec doc exists.
+- A link in the frontmatter comes first. A rule adds no second link of the same kind to the same target.
+
+### link_patterns
+
+A pattern turns a short external link target into a URL. The key is the scheme, and the value is a URL with `{key}` in it. With the sample above, the target `jira:PAY-412` opens `https://company.atlassian.net/browse/PAY-412`.
+
+- A scheme has lower-case letters, digits, `-`, `.` and `+`, and it starts with a letter.
+- `github` and `url` are built in, so a pattern cannot replace them.
+- The value must be an `http` or `https` URL.
+
+A full URL target needs no pattern. [Frontmatter](/reference/frontmatter/#external-targets) lists the target forms.
+
+### adoption.relaxed
+
+Each check slug in the list reports at level INFO, whatever its level in the profile. A relaxed check never blocks the verdict. `speccy init --github` fills the list with the checks that fail on the first lint pass.
+
+A reply of `/speccy enforce <slug>` in a pull request removes one slug from the list, and the Action commits the change. [Reply commands](/reference/reply-commands/) has the details. Speccy does not check the slugs in the list.
+
+### mode and server
+
+`mode` and `server` apply to `speccy action` only.
+
+| `mode` | What `speccy action` does |
+|---|---|
+| `standalone` | It reviews the bundles in the runner. The HTML report is an artifact of the run. |
+| `connected` | With no `--server` flag, it sends the files to `server`. The server reviews them with its models and its linked docs, and the comment links to its report. |
+
+Connected mode needs a personal API token in `SPECCY_TOKEN`. A `--server` flag wins over both keys.
+
+### enforcement
+
+| Value | Result |
+|---|---|
+| `advisory` | A verdict never fails the command or the check run. The check run of a Not Build Ready bundle is neutral. |
+| `blocking` | A Not Build Ready verdict fails the check run. `speccy review` and `speccy action` exit with code 1. |
+
+An `--enforcement` flag wins over the file. The GitHub Action's `enforcement` input passes that flag.
+
+### pr.inline_limit
+
+`speccy action` posts MUST findings, and findings with a fix for the line, as inline comments on changed lines. It posts at most `inline_limit` for each bundle, and the rest go into the summary comment. A value of 0 or less is 15.
+
+## Where Speccy looks for the file
+
+| Command | The file it reads |
+|---|---|
+| `speccy`, `speccy serve` | `.speccy.yaml` in the served folder, `--dir`. |
+| `speccy review`, `action`, `tui`, `mcp`, `add`, `export`, `handoff`, `report`, `verify` | The first `.speccy.yaml` from the current folder up. With none, these commands work on the current folder with no configuration. |
+| `speccy init`, `speccy init --github` | `.speccy.yaml` in the current folder. |
+| A GitHub source | `.speccy.yaml` at the root of the repo, on the source's branch. |
+
+The folder that holds the file is the root. Every glob and path in the file is relative to it.
+
+## What speccy init writes
+
+`speccy init` writes `.speccy.yaml` in the current folder, when the folder has none. The file sets `mode: standalone` and `enforcement: advisory`. It holds commented examples of `bundles`, `map`, `link_rules` and `adoption`. When the file exists, `speccy init` prints `.speccy.yaml exists. Speccy did not change it.`
+
+`speccy init` also adds `.speccy/state/` to `.gitignore`.
+
+`speccy init --github` writes `map` entries for the markdown files that read like a spec. It lints the mapped docs once, and it writes each check that fails into `adoption.relaxed`. It replaces a `.speccy.yaml` that exists.
+
+## Errors
+
+Speccy reads the file strictly. An unknown key, or a value of the wrong type, is an error:
+
+```text
+.speccy.yaml does not parse: yaml: unmarshal errors:
+  line 1: field mapp not found in type source.RepoConfig
+```
+
+Speccy checks every entry, and it joins the problems with `;` after `.speccy.yaml:`.
+
+| Problem | Message |
+|---|---|
+| A bad `bundles` glob | `bundles[0].path "[" is not a valid glob` |
+| A bad or empty `map` glob | `map[0].glob "docs/[" is not a valid glob` |
+| A `map` entry with no profile | `map[0] has no profile` |
+| A rule without three words | `link_rules[0]: "…" is not "<from> <kind> <to>"` |
+| A rule with another kind | `link_rules[0]: "…": the kind "implemented-by" is not one of implements, refines, references, supersedes` |
+| A variable twice in the first path | `link_rules[0]: "…": {name} appears twice in the first path` |
+| A variable only in the second path | `link_rules[0]: "…": {name} is in the second path but not the first` |
+| A scheme with other characters | `link_patterns: the scheme "Jira" is not lower-case letters, digits, and - . +` |
+| A built-in scheme | `link_patterns: the scheme "github" is built in, so a pattern cannot replace it` |
+| A pattern with no `{key}` | `link_patterns: the pattern "https://x/" has no {key}` |
+| A pattern that is not a web URL | `link_patterns: the pattern "ftp://x/{key}" is not an http or https URL` |
+| Another `mode` | `mode "remote" is not standalone or connected` |
+| Another `enforcement` | `enforcement "strict" is not advisory or blocking` |
+
+What each command does with an error:
+
+| Command | Result |
+|---|---|
+| `speccy`, `speccy serve` | The bundles screen lists the problem under **Folders that are not bundles**, with `Speccy ignores the file until you fix it.` |
+| `speccy review`, `action`, `export`, `handoff`, `report`, `verify` | The command prints `.speccy.yaml is not valid` with the message, and exits with code 2. |
+| A GitHub source | The sync fails with `.speccy.yaml in the repo is not valid` and the message. |

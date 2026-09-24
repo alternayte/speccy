@@ -1,0 +1,144 @@
+---
+// What decides the verdict of one spec doc, and what comes after it. The viewBox is as wide as
+// a phone column, so the text stays at 13px or more at 390px.
+const blocks = [
+  { y: 190, text: "An open MUST finding" },
+  { y: 242, text: "An open blocking thread" },
+  { y: 294, text: "A missing required upstream link" },
+];
+// Each arrow runs from the bottom of one shape to the top of the next.
+const arrows = [
+  [136, 166],
+  [390, 416],
+  [524, 550],
+];
+---
+
+<figure class="diagram">
+  <svg viewBox="0 0 360 648" role="img" aria-labelledby="verdict-inputs-title verdict-inputs-desc">
+    <title id="verdict-inputs-title">What decides the verdict</title>
+    <desc id="verdict-inputs-desc">
+      First, a valid waiver excuses a finding, an acknowledgement closes a gap or a missing link, and a relaxed
+      check reports at INFO. Then three things block: an open MUST finding, an open blocking thread, and a missing
+      required upstream link. SHOULD and INFO findings never block. When nothing blocks, the verdict is Build Ready;
+      otherwise it is Not Build Ready. A verdict of an old version reads Stale. Approvals come after the verdict and
+      need a current Build Ready verdict.
+    </desc>
+
+    <text class="label" x="12" y="16">Before the rules</text>
+    <rect class="box" x="12" y="26" width="336" height="110" rx="8"></rect>
+    <text class="name" x="28" y="51">Each finding</text>
+    <text class="out" x="28" y="75">A valid waiver excuses it.</text>
+    <text class="out" x="28" y="97">An acknowledgement closes a gap or a link.</text>
+    <text class="out" x="28" y="119">A relaxed check reports it at INFO.</text>
+
+    <text class="label" x="12" y="180">What blocks</text>
+    {
+      blocks.map((b) => (
+        <g>
+          <rect class="box" x="12" y={b.y} width="336" height="44" rx="8" />
+          <rect class="bar" x="12" y={b.y} width="5" height="44" rx="2" />
+          <text class="line" x="28" y={b.y + 27}>{b.text}</text>
+        </g>
+      ))
+    }
+    <rect class="dashed" x="12" y="346" width="336" height="44" rx="8"></rect>
+    <text class="out" x="28" y="373">SHOULD and INFO findings never block.</text>
+
+    {
+      arrows.map(([from, to]) => (
+        <g>
+          <line class="arrow" x1="180" y1={from} x2="180" y2={to - 8} />
+          <path class="head" d={`M174 ${to - 8} L186 ${to - 8} L180 ${to - 1} Z`} />
+        </g>
+      ))
+    }
+
+    <rect class="box verdict" x="12" y="416" width="336" height="108" rx="8"></rect>
+    <text class="name" x="28" y="442">Verdict</text>
+    <text class="ready" x="28" y="466">Nothing blocks: Build Ready.</text>
+    <text class="not-ready" x="28" y="488">Anything blocks: Not Build Ready.</text>
+    <text class="out" x="28" y="510">An old version's verdict reads Stale.</text>
+
+    <text class="label" x="192" y="542">Then</text>
+    <rect class="box" x="12" y="550" width="336" height="90" rx="8"></rect>
+    <text class="name" x="28" y="576">Approvals</text>
+    <text class="out" x="28" y="600">Each needs a current Build Ready verdict.</text>
+    <text class="out" x="28" y="622">Enough of them: the status is approved.</text>
+  </svg>
+  <figcaption>
+    The verdict of one spec doc. Waivers, acknowledgements and relaxed checks act on the findings first. Approvals
+    change the status, never the verdict.
+  </figcaption>
+</figure>
+
+<style>
+  figure.diagram {
+    margin: 1.5rem auto;
+    max-width: 26rem;
+  }
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--sl-font);
+  }
+  figcaption {
+    margin-top: 0.5rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-2);
+    text-align: center;
+  }
+  .box {
+    fill: var(--sl-color-gray-6);
+    stroke: var(--sl-color-gray-5);
+    stroke-width: 1.5;
+  }
+  .verdict {
+    stroke: var(--sl-color-accent);
+  }
+  .dashed {
+    fill: none;
+    stroke: var(--sl-color-gray-4);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 5;
+  }
+  .bar {
+    fill: var(--sl-color-red);
+  }
+  .name {
+    fill: var(--sl-color-white);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .line {
+    fill: var(--sl-color-white);
+    font-size: 14px;
+  }
+  .out {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+  }
+  .ready {
+    fill: var(--sl-color-accent-high);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .not-ready {
+    fill: var(--sl-color-red-high);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .label {
+    fill: var(--sl-color-gray-2);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .arrow {
+    stroke: var(--sl-color-gray-3);
+    stroke-width: 1.5;
+  }
+  .head {
+    fill: var(--sl-color-gray-3);
+  }
+</style>

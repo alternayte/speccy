@@ -1,0 +1,171 @@
+---
+title: Frontmatter
+description: The frontmatter keys Speccy reads in a spec doc, the link kinds and targets, and the block forms Speccy accepts.
+sidebar:
+  order: 6
+---
+
+This page lists the frontmatter keys that Speccy reads in a spec doc, the forms of a link target, and the forms of the block.
+
+```yaml frontmatter
+type: sdd
+title: Payment retries
+size: feature
+links:
+  - kind: implements
+    target: PRD - Payment retries.md
+  - kind: implemented-by
+    target: github:acme/payments#internal/retry
+```
+
+## Keys
+
+Speccy reads four keys. It ignores every other key, so a team can keep its own keys in the block.
+
+| Key | Type | Default | What it does |
+|---|---|---|---|
+| `type` | profile key | none | Makes the file a spec doc, and selects its profile. |
+| `size` | `feature`, `app` or `initiative` | inferred | Says how much the doc covers. The size selects the checks that apply. |
+| `title` | text | the first level-1 heading | The title that the app, the TUI and the reports show. |
+| `links` | list of `kind` and `target` pairs | empty | Links this doc to other spec docs, and to things outside Speccy. |
+
+### type
+
+The value is the key of a profile: a built-in one, `prd` or `sdd`, or the key of a file in `.speccy/profiles/`. A markdown file with no `type` is a spec doc only when a [`map` entry](/reference/speccy-yaml/#map) covers it, or when it has an adopted type. A `type` in the file wins over both.
+
+A review of a doc whose `type` names no profile stops with this message:
+
+```text
+No profile has the key "rfc", so Speccy cannot review this doc. Use a built-in type (prd, sdd), or add .speccy/profiles/rfc.yaml.
+```
+
+When you give a file a type in the app, Speccy writes one line, `type: <key>`, into its frontmatter. It adds a block when the file has none, and it changes nothing else.
+
+### size
+
+The value is `feature`, `app` or `initiative`, in any case. With no size, or another value, Speccy infers the size from the doc:
+
+| Inferred size | When |
+|---|---|
+| `initiative` | The doc has 3 or more links, or 4000 or more words. |
+| `app` | The doc has 1200 or more words. |
+| `feature` | Otherwise. |
+
+A run that infers the size adds a note: `The doc names no size, so the review used size app. Add "size: app" to the frontmatter to fix it.` [Profiles and size](/concepts/profiles-and-size/) says which checks each size runs.
+
+### title
+
+The value is the doc's title. With no `title`, Speccy uses the text of the first level-1 heading.
+
+### links
+
+Each link is a pair of `kind` and `target`. A link to the doc itself does nothing, and a second link with the same kind and target counts once.
+
+| Kind | Means | What reads it |
+|---|---|---|
+| `implements` | This doc builds what the target specifies. | `links.has-upstream` in the built-in SDD profile, `trace.coverage`, `coherence.restatement` and `coherence.contradiction`. Lint reads the target's trace IDs. |
+| `refines` | This doc adds detail to the target. | `coherence.restatement`, `coherence.contradiction`, and `links.has-children` in the built-in SDD profile. Lint reads the target's trace IDs. |
+| `references` | This doc points at the target. | `coherence.contradiction`, and `links.has-children` in the built-in SDD profile. |
+| `supersedes` | This doc replaces the target. | Speccy marks the target as superseded. |
+| `implemented-by` | The target is the code that builds this doc. | `links.code-drift`, and `speccy verify` with no URL. The target must be external. |
+
+The profile's `links` section says which kinds count for `links.has-upstream` and `links.has-children`. The [Profile schema](/reference/profile-schema/#links) lists those keys.
+
+## Link targets
+
+A target that starts with a scheme and a colon, such as `github:` or `https:`, is an external target. Any other target names a spec doc in Speccy.
+
+### Spec doc targets
+
+Speccy tries these forms in order, and it takes the first that matches:
+
+1. A path, relative to this doc's folder, to a spec doc file. The file extension is optional, and Speccy decodes percent-encoding first.
+2. The slug of a bundle, when exactly one spec doc in that bundle fits the link.
+3. A path, relative to this doc's folder, to a bundle's folder, with the same rule.
+4. The slug of a spec doc.
+
+A spec doc fits a link of an upstream kind when its profile is one of the profile's `links.upstream.types`. For any other kind, every spec doc fits. When two docs fit, Speccy does not pick one, and it tries the next form.
+
+A target that matches nothing is not a link. For an upstream link, `links.has-upstream` names the target and lists the docs it can name.
+
+### External targets
+
+| Target | Names |
+|---|---|
+| `github:owner/repo` | A repo. |
+| `github:owner/repo#path` | A path in the repo, at `HEAD`. |
+| `github:owner/repo@commit` | A commit, with 7 to 40 hex characters. |
+| `github:owner/repo@commit#path` | A path at a commit. |
+| `https://…` or `http://…` | A page at that URL. |
+| `<scheme>:<key>` | The URL that the scheme's pattern in [`link_patterns`](/reference/speccy-yaml/#link_patterns) makes from the key. |
+
+A target that does not parse fails [`links.external-target`](/reference/checks/#links.external-target), a MUST check. The finding says what to change, for example `the scheme "jira" has no pattern: add link_patterns.jira to .speccy.yaml`. An `implemented-by` target with no scheme fails the same check.
+
+## Standalone is not a frontmatter key
+
+A doc with no upstream doc says so in its [sidecar](/reference/sidecar/#standalone), with a reason. Speccy ignores a `standalone` key in the frontmatter.
+
+## Block forms
+
+Speccy reads the block in three forms. Each block must be at the start of the file.
+
+### Plain YAML
+
+The first line of the file is `---`. The block ends at the next line that is `---` or `...`.
+
+```markdown
+---
+type: prd
+title: Payment retries
+size: feature
+---
+
+# Payment retries
+```
+
+### JSON
+
+The same `---` lines hold a JSON object. When Speccy writes a key into a JSON block, it writes JSON.
+
+```markdown
+---
+{
+  "type": "prd",
+  "title": "Payment retries"
+}
+---
+
+# Payment retries
+```
+
+### Inside an HTML comment
+
+A wiki shows an HTML comment as nothing, so a team can hide the block in one. The file starts with a `<!--` line, then the `---` block, then a `-->` line. Blank lines can come before and between them.
+
+```markdown
+<!--
+---
+type: prd
+title: Payment retries
+---
+-->
+
+# Payment retries
+```
+
+A `---` block inside a comment in another place, such as after the first heading, is not frontmatter.
+
+## frontmatter.readable
+
+[`frontmatter.readable`](/reference/checks/#frontmatter.readable) is a MUST check in every profile. It fails when Speccy cannot read the block. When only `links` is wrong, Speccy still reads the type, the size and the title.
+
+| Problem | Message | Fix the finding gives |
+|---|---|---|
+| The block is not valid YAML or JSON. | `The frontmatter does not parse: <reason>.` | `Fix the frontmatter so that it is valid YAML or JSON.` |
+| The block is not a map. | `The frontmatter is not a map of keys.` | `Write the frontmatter as keys and values.` |
+| `type`, `size` or `title` is a list or a map. | `The frontmatter does not parse: <reason>.` | `Give type, size and title as text.` |
+| `links` is a map or text. | `Speccy does not read the links in the frontmatter: links is a map, not a list.` | The list form, in the form of the block. |
+| A link has no kind, an unknown kind, or no target. | `Speccy does not read the links in the frontmatter: link 1 has no kind.` | The list form, in the form of the block. |
+| A comment holds a block that Speccy does not read. | `This doc has a frontmatter block inside <!-- -->, in a form or a place that Speccy does not read, so Speccy does not see its type or its links.` | `Put the block at the start of the file: a <!-- line, the --- line, the keys, the --- line, and a --> line.` |
+
+In a folder, a file whose block does not parse is not a spec doc. When the block has a `type:` line, the bundles screen lists the file under **Folders that are not bundles**, with the parse error.
