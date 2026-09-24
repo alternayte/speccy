@@ -161,7 +161,7 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
-		fmt.Fprintf(stdout, "Wrote %s. It needs no secret and fails no job. The comment says what the model stages add.\n", workflowPath)
+		fmt.Fprintf(stdout, "Wrote %s. It needs no secret and fails no job. A comment in it says how to turn on the model stages.\n", workflowPath)
 	}
 	if added, err := ensureIgnored(filepath.Join(dir, ".gitignore"), ".speccy/state/"); err == nil && added {
 		fmt.Fprintln(stdout, "Added .speccy/state/ to .gitignore. It holds the local database and key.")
