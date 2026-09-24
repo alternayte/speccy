@@ -654,7 +654,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 	}
 	run.DecisionsHash = decisionsHash(in.dec)
 	if in.sizeInferred {
-		run.Notes, _ = json.Marshal([]string{sizeNote(in.size)})
+		run.Notes, _ = json.Marshal([]string{sizeNote(in.fm.Size, in.size)})
 	}
 	run.Status = "complete"
 	ev := lintStage(in)

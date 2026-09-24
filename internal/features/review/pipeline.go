@@ -285,7 +285,7 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 		return fail(err)
 	}
 	if in.sizeInferred {
-		rc.note(sizeNote(in.size))
+		rc.note(sizeNote(in.fm.Size, in.size))
 	}
 
 	ev, err := s.runStages(ctx, rc, in, stages, fingerprint, native, func(st string) {
