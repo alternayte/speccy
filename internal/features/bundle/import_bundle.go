@@ -32,8 +32,9 @@ import (
 const maxZipFiles = 1000
 
 // ImportBundle creates the bundles of a .md file, a .zip file, a dropped folder, or pasted
-// markdown (REQ-008). A folder with two or more spec docs gives one bundle per doc, as the scan
-// of a folder on disk does. In local mode the files go to a new folder under the served folder.
+// markdown (REQ-008). Each folder of the import gives one bundle, with one spec doc per typed
+// file, as the scan of a folder on disk does. In local mode the files go to a new folder under
+// the served folder.
 func (a *API) ImportBundle(ctx context.Context, req api.ImportBundleRequestObject) (api.ImportBundleResponseObject, error) {
 	in, err := readImportForm(req.Body)
 	if err != nil {

@@ -34,15 +34,15 @@ func New(clientFor ClientFor) *mcp.Server {
 	})
 	t := tools{clientFor: clientFor}
 	add(s, t, "list_bundles", "List the bundles with their verdicts.", t.listBundles)
-	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its main doc.", t.getBundle)
+	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its spec doc.", t.getBundle)
 	add(s, t, "review_bundle", "Run a review of a saved bundle and wait for the verdict. The model stages can take minutes.", t.reviewBundle)
-	add(s, t, "review_content", "Review markdown files that are not saved: a main doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.", t.reviewContent)
+	add(s, t, "review_content", "Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.", t.reviewContent)
 	add(s, t, "get_verdict", "Get the current verdict of a bundle.", t.getVerdict)
 	add(s, t, "get_findings", "Get the findings of a bundle's current verdict, MUST first. Each has a message, a suggested fix, and the text it points at.", t.getFindings)
 	add(s, t, "get_tour", "Get the points of a bundle that need a human decision, in order.", t.getTour)
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
-	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its main doc, its assets, the main doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
+	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
 	add(s, t, "verify_build", "Verify one build against the bundle. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
@@ -150,7 +150,7 @@ func (tools) getBundle(ctx context.Context, c *api.ClientWithResponses, in bundl
 		return nil, err
 	}
 	if text.StatusCode() != http.StatusOK {
-		return nil, fmt.Errorf("the main doc %s does not read: status %d", b.Path, text.StatusCode())
+		return nil, fmt.Errorf("the spec doc %s does not read: status %d", b.Path, text.StatusCode())
 	}
 	return map[string]any{"bundle": b, "files": files.JSON200.Items, "main_doc_text": string(text.Body)}, nil
 }
@@ -209,10 +209,10 @@ type contentFile struct {
 }
 
 type contentArg struct {
-	Files   []contentFile `json:"files" jsonschema:"the main doc and its assets"`
+	Files   []contentFile `json:"files" jsonschema:"the spec doc and its assets"`
 	Slug    string        `json:"slug,omitempty" jsonschema:"the bundle's slug, so links to and from other bundles resolve"`
-	MainDoc string        `json:"main_doc,omitempty" jsonschema:"the main doc of a single-file bundle, when its frontmatter has no type"`
-	Profile string        `json:"profile,omitempty" jsonschema:"the profile for a main doc with no type, such as prd or sdd"`
+	MainDoc string        `json:"main_doc,omitempty" jsonschema:"the spec doc of a single-file bundle, when its frontmatter has no type"`
+	Profile string        `json:"profile,omitempty" jsonschema:"the profile for a spec doc with no type, such as prd or sdd"`
 	Stages  []string      `json:"stages,omitempty" jsonschema:"the model stages to run: rubric, grounding, divergence, coherence. Absent means all."`
 }
 

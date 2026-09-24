@@ -9,7 +9,7 @@ This page lists each tool of Speccy's MCP server. `speccy mcp` runs the server o
 
 ## `get_bundle`
 
-Get one bundle: its files, its verdict, and the text of its main doc.
+Get one bundle: its files, its verdict, and the text of its spec doc.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -50,7 +50,7 @@ Get the current verdict of a bundle.
 
 ## `handoff_bundle`
 
-Take the build packet of a Build Ready bundle: its main doc, its assets, the main doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.
+Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -106,13 +106,13 @@ Run a review of a saved bundle and wait for the verdict. The model stages can ta
 
 ## `review_content`
 
-Review markdown files that are not saved: a main doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.
+Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `files` | null or array | yes | the main doc and its assets |
-| `main_doc` | string |  | the main doc of a single-file bundle, when its frontmatter has no type |
-| `profile` | string |  | the profile for a main doc with no type, such as prd or sdd |
+| `files` | null or array | yes | the spec doc and its assets |
+| `main_doc` | string |  | the spec doc of a single-file bundle, when its frontmatter has no type |
+| `profile` | string |  | the profile for a spec doc with no type, such as prd or sdd |
 | `slug` | string |  | the bundle's slug, so links to and from other bundles resolve |
 | `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
 
