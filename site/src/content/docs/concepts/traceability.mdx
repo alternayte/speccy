@@ -108,7 +108,7 @@ A contradiction needs a decision: one of the two docs is wrong. Change that doc.
 
 A verdict reads one version of the doc against one version of each linked doc. When a linked doc gets a new version, the verdict no longer describes what exists.
 
-A lint verdict costs nothing, so Speccy lints the downstream doc again at once. A new upstream ID then shows as a new gap. A full verdict keeps its model results, and it reads Stale with the message "A linked doc changed after this review. Run the review again."
+A lint verdict costs nothing, so Speccy lints the downstream doc again at once. A new upstream ID then shows as a new gap. A full verdict keeps its model results, and it reads Stale. The control row names the linked doc that changed, with a link to it. Run the review again to replace the verdict.
 
 ![The SDD's verdict reads Stale after the PRD changed](../../../assets/shots/linked-stale.png)
 

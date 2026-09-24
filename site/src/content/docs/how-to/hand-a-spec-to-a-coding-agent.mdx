@@ -26,6 +26,27 @@ The packet holds no findings and no review report. They describe the quality of 
 The verdict must be Build Ready, and it must belong to the current version. Otherwise Speccy refuses the packet and says why: no review, a stale verdict, or the count of MUST findings to fix.
 
 <Tabs>
+<TabItem label="Web app">
+
+On a Build Ready doc with no handoff, the next action reads **Hand it to a builder**. On any doc, **More → Hand it to a builder** opens the same dialog.
+
+<Steps>
+
+1. Click **Hand it to a builder**.
+
+2. Optional: in **Label**, name the work, such as a repo, a branch or a ticket.
+
+3. Click **Download the build packet**.
+
+</Steps>
+
+Speccy records the handoff and downloads a .zip file, such as `payment-retries-v3-build-packet.zip`. The .zip holds one folder with the files that `speccy handoff --out` writes. The **History** tab of the rail opens, and it lists the new handoff with its label.
+
+When the verdict is not Build Ready, or is stale, the dialog says why. **Download the build packet** stays off until you select **Take it anyway**.
+
+Under **Copy for a coding agent**, the dialog shows the `speccy handoff` command for this spec doc and a prompt that names the MCP tool `handoff_bundle`. Click **Copy**, and give the command or the prompt to the agent. The agent then takes the packet, and Speccy records that handoff. The command shows only in local mode, for a spec doc in the folder that Speccy serves.
+
+</TabItem>
 <TabItem label="MCP">
 
 Ask the agent to call `handoff_bundle` with the bundle's slug or ID. The tool returns the packet inline, with `HANDOFF.md` as text.
@@ -38,10 +59,12 @@ Ask the agent to call `handoff_bundle` with the bundle's slug or ID. The tool re
 Run the command in the folder that Speccy serves:
 
 ```sh
-speccy handoff docs/specs/refunds --out ./packet --label acme/payments
+speccy handoff docs/specs/refunds --out ../packet --label acme/payments
 ```
 
 Speccy writes the packet as a folder, and it prints the path of `HANDOFF.md`. With no `--out`, the folder is `handoff`. `--acknowledged` takes the packet from a bundle that is not Build Ready.
+
+Put the folder outside the folder that Speccy serves. Inside it, Speccy reads the spec docs of the packet as new spec docs.
 
 <FileTree>
 
@@ -59,8 +82,6 @@ The command uses `.speccy/state/`, the store that the app keeps beside your docs
 
 </TabItem>
 </Tabs>
-
-The web app has no control that takes a packet. On a Build Ready doc with no handoff, the next action reads **Hand it to a builder**. It opens the **History** tab of the rail, which lists the handoffs.
 
 <Aside type="caution">
 A handoff with `acknowledged` records the verdict at that moment, and **History** marks it "(override)". Use it for a deliberate spike, not to skip the review.

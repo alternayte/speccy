@@ -33,6 +33,7 @@ import { RunProgress, RunReviewButton, useActiveRun } from "./run-review";
 import { VersionsPanel } from "./versions-panel";
 import { DeleteBundleDialog } from "./delete-dialog";
 import { HandoffsPanel } from "./handoffs-panel";
+import { HandoffDialog } from "./handoff-dialog";
 import { VerificationsPanel } from "./verifications-panel";
 import { ReviewerPage } from "@/features/review/reviewer-page";
 import { ControlRow } from "./control-row";
@@ -73,6 +74,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number; docId: string }>();
   const [deleting, setDeleting] = useState(false);
   const [retyping, setRetyping] = useState(false);
+  const [handingOff, setHandingOff] = useState(false);
   // selectedFinding is the finding a click in the overlay picked; the rail scrolls to it.
   const [selectedFinding, setSelectedFinding] = useState<string>();
   // newThread is the anchor of a thread the user is starting (REQ-087).
@@ -217,8 +219,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         askReview.current?.();
         return;
       case "handoff":
-        setTab("history");
-        setPanel("rail");
+        setHandingOff(true);
         return;
     }
   };
@@ -265,6 +266,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         onExport={(format) =>
           window.location.assign(`/api/v1/docs/${docId}/export${format === "html" ? "?format=html" : ""}`)
         }
+        onHandoff={guest ? undefined : () => setHandingOff(true)}
         onPrint={() => {
           if (view === "code") setSearch({ ...search, view: "preview" });
           setTimeout(() => window.print(), 300);
@@ -295,6 +297,17 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
 
       <DeleteBundleDialog bundleId={bundleId} open={deleting} onOpenChange={setDeleting} />
       <ProfileDialog bundle={b} open={retyping} onOpenChange={setRetyping} />
+      <HandoffDialog
+        doc={b}
+        folder={folder.data?.slug}
+        cli={!hosted && b.source_kind === "local"}
+        open={handingOff}
+        onOpenChange={setHandingOff}
+        onTaken={() => {
+          setTab("history");
+          setPanel("rail");
+        }}
+      />
 
       <div className="no-print">{run.active ? <RunProgress events={run.events} /> : null}</div>
 
