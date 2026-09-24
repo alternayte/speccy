@@ -6,6 +6,8 @@
 
 /bin/
 /build/
+# `go build ./tools/buildtool` from the root writes the binary here.
+/buildtool
 node_modules/
 web/dist/*
 !web/dist/.keep

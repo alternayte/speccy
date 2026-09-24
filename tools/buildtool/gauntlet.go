@@ -204,40 +204,10 @@ func (s *server) call(method, path string, body, out any) error {
 	return nil
 }
 
-type bundleRef struct {
-	ID      string `json:"id"`
-	Slug    string `json:"slug"`
-	Verdict *struct {
-		RunID  string `json:"run_id"`
-		Result string `json:"result"`
-	} `json:"verdict"`
-	Version struct {
-		ID string `json:"id"`
-	} `json:"current_version"`
-}
-
-func (s *server) bundles() (map[string]bundleRef, error) {
-	var l struct{ Items []bundleRef }
-	if err := s.call("GET", "/bundles", nil, &l); err != nil {
-		return nil, err
-	}
-	m := map[string]bundleRef{}
-	for _, b := range l.Items {
-		m[b.Slug] = b
-	}
-	return m, nil
-}
-
-func (s *server) bundle(id string) (bundleRef, error) {
-	var b bundleRef
-	err := s.call("GET", "/bundles/"+id, nil, &b)
-	return b, err
-}
-
 // review runs a full review and waits for it to end.
 func (s *server) review(id string) (string, error) {
 	var r struct{ ID string }
-	if err := s.call("POST", "/bundles/"+id+"/runs", nil, &r); err != nil {
+	if err := s.call("POST", "/docs/"+id+"/runs", nil, &r); err != nil {
 		return "", err
 	}
 	return r.ID, s.waitRun(r.ID)
@@ -259,11 +229,11 @@ func (s *server) waitRun(id string) error {
 	return errors.New("the review did not end in 15 minutes")
 }
 
-// waitVersion waits until the bundle has a current version other than old: the file watcher
+// waitVersion waits until the doc has a current version other than old: the file watcher
 // saw an edit on disk.
 func (s *server) waitVersion(id, old string) error {
 	for i := 0; i < 100; i++ {
-		b, err := s.bundle(id)
+		b, err := s.doc(id)
 		if err != nil {
 			return err
 		}
@@ -301,7 +271,7 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 		return err
 	}
 	defer s.stop()
-	bs, err := s.bundles()
+	bs, err := s.docs()
 	if err != nil {
 		return err
 	}
@@ -377,10 +347,10 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 	// Verdict bar: running, then a full review of the draft PRD for the overlay and the tour.
 	draft := bs["draft-prd"]
 	var started struct{ ID string }
-	if err := s.call("POST", "/bundles/"+draft.ID+"/runs", nil, &started); err != nil {
+	if err := s.call("POST", "/docs/"+draft.ID+"/runs", nil, &started); err != nil {
 		return err
 	}
-	if err := g.shot("verdict-running", u("/bundles/"+draft.ID+"?view=preview"), nil); err != nil {
+	if err := g.shot("verdict-running", u(draft.page()+"?view=preview"), nil); err != nil {
 		return err
 	}
 	if err := s.waitRun(started.ID); err != nil {
@@ -399,7 +369,7 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 	if err := s.waitVersion(bs["payments-prd"].ID, bs["payments-prd"].Version.ID); err != nil {
 		return err
 	}
-	if err := g.shot("verdict-stale", u("/bundles/"+sdd.ID+"?view=preview"), nil); err != nil {
+	if err := g.shot("verdict-stale", u(sdd.page()+"?view=preview"), nil); err != nil {
 		return err
 	}
 
@@ -420,7 +390,7 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 			continue
 		}
 		var wv struct{ ID string }
-		if err := s.call("POST", "/bundles/"+w.ID+"/waivers", map[string]string{"finding_id": f.ID, "reason": "The payment methods are listed in the provider contract."}, &wv); err != nil {
+		if err := s.call("POST", "/docs/"+w.ID+"/waivers", map[string]string{"finding_id": f.ID, "reason": "The payment methods are listed in the provider contract."}, &wv); err != nil {
 			return err
 		}
 		if err := s.call("POST", "/waivers/"+wv.ID+"/approve", nil, nil); err != nil {
@@ -433,20 +403,20 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 		return errors.New("waived-prd has no SHOULD finding to waive")
 	}
 	time.Sleep(time.Second)
-	if err := g.shot("verdict-waivers", u("/bundles/"+w.ID+"?view=preview"), nil); err != nil {
+	if err := g.shot("verdict-waivers", u(w.page()+"?view=preview"), nil); err != nil {
 		return err
 	}
-	if err := g.shot("verdict-build-ready", u("/bundles/"+bs["audit-sdd"].ID+"?view=preview"), nil); err != nil {
+	if err := g.shot("verdict-build-ready", u(bs["audit-sdd"].page()+"?view=preview"), nil); err != nil {
 		return err
 	}
-	if err := g.shot("verdict-not-build-ready", u("/bundles/"+bs["restated-sdd"].ID+"?view=preview"), nil); err != nil {
+	if err := g.shot("verdict-not-build-ready", u(bs["restated-sdd"].page()+"?view=preview"), nil); err != nil {
 		return err
 	}
 
 	// The bundle view with every overlay layer on (BUILD.md §6.2), in its three views, and the
 	// preview with the default layers that a reader first sees.
 	for _, view := range []string{"preview", "code", "split"} {
-		if err := g.shot("bundle-"+view, u("/bundles/"+draft.ID+"?view="+view), func() error {
+		if err := g.shot("bundle-"+view, u(draft.page()+"?view="+view), func() error {
 			if _, err := g.ab("eval", `localStorage.setItem('speccy.overlay', JSON.stringify(["risk","ambiguous","contradicted","unverified","slop"]))`); err != nil {
 				return err
 			}
@@ -457,7 +427,7 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 			return err
 		}
 	}
-	if err := g.shot("bundle-default", u("/bundles/"+draft.ID+"?view=preview"), func() error {
+	if err := g.shot("bundle-default", u(draft.page()+"?view=preview"), func() error {
 		if _, err := g.ab("eval", `localStorage.removeItem('speccy.overlay')`); err != nil {
 			return err
 		}
@@ -467,17 +437,17 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 	}); err != nil {
 		return err
 	}
-	draft, err = s.bundle(draft.ID)
+	draft, err = s.doc(draft.ID)
 	if err != nil {
 		return err
 	}
-	if err := g.shot("run-report", u("/bundles/"+draft.ID+"/runs/"+draft.Verdict.RunID), nil); err != nil {
+	if err := g.shot("run-report", u(draft.page()+"/runs/"+draft.Verdict.RunID), nil); err != nil {
 		return err
 	}
 
 	// Tour: the first point, a middle point, and the last point.
 	var tour struct{ Points []any }
-	if err := s.call("GET", "/bundles/"+draft.ID+"/tour", nil, &tour); err != nil {
+	if err := s.call("GET", "/docs/"+draft.ID+"/tour", nil, &tour); err != nil {
 		return err
 	}
 	if len(tour.Points) < 3 {
@@ -498,12 +468,12 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 		name string
 		n    int
 	}{{"tour-first", 0}, {"tour-middle", len(tour.Points) / 2}, {"tour-last", len(tour.Points) - 1}} {
-		if err := g.shot(p.name, u("/bundles/"+draft.ID+"/tour"), press(p.n)); err != nil {
+		if err := g.shot(p.name, u(draft.page()+"/tour"), press(p.n)); err != nil {
 			return err
 		}
 	}
 
-	if err := g.shot("trace-matrix", u("/bundles/"+bs["payments-prd"].ID+"/trace"), nil); err != nil {
+	if err := g.shot("trace-matrix", u(bs["payments-prd"].page()+"/trace"), nil); err != nil {
 		return err
 	}
 	if err := g.shot("inbox-full", u("/inbox"), nil); err != nil {
@@ -524,12 +494,12 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 	if err := s.waitVersion(draft.ID, from); err != nil {
 		return err
 	}
-	now, err := s.bundle(draft.ID)
+	now, err := s.doc(draft.ID)
 	if err != nil {
 		return err
 	}
 	// The first capture asks the model; the others read the cached summary.
-	return g.shot("diff-summary", u(fmt.Sprintf("/bundles/%s/diff?from=%s&to=%s", draft.ID, from, now.Version.ID)), func() error {
+	return g.shot("diff-summary", u(draft.page()+fmt.Sprintf("/diff?from=%s&to=%s", from, now.Version.ID)), func() error {
 		if _, err := g.ab("find", "role", "button", "click", "--name", "Summarize the change"); err != nil {
 			return err
 		}
@@ -601,13 +571,14 @@ func (g *gauntlet) hosted(root, bin, doc string) error {
 	if err := s.importFile(doc); err != nil {
 		return err
 	}
-	bs, err := s.bundles()
+	bs, err := s.docs()
 	if err != nil {
 		return err
 	}
+	// Visibility and the share link belong to the bundle: the folder, not one doc in it.
 	var id string
 	for _, b := range bs {
-		id = b.ID
+		id = b.BundleID
 	}
 	if err := s.call("PUT", "/bundles/"+id+"/visibility", map[string]string{"visibility": "link"}, nil); err != nil {
 		return err
