@@ -39,10 +39,23 @@ func openSessionIn(ctx context.Context, dir string, keep bool) (*session, error)
 		return nil, err
 	}
 	state := filepath.Join(root.Dir(), ".speccy", "state")
+	key := ""
 	s := &session{root: root}
 	if dir := os.Getenv("SPECCY_STATE_DIR"); dir != "" {
-		// CI keeps the store between runs, for example in the Actions cache (SDD §12.4).
+		// CI keeps the store between runs, for example in the Actions cache (SDD §12.4). A pull
+		// request from a fork can restore that cache and run its own steps, so the key that
+		// opens the store's secrets lives outside it, for this run only. SPECCY_MODELS writes
+		// the API keys again on each run. A key file from an older Speccy leaves the folder.
 		state = dir
+		if err := os.Remove(filepath.Join(dir, "key")); err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+		tmp, err := os.MkdirTemp("", "speccy-key-")
+		if err != nil {
+			return nil, err
+		}
+		context.AfterFunc(ctx, func() { _ = os.RemoveAll(tmp) })
+		key = filepath.Join(tmp, "key")
 	} else if keep {
 		if err := os.MkdirAll(state, 0o755); err != nil {
 			return nil, err
@@ -55,7 +68,10 @@ func openSessionIn(ctx context.Context, dir string, keep bool) (*session, error)
 		context.AfterFunc(ctx, func() { _ = os.RemoveAll(tmp) })
 		state, s.temp = tmp, true
 	}
-	a, db, err := openApp(ctx, root, state)
+	if key == "" {
+		key = filepath.Join(state, "key")
+	}
+	a, db, err := openApp(ctx, root, state, key)
 	if err != nil {
 		return nil, err
 	}

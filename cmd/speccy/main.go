@@ -181,7 +181,8 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	if err != nil {
 		return nil, err
 	}
-	a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"))
+	state := filepath.Join(root.Dir(), ".speccy", "state")
+	a, db, err := openApp(ctx, root, state, filepath.Join(state, "key"))
 	if err != nil {
 		return nil, err
 	}
@@ -198,9 +199,10 @@ func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, er
 	return func(spa fs.FS) nethttp.Handler { return localHandler(spa, a, db) }, nil
 }
 
-// openApp opens the SQLite store in stateDir and builds the services over the folder of root.
-// It syncs the bundles on disk once. The store closes when ctx ends.
-func openApp(ctx context.Context, root *local.Root, stateDir string) (*app.App, *store.DB, error) {
+// openApp opens the SQLite store in stateDir and builds the services over the folder of root,
+// with the secret key in keyFile. It syncs the bundles on disk once. The store closes when ctx
+// ends.
+func openApp(ctx context.Context, root *local.Root, stateDir, keyFile string) (*app.App, *store.DB, error) {
 	if err := os.MkdirAll(stateDir, 0o700); err != nil {
 		return nil, nil, err
 	}
@@ -213,7 +215,7 @@ func openApp(ctx context.Context, root *local.Root, stateDir string) (*app.App, 
 		return nil, nil, err
 	}
 	// SDD §14.1: local mode keeps the secret key in .speccy/state/key, mode 0600.
-	sealer, err := kernel.LocalSealer(filepath.Join(stateDir, "key"))
+	sealer, err := kernel.LocalSealer(keyFile)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -80,7 +80,7 @@ func TestCLI_ExitCodes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"))
+		a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"), filepath.Join(root.Dir(), ".speccy", "state", "key"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,6 +139,38 @@ func TestCLI_SummaryNoSetup(t *testing.T) {
 	}
 	if js.Totals.Bundles != 3 || js.Totals.BuildReady != 2 || js.Bundles[0].Path != "draft-prd" || js.Bundles[0].Verdict != "not_build_ready" || len(js.Bundles[0].Top) != 3 {
 		t.Errorf("json summary = %+v", js)
+	}
+}
+
+// A store kept between CI runs (SPECCY_STATE_DIR, the Actions cache) holds no key that opens
+// its secrets. A pull request from a fork can restore that cache and run its own steps, so a
+// key file next to the store would hand it the model API key.
+func TestCLI_StateDirHoldsNoKey(t *testing.T) {
+	dir := fixtures(t, "draft-prd")
+	state := t.TempDir()
+	t.Setenv("SPECCY_STATE_DIR", state)
+	t.Setenv("SPECCY_MODELS", "all=anthropic:claude-test")
+	t.Setenv("SPECCY_ANTHROPIC_API_KEY", "sk-ant-test-secret")
+	for run := 1; run <= 2; run++ {
+		if code, out, errOut := runIn(t, dir, "review", ".", "--stages", "lint"); code != exitOK {
+			t.Fatalf("run %d: exit %d\n%s\n%s", run, code, out, errOut)
+		}
+		err := filepath.WalkDir(state, func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			if d.Name() == "key" {
+				t.Errorf("run %d left the key file %s in the state folder", run, p)
+			}
+			b, err := os.ReadFile(p)
+			if err == nil && bytes.Contains(b, []byte("sk-ant-test-secret")) {
+				t.Errorf("run %d wrote the API key in clear to %s", run, p)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

@@ -78,6 +78,14 @@ The Action runs in one of two modes.
 
 Standalone mode is the default.
 
+### What the review cache holds
+
+The review cache holds the store: the versions, the reviews and the cached model answers. It holds no key that opens the store's secrets. Speccy makes that key in a temporary folder for each run, outside the cache, and deletes it at the end of the run. The `models` input writes the API keys into the store again on each run.
+
+<Aside type="caution">
+Before v0.18.1, the cache also held the key file. A pull request from a fork can restore a cache, so it could read the model API key. Did your repo run the Action with a model key on an older version? Then delete the old caches with `gh cache delete --all`. Then rotate the API key.
+</Aside>
+
 ### Turn on connected mode
 
 <Steps>

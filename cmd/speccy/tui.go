@@ -51,7 +51,7 @@ func runTUI(args []string, stderr io.Writer) int {
 		defer func() { _ = logFile.Close() }()
 		slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	}
-	a, db, err := openApp(ctx, root, state)
+	a, db, err := openApp(ctx, root, state, filepath.Join(state, "key"))
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy tui: %v.\n", err)
 		return exitRun

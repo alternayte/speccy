@@ -69,16 +69,20 @@ runs:
         tar -xzf "$RUNNER_TEMP"/speccy/speccy_*_"${platform}".tar.gz -C "$RUNNER_TEMP/speccy"
         echo "$RUNNER_TEMP/speccy" >> "$GITHUB_PATH"
 
-    # Standalone mode keeps the review cache between runs (SDD §12.4).
+    # Standalone mode keeps the review cache between runs (SDD §12.4). The cache holds no key
+    # that opens the store's secrets: a pull request from a fork can restore it. The v2 prefix
+    # leaves behind the caches of Speccy before v0.18.1, which held that key.
     - name: Restore the review cache
       if: inputs.server == ''
       uses: actions/cache@v4
       with:
-        path: ${{ runner.temp }}/speccy-state
-        key: speccy-${{ github.event.pull_request.number || github.ref_name }}-${{ github.sha }}
+        path: |
+          ${{ runner.temp }}/speccy-state
+          !${{ runner.temp }}/speccy-state/key
+        key: speccy-v2-${{ github.event.pull_request.number || github.ref_name }}-${{ github.sha }}
         restore-keys: |
-          speccy-${{ github.event.pull_request.number || github.ref_name }}-
-          speccy-
+          speccy-v2-${{ github.event.pull_request.number || github.ref_name }}-
+          speccy-v2-
 
     - name: Review
       shell: bash
