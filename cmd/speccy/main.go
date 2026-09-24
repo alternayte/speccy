@@ -43,19 +43,23 @@ const usage = `Usage:
   speccy add <url> [--profile <key>]                     Make a GitHub source from a URL, and sync it once.
   speccy init --github                                   Adopt this repo: map its docs, relax the checks that
                                                          fail today, and write the Action's workflow.
-  speccy review <path…> [--format text|json|md] [--summary] [--server URL]
+  speccy review <path…> [--format text|json|md] [--summary] [--server URL] [--adopt]
                 [--stages lint,rubric,grounding,divergence,coherence] [--enforcement advisory|blocking]
                                                          Review bundles. Exit codes: 0 Build Ready or advisory,
                                                          1 Not Build Ready in blocking mode, 2 usage, 3 run error.
-  speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]
+                                                         --adopt writes the type and the size the review used
+                                                         into each doc's frontmatter.
+  speccy action [--server URL] [--stages …] [--enforcement advisory|blocking] [--verify]
                                                          The GitHub Action: review the bundles a pull request
-                                                         changes, and comment on it.
+                                                         changes, and comment on it. --verify runs the
+                                                         verification gate instead of the review.
   speccy tui                                             Open the terminal UI.
   speccy mcp                                             Run the MCP server over stdio.
   speccy profile validate <file>                         Check a profile file.
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
+                [--blocked | --note] [--section "A › B"] [--trace-id REQ-012]
   speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
                                                          the repo the doc's implemented-by link names.
   speccy admin invite --role admin|member                Print an invite link (hosted).

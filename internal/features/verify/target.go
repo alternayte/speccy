@@ -81,6 +81,9 @@ func (a *API) resolve(ctx context.Context, target string) (Resolved, error) {
 			out.Repo = pr.HeadRepo
 		}
 	default:
+		if b.Ref, err = c.ResolveBranch(ctx, b.Ref); err != nil {
+			return Resolved{}, github.UnreadableRepo(b.Repo, err)
+		}
 		out.Branch = b.Branch
 		if out.Branch == "" {
 			out.Branch = def

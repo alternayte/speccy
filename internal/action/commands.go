@@ -55,11 +55,13 @@ type Command struct {
 
 // Commands returns the reply commands of the Speccy threads, oldest reply first. A thread with
 // more than one command keeps the last, because a person who writes a second reply means it.
+// A resolved thread is left out: a run that applied its command, or found its finding gone,
+// resolved it, so a command applies once.
 func Commands(threads []github.Thread) []Command {
 	var out []Command
 	for _, t := range threads {
 		k := keyIn(t.Body)
-		if k == "" {
+		if k == "" || t.Resolved {
 			continue
 		}
 		var last *Command

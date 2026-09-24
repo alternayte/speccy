@@ -257,3 +257,57 @@ func TestCLI_InitGitHub(t *testing.T) {
 		t.Errorf("the output does not say what happened:\n%s", out)
 	}
 }
+
+// The workflow that speccy init --github writes pins the Action at the release of the binary
+// that wrote it. A dev build is no release, so it pins main.
+func TestInitGitHub_WorkflowPinsTheRelease(t *testing.T) {
+	cases := map[string]string{
+		"v0.9.0":              "alternayte/speccy@v0.9.0\n",
+		"0.9.0":               "alternayte/speccy@v0.9.0\n",
+		"dev":                 "alternayte/speccy@main\n",
+		"v0.9.0-3-gabc-dirty": "alternayte/speccy@main\n",
+	}
+	for version, want := range cases {
+		if got := workflowFor(version); !strings.Contains(got, want) || strings.Contains(got, "@v0.1.0") {
+			t.Errorf("version %s: the workflow does not pin %s:\n%s", version, strings.TrimSpace(want), got)
+		}
+	}
+}
+
+// speccy init --github on a repo with a .speccy.yaml adds its mappings and relaxed checks to
+// the file, and keeps the keys and comments that are there.
+func TestCLI_InitGitHubKeepsTheRepoConfig(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("docs/prd-payments.md", "# Payments\n\n## Problem\n\nCustomers wait.\n\n## Requirements\n\n- The system must refund a card payment within 5 working days.\n\n## Out of scope\n\nBank transfers.\n")
+	write(".speccy.yaml", "# the team's own comment\nmode: standalone\nlink_patterns:\n  jira: https://acme.atlassian.net/browse/{key}\nadoption:\n  relaxed:\n    - team.own-check\n")
+	code, out, errOut := runIn(t, dir, "init", "--github")
+	if code != exitOK {
+		t.Fatalf("exit %d\n%s\n%s", code, out, errOut)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ".speccy.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := source.ParseRepoConfig(raw)
+	if err != nil {
+		t.Fatalf("%v:\n%s", err, raw)
+	}
+	if cfg.Mode != "standalone" || cfg.LinkPatterns["jira"] == "" || !strings.Contains(string(raw), "the team's own comment") {
+		t.Errorf("the keys of the file are gone:\n%s", raw)
+	}
+	if len(cfg.Map) != 1 || cfg.Map[0].Glob != "docs/*.md" {
+		t.Errorf("mappings %+v, want one glob for docs/:\n%s", cfg.Map, raw)
+	}
+	if len(cfg.Adoption.Relaxed) < 2 || cfg.Adoption.Relaxed[0] != "team.own-check" {
+		t.Errorf("relaxed %v, want the team's check and the ones that fail today:\n%s", cfg.Adoption.Relaxed, raw)
+	}
+}

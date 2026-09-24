@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"path"
@@ -16,6 +17,7 @@ type Ref struct {
 	Branch string // the branch, or "" for the repo's default branch
 	Path   string // the folder, the doc, or "." for the whole repo
 	File   bool   // Path names one doc, not a folder
+	kind   string // tree or blob, as the URL says, or "" when it names no branch
 }
 
 // APIURL is the API of the ref's host. github.com has its own API host; GitHub Enterprise
@@ -49,17 +51,66 @@ func ParseURL(raw string) (Ref, error) {
 	if len(parts) < 4 {
 		return bad()
 	}
-	ref.Branch = parts[3]
+	// The branch is one path segment here, as most branch names are. ResolveBranch finds a
+	// branch whose name has a slash.
+	ref.kind, ref.Branch = kind, parts[3]
 	if len(parts) > 4 {
 		ref.Path = path.Join(parts[4:]...)
 	}
-	// A blob URL names one doc. A tree URL with a file name is one too, because GitHub uses
-	// tree for both when it redirects.
-	ref.File = kind == "blob" || (ref.Path != "." && path.Ext(ref.Path) != "")
+	ref.File = ref.namesDoc()
 	if ref.File && ref.Path == "." {
 		return bad()
 	}
 	return ref, nil
+}
+
+// namesDoc reports whether the ref names one doc. A blob URL names one doc. A tree URL with a
+// file name is one too, because GitHub uses tree for both when it redirects.
+func (r Ref) namesDoc() bool {
+	return r.kind == "blob" || (r.Path != "." && path.Ext(r.Path) != "")
+}
+
+// ResolveBranch finds where the branch of a tree or blob URL ends. The URL does not say, and a
+// branch name can have a slash, such as feature/retries. The one-segment branch that ParseURL
+// took is tried first, because most names are one segment; then each longer prefix of the path.
+// Git allows no branch that is a folder of another (feature and feature/retries cannot both
+// exist), so at most one prefix is a branch, and it is the longest that exists. When no prefix
+// is a branch, the ref stays as ParseURL read it, because the name can be a tag or a commit.
+// The error is GitHub's.
+func (c *Client) ResolveBranch(ctx context.Context, ref Ref) (Ref, error) {
+	if ref.kind == "" || ref.Path == "." {
+		return ref, nil
+	}
+	segs := append([]string{ref.Branch}, strings.Split(ref.Path, "/")...)
+	for n := 1; n <= len(segs); n++ {
+		branch := strings.Join(segs[:n], "/")
+		ok, err := c.hasBranch(ctx, ref.Repo, branch)
+		if err != nil {
+			return ref, err
+		}
+		if !ok {
+			continue
+		}
+		out := ref
+		out.Branch, out.Path = branch, "."
+		if n < len(segs) {
+			out.Path = path.Join(segs[n:]...)
+		}
+		// A blob URL that is all branch keeps File with the Path "." it names, for the caller
+		// that needs a doc to refuse.
+		out.File = out.namesDoc()
+		return out, nil
+	}
+	return ref, nil
+}
+
+// hasBranch reports whether the repo has a branch of exactly this name.
+func (c *Client) hasBranch(ctx context.Context, repo, branch string) (bool, error) {
+	err := c.do(ctx, "GET", repoPath(repo)+"/git/ref/heads/"+escapeRef(branch), nil, nil)
+	if IsNotFound(err) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // split reads the host and the path segments of a GitHub address. The first two segments are
