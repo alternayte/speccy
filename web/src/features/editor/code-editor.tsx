@@ -89,7 +89,7 @@ export function CodeEditor({
   path: string;
   readOnly?: boolean;
   onChange: (text: string) => void;
-  onSave: () => void;
+  onSave?: () => void;
   onView?: (view: EditorView | null) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -112,11 +112,13 @@ export function CodeEditor({
           syntaxHighlighting(highlight),
           theme,
           EditorState.readOnly.of(readOnly),
+          // A host with no onSave binds ⌘S and Ctrl+S itself: the doc editor pane saves from
+          // every view, the preview too.
           keymap.of([
             {
               key: "Mod-s",
-              preventDefault: true,
               run: () => {
+                if (!handlers.current.onSave) return false;
                 handlers.current.onSave();
                 return true;
               },

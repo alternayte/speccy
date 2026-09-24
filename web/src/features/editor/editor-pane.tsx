@@ -180,9 +180,34 @@ export function EditorPane({
     },
   });
 
+  // latest is the text as of the last change, which a save reads: the editable preview commits
+  // its open block just before the save, in the same event, before React renders the new text.
+  const latest = useRef(text);
+  latest.current = text;
+  const change = useCallback((t: string) => {
+    latest.current = t;
+    setText(t);
+  }, []);
+  // commitPreview puts the open block of the editable preview into the text.
+  const commitPreview = useRef<(() => void) | null>(null);
+
   const doSave = useCallback(() => {
-    if (!readOnly && text !== null && text !== saved && !save.isPending) save.mutate(text);
-  }, [readOnly, text, saved, save]);
+    commitPreview.current?.();
+    const body = latest.current;
+    if (!readOnly && body !== null && body !== saved && !save.isPending) save.mutate(body);
+  }, [readOnly, saved, save]);
+
+  // ⌘S and Ctrl+S save in every view, and the browser's own Save dialog never opens: the pane
+  // binds them once, for the whole page it is on.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      doSave();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [doSave]);
 
   const reload = () => {
     save.reset();
@@ -355,7 +380,7 @@ export function EditorPane({
           target={target}
           profileKey={profileKey}
           markdown={text ?? ""}
-          onInsertSection={(next) => setText(next)}
+          onInsertSection={(next) => change(next)}
         />
       ) : null}
       {hint ? (
@@ -399,8 +424,7 @@ export function EditorPane({
               docKey={`${path}@${loadVersion.id}`}
               initial={file.data.text}
               path={path}
-              onChange={setText}
-              onSave={doSave}
+              onChange={change}
               onView={attachView}
               readOnly={readOnly}
             />
@@ -416,7 +440,8 @@ export function EditorPane({
               path={path}
               onOpenPath={onOpenPath}
               onScroll={onPreviewScroll}
-              onChange={readOnly || !isMarkdown(path) ? undefined : setText}
+              onChange={readOnly || !isMarkdown(path) ? undefined : change}
+              commitRef={commitPreview}
               onTarget={bar ? setTarget : undefined}
               findings={findings}
               onOpenFinding={onOpenFinding}

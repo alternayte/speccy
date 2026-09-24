@@ -38,13 +38,18 @@ export const Preview = forwardRef<
     // onChange makes the preview editable: a click opens the markdown of the block it lands on,
     // and a commit gives the whole file back with that block replaced.
     onChange?: (markdown: string) => void;
+    // commitRef receives the commit of the open block, so a save commits it first.
+    commitRef?: React.RefObject<(() => void) | null>;
     // onTarget reports the open block to the control bar, or null when none is open.
     onTarget?: (t: Target | null) => void;
     // findings are the current review's findings; the overlay shows those of this file (SDD §13.2).
     findings?: Finding[];
     onOpenFinding?: (f: Finding) => void;
   }
->(function Preview({ markdown, docId, path, onOpenPath, onScroll, onChange, onTarget, findings, onOpenFinding }, ref) {
+>(function Preview(
+  { markdown, docId, path, onOpenPath, onScroll, onChange, commitRef, onTarget, findings, onOpenFinding },
+  ref,
+) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [article, setArticle] = useState<HTMLElement | null>(null);
@@ -186,6 +191,14 @@ export const Preview = forwardRef<
     }
     setEditing(null);
   }, [editing, markdown, onChange]);
+
+  useEffect(() => {
+    if (!commitRef) return;
+    commitRef.current = commit;
+    return () => {
+      commitRef.current = null;
+    };
+  }, [commitRef, commit]);
 
   return (
     <div ref={ref} onScroll={onScroll} className="print-only-doc h-full overflow-y-auto bg-surface">
