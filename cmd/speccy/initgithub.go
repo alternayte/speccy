@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -67,20 +70,61 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "Speccy found no markdown file that reads like a spec. Add \"type: <profile>\" to one, or write a mapping by hand.")
 		return exitOK
 	}
-	mappings := mapDocs(dir, docs)
 	cfgPath := filepath.Join(dir, source.RepoConfigFile)
-	if err := os.WriteFile(cfgPath, []byte(repoConfigFor(mappings, nil)), 0o644); err != nil {
+	// A repo with a .speccy.yaml keeps it: the mappings and the relaxed checks are added to it,
+	// as the app adds a mapping, and a doc it maps already keeps its mapping.
+	was, err := os.ReadFile(cfgPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 		return exitRun
 	}
-	fmt.Fprintf(stdout, "Wrote %s: %d mapping%s for %d doc%s.\n", source.RepoConfigFile,
-		len(mappings), pluralS(len(mappings)), len(docs), pluralS(len(docs)))
+	existing := len(bytes.TrimSpace(was)) > 0
+	if existing {
+		cfg, err := source.ParseRepoConfig(was)
+		if err != nil {
+			fmt.Fprintf(stderr, "speccy init: %v. Fix it, then run speccy init --github again.\n", err)
+			return exitRun
+		}
+		docs = slices.DeleteFunc(docs, func(g guessed) bool {
+			_, mapped := cfg.MappedProfile(g.path)
+			return mapped
+		})
+	}
+	mappings := mapDocs(dir, docs)
+	next := []byte(repoConfigFor(mappings, nil))
+	if existing {
+		if next, err = source.AddMappings(was, mappings); err != nil {
+			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
+			return exitRun
+		}
+	}
+	if err := os.WriteFile(cfgPath, next, 0o644); err != nil {
+		fmt.Fprintf(stderr, "speccy init: %v.\n", err)
+		return exitRun
+	}
+	switch {
+	case !existing:
+		fmt.Fprintf(stdout, "Wrote %s: %d mapping%s for %d doc%s.\n", source.RepoConfigFile,
+			len(mappings), pluralS(len(mappings)), len(docs), pluralS(len(docs)))
+	case len(mappings) == 0:
+		fmt.Fprintf(stdout, "%s maps every doc Speccy found already.\n", source.RepoConfigFile)
+	default:
+		fmt.Fprintf(stdout, "Added %d mapping%s for %d doc%s to %s. Its other keys are as they were.\n",
+			len(mappings), pluralS(len(mappings)), len(docs), pluralS(len(docs)), source.RepoConfigFile)
+	}
 
 	relaxed, err := failingChecks(dir, stderr)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy init: the first review did not run, so no check is relaxed: %v.\n", err)
 	} else if len(relaxed) > 0 {
-		if err := os.WriteFile(cfgPath, []byte(repoConfigFor(mappings, relaxed)), 0o644); err != nil {
+		out := []byte(repoConfigFor(mappings, relaxed))
+		if existing {
+			if out, err = source.Relax(next, relaxed); err != nil {
+				fmt.Fprintf(stderr, "speccy init: %v.\n", err)
+				return exitRun
+			}
+		}
+		if err := os.WriteFile(cfgPath, out, 0o644); err != nil {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
