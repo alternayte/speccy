@@ -1,7 +1,7 @@
 import type { View } from "@/features/editor/editor-pane";
 
 // waiver is the waiver an inbox link opens: the rail selects the finding it excuses, and the
-// preview focuses the section it covers.
+// preview focuses the section it covers. A verification waiver opens its run in History.
 // as=reviewer puts a person who can edit into reviewer mode, to see what a reviewer sees.
 export type BundleSearch = { file?: string; view?: View; waiver?: string; as?: "reviewer" };
 

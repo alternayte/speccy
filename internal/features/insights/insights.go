@@ -188,6 +188,7 @@ func (a *API) GetInsights(ctx context.Context, _ api.GetInsightsRequestObject) (
 			verified += c.Implemented + c.Untested + c.Unproven + c.Missing + c.Breached
 			wrong += c.Missing + c.Breached
 		}
+		pi.VerifiedTraceIds = verified
 		if verified > 0 {
 			pi.BreachRate = float32(wrong) / float32(verified)
 		}

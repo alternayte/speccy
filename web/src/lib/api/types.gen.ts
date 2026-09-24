@@ -1283,7 +1283,23 @@ export type Waiver = {
     decision_reason?: string;
     section_range?: SectionRange;
     trace?: TraceAck;
+    verification?: VerificationExcuse;
     created_at: string;
+};
+
+/**
+ * What a verification waiver excuses. It never goes in the sidecar.
+ */
+export type VerificationExcuse = {
+    trace_id: string;
+    /**
+     * The code repo, or the folder, as the verification run names it.
+     */
+    repo: string;
+    /**
+     * The verification run the request came from. Empty for a request that named no run.
+     */
+    run_id?: string;
 };
 
 /**
@@ -1486,7 +1502,7 @@ export type InboxItem = {
     bundle_title: string;
     thread_id?: string;
     /**
-     * The waiver an item is about. The bundle page opens on the finding it excuses.
+     * The waiver an item is about. The bundle page opens on the finding it excuses, or on the verification run a verification waiver came from.
      */
     waiver_id?: string;
     text: string;
@@ -1531,6 +1547,10 @@ export type ProfileInsights = {
      * The share of verified trace IDs of this profile that came back breached or missing. 0 with no verification runs.
      */
     breach_rate: number;
+    /**
+     * The trace IDs that the verification runs of this profile verified, which the breach rate divides by.
+     */
+    verified_trace_ids: number;
     /**
      * The share of Build Ready handoffs of this profile that came back blocked (REQ-137). 0 with no handoffs.
      */
@@ -2156,6 +2176,10 @@ export type RequestVerificationWaiverData = {
          */
         repo: string;
         reason: string;
+        /**
+         * The verification run the request comes from, in the same repo. The inbox link to the request opens it.
+         */
+        run_id?: string;
     };
     path: {
         /**

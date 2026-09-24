@@ -2319,7 +2319,7 @@ type InboxItem struct {
 	ThreadId *openapi_types.UUID `json:"thread_id,omitempty"`
 	Unread   bool                `json:"unread"`
 
-	// WaiverId The waiver an item is about. The bundle page opens on the finding it excuses.
+	// WaiverId The waiver an item is about. The bundle page opens on the finding it excuses, or on the verification run a verification waiver came from.
 	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
@@ -2668,7 +2668,10 @@ type ProfileInsights struct {
 		CheckSlug string `json:"check_slug"`
 		Count     int    `json:"count"`
 	} `json:"top_failing"`
-	WaiverRate []struct {
+
+	// VerifiedTraceIds The trace IDs that the verification runs of this profile verified, which the breach rate divides by.
+	VerifiedTraceIds int `json:"verified_trace_ids"`
+	WaiverRate       []struct {
 		CheckSlug string `json:"check_slug"`
 		Requested int    `json:"requested"`
 		Waived    int    `json:"waived"`
@@ -3238,6 +3241,16 @@ type VerificationDefaults struct {
 	Items []VerificationDefault `json:"items"`
 }
 
+// VerificationExcuse What a verification waiver excuses. It never goes in the sidecar.
+type VerificationExcuse struct {
+	// Repo The code repo, or the folder, as the verification run names it.
+	Repo string `json:"repo"`
+
+	// RunId The verification run the request came from. Empty for a request that named no run.
+	RunId   *openapi_types.UUID `json:"run_id,omitempty"`
+	TraceId string              `json:"trace_id"`
+}
+
 // VerificationList defines model for VerificationList.
 type VerificationList struct {
 	Items []Verification `json:"items"`
@@ -3368,6 +3381,9 @@ type Waiver struct {
 
 	// Trace An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
 	Trace *TraceAck `json:"trace,omitempty"`
+
+	// Verification What a verification waiver excuses. It never goes in the sidecar.
+	Verification *VerificationExcuse `json:"verification,omitempty"`
 }
 
 // WaiverStatus defines model for Waiver.Status.
@@ -3604,8 +3620,11 @@ type RequestVerificationWaiverJSONBody struct {
 	Reason string `json:"reason"`
 
 	// Repo The code repo, or the folder, this excuse applies to.
-	Repo    string `json:"repo"`
-	TraceId string `json:"trace_id"`
+	Repo string `json:"repo"`
+
+	// RunId The verification run the request comes from, in the same repo. The inbox link to the request opens it.
+	RunId   *openapi_types.UUID `json:"run_id,omitempty"`
+	TraceId string              `json:"trace_id"`
 }
 
 // ListVersionsParams defines parameters for ListVersions.
