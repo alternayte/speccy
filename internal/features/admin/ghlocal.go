@@ -27,6 +27,9 @@ func (a *API) LocalGitHubClient(ctx context.Context, apiURL string) (*github.Cli
 	row, err := a.DB.Queries().GetGithubConnection(ctx, a.Workspace)
 	if err == nil {
 		stored, err := a.Sealer.Open(row.TokenEncrypted)
+		if errors.Is(err, kernel.ErrOtherKey) {
+			return nil, kernel.OtherKey("The GitHub token", "Admin → GitHub")
+		}
 		if err != nil {
 			return nil, err
 		}

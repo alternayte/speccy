@@ -37,8 +37,13 @@ func InferSize(main []byte, links int) kernel.Size {
 }
 
 // sizeNote is the line a run adds when it inferred the size, so the author reads which size
-// the checks ran at and can set it.
-func sizeNote(sz kernel.Size) string {
+// the checks ran at and can set it. named is the size the frontmatter names: empty, or a value
+// that is not a size.
+func sizeNote(named string, sz kernel.Size) string {
+	if named = strings.TrimSpace(named); named != "" {
+		return "The doc names the size \"" + named + "\", which is not one of feature, app, initiative, so the review used size " +
+			string(sz) + ". Change it to \"size: " + string(sz) + "\" in the frontmatter to fix it."
+	}
 	return "The doc names no size, so the review used size " + string(sz) +
 		". Add \"size: " + string(sz) + "\" to the frontmatter to fix it."
 }

@@ -156,3 +156,59 @@ func TestMCP_AllowlistAndSearch(t *testing.T) {
 		t.Errorf("search: %q, %v", out, err)
 	}
 }
+
+// A secret sealed with another key (the key file was lost, or SPECCY_MASTER_KEY changed) fails
+// at use with a message that says to enter it again, and where. The connection's tools still
+// save, and an update takes a new secret.
+func TestSecrets_SealedWithOtherKey(t *testing.T) {
+	ctx := context.Background()
+	db := storetest.Engines()[0].Open(t)
+	a := newAPI(t, db)
+	res, err := a.CreateBackend(ctx, api.CreateBackendRequestObject{Body: &api.BackendInput{Kind: api.Anthropic, Name: "Claude", Secret: ptr(secret)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := res.(api.CreateBackend201JSONResponse)
+	url := mcptest.SearchServer(t, func(q string) string { return "Found: " + q })
+	in := api.MCPConnectionInput{Name: "Search", Transport: api.Http, Url: &url, Secret: ptr(secret),
+		ToolAllowlist: []string{"search"}, IsSearch: true, SearchTool: ptr("search")}
+	created, err := a.CreateMCPConnection(ctx, api.CreateMCPConnectionRequestObject{Body: &in})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn := created.(api.CreateMCPConnection201JSONResponse)
+
+	// The key changes: a new key file, as when the old one is lost.
+	other := newAPI(t, db)
+	a.Sealer, a.Gateway = other.Sealer, other.Gateway
+
+	tested, err := a.TestBackend(ctx, api.TestBackendRequestObject{BackendId: backend.Id, Body: &api.TestBackendJSONRequestBody{Model: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg := tested.(api.TestBackend200JSONResponse).Error; msg == nil || !strings.Contains(*msg, "sealed with another key") || !strings.Contains(*msg, "Admin → Models") {
+		t.Errorf("backend test with a secret sealed with another key: %+v", tested)
+	}
+	if _, err := a.SearchSource(ctx); err == nil || !strings.Contains(err.Error(), "sealed with another key") || !strings.Contains(err.Error(), "Admin → MCP connections") {
+		t.Errorf("search source with a secret sealed with another key: %v", err)
+	}
+
+	// The tools save although the old secret does not open.
+	in.Secret = nil
+	if _, err := a.UpdateMCPConnection(ctx, api.UpdateMCPConnectionRequestObject{ConnectionId: conn.Id, Body: &in}); err != nil {
+		t.Fatalf("save the tools with a secret sealed with another key: %v", err)
+	}
+	// A new secret replaces it, and the connection works again.
+	in.Secret = ptr("sk-new-secret-abcd")
+	updated, err := a.UpdateMCPConnection(ctx, api.UpdateMCPConnectionRequestObject{ConnectionId: conn.Id, Body: &in})
+	if err != nil {
+		t.Fatalf("update with a new secret: %v", err)
+	}
+	if c := updated.(api.UpdateMCPConnection200JSONResponse); c.SecretLast4 != "abcd" {
+		t.Errorf("after a new secret, the connection shows %q", c.SecretLast4)
+	}
+	s, err := a.SearchSource(ctx)
+	if err != nil || s == nil {
+		t.Fatalf("search source after a new secret: %v, %v", s, err)
+	}
+}

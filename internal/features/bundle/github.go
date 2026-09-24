@@ -179,10 +179,16 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 		return b, err
 	})
 	cfg := source.RepoConfig{}
-	if raw, err := fs.ReadFile(tfs, source.RepoConfigFile); err == nil {
-		if cfg, err = source.ParseRepoConfig(raw); err != nil {
+	rawCfg, err := fs.ReadFile(tfs, source.RepoConfigFile)
+	if err == nil {
+		if cfg, err = source.ParseRepoConfig(rawCfg); err != nil {
 			return fail(fmt.Errorf("%s in the repo is not valid: %w", source.RepoConfigFile, err))
 		}
+	}
+	// A review of a spec doc of this source reads its link patterns, link rules and adoption
+	// from the repo's file, not from a served folder.
+	if err := q.SetGithubSourceRepoConfig(ctx, pgdb.SetGithubSourceRepoConfigParams{ID: src.ID, RepoConfig: string(rawCfg)}); err != nil {
+		return err
 	}
 	// REQ-133: the types a person accepted in the app, for the docs the repo names none for.
 	// The repo wins, so a path the repo now maps drops its row. repoCfg is the repo's own

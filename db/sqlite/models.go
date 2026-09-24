@@ -160,6 +160,7 @@ type GithubSource struct {
 	CreatedAt   time.Time
 	ApiUrl      string
 	Skipped     dbtype.JSON
+	RepoConfig  string
 }
 
 type Handoff struct {

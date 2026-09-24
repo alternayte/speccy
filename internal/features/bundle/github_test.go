@@ -601,3 +601,44 @@ func TestGitHubSource_NoCredentialKeepsTheError(t *testing.T) {
 		t.Errorf("source error = %q, %v; want the credential error", row.Error, err)
 	}
 }
+
+// A spec doc of a GitHub source reads the .speccy.yaml of its source's repo, as the last sync
+// read it: its link patterns reach the review in hosted mode, where no folder is served.
+func TestGitHubSource_RepoConfigOfSpecDoc(t *testing.T) {
+	for _, svc := range services() {
+		t.Run(svc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s := svc.open(t)
+			gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+			gh.refs["main"] = gh.commit(map[string]string{
+				".speccy.yaml":     "link_patterns:\n  jira: https://acme.atlassian.net/browse/{key}\nadoption:\n  relaxed: [lint.placeholder]\n",
+				"docs/pay/SPEC.md": mainDoc,
+			})
+			srv := httptest.NewServer(gh)
+			defer srv.Close()
+			s.GitHub = func(context.Context, string) (*github.Client, error) {
+				return &github.Client{API: srv.URL, Token: "t"}, nil
+			}
+			q := s.DB.Queries()
+			src := pgdb.InsertGithubSourceParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Repo: "acme/specs", Branch: "main", Path: "docs",
+				CreatedBy: "user-1", CreatedAt: time.Now().UTC()}
+			if err := q.InsertGithubSource(ctx, src); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.SyncSource(ctx, src.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := s.RepoConfig(ctx, b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.LinkPatterns["jira"] == "" || len(cfg.Adoption.Relaxed) != 1 {
+				t.Errorf("repo config of the GitHub spec doc = %+v, want the repo's link pattern and adoption", cfg)
+			}
+		})
+	}
+}

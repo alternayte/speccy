@@ -82,6 +82,17 @@ func (d Decisions) WithWaiver(w Waiver) Decisions {
 	return out
 }
 
+// WithoutWaiver returns the sidecar with no waiver for check and section at hash, and whether
+// it held one. A waiver for the same check and section at another hash stays: it is a newer
+// decision.
+func (d Decisions) WithoutWaiver(check string, section []string, hash string) (Decisions, bool) {
+	out := d
+	out.Waivers = slices.DeleteFunc(slices.Clone(d.Waivers), func(w Waiver) bool {
+		return w.Check == check && slices.Equal(w.Section, section) && w.SectionHash == hash
+	})
+	return out, len(out.Waivers) != len(d.Waivers)
+}
+
 // WithTraceAck returns the sidecar with t in it, replacing the acknowledgement of the same ID.
 func (d Decisions) WithTraceAck(t TraceAck) Decisions {
 	out := d

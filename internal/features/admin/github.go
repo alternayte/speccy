@@ -27,6 +27,9 @@ func (a *API) GitHubClient(ctx context.Context, apiURL string) (*github.Client, 
 		return nil, err
 	}
 	token, err := a.Sealer.Open(row.TokenEncrypted)
+	if errors.Is(err, kernel.ErrOtherKey) {
+		return nil, kernel.OtherKey("The GitHub token", "Admin → GitHub")
+	}
 	if err != nil {
 		return nil, err
 	}

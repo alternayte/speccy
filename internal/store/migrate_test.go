@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,5 +29,34 @@ func TestMigrate_StateBeforeBaseline(t *testing.T) {
 	err = db.Migrate(ctx)
 	if err == nil || !strings.Contains(err.Error(), "before 0.15.0") || !strings.Contains(err.Error(), dir) {
 		t.Fatalf("Migrate = %v, want the message about a state from before 0.15.0 in %s", err, dir)
+	}
+}
+
+// A state that a newer Speccy migrated stops at start with a message that names both
+// migration versions, not with a failed query later.
+func TestMigrate_StateFromNewerSpeccy(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	db, err := store.OpenSQLite(ctx, filepath.Join(dir, "speccy.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := db.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, err := db.Migrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := p.ListSources()
+	newest := sources[len(sources)-1].Version
+	if _, err := db.SQL.ExecContext(ctx, `INSERT INTO goose_db_version (version_id, is_applied) VALUES (?, 1)`, newest+1); err != nil {
+		t.Fatal(err)
+	}
+	err = db.Migrate(ctx)
+	if err == nil || !strings.Contains(err.Error(), fmt.Sprint(newest+1)) || !strings.Contains(err.Error(), fmt.Sprint(newest)) ||
+		!strings.Contains(err.Error(), "newer Speccy") {
+		t.Fatalf("Migrate = %v, want the message that names migrations %d and %d and says to run the newer Speccy", err, newest+1, newest)
 	}
 }

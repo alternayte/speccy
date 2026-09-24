@@ -61,9 +61,6 @@ type Input struct {
 	// link exists or a valid standalone acknowledgement exists.
 	UpstreamRequired bool
 	HasUpstream      bool
-	// LinkedStale is true when the coherence stage used a linked bundle version that is no
-	// longer current.
-	LinkedStale bool
 }
 
 // Verdict is the output.
@@ -77,8 +74,9 @@ type Verdict struct {
 }
 
 // Decide applies §8.6: Build Ready if and only if no open MUST finding, no open blocking
-// thread, the required upstream link or acknowledgement exists, and every linked bundle
-// version used is current. SHOULD and INFO findings never change the result.
+// thread, and the required upstream link or acknowledgement exists. SHOULD and INFO findings
+// never change the result. A verdict that read a linked bundle version that is no longer
+// current is stale; the review API says so when it shows the verdict (For).
 func Decide(in Input) Verdict {
 	v := Verdict{Result: BuildReady, Radar: map[Category]int{}}
 	for _, f := range in.Findings {
@@ -92,7 +90,7 @@ func Decide(in Input) Verdict {
 	}
 	sort.Strings(v.BlockingFindingIDs)
 	if len(v.BlockingFindingIDs) > 0 || in.OpenBlockingThreads > 0 ||
-		(in.UpstreamRequired && !in.HasUpstream) || in.LinkedStale {
+		(in.UpstreamRequired && !in.HasUpstream) {
 		v.Result = NotBuildReady
 	}
 

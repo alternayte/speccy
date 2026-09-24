@@ -66,7 +66,7 @@ A doc at size min_at or larger must link the bundles it covers (`links.has-child
 | Key | Type | Required | Meaning |
 |---|---|---|---|
 | `kinds` | list of one of `implements`, `refines`, `references`, `supersedes` | yes | The link kinds that count as a link to a covered bundle. |
-| `min` | integer |  | The fewest links of those kinds that the doc needs. |
+| `min` | integer |  | The fewest links of those kinds that the doc needs. Default 1. |
 | `min_at` | one of `feature`, `app`, `initiative` | yes | The smallest doc size that the check applies to. |
 
 ## `grounding`
