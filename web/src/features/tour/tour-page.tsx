@@ -24,6 +24,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useReviewerMode } from "@/features/review/mode";
 import { problemMessage } from "@/lib/problem";
+import { GapAnswer } from "@/features/trace/gap-answer";
 
 const kindLabel: Record<TourPoint["kind"], string> = {
   blocking_thread: "Blocking thread",
@@ -103,7 +104,7 @@ export function TourPage({ docId }: { docId: string }) {
           if (!reviewer && point.kind !== "waiver") setMode("decide");
           break;
         case "w":
-          if (!reviewer && point.kind === "finding") setMode("waive");
+          if (!reviewer && point.kind === "finding" && !point.trace_id) setMode("waive");
           break;
         case "c":
           setMode("comment");
@@ -340,7 +341,9 @@ function PointCard({
       </p>
       <h2 className="mt-2 text-lg leading-snug font-semibold tracking-tight">{point.ask}</h2>
       {point.context ? <p className="mt-2 text-sm text-ink-2">{point.context}</p> : null}
-      {point.anchor?.quote && point.anchor.quote.length < 400 ? (
+      {/* A gap's anchor is the frontmatter, which says nothing about the gap: the context
+          already quotes the requirement. */}
+      {point.anchor?.quote && point.anchor.quote.length < 400 && !point.trace_id ? (
         <p className="mt-3 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2">{point.anchor.quote}</p>
       ) : null}
       {point.anchor?.detached ? (
@@ -414,13 +417,28 @@ function PointCard({
               Decide <Kbd>d</Kbd>
             </Button>
           ) : null}
-          {!reviewer && point.kind === "finding" ? (
+          {!reviewer && point.kind === "finding" && !point.trace_id ? (
             <Button size="sm" onClick={() => setMode("waive")}>
               Ask for a waiver <Kbd>w</Kbd>
             </Button>
           ) : null}
           <Button size="sm" onClick={() => setMode("comment")}>
             Comment <Kbd>c</Kbd>
+          </Button>
+        </div>
+      ) : mode === "decide" && point.trace_id && point.finding_id ? (
+        // A coverage gap has three answers, and each one closes the gap in the verdict and in
+        // the matrix. Free text in a thread would close nothing.
+        <div className="mt-4">
+          <GapAnswer
+            docId={docId}
+            findingId={point.finding_id}
+            traceId={point.trace_id}
+            question={false}
+            onDone={() => onDone()}
+          />
+          <Button size="sm" className="mt-2" onClick={() => setMode(undefined)}>
+            Cancel
           </Button>
         </div>
       ) : (

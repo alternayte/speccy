@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 import { levelStyle } from "./verdict";
+import { GapAnswer } from "@/features/trace/gap-answer";
 
 const order = { MUST: 0, SHOULD: 1, INFO: 2 } as const;
 
@@ -54,9 +55,11 @@ export function FindingsPanel({
   orderKey?: string;
 }) {
   const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
-  // fixed is the result of the last accepted fix. It sits above the list, because a fixed
-  // finding leaves the list with the next run.
-  const [fixed, setFixed] = useState<{ slug: string; result: AcceptedFix }>();
+  // notice is the result of the last accepted fix or gap answer. It sits above the list,
+  // because a fixed finding leaves the list with the next run.
+  const [notice, setNotice] = useState<{ slug: string; text: string; bad?: boolean }>();
+  // answering is the coverage gap whose answer form is open.
+  const [answering, setAnswering] = useState<string>();
   const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
   const selectedRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
@@ -119,20 +122,18 @@ export function FindingsPanel({
       (ranks.get(ident(a)) ?? rank(pending(a)) * 10 + order[a.level]) -
       (ranks.get(ident(b)) ?? rank(pending(b)) * 10 + order[b.level]),
   );
-  const notice = fixed ? (
-    <FixResult slug={fixed.slug} result={fixed.result} onClose={() => setFixed(undefined)} />
-  ) : null;
+  const noticeView = notice ? <Notice {...notice} onClose={() => setNotice(undefined)} /> : null;
   if (items.length === 0)
     return (
       <>
-        {notice}
+        {noticeView}
         <Empty title="No findings">Every check passed. SHOULD and INFO findings appear here when a check fails.</Empty>
         {waivers}
       </>
     );
   return (
     <>
-      {notice}
+      {noticeView}
       <ul className="divide-y divide-line">
         {items.map((f) => {
           const { icon: Icon, tone, label } = levelStyle[f.level];
@@ -154,7 +155,8 @@ export function FindingsPanel({
                   {f.relaxed ? <span className="ml-auto text-2xs text-warn">relaxed</span> : null}
                 </div>
                 <p className="mt-1.5 text-sm text-ink">{f.message}</p>
-                {f.anchor.quote.trim() ? (
+                {/* A gap's anchor is the frontmatter, which says nothing about the gap. */}
+                {f.anchor.quote.trim() && !f.trace_id ? (
                   <p className="mt-2 line-clamp-2 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2 group-hover:border-accent">
                     {f.anchor.quote}
                   </p>
@@ -202,7 +204,15 @@ export function FindingsPanel({
                       <button type="button" onClick={() => onDiscuss(f)} className="text-ink-2 hover:text-ink">
                         Discuss
                       </button>
-                      {!f.waived && f.level !== "INFO" ? (
+                      {f.trace_id && canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
+                          className="text-ink-2 hover:text-ink"
+                        >
+                          Answer the gap
+                        </button>
+                      ) : !f.waived && f.level !== "INFO" && !f.trace_id ? (
                         <button
                           type="button"
                           onClick={() => setWaiving({ finding: f })}
@@ -215,12 +225,24 @@ export function FindingsPanel({
                   ) : null}
                 </div>
               ) : null}
-              {canEdit && !f.waived ? (
+              {f.trace_id && answering === f.id ? (
+                <GapAnswer
+                  className="mx-4 mb-3"
+                  docId={docId}
+                  findingId={f.id}
+                  traceId={f.trace_id}
+                  onDone={(text) => {
+                    setAnswering(undefined);
+                    setNotice({ slug: f.check_slug, text });
+                  }}
+                />
+              ) : null}
+              {canEdit && !f.waived && !f.trace_id ? (
                 <SuggestFix
                   runId={f.run_id}
                   docId={docId}
                   finding={f}
-                  onAccepted={(result) => setFixed({ slug: f.check_slug, result })}
+                  onAccepted={(result) => setNotice({ slug: f.check_slug, ...fixText(result) })}
                 />
               ) : null}
             </li>
@@ -328,6 +350,8 @@ function rank(waiver: unknown): number {
 
 // waiverCovers reports whether w excuses f: the same check, and the same section or the whole doc.
 export function waiverCovers(w: Waiver, f: Finding): boolean {
+  // An Acknowledgement is about one trace ID, and a doc has one coverage finding per ID.
+  if (w.trace || f.trace_id) return w.check_slug === f.check_slug && w.trace?.id === f.trace_id;
   return (
     w.check_slug === f.check_slug &&
     (w.section.length === 0 || w.section.join(" › ") === f.anchor.heading_path.join(" › "))
@@ -374,7 +398,12 @@ function WaiverCard({
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
   const history = waivers.filter(
-    (h) => h.id !== w.id && h.status !== "requested" && h.check_slug !== "" && sectionName(h) === sectionName(w),
+    (h) =>
+      h.id !== w.id &&
+      h.status !== "requested" &&
+      h.check_slug !== "" &&
+      sectionName(h) === sectionName(w) &&
+      h.trace?.id === w.trace?.id,
   );
   const tone =
     w.status === "approved"
@@ -384,7 +413,11 @@ function WaiverCard({
         : "border-line bg-sunken";
   return (
     <div className={clsx("mx-4 mb-3 rounded-md border px-3 py-2 text-xs", tone)}>
-      <p className="font-semibold text-ink">Waiver requested by {w.requested_by}</p>
+      <p className="font-semibold text-ink">
+        {w.trace
+          ? `${w.trace.id} ${w.trace.status === "out_of_scope" ? "is out of scope" : `is covered by ${w.trace.target ?? "another doc"}`}: asked by ${w.requested_by}`
+          : `Waiver requested by ${w.requested_by}`}
+      </p>
       <p className="mt-0.5 text-ink-2">{w.reason}</p>
       <p className="mt-0.5 text-ink-3">
         {/* The count belongs to an open request. A decided waiver keeps only its section. */}
@@ -409,7 +442,9 @@ function WaiverCard({
         </div>
       ) : null}
       {w.status === "approved" ? (
-        <p className="mt-2 font-semibold text-ok">Approved. This check no longer fails here.</p>
+        <p className="mt-2 font-semibold text-ok">
+          {w.trace ? "Approved. The gap is closed." : "Approved. This check no longer fails here."}
+        </p>
       ) : null}
       {w.status === "rejected" ? (
         <p className="mt-2 text-ink">
@@ -673,23 +708,23 @@ function SuggestFix({
   );
 }
 
-// FixResult says what the last accepted fix did. A lint finding is checked at once; an AI
-// finding needs a new review.
-function FixResult({ slug, result, onClose }: { slug: string; result: AcceptedFix; onClose: () => void }) {
+// fixText says what an accepted fix did. A lint finding is checked at once; an AI finding
+// needs a new review.
+function fixText(result: AcceptedFix): { text: string; bad?: boolean } {
   const where = result.version ? ` as version ${result.version.number}` : "";
-  const text =
-    result.result === "still_fails"
-      ? `Fix applied${where}. Still fails: ${result.message ?? ""}`
-      : result.result === "fixed"
-        ? `Fixed${where}.${result.version ? "" : " Speccy keeps the link, and the repo takes no commit."}`
-        : `Fix applied${where}. Run the review again to check it.`;
+  if (result.result === "still_fails")
+    return { text: `Fix applied${where}. Still fails: ${result.message ?? ""}`, bad: true };
+  if (result.result === "fixed")
+    return { text: `Fixed${where}.${result.version ? "" : " Speccy keeps the link, and the repo takes no commit."}` };
+  return { text: `Fix applied${where}. Run the review again to check it.` };
+}
+
+// Notice says what the last fix or gap answer did, above the list.
+function Notice({ slug, text, bad, onClose }: { slug: string; text: string; bad?: boolean; onClose: () => void }) {
   return (
     <div
       role="status"
-      className={clsx(
-        "flex items-start gap-2 border-b border-line px-4 py-2 text-xs",
-        result.result === "still_fails" ? "text-bad" : "text-ok",
-      )}
+      className={clsx("flex items-start gap-2 border-b border-line px-4 py-2 text-xs", bad ? "text-bad" : "text-ok")}
     >
       <p className="min-w-0 flex-1">
         <span className="font-mono text-2xs text-ink-3">{slug}</span> {text}

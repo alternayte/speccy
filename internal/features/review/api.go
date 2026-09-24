@@ -277,6 +277,15 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		if sugg.Fix != "" {
 			af.Fix = &sugg.Fix
 		}
+		if f.CheckSlug == CoverageSlug {
+			var ev struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal(f.Evidence, &ev)
+			if ev.ID != "" {
+				af.TraceId = &ev.ID
+			}
+		}
 		if f.CheckSlug == CodeDriftSlug {
 			var ev map[string]string
 			_ = json.Unmarshal(f.Evidence, &ev)

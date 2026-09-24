@@ -86,7 +86,7 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 			id, an, slug := f.Id, f.Anchor, f.CheckSlug
 			findingPoints = append(findingPoints, api.TourPoint{
 				Key: "finding:" + f.Id.String(), Kind: api.TourPointKindFinding, Ask: ask, Context: why,
-				Level: &level, CheckSlug: &slug, Anchor: &an, FindingId: &id,
+				Level: &level, CheckSlug: &slug, Anchor: &an, FindingId: &id, TraceId: f.TraceId,
 			})
 		}
 	}
@@ -128,11 +128,22 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 			Anchor: threadAnchor(t), ThreadId: &id,
 		})
 	}
-	out.Points = append(out.Points, findingPoints...)
-
 	wres, err := a.Waivers.ListWaivers(ctx, api.ListWaiversRequestObject{DocId: b.ID})
 	if err != nil {
 		return nil, err
+	}
+	// A gap whose Acknowledgement waits for approval has one point: the approval. The author
+	// answered it, so the tour does not ask again.
+	asked := map[string]bool{}
+	for _, w := range wres.(api.ListWaivers200JSONResponse).Items {
+		if w.Status == api.WaiverStatusRequested && w.Trace != nil {
+			asked[w.Trace.Id] = true
+		}
+	}
+	for _, p := range findingPoints {
+		if p.TraceId == nil || !asked[*p.TraceId] {
+			out.Points = append(out.Points, p)
+		}
 	}
 	for _, w := range wres.(api.ListWaivers200JSONResponse).Items {
 		if w.Status != api.WaiverStatusRequested {
@@ -144,9 +155,16 @@ func (a *API) GetTour(ctx context.Context, req api.GetTourRequestObject) (api.Ge
 		}
 		id, slug, can := w.Id, w.CheckSlug, w.CanApprove
 		level := api.TourPointLevel(w.Level)
+		ask := fmt.Sprintf("Approve or reject the waiver of %s in %s.", w.CheckSlug, where)
+		if t := w.Trace; t != nil {
+			ask = fmt.Sprintf("Approve or reject: %s is out of scope for this doc.", t.Id)
+			if t.Status == api.TraceAckStatusCoveredBy && t.Target != nil {
+				ask = fmt.Sprintf("Approve or reject: %s covers %s.", *t.Target, t.Id)
+			}
+		}
 		out.Points = append(out.Points, api.TourPoint{
 			Key: "waiver:" + w.Id.String(), Kind: api.TourPointKindWaiver,
-			Ask:     fmt.Sprintf("Approve or reject the waiver of %s in %s.", w.CheckSlug, where),
+			Ask:     ask,
 			Context: "Reason: " + w.Reason,
 			Level:   &level, CheckSlug: &slug, Anchor: sectionAnchor(w.Section), WaiverId: &id, CanApprove: &can,
 		})
@@ -193,7 +211,7 @@ func findingAsk(f api.Finding, e map[string]any) (ask, why string) {
 	case review.GroundingContradicted:
 		return "Decide: correct this claim, or explain why the source does not apply.", f.Message
 	case review.CoverageSlug:
-		return fmt.Sprintf("Decide: does this doc cover %s, or is it out of scope?", str("id")), str("text")
+		return fmt.Sprintf("Decide: does this doc cover %s?", str("id")), str("text")
 	case review.HasUpstreamSlug:
 		return "Decide: link this doc to its upstream doc, or mark it standalone with a reason.", f.Message
 	}

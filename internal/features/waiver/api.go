@@ -127,6 +127,34 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 		ID: kernel.NewID(), BundleID: b.ID, Check: f.CheckSlug, Level: kernel.Level(f.Level), Section: path, SectionHash: hash,
 		Reason: req.Body.Reason, By: kernel.ActorFrom(ctx).UserID, Policy: PolicyFor(p.Profile, f.CheckSlug, kernel.Level(f.Level)),
 	}
+	// A coverage gap takes an answer, not a waiver: an Acknowledgement closes the gap in the
+	// verdict and in the matrix with one record.
+	if f.CheckSlug == coverageSlug {
+		t := req.Body.Trace
+		if t == nil {
+			return nil, kernel.Invalid("answer_the_gap", "A coverage gap takes an answer: this doc covers it, another doc covers it, or it is out of scope.")
+		}
+		var ev struct {
+			ID string `json:"id"`
+		}
+		_ = json.Unmarshal(f.Evidence, &ev)
+		if ev.ID == "" {
+			return nil, kernel.Invalid("no_trace_id", "This finding names no trace ID. Run the review again.")
+		}
+		status, target := string(t.Status), ""
+		if t.Target != nil {
+			target = strings.TrimSpace(*t.Target)
+		}
+		if status == string(api.TraceAnswerStatusCoveredBy) && target == "" {
+			return nil, kernel.Invalid("no_target", "Name the doc that covers %s.", ev.ID)
+		}
+		if status != string(api.TraceAnswerStatusCoveredBy) {
+			target = ""
+		}
+		r.Scope, r.TraceID, r.AckStatus, r.AckTarget = ScopeTrace, ev.ID, status, target
+	} else if req.Body.Trace != nil {
+		return nil, kernel.Invalid("not_a_gap", "Only a coverage gap takes a trace answer.")
+	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
 	}
@@ -172,6 +200,17 @@ func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObj
 // writeSidecar writes the approved waiver to the doc's sidecar (DEC-009). The doc text does
 // not change, so no version of the doc is made here.
 func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approvedBy string) error {
+	// An Acknowledgement is about one upstream ID, not a section of this doc, so an edit to the
+	// doc does not end it.
+	if s.Scope == ScopeTrace {
+		dec, err := a.Decisions(ctx, b)
+		if err != nil {
+			return err
+		}
+		dec = dec.WithTraceAck(source.TraceAck{ID: s.TraceID, Status: s.AckStatus, Target: s.AckTarget, Reason: s.Reason,
+			AcknowledgedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label()})
+		return a.SetDecisions(ctx, b, dec, approvedBy, "Acknowledged "+s.TraceID+" as "+strings.ReplaceAll(s.AckStatus, "_", " "))
+	}
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return err
@@ -337,6 +376,13 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 	if s.DecisionReason != "" {
 		w.DecisionReason = &s.DecisionReason
 	}
+	if s.Scope == ScopeTrace {
+		t := api.TraceAck{Id: s.TraceID, Status: api.TraceAckStatus(s.AckStatus)}
+		if s.AckTarget != "" {
+			t.Target = &s.AckTarget
+		}
+		w.Trace = &t
+	}
 	if main, doc, err := a.mainDoc(ctx, b); err == nil {
 		if start, end, ok := section.RangeAt(doc, main, s.Section); ok {
 			w.SectionRange = &api.SectionRange{Start: start, End: end}
@@ -359,7 +405,7 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc)
 	var doc section.Doc
 	loaded := false
 	for _, r := range rows {
-		if r.Status != StatusApproved {
+		if r.Status != StatusApproved || r.Scope == ScopeTrace {
 			continue
 		}
 		if !loaded {
@@ -441,3 +487,6 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	}
 	return api.RequestVerificationWaiver200JSONResponse(w), nil
 }
+
+// coverageSlug is the review's trace.coverage check. A waiver of it is an Acknowledgement.
+const coverageSlug = "trace.coverage"

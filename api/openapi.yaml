@@ -1023,6 +1023,38 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /docs/{docId}/trace/cover:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+      - $ref: "#/components/parameters/BaseVersion"
+    post:
+      operationId: coverTraceId
+      summary: Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [trace_id, section]
+              properties:
+                trace_id:
+                  type: string
+                section:
+                  type: array
+                  description: The heading path of the section that covers the ID.
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: The new version.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WriteResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /runs/{runId}/events:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -1610,6 +1642,8 @@ paths:
                   format: uuid
                 reason:
                   type: string
+                trace:
+                  $ref: "#/components/schemas/TraceAnswer"
       responses:
         "200":
           description: The waiver.
@@ -3441,6 +3475,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/IdSuggestion"
+        sections:
+          type: array
+          description: The heading path of each section of this doc, in order, for the answer "This doc covers it".
+          items:
+            type: array
+            items:
+              type: string
+
+    TraceAnswer:
+      type: object
+      description: The answer to a coverage gap that says the ID is intentionally absent from this doc. It is an Acknowledgement, and it follows the profile's waiver policy.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [out_of_scope, covered_by]
+        target:
+          type: string
+          description: For covered_by, the slug of the doc that covers the ID.
 
     BundleRef:
       type: object
@@ -3795,6 +3848,9 @@ components:
         verify_target:
           type: string
           description: For a drifted code link, the commit URL a verification run reads to check the code still conforms.
+        trace_id:
+          type: string
+          description: For a coverage gap, the upstream trace ID it is about.
         anchor:
           $ref: "#/components/schemas/Anchor"
           description: The anchor in the bundle's current version, re-anchored when the run read an older version.
@@ -3846,6 +3902,9 @@ components:
         can_approve:
           type: boolean
           description: For a waiver, the caller can approve or reject it now.
+        trace_id:
+          type: string
+          description: For a coverage gap, the upstream trace ID it is about.
 
     RunReport:
       type: object
@@ -4481,9 +4540,24 @@ components:
           description: Why the waiver is rejected. Only a rejected waiver has one.
         section_range:
           $ref: "#/components/schemas/SectionRange"
+        trace:
+          $ref: "#/components/schemas/TraceAck"
         created_at:
           type: string
           format: date-time
+
+    TraceAck:
+      type: object
+      description: An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [out_of_scope, covered_by]
+        target:
+          type: string
 
     HandoffList:
       type: object

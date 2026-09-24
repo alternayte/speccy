@@ -1151,6 +1151,42 @@ func (e TourPointLevel) Valid() bool {
 	}
 }
 
+// Defines values for TraceAckStatus.
+const (
+	TraceAckStatusCoveredBy  TraceAckStatus = "covered_by"
+	TraceAckStatusOutOfScope TraceAckStatus = "out_of_scope"
+)
+
+// Valid indicates whether the value is a known member of the TraceAckStatus enum.
+func (e TraceAckStatus) Valid() bool {
+	switch e {
+	case TraceAckStatusCoveredBy:
+		return true
+	case TraceAckStatusOutOfScope:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TraceAnswerStatus.
+const (
+	TraceAnswerStatusCoveredBy  TraceAnswerStatus = "covered_by"
+	TraceAnswerStatusOutOfScope TraceAnswerStatus = "out_of_scope"
+)
+
+// Valid indicates whether the value is a known member of the TraceAnswerStatus enum.
+func (e TraceAnswerStatus) Valid() bool {
+	switch e {
+	case TraceAnswerStatusCoveredBy:
+		return true
+	case TraceAnswerStatusOutOfScope:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TraceCellState.
 const (
 	TraceCellStateCoveredBy  TraceCellState = "covered_by"
@@ -2050,6 +2086,9 @@ type Finding struct {
 	// RunId The run the finding belongs to. A carried finding belongs to the last full review.
 	RunId openapi_types.UUID `json:"run_id"`
 	Stage string             `json:"stage"`
+
+	// TraceId For a coverage gap, the upstream trace ID it is about.
+	TraceId *string `json:"trace_id,omitempty"`
 
 	// VerifyTarget For a drifted code link, the commit URL a verification run reads to check the code still conforms.
 	VerifyTarget *string `json:"verify_target,omitempty"`
@@ -2997,7 +3036,10 @@ type TourPoint struct {
 	Kind      TourPointKind       `json:"kind"`
 	Level     *TourPointLevel     `json:"level,omitempty"`
 	ThreadId  *openapi_types.UUID `json:"thread_id,omitempty"`
-	WaiverId  *openapi_types.UUID `json:"waiver_id,omitempty"`
+
+	// TraceId For a coverage gap, the upstream trace ID it is about.
+	TraceId  *string             `json:"trace_id,omitempty"`
+	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
 // TourPointKind defines model for TourPoint.Kind.
@@ -3005,6 +3047,27 @@ type TourPointKind string
 
 // TourPointLevel defines model for TourPoint.Level.
 type TourPointLevel string
+
+// TraceAck An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
+type TraceAck struct {
+	Id     string         `json:"id"`
+	Status TraceAckStatus `json:"status"`
+	Target *string        `json:"target,omitempty"`
+}
+
+// TraceAckStatus defines model for TraceAck.Status.
+type TraceAckStatus string
+
+// TraceAnswer The answer to a coverage gap that says the ID is intentionally absent from this doc. It is an Acknowledgement, and it follows the profile's waiver policy.
+type TraceAnswer struct {
+	Status TraceAnswerStatus `json:"status"`
+
+	// Target For covered_by, the slug of the doc that covers the ID.
+	Target *string `json:"target,omitempty"`
+}
+
+// TraceAnswerStatus defines model for TraceAnswer.Status.
+type TraceAnswerStatus string
 
 // TraceCell defines model for TraceCell.
 type TraceCell struct {
@@ -3043,7 +3106,10 @@ type TraceView struct {
 	Links []BundleLink `json:"links"`
 
 	// Matrices One matrix for this bundle's own IDs, when other bundles implement it, and one for each bundle it implements.
-	Matrices    []TraceMatrix  `json:"matrices"`
+	Matrices []TraceMatrix `json:"matrices"`
+
+	// Sections The heading path of each section of this doc, in order, for the answer "This doc covers it".
+	Sections    *[][]string    `json:"sections,omitempty"`
 	Standalone  *Standalone    `json:"standalone,omitempty"`
 	Suggestions []IdSuggestion `json:"suggestions"`
 }
@@ -3252,6 +3318,9 @@ type Waiver struct {
 	// SectionRange The byte range of the waiver's section in the current main doc. Absent when the section is gone.
 	SectionRange *SectionRange `json:"section_range,omitempty"`
 	Status       WaiverStatus  `json:"status"`
+
+	// Trace An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
+	Trace *TraceAck `json:"trace,omitempty"`
 }
 
 // WaiverStatus defines model for Waiver.Status.
@@ -3454,6 +3523,19 @@ type ListRunsParams struct {
 	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
+// CoverTraceIdJSONBody defines parameters for CoverTraceId.
+type CoverTraceIdJSONBody struct {
+	// Section The heading path of the section that covers the ID.
+	Section []string `json:"section"`
+	TraceId string   `json:"trace_id"`
+}
+
+// CoverTraceIdParams defines parameters for CoverTraceId.
+type CoverTraceIdParams struct {
+	// BaseVersion The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+	BaseVersion BaseVersion `form:"base_version" json:"base_version"`
+}
+
 // AddTraceIdsJSONBody defines parameters for AddTraceIds.
 type AddTraceIdsJSONBody struct {
 	// Ids The suggested IDs to insert, from GET /trace.
@@ -3485,6 +3567,9 @@ type ListVersionsParams struct {
 type RequestWaiverJSONBody struct {
 	FindingId openapi_types.UUID `json:"finding_id"`
 	Reason    string             `json:"reason"`
+
+	// Trace The answer to a coverage gap that says the ID is intentionally absent from this doc. It is an Acknowledgement, and it follows the profile's waiver policy.
+	Trace *TraceAnswer `json:"trace,omitempty"`
 }
 
 // ResolveGithubUrlJSONBody defines parameters for ResolveGithubUrl.
@@ -3651,6 +3736,9 @@ type StartRunJSONRequestBody = StartRunRequest
 
 // OpenBundleThreadJSONRequestBody defines body for OpenBundleThread for application/json ContentType.
 type OpenBundleThreadJSONRequestBody = OpenThread
+
+// CoverTraceIdJSONRequestBody defines body for CoverTraceId for application/json ContentType.
+type CoverTraceIdJSONRequestBody CoverTraceIdJSONBody
 
 // AddTraceIdsJSONRequestBody defines body for AddTraceIds for application/json ContentType.
 type AddTraceIdsJSONRequestBody AddTraceIdsJSONBody
@@ -3930,6 +4018,9 @@ type ServerInterface interface {
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /docs/{docId}/trace)
 	GetTrace(w http.ResponseWriter, r *http.Request, docId DocId)
+	// CoverTraceId Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+	// (POST /docs/{docId}/trace/cover)
+	CoverTraceId(w http.ResponseWriter, r *http.Request, docId DocId, params CoverTraceIdParams)
 	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
 	// (POST /docs/{docId}/trace/ids)
 	AddTraceIds(w http.ResponseWriter, r *http.Request, docId DocId, params AddTraceIdsParams)
@@ -5824,6 +5915,48 @@ func (siw *ServerInterfaceWrapper) GetTrace(w http.ResponseWriter, r *http.Reque
 	handler.ServeHTTP(w, r)
 }
 
+// CoverTraceId operation middleware
+func (siw *ServerInterfaceWrapper) CoverTraceId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CoverTraceIdParams
+
+	// ------------- Required query parameter "base_version" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "base_version", r.URL.Query(), &params.BaseVersion, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "base_version"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "base_version", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CoverTraceId(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // AddTraceIds operation middleware
 func (siw *ServerInterfaceWrapper) AddTraceIds(w http.ResponseWriter, r *http.Request) {
 
@@ -7456,6 +7589,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/assumptions", wrapper.ListAssumptions)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/trace", wrapper.GetTrace)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/trace/ids", wrapper.AddTraceIds)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/trace/cover", wrapper.CoverTraceId)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/events", wrapper.RunEvents)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/claims", wrapper.ListClaims)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/questions", wrapper.ListQuestions)
@@ -10082,6 +10216,47 @@ type GetTracedefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response GetTracedefaultApplicationProblemPlusJSONResponse) VisitGetTraceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CoverTraceIdRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params CoverTraceIdParams
+	Body   *CoverTraceIdJSONRequestBody
+}
+
+type CoverTraceIdResponseObject interface {
+	VisitCoverTraceIdResponse(w http.ResponseWriter) error
+}
+
+type CoverTraceId200JSONResponse WriteResult
+
+func (response CoverTraceId200JSONResponse) VisitCoverTraceIdResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CoverTraceIddefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CoverTraceIddefaultApplicationProblemPlusJSONResponse) VisitCoverTraceIdResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12749,6 +12924,9 @@ type StrictServerInterface interface {
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /docs/{docId}/trace)
 	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
+	// CoverTraceId Answer a coverage gap with "This doc covers it". Speccy adds "Covers <ID>." at the end of the section as a new version.
+	// (POST /docs/{docId}/trace/cover)
+	CoverTraceId(ctx context.Context, request CoverTraceIdRequestObject) (CoverTraceIdResponseObject, error)
 	// AddTraceIds Insert suggested trace IDs into the main doc (REQ-052). Speccy changes the doc only on this request.
 	// (POST /docs/{docId}/trace/ids)
 	AddTraceIds(ctx context.Context, request AddTraceIdsRequestObject) (AddTraceIdsResponseObject, error)
@@ -14802,6 +14980,40 @@ func (sh *strictHandler) GetTrace(w http.ResponseWriter, r *http.Request, docId 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetTraceResponseObject); ok {
 		if err := validResponse.VisitGetTraceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CoverTraceId operation middleware
+func (sh *strictHandler) CoverTraceId(w http.ResponseWriter, r *http.Request, docId DocId, params CoverTraceIdParams) {
+	var request CoverTraceIdRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	var body CoverTraceIdJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CoverTraceId(ctx, request.(CoverTraceIdRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CoverTraceId")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CoverTraceIdResponseObject); ok {
+		if err := validResponse.VisitCoverTraceIdResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

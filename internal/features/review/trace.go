@@ -31,18 +31,7 @@ type idSuggestion struct {
 	Anchor anchor.Anchor
 }
 
-// suggestionHeadings maps a word in a heading to the prefix of the items under it. The
-// first match wins, so "Non-functional requirements" gives NFR.
-var suggestionHeadings = []struct {
-	prefix string
-	words  []string
-}{
-	{"NFR", []string{"non-functional", "nonfunctional", "quality"}},
-	{"REQ", []string{"requirement"}},
-	{"DEC", []string{"decision"}},
-}
-
-var leadingIDRe = regexp.MustCompile(`^\**\s*[A-Z]{2,6}-\d{3,}\b`)
+var leadingIDRe = regexp.MustCompile(`^\**\s*[A-Z]{2,6}-\d+\b`)
 
 // suggestIDs returns an ID for each top-level list item without one, under a heading that
 // names requirements, non-functional requirements, or decisions, for the profile's
@@ -66,12 +55,8 @@ func suggestIDs(file string, main []byte, doc section.Doc, prefixes []string) []
 			if s.Level == 0 || it.Start < s.Start || it.Start >= s.End {
 				continue
 			}
-			heading := strings.ToLower(strings.Join(s.Path, " "))
-			for _, h := range suggestionHeadings {
-				if slices.Contains(prefixes, h.prefix) && slices.ContainsFunc(h.words, func(w string) bool { return strings.Contains(heading, w) }) {
-					prefix = h.prefix
-					break
-				}
+			if p := lint.SectionPrefix(s.Path, prefixes); p != "" {
+				prefix = p
 			}
 		}
 		if prefix == "" {
@@ -239,6 +224,13 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 	for _, sg := range suggestIDs(b.DocPath, in.main, in.doc, p.Profile.Trace.Prefixes) {
 		out.Suggestions = append(out.Suggestions, api.IdSuggestion{Id: sg.ID, Text: sg.Text, Anchor: anchorAPI(sg.Anchor)})
 	}
+	sections := [][]string{}
+	for _, sec := range in.doc.Sections {
+		if sec.Level > 0 {
+			sections = append(sections, sec.Path)
+		}
+	}
+	out.Sections = &sections
 	return api.GetTrace200JSONResponse(out), nil
 }
 
@@ -351,11 +343,59 @@ func (a *API) AddTraceIds(ctx context.Context, req api.AddTraceIdsRequestObject)
 	}
 	sort.Strings(ids)
 	v, changed, err := a.Change(ctx, b.ID, req.Params.BaseVersion,
-		source.Op{Kind: source.OpWrite, Path: b.DocPath, Content: applyIDs(main, chosen)}, "local", "Added trace IDs "+strings.Join(ids, ", "))
+		source.Op{Kind: source.OpWrite, Path: b.DocPath, Content: applyIDs(main, chosen)}, kernel.ActorFrom(ctx).UserID, "Added trace IDs "+strings.Join(ids, ", "))
 	if err != nil {
 		return nil, err
 	}
 	return api.AddTraceIds200JSONResponse{Version: version.ToAPI(v), Changed: changed}, nil
+}
+
+// CoverTraceId answers a coverage gap with "This doc covers it": it adds "Covers <ID>." at the
+// end of the section's own text, as a new version. The ID then sits in the doc, where a
+// builder reads it, and the coverage check finds the reference.
+func (a *API) CoverTraceId(ctx context.Context, req api.CoverTraceIdRequestObject) (api.CoverTraceIdResponseObject, error) {
+	b, err := a.bundle(ctx, req.DocId)
+	if err != nil {
+		return nil, err
+	}
+	if a.Change == nil {
+		return nil, kernel.Invalid("not_supported", "This server cannot change bundle files.")
+	}
+	id := strings.TrimSpace(req.Body.TraceId)
+	if !traceIDRe.MatchString(id) {
+		return nil, kernel.Invalid("bad_trace_id", "%q is not a trace ID, such as REQ-001.", req.Body.TraceId)
+	}
+	if _, err := a.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: req.Params.BaseVersion}); err != nil {
+		return nil, kernel.NotFound("version_not_found", "The bundle has no version %s.", req.Params.BaseVersion)
+	}
+	files, err := version.Files(ctx, a.DB.Queries(), req.Params.BaseVersion)
+	if err != nil {
+		return nil, err
+	}
+	var main []byte
+	for _, f := range files {
+		if f.Path == b.DocPath {
+			main = f.Content
+		}
+	}
+	doc := section.Parse(main)
+	i := slices.IndexFunc(doc.Sections, func(s section.Section) bool { return s.Level > 0 && slices.Equal(s.Path, req.Body.Section) })
+	if i < 0 {
+		return nil, kernel.Conflict("section_gone", "This doc has no section %q. Reload and pick a section again.", strings.Join(req.Body.Section, " > "))
+	}
+	sec := doc.Sections[i]
+	head := strings.TrimRight(string(main[:sec.OwnEnd]), " \t\r\n")
+	tail := string(main[sec.OwnEnd:])
+	next := head + "\n\nCovers " + id + ".\n"
+	if tail != "" {
+		next += "\n" + tail
+	}
+	v, changed, err := a.Change(ctx, b.ID, req.Params.BaseVersion, source.Op{Kind: source.OpWrite, Path: b.DocPath, Content: []byte(next)},
+		kernel.ActorFrom(ctx).UserID, fmt.Sprintf("Covers %s in %s", id, sec.Title))
+	if err != nil {
+		return nil, err
+	}
+	return api.CoverTraceId200JSONResponse{Version: version.ToAPI(v), Changed: changed}, nil
 }
 
 func bundleRefAPI(b pgdb.SpecDoc) api.BundleRef {

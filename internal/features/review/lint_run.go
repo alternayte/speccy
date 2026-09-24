@@ -97,6 +97,7 @@ var categories = map[string]verdict.Category{
 	lint.AssetNudge: verdict.Structure,
 	lint.SlopPhrase: verdict.Clarity, lint.SentenceLength: verdict.Clarity, lint.Weasel: verdict.Clarity,
 	lint.UndefinedAcronym: verdict.Clarity, lint.RFC2119Case: verdict.Clarity, lint.PassiveVoice: verdict.Clarity,
+	lint.UnknownPrefix: verdict.Coherence, lint.NoIDs: verdict.Coherence,
 }
 
 // HasUpstreamSlug is the check for a required upstream link (REQ-057). M3 reads the

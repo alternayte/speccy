@@ -178,6 +178,39 @@ func TestDefinitions(t *testing.T) {
 	}
 }
 
+// Speccy reads the IDs people already write: a heading, the first cell of a table row, a list
+// item or a paragraph with a colon or a dash, and short numbers. A sentence that starts with an
+// ID stays a reference.
+func TestDefinitions_Forms(t *testing.T) {
+	src := "# PRD\n\n## Requirements\n\n### REQ-1 Refund\n\nText.\n\n| ID | Requirement |\n|---|---|\n| REQ-002 | Email the customer. |\n\n" +
+		"REQ-003 — Pay within 5 days.\n\n- REQ-004 - Log each refund.\n\nREQ-001 needs a button.\n"
+	var got []string
+	for _, d := range Definitions([]byte(src), []string{"REQ"}) {
+		got = append(got, d.ID+"="+d.Text)
+	}
+	want := "REQ-1=REQ-1 Refund|REQ-002=REQ-002: Email the customer.|REQ-003=REQ-003 — Pay within 5 days.|REQ-004=REQ-004 - Log each refund."
+	if strings.Join(got, "|") != want {
+		t.Errorf("definitions\n%s\nwant\n%s", strings.Join(got, "|"), want)
+	}
+}
+
+// An ID-like token at a definition place with a prefix the profile does not read is one hint
+// per prefix, and a requirements section with no ID is one hint. Neither changes the verdict.
+func TestTraceHints(t *testing.T) {
+	cfg := Config{Path: "PRD.md", Prefixes: []string{"REQ", "NFR"}}
+	fr := findings("# PRD\n\n## Requirements\n\n- FR-001: Refund.\n- FR-002: Email.\n", cfg, UnknownPrefix)
+	if len(fr) != 1 || fr[0].Level != kernel.Info || !strings.Contains(fr[0].Message, "FR-… looks like a trace ID in 2 places") {
+		t.Errorf("unknown prefix findings %+v", fr)
+	}
+	none := findings("# PRD\n\n## Requirements\n\n- Refund a paid order.\n", cfg, NoIDs)
+	if len(none) != 1 || none[0].Level != kernel.Info || !strings.Contains(none[0].Message, `"Requirements" section has no trace IDs`) {
+		t.Errorf("no-ids findings %+v", none)
+	}
+	if got := findings("# PRD\n\n## Requirements\n\n- REQ-001: Refund.\n", cfg, NoIDs); len(got) != 0 {
+		t.Errorf("a doc with IDs got %+v", got)
+	}
+}
+
 // A heading that only a larger doc must have is a note at a smaller size, and a failure at
 // the size the template names (REQ-134).
 func TestRequiredHeadings_Size(t *testing.T) {

@@ -63,7 +63,7 @@ func (a *API) literalTargets(ctx context.Context, repo Repo, ids []string) (map[
 }
 
 // idRe is REQ-051's ID pattern, as it appears inside code.
-var idRe = regexp.MustCompile(`\b[A-Z]{2,6}-\d{3,}\b`)
+var idRe = regexp.MustCompile(`\b[A-Z]{2,6}-\d+\b`)
 
 // lineAround returns the whole line that holds offset, trimmed of its indentation. The line
 // is the anchor quote, because a bare ID appears in many files and an anchor must name one
