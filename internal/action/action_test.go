@@ -392,6 +392,35 @@ func TestAction_ForkPastesTheSidecar(t *testing.T) {
 	}
 }
 
+// A commit that fails on a pull request from the same repo says why in the summary, not that
+// the pull request comes from a fork.
+func TestAction_FailedCommitSaysWhy(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	side := sidecars{}
+	// The branch is gone, so the commit fails.
+	o.Sidecar, o.HeadRef, o.BaseRef = side.read, "deleted", "main"
+	src := doc()
+	b := Bundle{Slug: "refunds", Dir: "refunds", MainDoc: "PRD.md", Verdict: "not_build_ready", Must: 1,
+		Findings: []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD")},
+		Files:    map[string][]byte{"PRD.md": src}}
+	files := []github.PRFile{{Filename: "refunds/PRD.md", Patch: patchFor(8)}}
+	Run(ctx, o, []Bundle{b}, files)
+	f.threads[0].replies = []github.Reply{{Author: "kim", Body: "/speccy waive The owner lands in the next doc."}}
+	res := Run(ctx, o, []Bundle{b}, files)
+	if res.Decided != 0 || f.moved != 0 {
+		t.Fatalf("decided %d, moved the branch %d times", res.Decided, f.moved)
+	}
+	body := f.issue[0].Body
+	if strings.Contains(body, "comes from a fork") {
+		t.Errorf("the summary blames a fork:\n%s", body)
+	}
+	if !strings.Contains(body, "Speccy could not commit to this pull request's branch") || !strings.Contains(body, "GitHub found nothing") ||
+		!strings.Contains(body, "check: lint.placeholder") {
+		t.Errorf("the summary does not say why the commit failed, or has no text to paste:\n%s", body)
+	}
+}
+
 // A waiver that the pull request adds counts, and the comment says the verdict depends on it.
 func TestAction_UnmergedWaiverNamedInTheSummary(t *testing.T) {
 	ctx := context.Background()

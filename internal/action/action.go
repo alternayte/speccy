@@ -531,7 +531,7 @@ func summary(o Options, bundles []Bundle, rest map[string][]string, pending map[
 		if act.committed != "" {
 			fmt.Fprintf(&b, "\nCommitted as `%s`. A decision counts when this pull request merges.\n", short(act.committed))
 		}
-		b.WriteString(pasteBlock(act.paste))
+		b.WriteString(pasteBlock(act.paste, act.uncommitted))
 	}
 	for _, x := range bundles {
 		if x.Error != "" {
