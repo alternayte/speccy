@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 )
@@ -24,7 +26,8 @@ import (
 // workflowPath is the workflow that speccy init --github writes.
 const workflowPath = ".github/workflows/speccy.yml"
 
-// workflowFile needs no secret: lint checks only, advisory, on the docs a mapping names.
+// workflowFile needs no secret: lint checks only, advisory, on the docs a mapping names. The
+// %s is the step that uses the Action.
 const workflowFile = `# Speccy reviews the specs that a pull request changes (SDD §12.4).
 name: Speccy
 on:
@@ -39,12 +42,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: alternayte/speccy@v0.1.0
-        # Lint checks only. For the model stages, set a key and pass it here:
+%s        # Lint checks only. For the model stages, set a key and pass it here:
         # with:
         #   models: all=anthropic:<model>
         #   anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 `
+
+// releaseVersion is a release tag, as the release build sets kernel.Version: v1.2.3 or 1.2.3.
+var releaseVersion = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// workflowFor is the workflow, with the Action pinned at the release of the binary that wrote
+// it. A dev build, or a build between two tags, is no release, so the workflow uses main and
+// says to pin a tag.
+func workflowFor(version string) string {
+	step := "      - uses: alternayte/speccy@v" + strings.TrimPrefix(version, "v") + "\n"
+	if !releaseVersion.MatchString(version) {
+		step = "      # A build of speccy that is not a release wrote this, so it uses main. Pin a release tag.\n" +
+			"      - uses: alternayte/speccy@main\n"
+	}
+	return fmt.Sprintf(workflowFile, step)
+}
 
 // initGitHub is speccy init --github: the one command that adopts a repo Speccy did not
 // write. It guesses a profile for each loose markdown doc, writes the path mappings, runs a
@@ -140,7 +157,7 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
-		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(workflowPath)), []byte(workflowFile), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(workflowPath)), []byte(workflowFor(kernel.Version)), 0o644); err != nil {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}

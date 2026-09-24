@@ -258,6 +258,22 @@ func TestCLI_InitGitHub(t *testing.T) {
 	}
 }
 
+// The workflow that speccy init --github writes pins the Action at the release of the binary
+// that wrote it. A dev build is no release, so it pins main.
+func TestInitGitHub_WorkflowPinsTheRelease(t *testing.T) {
+	cases := map[string]string{
+		"v0.9.0":              "alternayte/speccy@v0.9.0\n",
+		"0.9.0":               "alternayte/speccy@v0.9.0\n",
+		"dev":                 "alternayte/speccy@main\n",
+		"v0.9.0-3-gabc-dirty": "alternayte/speccy@main\n",
+	}
+	for version, want := range cases {
+		if got := workflowFor(version); !strings.Contains(got, want) || strings.Contains(got, "@v0.1.0") {
+			t.Errorf("version %s: the workflow does not pin %s:\n%s", version, strings.TrimSpace(want), got)
+		}
+	}
+}
+
 // speccy init --github on a repo with a .speccy.yaml adds its mappings and relaxed checks to
 // the file, and keeps the keys and comments that are there.
 func TestCLI_InitGitHubKeepsTheRepoConfig(t *testing.T) {
