@@ -611,6 +611,15 @@ export type BundleLink = {
      * When a run last read the external target.
      */
     checked_at?: string;
+    /**
+     * True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a frontmatter link of a doc Speccy writes. Absent on an incoming link.
+     *
+     */
+    removable?: boolean;
+};
+
+export type RemovedLink = {
+    version?: Version;
 };
 
 export type Standalone = {
@@ -3328,6 +3337,47 @@ export type GetTraceResponses = {
 };
 
 export type GetTraceResponse = GetTraceResponses[keyof GetTraceResponses];
+
+export type RemoveLinkData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query: {
+        /**
+         * The version the change is based on. When the bundle has a newer version, the request fails with code version_conflict, so a change never overwrites one it did not see.
+         *
+         */
+        base_version: string;
+        kind: 'implements' | 'refines' | 'references' | 'supersedes' | 'implemented-by';
+        /**
+         * The target as written, the target_ref of the link.
+         */
+        target: string;
+    };
+    url: '/docs/{docId}/links';
+};
+
+export type RemoveLinkErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RemoveLinkError = RemoveLinkErrors[keyof RemoveLinkErrors];
+
+export type RemoveLinkResponses = {
+    /**
+     * The link is gone. version is absent when no version was created.
+     */
+    200: RemovedLink;
+};
+
+export type RemoveLinkResponse = RemoveLinkResponses[keyof RemoveLinkResponses];
 
 export type AddTraceIdsData = {
     body: {

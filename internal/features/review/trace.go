@@ -139,7 +139,8 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 		byRef[st.TargetRef] = st
 	}
 	for _, l := range in.links {
-		bl := api.BundleLink{Kind: api.BundleLinkKind(l.kind), Origin: api.BundleLinkOrigin(l.origin), TargetKind: api.BundleLinkTargetKind(l.targetKind), TargetRef: l.ref}
+		removable := a.removable(b, l.origin)
+		bl := api.BundleLink{Kind: api.BundleLinkKind(l.kind), Origin: api.BundleLinkOrigin(l.origin), TargetKind: api.BundleLinkTargetKind(l.targetKind), TargetRef: l.ref, Removable: &removable}
 		if l.target != nil {
 			r := bundleRefAPI(*l.target)
 			bl.Bundle = &r

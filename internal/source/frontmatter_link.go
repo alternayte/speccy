@@ -2,6 +2,7 @@ package source
 
 import (
 	"errors"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -40,4 +41,37 @@ func AddLink(content []byte, kind, target string) ([]byte, error) {
 		}})
 		return true, nil
 	})
+}
+
+// RemoveLink takes every link with kind and target out of the doc's frontmatter links, and the
+// links key with the last one. The rest of the frontmatter keeps its keys and its form; YAML
+// formatting may change. ok is false when the frontmatter names no such link.
+func RemoveLink(content []byte, kind, target string) (out []byte, ok bool, err error) {
+	out, err = editFrontmatter(content, func(root *yaml.Node) (bool, error) {
+		for i := 0; i+1 < len(root.Content); i += 2 {
+			links := root.Content[i+1]
+			if root.Content[i].Value != "links" || links.Kind != yaml.SequenceNode {
+				continue
+			}
+			kept := links.Content[:0:0]
+			for _, l := range links.Content {
+				var got Link
+				if l.Decode(&got) == nil && got.Kind == kind && strings.TrimSpace(got.Target) == target {
+					ok = true
+					continue
+				}
+				kept = append(kept, l)
+			}
+			if !ok {
+				return false, nil
+			}
+			links.Content = kept
+			if len(kept) == 0 {
+				root.Content = append(root.Content[:i], root.Content[i+2:]...)
+			}
+			return true, nil
+		}
+		return false, nil
+	})
+	return out, ok, err
 }
