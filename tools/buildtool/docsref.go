@@ -599,7 +599,7 @@ func cliRefPage(usage string) string {
 
 // sharedWords lists the single avoid words that also name another thing in Speccy, so
 // the DomainWords rule does not flag them. For example, a profile has a template, a finding
-// has an anchor, and a verdict becomes stale. Phrases of two or more words are always flagged.
+// has an anchor, a waiver has a reason, and a verdict becomes stale. Phrases of two or more words are always flagged.
 var sharedWords = map[string]bool{
 	"activity": true, "anchor": true, "accuracy": true, "blocker": true, "broken": true, "candidate": true,
 	"category": true, "clone": true, "copy": true, "divergence": true, "diverged": true, "duplicate": true,
@@ -608,7 +608,7 @@ var sharedWords = map[string]bool{
 	"marker": true, "override": true, "partial": true, "precision": true, "queue": true, "reference": true,
 	"scale": true, "skip": true, "skipped": true, "snippet": true, "stale": true, "suggestion": true,
 	"symbol": true, "tag": true, "template": true, "timeline": true, "todo": true, "unknown": true,
-	"unreachable": true, "locator": true,
+	"unreachable": true, "locator": true, "reason": true, "failure": true,
 }
 
 var domainLineRe = regexp.MustCompile(`^- ([^:]+): .*Avoid(?: anywhere)?: (.+)\.$`)

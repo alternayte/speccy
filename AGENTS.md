@@ -83,3 +83,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Claim class: the class a claim takes from the heading path of the section it is anchored in, which selects the grounding source policy. Avoid: claim type, category, tag.
 - Start from: the profile whose YAML and template prefill the form of a new profile. Avoid: clone, duplicate, template, copy.
 - Carried file: a file a bundle holds because its main doc references it. Speccy never writes it back. Avoid: copied file, linked asset, imported asset, vendored file.
+- Shortfall: one reason that a rubric check fails, with its quote. Each shortfall is one finding. Avoid: reason, failure, sub-finding.
+- Whole-doc check: a rubric check with no section, which reads the whole doc and is judged again after any edit. Avoid: doc-scope check, global check.
