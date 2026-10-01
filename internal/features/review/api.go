@@ -117,18 +117,27 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.R
 		return nil, err
 	}
 	fs = append(fs, carried...)
+	trendOfRun := vd.Trend
 	if run.Kind == "full" {
 		out.AiRunId = &run.ID
-	}
-	if vd.CarriedRunID.Valid {
-		if full, err := q.GetRunByID(ctx, vd.CarriedRunID.UUID); err == nil && full.VersionID != run.VersionID {
-			if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: full.VersionID}); err == nil {
-				n, changed := fv.Number, int(vd.SectionsChanged)
-				out.AiRunId, out.AiVersionNumber, out.SectionsChanged = &full.ID, &n, &changed
-			}
-		} else if err == nil {
+	} else if vd.CarriedRunID.Valid {
+		// A lint run shows the AI review it carries: the version that review read, and its trend.
+		if full, err := q.GetRunByID(ctx, vd.CarriedRunID.UUID); err == nil {
 			out.AiRunId = &full.ID
+			if full.VersionID != run.VersionID {
+				if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: full.VersionID}); err == nil {
+					n, changed := fv.Number, int(vd.SectionsChanged)
+					out.AiVersionNumber, out.SectionsChanged = &n, &changed
+				}
+			}
+			if fvd, err := q.GetVerdict(ctx, full.ID); err == nil {
+				trendOfRun = fvd.Trend
+			}
 		}
+	}
+	var t trend
+	if json.Unmarshal(trendOfRun, &t) == nil && t.SinceRun != uuid.Nil {
+		out.Trend = &api.Trend{SinceVersion: t.SinceVersion, Fixed: t.Fixed, Open: t.Open, New: t.New}
 	}
 	for _, f := range fs {
 		if f.Waived {
@@ -255,6 +264,21 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 			return nil, err
 		}
 	}
+	// The findings that the last full review found and the one before it did not (the trend).
+	isNew := map[string]bool{}
+	if vd, err := q.GetVerdict(ctx, run.ID); err == nil {
+		trendOfRun := vd.Trend
+		if run.Kind != "full" && vd.CarriedRunID.Valid {
+			if fvd, err := q.GetVerdict(ctx, vd.CarriedRunID.UUID); err == nil {
+				trendOfRun = fvd.Trend
+			}
+		}
+		var t trend
+		_ = json.Unmarshal(trendOfRun, &t)
+		for _, id := range t.NewIDs {
+			isNew[id] = true
+		}
+	}
 	out := api.FindingList{Items: make([]api.Finding, 0, len(rows))}
 	for _, f := range rows {
 		var an anchor.Anchor
@@ -275,6 +299,10 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		}
 		if detached {
 			af.Anchor.Detached = &detached
+		}
+		if isNew[f.ID.String()] {
+			yes := true
+			af.New = &yes
 		}
 		if l := Layer(f.CheckSlug, f.Stage, kernel.Level(f.Level)); l != "" {
 			layer := api.FindingLayer(l)

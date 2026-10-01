@@ -105,6 +105,8 @@ var operations = map[string]access{
 	// A withdrawal takes an Acknowledgement out of the sidecar with no approval, so only a
 	// person who can edit the doc may do it.
 	"withdrawAcknowledgement": bundleEdit,
+	// A fresh set of build questions changes what the next review asks, as an edit does.
+	"freshQuestions": bundleEdit,
 
 	"listPeople":        member,
 	"getInbox":          member,

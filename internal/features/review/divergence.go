@@ -3,12 +3,16 @@ package review
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -21,6 +25,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/store"
@@ -127,12 +132,34 @@ func (s *Service) divergenceStage(ctx context.Context, rc *runCtx, in input, ev 
 		return nil
 	}
 
+	// A question that the readers agreed on in the last review, and whose cited text is the
+	// same, keeps its answers. The readers answer the rest: a question on changed text, and a
+	// gap or a divergence, which the author can close with text in any section.
+	outcomes := make([]questionOutcome, len(qs))
+	keep := make([]bool, len(qs))
+	var ask []buildQuestion
+	var askAt []int
+	then := map[uuid.UUID]input{}
+	for qi, q := range qs {
+		o, ok, err := s.agreed(ctx, in, q, roles, fps, then)
+		if err != nil {
+			return err
+		}
+		if ok {
+			outcomes[qi], keep[qi] = o, true
+			rc.hit()
+			continue
+		}
+		ask = append(ask, q)
+		askAt = append(askAt, qi)
+	}
+
 	// REQ-042: each reader answers alone. A reader's prompt holds the bundle and the
 	// questions only.
 	bundle := bundleData(in.bundle.DocPath, in.main, textAssets(in))
 	raw := make([][]readerAnswer, len(roles))
 	errs := make([]error, len(roles))
-	total := len(qs) * len(roles)
+	total := len(ask) * len(roles)
 	var doneMu sync.Mutex
 	done := 0
 	var wg sync.WaitGroup
@@ -140,7 +167,7 @@ func (s *Service) divergenceStage(ctx context.Context, rc *runCtx, in input, ev 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			raw[ri], errs[ri] = s.readerAnswers(ctx, rc, in, role, fps[role], qs, bundle, func(n int) {
+			raw[ri], errs[ri] = s.readerAnswers(ctx, rc, in, role, fps[role], ask, bundle, func(n int) {
 				doneMu.Lock()
 				done += n
 				d := done
@@ -157,11 +184,11 @@ func (s *Service) divergenceStage(ctx context.Context, rc *runCtx, in input, ev 
 	}
 
 	texts := bundleTexts(in)
-	outcomes := make([]questionOutcome, len(qs))
-	for qi, q := range qs {
+	for ai, q := range ask {
+		qi := askAt[ai]
 		o := questionOutcome{q: q}
 		for ri, role := range roles {
-			a := raw[ri][qi]
+			a := raw[ri][ai]
 			quotes, found := checkQuotes(texts, a.Quotes)
 			o.answers = append(o.answers, checkedAnswer{
 				role: role, fingerprint: fps[role], answer: a.Answer, quotes: quotes, quotesFound: found,
@@ -174,7 +201,7 @@ func (s *Service) divergenceStage(ctx context.Context, rc *runCtx, in input, ev 
 	// The judge groups the answers of each question that every reader answered.
 	var judged []int
 	for qi, o := range outcomes {
-		if len(roles) > 1 && allAnswered(o.answers) {
+		if !keep[qi] && len(roles) > 1 && allAnswered(o.answers) {
 			judged = append(judged, qi)
 		}
 	}
@@ -202,6 +229,10 @@ func (s *Service) divergenceStage(ctx context.Context, rc *runCtx, in input, ev 
 
 	for qi := range outcomes {
 		o := &outcomes[qi]
+		if keep[qi] {
+			addDivergenceFinding(in, ev, *o)
+			continue
+		}
 		answered := make([]bool, len(o.answers))
 		for i, a := range o.answers {
 			answered[i] = a.answered
@@ -268,78 +299,231 @@ func nonNilQuotes(q []quoteEvidence) []quoteEvidence {
 	return q
 }
 
-// pinQuestions returns the build questions of the version: the pinned set when one exists
-// (REQ-047), else a new set from the reviewer, which is then pinned.
+// pinQuestions returns the build questions of the doc. A doc keeps its questions from one
+// version to the next, so the gaps and divergences of a review are the ones the author worked
+// on, not a new list (REQ-047). A question leaves when what it cites is gone from the doc. A
+// section that is new since the questions were written gets questions of its own. A changed
+// section keeps its questions: the author changed it to answer them.
 func (s *Service) pinQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex, reviewerFP string) ([]buildQuestion, error) {
 	if in.version == uuid.Nil {
 		return s.cachedQuestions(ctx, rc, in, idx, reviewerFP)
 	}
 	q := s.DB.Queries()
-	rows, err := q.ListQuestions(ctx, in.version)
+	rows, err := q.ListLiveQuestions(ctx, in.bundle.ID)
 	if err != nil {
 		return nil, err
 	}
-	inputHash := bundleHash(in)
 	if len(rows) == 0 {
-		// A version with the same input as an earlier one (a waiver approval) reuses its
-		// questions, copied to this version.
-		earlier, err := q.ListQuestionsByInput(ctx, pgdb.ListQuestionsByInputParams{SpecDocID: in.bundle.ID, InputHash: inputHash})
+		// The first set, or a fresh set that a person asked for.
+		out, err := s.newQuestions(ctx, rc, in, idx, nil)
 		if err != nil {
 			return nil, err
 		}
-		if len(earlier) > 0 {
-			err = s.DB.InTx(ctx, func(tx store.Tx) error {
-				for _, e := range earlier {
-					if err := tx.Queries().InsertQuestion(ctx, pgdb.InsertQuestionParams{
-						ID: kernel.NewID(), WorkspaceID: s.Workspace, SpecDocID: in.bundle.ID, VersionID: in.version, Number: e.Number,
-						Text: e.Text, Level: e.Level, Cites: e.Cites, Anchor: e.Anchor, InputHash: inputHash,
-					}); err != nil {
-						return err
-					}
-				}
-				return nil
-			})
-			if err != nil {
+		if err := s.storeQuestions(ctx, in, out); err != nil {
+			return nil, err
+		}
+		return out, s.markSections(ctx, in, idx.paths)
+	}
+	rc.hit()
+	var out []buildQuestion
+	now := sql.NullTime{Time: time.Now().UTC(), Valid: true}
+	for _, r := range rows {
+		var was, cites []cite
+		_ = json.Unmarshal(r.Cites, &was)
+		for _, c := range was {
+			if idx.has(c) {
+				cites = append(cites, c)
+			}
+		}
+		if len(cites) == 0 {
+			if err := q.RetireQuestion(ctx, pgdb.RetireQuestionParams{ID: r.ID, RetiredAt: now}); err != nil {
 				return nil, err
 			}
-			if rows, err = q.ListQuestions(ctx, in.version); err != nil {
+			continue
+		}
+		bq := buildQuestion{id: r.ID, number: int(r.Number), text: r.Text, level: idx.level(cites), cites: cites, anchor: idx.anchor(cites)}
+		if len(cites) != len(was) || string(bq.level) != r.Level {
+			cj, _ := json.Marshal(bq.cites)
+			aj, _ := json.Marshal(bq.anchor)
+			if err := q.UpdateQuestionCites(ctx, pgdb.UpdateQuestionCitesParams{ID: r.ID, Cites: dbtype.JSON(cj), Level: string(bq.level), Anchor: dbtype.JSON(aj)}); err != nil {
 				return nil, err
 			}
 		}
+		out = append(out, bq)
 	}
-	if len(rows) > 0 {
-		rc.hit()
-		out := make([]buildQuestion, len(rows))
-		for i, r := range rows {
-			var cites []cite
-			var an anchor.Anchor
-			_ = json.Unmarshal(r.Cites, &cites)
-			_ = json.Unmarshal(r.Anchor, &an)
-			out[i] = buildQuestion{id: r.ID, number: int(r.Number), text: r.Text, level: kernel.Level(r.Level), cites: cites, anchor: an}
-		}
-		return out, nil
-	}
-
-	out, err := s.newQuestions(ctx, rc, in, idx)
+	fresh, err := s.newSections(ctx, in, idx.paths)
 	if err != nil {
 		return nil, err
 	}
-	err = s.DB.InTx(ctx, func(tx store.Tx) error {
+	if len(fresh) > 0 {
+		added, err := s.newQuestions(ctx, rc, in, idx, fresh)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.storeQuestions(ctx, in, added); err != nil {
+			return nil, err
+		}
+		if err := s.markSections(ctx, in, fresh); err != nil {
+			return nil, err
+		}
+		out = append(out, added...)
+	}
+	return out, nil
+}
+
+// storeQuestions stores new questions of the doc. Each takes the next number after every
+// question the doc ever had, so a number names one question for good.
+func (s *Service) storeQuestions(ctx context.Context, in input, qs []buildQuestion) error {
+	if len(qs) == 0 {
+		return nil
+	}
+	all, err := s.DB.Queries().ListDocQuestions(ctx, in.bundle.ID)
+	if err != nil {
+		return err
+	}
+	next := 1
+	for _, r := range all {
+		next = max(next, int(r.Number)+1)
+	}
+	return s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
-		for _, bq := range out {
-			cites, _ := json.Marshal(bq.cites)
-			an, _ := json.Marshal(bq.anchor)
+		for i := range qs {
+			qs[i].number = next + i
+			cites, _ := json.Marshal(qs[i].cites)
+			an, _ := json.Marshal(qs[i].anchor)
 			if err := q.InsertQuestion(ctx, pgdb.InsertQuestionParams{
-				ID: bq.id, WorkspaceID: s.Workspace, SpecDocID: in.bundle.ID, VersionID: in.version,
-				Number: int64(bq.number), Text: bq.text, Level: string(bq.level), Cites: dbtype.JSON(cites), Anchor: dbtype.JSON(an),
-				InputHash: inputHash,
+				ID: qs[i].id, WorkspaceID: s.Workspace, SpecDocID: in.bundle.ID, VersionID: in.version,
+				Number: int64(qs[i].number), Text: qs[i].text, Level: string(qs[i].level), Cites: dbtype.JSON(cites), Anchor: dbtype.JSON(an),
+				InputHash: bundleHash(in),
 			}); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
-	return out, err
+}
+
+// The sections of a doc that had their chance of build questions are recorded in the cache:
+// one entry for the doc, and one for each section. A section with no entry is new since the
+// questions were written.
+func sectionMark(in input, path string) cacheKey {
+	return cacheKey{Step: "questions-section", InputHash: hashOf(in.bundle.ID.String(), path)}
+}
+
+func docMark(in input) cacheKey {
+	return cacheKey{Step: "questions-sections", InputHash: in.bundle.ID.String()}
+}
+
+func (s *Service) markSections(ctx context.Context, in input, paths []string) error {
+	for _, p := range paths {
+		if err := s.putCache(ctx, sectionMark(in, p), true); err != nil {
+			return err
+		}
+	}
+	return s.putCache(ctx, docMark(in), true)
+}
+
+// newSections returns the heading paths of the sections that are new since the questions of
+// the doc were written. A doc whose questions are from before Speccy kept them has no record:
+// its sections count as known, and none gets questions now.
+func (s *Service) newSections(ctx context.Context, in input, paths []string) ([]string, error) {
+	var seen bool
+	if known, err := s.cached(ctx, docMark(in), &seen); err != nil {
+		return nil, err
+	} else if !known {
+		return nil, s.markSections(ctx, in, paths)
+	}
+	var fresh []string
+	for _, p := range paths {
+		if known, err := s.cached(ctx, sectionMark(in, p), &seen); err != nil {
+			return nil, err
+		} else if !known {
+			fresh = append(fresh, p)
+		}
+	}
+	return fresh, nil
+}
+
+// agreed returns the answers of the last review to a question, when Speccy keeps them: the
+// readers agreed, the same readers answer now, and each section the question cites is the
+// text that review read. A gap or a divergence is asked again, because the author can close
+// it with text in any section. ok is false when the readers answer the question again.
+func (s *Service) agreed(ctx context.Context, in input, q buildQuestion, roles []string, fps map[string]string, then map[uuid.UUID]input) (questionOutcome, bool, error) {
+	db := s.DB.Queries()
+	res, err := db.LatestQuestionResult(ctx, q.id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return questionOutcome{}, false, nil
+	}
+	if err != nil {
+		return questionOutcome{}, false, err
+	}
+	if divergence.Result(res.Result) != divergence.Agree {
+		return questionOutcome{}, false, nil
+	}
+	run, err := db.GetRunByID(ctx, res.RunID)
+	if err != nil {
+		return questionOutcome{}, false, err
+	}
+	was, ok := then[run.VersionID]
+	if !ok {
+		files, err := version.Files(ctx, db, run.VersionID)
+		if err != nil {
+			return questionOutcome{}, false, err
+		}
+		was = input{bundle: in.bundle, files: files, profile: in.profile}
+		for _, f := range files {
+			if f.Path == in.bundle.DocPath {
+				was.main = f.Content
+			}
+		}
+		was.doc = section.Parse(was.main)
+		then[run.VersionID] = was
+	}
+	for _, c := range q.cites {
+		if citedText(in, c) != citedText(was, c) {
+			return questionOutcome{}, false, nil
+		}
+	}
+	rows, err := db.ListQuestionAnswers(ctx, pgdb.ListQuestionAnswersParams{RunID: res.RunID, QuestionID: q.id})
+	if err != nil {
+		return questionOutcome{}, false, err
+	}
+	if len(rows) != len(roles) {
+		return questionOutcome{}, false, nil
+	}
+	o := questionOutcome{q: q, result: divergence.Agree}
+	for i, role := range roles {
+		// The answers are in role order, as the roles are.
+		a := rows[i]
+		if a.ReaderRole != role || a.ModelFingerprint != fps[role] {
+			return questionOutcome{}, false, nil
+		}
+		var quotes []quoteEvidence
+		_ = json.Unmarshal(a.Quotes, &quotes)
+		o.answers = append(o.answers, checkedAnswer{role: role, fingerprint: a.ModelFingerprint, answer: a.Answer, quotes: quotes,
+			quotesFound: a.QuotesFound, answered: a.QuotesFound && !divergence.IsNotSpecified(a.Answer)})
+	}
+	_ = json.Unmarshal(res.Groups, &o.groups)
+	return o, true, nil
+}
+
+// citedText is the text a cite points at in a doc: the section's own text, or the definition
+// of the trace ID. It is "" when the doc does not have it.
+func citedText(in input, c cite) string {
+	switch c.Kind {
+	case "section":
+		if sec := section.At(in.doc, c.Path); sec != nil {
+			return sec.Hash
+		}
+	case "trace":
+		prefixes := append(append([]string{}, in.profile.Profile.Trace.Prefixes...), in.profile.Profile.Trace.Cover...)
+		for _, d := range lint.Definitions(in.main, prefixes) {
+			if d.ID == c.ID {
+				return section.Hash([]byte(d.Text))
+			}
+		}
+	}
+	return ""
 }
 
 // readerAnswers returns one reader's answer to each question: from the cache, then in
@@ -579,6 +763,21 @@ func (idx citeIndex) resolve(raw string) (cite, bool) {
 	return cite{}, false
 }
 
+// has reports whether the doc still has what a cite points at.
+func (idx citeIndex) has(c cite) bool {
+	switch c.Kind {
+	case "trace":
+		if _, ok := idx.defs[c.ID]; ok {
+			return true
+		}
+		return regexp.MustCompile(`\b` + regexp.QuoteMeta(c.ID) + `\b`).Match(idx.in.main)
+	case "section":
+		_, ok := idx.sections[strings.ToLower(strings.Join(c.Path, " > "))]
+		return ok
+	}
+	return false
+}
+
 // level is REQ-041: MUST when a cite is a MUST requirement or a section the template
 // requires; otherwise SHOULD.
 func (idx citeIndex) level(cites []cite) kernel.Level {
@@ -620,14 +819,20 @@ func (idx citeIndex) anchor(cites []cite) anchor.Anchor {
 	return docAnchor(in)
 }
 
-// newQuestions asks the reviewer for build questions and keeps those that cite the doc.
-func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex) ([]buildQuestion, error) {
+// newQuestions asks the reviewer for build questions and keeps those that cite the doc. With
+// only, the questions are for those sections alone, which are new in the doc: each question
+// cites one of them, and a section that needs no question gets none.
+func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex, only []string) ([]buildQuestion, error) {
 	d := in.profile.Profile.Divergence
+	lo, hi, paths := d.Questions.Min, d.Questions.Max, idx.paths
+	if only != nil {
+		lo, hi, paths = 0, max(1, min(d.Questions.Max, 3*len(only))), only
+	}
 	res, err := rc.call(ctx, s.Gateway, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptQuestions, System: systemPrompt,
-		Prompt: questionsPrompt(in.profile.Profile.Name, d.Questions.Min, d.Questions.Max, d.Themes, idx.paths,
+		Prompt: questionsPrompt(in.profile.Profile.Name, lo, hi, d.Themes, paths, only != nil,
 			bundleData(in.bundle.DocPath, in.main, textAssets(in))),
-		Schema: questionsSchema(d.Questions.Min, d.Questions.Max), Files: snapshot(in), MaxTokens: 8000,
+		Schema: questionsSchema(lo, hi), Files: snapshot(in), MaxTokens: 8000,
 	})
 	if err != nil {
 		return nil, err
@@ -651,7 +856,11 @@ func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 		}
 		var cites []cite
 		for _, c := range g.Cites {
-			if ct, ok := idx.resolve(c); ok {
+			ct, ok := idx.resolve(c)
+			if ok && only != nil && (ct.Kind != "section" || !slices.Contains(only, strings.Join(ct.Path, " > "))) {
+				ok = false // a question for a new section cites that section
+			}
+			if ok {
 				cites = append(cites, ct)
 			}
 		}
@@ -692,7 +901,7 @@ func (s *Service) cachedQuestions(ctx context.Context, rc *runCtx, in input, idx
 		}
 		return out, nil
 	}
-	out, err := s.newQuestions(ctx, rc, in, idx)
+	out, err := s.newQuestions(ctx, rc, in, idx, nil)
 	if err != nil {
 		return nil, err
 	}

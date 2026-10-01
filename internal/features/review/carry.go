@@ -148,7 +148,7 @@ func (s *Service) carry(ctx context.Context, b pgdb.SpecDoc, in input, ev *evalu
 		}
 		kept[f.CheckSlug] = true
 		ev.findings = append(ev.findings, pending{slug: f.CheckSlug, level: kernel.Level(f.Level), stage: f.Stage,
-			anchor: an, message: f.Message, carried: f.ID})
+			anchor: an, message: f.Message, carried: f.ID, evidence: json.RawMessage(f.Evidence)})
 	}
 	var items []verdict.Item
 	_ = json.Unmarshal(vd.Items, &items)

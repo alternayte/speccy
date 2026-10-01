@@ -36,9 +36,9 @@ checks:
 
 func convergeFiles() map[string]string {
 	return map[string]string{
-		"pay/SPEC.md":                 groundedSDD,
-		".speccy/profiles/sdd.yaml":   convergeProfile,
-		".speccy/profiles/sdd.md":     "# <Name>\n\n## Context\n\n## Limits\n\n## Risks\n",
+		"pay/SPEC.md":               groundedSDD,
+		".speccy/profiles/sdd.yaml": convergeProfile,
+		".speccy/profiles/sdd.md":   "# <Name>\n\n## Context\n\n## Limits\n\n## Risks\n",
 	}
 }
 
@@ -203,5 +203,47 @@ func TestAReviewOfAnOldVersionReachesTheCurrentVerdict(t *testing.T) {
 	_, v := pe.current(t, "pay")
 	if v.VersionNumber != 2 || v.AiVersionNumber == nil || *v.AiVersionNumber != 1 || v.Must < 2 {
 		t.Errorf("verdict of v%d with AI version %v and %d MUST, want v2 with the findings of the review of v1", v.VersionNumber, v.AiVersionNumber, v.Must)
+	}
+}
+
+// After a second full review the verdict says what is fixed, still open and new against the
+// first. The unit is a check in a section: a shortfall that the model words another way is
+// still open, not one fixed and one new.
+func TestTrend_AgainstTheLastFullReview(t *testing.T) {
+	ctx := context.Background()
+	pe := newPipeline(t, storetest.Engines()[0], convergeFiles(), "fake-1")
+	pe.fake.passes = map[string]bool{"sdd.limits": true}
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {{"reason": "Two limits differ.", "quote": "999 kilobytes"}}}
+	pe.run(t, "pay")
+	if _, v := pe.current(t, "pay"); v.Trend != nil {
+		t.Fatalf("the first full review has the trend %+v, want none", v.Trend)
+	}
+
+	pe.fake.passes = nil
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {{"reason": "The body cap is stated two ways.", "quote": "999 kilobytes"}}}
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "in every region.", "in every region. The team owns it.", 1))
+	run, _, _ := pe.run(t, "pay")
+	_, v := pe.current(t, "pay")
+	if v.Trend == nil || v.Trend.SinceVersion != 1 || v.Trend.New != 1 || v.Trend.Fixed != 0 || v.Trend.Open < 1 {
+		t.Fatalf("trend %+v, want since v1: 1 new (sdd.limits), none fixed, and the rest still open", v.Trend)
+	}
+	a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews}
+	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: run.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range res.(api.ListFindings200JSONResponse).Items {
+		isNew := f.New != nil && *f.New
+		if want := f.CheckSlug == "sdd.limits"; isNew != want {
+			t.Errorf("the finding of %s is marked new = %v, want %v", f.CheckSlug, isNew, want)
+		}
+	}
+
+	// The author fixes the limits: one fixed, none new.
+	pe.fake.passes = map[string]bool{"sdd.limits": true}
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "in every region.", "in every region. The team owns it and its limits.", 1))
+	pe.run(t, "pay")
+	if _, v := pe.current(t, "pay"); v.Trend == nil || v.Trend.SinceVersion != 2 || v.Trend.Fixed != 1 || v.Trend.New != 0 {
+		t.Errorf("trend %+v, want since v2: 1 fixed and none new", v.Trend)
 	}
 }

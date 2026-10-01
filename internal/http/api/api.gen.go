@@ -1421,6 +1421,27 @@ func (e Visibility) Valid() bool {
 	}
 }
 
+// Defines values for WaiverEndedBecause.
+const (
+	CheckChanged   WaiverEndedBecause = "check_changed"
+	CheckPassed    WaiverEndedBecause = "check_passed"
+	SectionChanged WaiverEndedBecause = "section_changed"
+)
+
+// Valid indicates whether the value is a known member of the WaiverEndedBecause enum.
+func (e WaiverEndedBecause) Valid() bool {
+	switch e {
+	case CheckChanged:
+		return true
+	case CheckPassed:
+		return true
+	case SectionChanged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WaiverStatus.
 const (
 	WaiverStatusApproved    WaiverStatus = "approved"
@@ -1895,8 +1916,11 @@ type BundleVerdict struct {
 
 	// StaleUpstream With stale_reason upstream_changed, the linked spec docs that have a newer version than the run read.
 	StaleUpstream *[]BundleRef `json:"stale_upstream,omitempty"`
-	VersionNumber int64        `json:"version_number"`
-	WaiverCount   int          `json:"waiver_count"`
+
+	// Trend What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
+	Trend         *Trend `json:"trend,omitempty"`
+	VersionNumber int64  `json:"version_number"`
+	WaiverCount   int    `json:"waiver_count"`
 }
 
 // BundleVerdictKind lint means only the lint stage ran.
@@ -2135,6 +2159,9 @@ type Finding struct {
 	Layer   *FindingLayer `json:"layer,omitempty"`
 	Level   FindingLevel  `json:"level"`
 	Message string        `json:"message"`
+
+	// New The last full review found this, and the full review before it did not. See Trend.
+	New *bool `json:"new,omitempty"`
 
 	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
 	Relaxed bool `json:"relaxed"`
@@ -3192,6 +3219,16 @@ type TraceView struct {
 	Suggestions []IdSuggestion `json:"suggestions"`
 }
 
+// Trend What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
+type Trend struct {
+	Fixed int `json:"fixed"`
+	New   int `json:"new"`
+	Open  int `json:"open"`
+
+	// SinceVersion The version that the earlier full review read.
+	SinceVersion int64 `json:"since_version"`
+}
+
 // VerdictResult defines model for VerdictResult.
 type VerdictResult string
 
@@ -3391,8 +3428,11 @@ type Waiver struct {
 	// DecisionReason Why the waiver is rejected. Only a rejected waiver has one.
 	DecisionReason *string            `json:"decision_reason,omitempty"`
 	DocId          openapi_types.UUID `json:"doc_id"`
-	Id             openapi_types.UUID `json:"id"`
-	Level          string             `json:"level"`
+
+	// EndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+	EndedBecause *WaiverEndedBecause `json:"ended_because,omitempty"`
+	Id           openapi_types.UUID  `json:"id"`
+	Level        string              `json:"level"`
 
 	// Needed The approvals the policy needs.
 	Needed int `json:"needed"`
@@ -3418,9 +3458,15 @@ type Waiver struct {
 	// Verification What a verification waiver excuses. It never goes in the sidecar.
 	Verification *VerificationExcuse `json:"verification,omitempty"`
 
+	// WholeDoc True for a waiver of a whole-doc check. An edit does not end it. It ends when a full review passes the check, or when the profile changes what the check asks.
+	WholeDoc *bool `json:"whole_doc,omitempty"`
+
 	// WithdrawnBy Who withdrew the Acknowledgement. Only a withdrawn one has it.
 	WithdrawnBy *string `json:"withdrawn_by,omitempty"`
 }
+
+// WaiverEndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+type WaiverEndedBecause string
 
 // WaiverStatus withdrawn is an approved Acknowledgement that a person took out of the sidecar.
 type WaiverStatus string
@@ -4131,6 +4177,9 @@ type ServerInterface interface {
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /docs/{docId}/publish)
 	PublishBundle(w http.ResponseWriter, r *http.Request, docId DocId)
+	// FreshQuestions Ask for a fresh set of build questions at the next full review.
+	// (POST /docs/{docId}/questions/fresh)
+	FreshQuestions(w http.ResponseWriter, r *http.Request, docId DocId)
 	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	// (POST /docs/{docId}/review-request)
 	RequestReview(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -5916,6 +5965,32 @@ func (siw *ServerInterfaceWrapper) PublishBundle(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PublishBundle(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// FreshQuestions operation middleware
+func (siw *ServerInterfaceWrapper) FreshQuestions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FreshQuestions(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7880,6 +7955,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/threads/{threadId}/status", wrapper.SetThreadStatus)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.ListWaivers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.RequestWaiver)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/questions/fresh", wrapper.FreshQuestions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/acknowledgements/withdraw", wrapper.WithdrawAcknowledgement)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/approve", wrapper.ApproveWaiver)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/reject", wrapper.RejectWaiver)
@@ -10248,6 +10324,39 @@ type PublishBundledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PublishBundledefaultApplicationProblemPlusJSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FreshQuestionsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type FreshQuestionsResponseObject interface {
+	VisitFreshQuestionsResponse(w http.ResponseWriter) error
+}
+
+type FreshQuestions204Response struct {
+}
+
+func (response FreshQuestions204Response) VisitFreshQuestionsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type FreshQuestionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response FreshQuestionsdefaultApplicationProblemPlusJSONResponse) VisitFreshQuestionsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -13295,6 +13404,9 @@ type StrictServerInterface interface {
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /docs/{docId}/publish)
 	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
+	// FreshQuestions Ask for a fresh set of build questions at the next full review.
+	// (POST /docs/{docId}/questions/fresh)
+	FreshQuestions(ctx context.Context, request FreshQuestionsRequestObject) (FreshQuestionsResponseObject, error)
 	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	// (POST /docs/{docId}/review-request)
 	RequestReview(ctx context.Context, request RequestReviewRequestObject) (RequestReviewResponseObject, error)
@@ -15215,6 +15327,32 @@ func (sh *strictHandler) PublishBundle(w http.ResponseWriter, r *http.Request, d
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PublishBundleResponseObject); ok {
 		if err := validResponse.VisitPublishBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FreshQuestions operation middleware
+func (sh *strictHandler) FreshQuestions(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request FreshQuestionsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FreshQuestions(ctx, request.(FreshQuestionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FreshQuestions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FreshQuestionsResponseObject); ok {
+		if err := validResponse.VisitFreshQuestionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

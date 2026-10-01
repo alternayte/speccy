@@ -238,6 +238,7 @@ export type BundleVerdict = {
      * How many sections changed since the AI review read the doc.
      */
     sections_changed?: number;
+    trend?: Trend;
     /**
      * Set when the verdict is stale because a linked bundle has a newer version than the run read (REQ-056).
      */
@@ -790,7 +791,25 @@ export type Anchor = {
     detached?: boolean;
 };
 
+/**
+ * What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
+ *
+ */
+export type Trend = {
+    /**
+     * The version that the earlier full review read.
+     */
+    since_version: number;
+    fixed: number;
+    open: number;
+    new: number;
+};
+
 export type Finding = {
+    /**
+     * The last full review found this, and the full review before it did not. See Trend.
+     */
+    new?: boolean;
     /**
      * The run the finding belongs to. A carried finding belongs to the last full review.
      */
@@ -1307,6 +1326,16 @@ export type Waiver = {
      * Who withdrew the Acknowledgement. Only a withdrawn one has it.
      */
     withdrawn_by?: string;
+    /**
+     * Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+     *
+     */
+    ended_because?: 'section_changed' | 'check_passed' | 'check_changed';
+    /**
+     * True for a waiver of a whole-doc check. An edit does not end it. It ends when a full review passes the check, or when the profile changes what the check asks.
+     *
+     */
+    whole_doc?: boolean;
     created_at: string;
 };
 
@@ -4356,6 +4385,36 @@ export type RequestWaiverResponses = {
 };
 
 export type RequestWaiverResponse = RequestWaiverResponses[keyof RequestWaiverResponses];
+
+export type FreshQuestionsData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/questions/fresh';
+};
+
+export type FreshQuestionsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type FreshQuestionsError = FreshQuestionsErrors[keyof FreshQuestionsErrors];
+
+export type FreshQuestionsResponses = {
+    /**
+     * The questions are retired. The next full review writes a new set.
+     */
+    204: void;
+};
+
+export type FreshQuestionsResponse = FreshQuestionsResponses[keyof FreshQuestionsResponses];
 
 export type WithdrawAcknowledgementData = {
     body: {

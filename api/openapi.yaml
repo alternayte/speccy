@@ -1713,6 +1713,22 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /docs/{docId}/questions/fresh:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    post:
+      operationId: freshQuestions
+      summary: Ask for a fresh set of build questions at the next full review.
+      description: >
+        A doc keeps its build questions from one version to the next. This retires every one of
+        them, so the next full review writes a new set. It is the only way the whole set changes.
+        It calls no model. Only a person who can edit the doc may do it.
+      responses:
+        "204":
+          description: The questions are retired. The next full review writes a new set.
+        default:
+          $ref: "#/components/responses/Problem"
+
   /docs/{docId}/acknowledgements/withdraw:
     parameters:
       - $ref: "#/components/parameters/DocId"
@@ -3116,6 +3132,8 @@ components:
         sections_changed:
           type: integer
           description: How many sections changed since the AI review read the doc.
+        trend:
+          $ref: "#/components/schemas/Trend"
         stale_reason:
           type: string
           enum: [upstream_changed]
@@ -3936,10 +3954,32 @@ components:
           type: boolean
           description: The text changed, and Speccy cannot find the quote in the current version (SDD §8.8).
 
+    Trend:
+      type: object
+      description: >
+        What the last full review fixed, left open and found new, against the full review before
+        it. The unit is a check in a section, or a build question; only open MUST and SHOULD
+        findings count. Absent when the doc has one full review or none.
+      required: [since_version, fixed, open, new]
+      properties:
+        since_version:
+          type: integer
+          format: int64
+          description: The version that the earlier full review read.
+        fixed:
+          type: integer
+        open:
+          type: integer
+        new:
+          type: integer
+
     Finding:
       type: object
       required: [id, run_id, check_slug, level, stage, relaxed, message, anchor, waived]
       properties:
+        new:
+          type: boolean
+          description: The last full review found this, and the full review before it did not. See Trend.
         run_id:
           type: string
           format: uuid
@@ -4674,6 +4714,17 @@ components:
         withdrawn_by:
           type: string
           description: Who withdrew the Acknowledgement. Only a withdrawn one has it.
+        ended_because:
+          type: string
+          enum: [section_changed, check_passed, check_changed]
+          description: >
+            Why an ended waiver ended: an edit changed its section, a full review passed its
+            whole-doc check, or the profile changed what the check asks.
+        whole_doc:
+          type: boolean
+          description: >
+            True for a waiver of a whole-doc check. An edit does not end it. It ends when a full
+            review passes the check, or when the profile changes what the check asks.
         created_at:
           type: string
           format: date-time

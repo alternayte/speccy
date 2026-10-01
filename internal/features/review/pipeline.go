@@ -482,7 +482,7 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 
 	// Divergence: the questions (unless pinned), one call per reader per batch of questions,
 	// and about one judge call per question. The reader and judge caches are not counted.
-	pinned, err := s.DB.Queries().ListQuestions(ctx, b.CurrentVersionID.UUID)
+	pinned, err := s.DB.Queries().ListLiveQuestions(ctx, b.ID)
 	if err != nil {
 		return est, err
 	}

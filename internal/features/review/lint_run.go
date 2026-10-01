@@ -397,18 +397,26 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	}
 	vin.OpenBlockingThreads = int(blocking)
 	var carried []carriedFinding
+	// units is the unit of each open MUST and SHOULD finding, by finding ID, for the trend.
+	units := map[string]string{}
 	for i, f := range ev.findings {
-		if f.carried != uuid.Nil {
-			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
-			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
-			continue
-		}
-		id := kernel.NewID()
-		anchorJSON, _ := json.Marshal(f.anchor)
 		evidence := dbtype.JSON(`{}`)
 		if f.evidence != nil {
 			e, _ := json.Marshal(f.evidence)
 			evidence = e
+		}
+		if f.carried != uuid.Nil {
+			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
+			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
+			if counts(string(f.level), waived[i]) {
+				units[f.carried.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
+			}
+			continue
+		}
+		id := kernel.NewID()
+		anchorJSON, _ := json.Marshal(f.anchor)
+		if counts(string(f.level), waived[i]) {
+			units[id.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 		}
 		sugg := dbtype.JSON(`{}`)
 		if f.fix != "" {
@@ -423,6 +431,17 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	vin.Items = ev.items
 	v := verdict.Decide(vin)
 	finished := time.Now().UTC()
+	// A full review says what it fixed, left open and found new since the one before it.
+	trendJSON := dbtype.JSON(`{}`)
+	if run.Kind == "full" {
+		t, err := trendOf(ctx, s.DB.Queries(), in.bundle, run, p, units)
+		if err != nil {
+			return err
+		}
+		if t != nil {
+			trendJSON, _ = json.Marshal(t)
+		}
+	}
 	return s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
 		if existing {
@@ -488,7 +507,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			RunID: run.ID, Result: string(v.Result), Score: int64(v.Score), Radar: dbtype.JSON(radar),
 			WaiverCount: int64(v.WaiverCount), RelaxedCount: int64(relaxedCount(p, ev.relaxed)), BlockingFindingIds: dbtype.JSON(blocking),
 			Items: dbtype.JSON(items), CarriedRunID: carriedRun, CarriedFindings: dbtype.JSON(carriedJSON),
-			SectionsChanged: int64(ev.sectionsChanged),
+			SectionsChanged: int64(ev.sectionsChanged), Trend: trendJSON,
 		})
 	})
 }

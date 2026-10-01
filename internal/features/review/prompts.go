@@ -174,9 +174,14 @@ func verifySchema(n int) []byte {
 }
 
 // questionsPrompt asks the reviewer for build questions (REQ-040, REQ-041).
-func questionsPrompt(docType string, min, max int, themes []string, sections []string, bundle string) string {
+func questionsPrompt(docType string, min, max int, themes []string, sections []string, newOnly bool, bundle string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Write between %d and %d build questions for this %s. A build question is a question that an engineer must answer to build the thing the doc describes. Good questions ask about the choices where two careful engineers could build different things: who owns a step, what happens on an error, exact limits, the order of state changes.\n\n", min, max, docType)
+	if newOnly {
+		fmt.Fprintf(&b, "The sections listed below are new in this %s. Write up to %d build questions about them, and none about the rest of the doc. Write no question for a section that leaves nothing open.", docType, max)
+	} else {
+		fmt.Fprintf(&b, "Write between %d and %d build questions for this %s.", min, max, docType)
+	}
+	b.WriteString(" A build question is a question that an engineer must answer to build the thing the doc describes. Good questions ask about the choices where two careful engineers could build different things: who owns a step, what happens on an error, exact limits, the order of state changes.\n\n")
 	b.WriteString("Rules:\n")
 	b.WriteString("- Ask one thing per question. Ask it so that a short answer settles it.\n")
 	b.WriteString("- Do not ask what the doc obviously states in one place. Do not ask for opinions.\n")

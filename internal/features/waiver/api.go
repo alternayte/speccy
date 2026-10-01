@@ -428,6 +428,14 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		by := kernel.PersonByID(ctx, a.People, s.WithdrawnBy).Label()
 		w.WithdrawnBy = &by
 	}
+	if s.Status == StatusInvalidated && s.EndedBecause != "" {
+		why := api.WaiverEndedBecause(s.EndedBecause)
+		w.EndedBecause = &why
+	}
+	if profile.IsCheckHash(s.SectionHash) {
+		yes := true
+		w.WholeDoc = &yes
+	}
 	if main, doc, err := a.mainDoc(ctx, b); err == nil {
 		if start, end, ok := section.RangeAt(doc, main, s.Section); ok {
 			w.SectionRange = &api.SectionRange{Start: start, End: end}

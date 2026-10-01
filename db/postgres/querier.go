@@ -157,6 +157,8 @@ type Querier interface {
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
 	// The last finished full review of a spec doc, on any version. Its AI findings carry.
 	LatestFullReview(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
+	// The result of a question in the last finished run that asked it.
+	LatestQuestionResult(ctx context.Context, questionID uuid.UUID) (QuestionResult, error)
 	LatestRun(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)
@@ -174,6 +176,8 @@ type Querier interface {
 	ListBundlesBySource(ctx context.Context, arg ListBundlesBySourceParams) ([]Bundle, error)
 	ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, error)
 	ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) ([]DismissedDoc, error)
+	// Every question the doc ever had, the retired ones too. A new question takes the next number.
+	ListDocQuestions(ctx context.Context, specDocID uuid.UUID) ([]Question, error)
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
@@ -184,6 +188,8 @@ type Querier interface {
 	ListLinkStates(ctx context.Context, specDocID uuid.UUID) ([]LinkState, error)
 	ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([]Link, error)
 	ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID) ([]Link, error)
+	// The build questions a doc keeps: every question that is not retired.
+	ListLiveQuestions(ctx context.Context, specDocID uuid.UUID) ([]Question, error)
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
 	// Messages in threads of the workspace after a time, newest first, for the inbox.
 	ListMessagesSince(ctx context.Context, arg ListMessagesSinceParams) ([]ListMessagesSinceRow, error)
@@ -191,12 +197,12 @@ type Querier interface {
 	ListProfileThreads(ctx context.Context, arg ListProfileThreadsParams) ([]ThreadView, error)
 	ListProfileVersions(ctx context.Context, profileID uuid.UUID) ([]ListProfileVersionsRow, error)
 	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
+	ListQuestionAnswers(ctx context.Context, arg ListQuestionAnswersParams) ([]Answer, error)
 	ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]QuestionResult, error)
-	ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error)
-	// REQ-047: the questions of an earlier version of the bundle with the same content.
-	ListQuestionsByInput(ctx context.Context, arg ListQuestionsByInputParams) ([]Question, error)
 	ListReviewerSpecDocs(ctx context.Context, userID string) ([]uuid.UUID, error)
 	ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink, error)
+	// The questions a run answered, which may be retired since.
+	ListRunQuestions(ctx context.Context, runID uuid.UUID) ([]Question, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun, error)
 	ListSpecDocReviewers(ctx context.Context, specDocID uuid.UUID) ([]string, error)
 	ListSpecDocStatusViews(ctx context.Context, workspaceID uuid.UUID) ([]SpecDocStatusView, error)
@@ -224,7 +230,11 @@ type Querier interface {
 	NextVersionNumber(ctx context.Context, specDocID uuid.UUID) (int64, error)
 	PeekInvite(ctx context.Context, arg PeekInviteParams) (Invite, error)
 	PeekResetLink(ctx context.Context, arg PeekResetLinkParams) (ResetLink, error)
+	// The last finished full review of a spec doc that started before another one.
+	PreviousFullReview(ctx context.Context, arg PreviousFullReviewParams) (ReviewRun, error)
 	PutCache(ctx context.Context, arg PutCacheParams) error
+	RetireQuestion(ctx context.Context, arg RetireQuestionParams) error
+	RetireQuestions(ctx context.Context, arg RetireQuestionsParams) error
 	RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error)
 	RunningRunFor(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	SetAdoptedLink(ctx context.Context, arg SetAdoptedLinkParams) error
@@ -258,6 +268,7 @@ type Querier interface {
 	// A scan keeps the title and the source of a bundle in step, and un-archives it.
 	UpdateBundle(ctx context.Context, arg UpdateBundleParams) error
 	UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnectionParams) error
+	UpdateQuestionCites(ctx context.Context, arg UpdateQuestionCitesParams) error
 	UpdateRunProgress(ctx context.Context, arg UpdateRunProgressParams) error
 	// The head moves only from the version the change was based on.
 	UpdateSpecDocHead(ctx context.Context, arg UpdateSpecDocHeadParams) (int64, error)

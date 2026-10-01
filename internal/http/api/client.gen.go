@@ -597,6 +597,13 @@ type ClientInterface interface {
 	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 	PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// FreshQuestions Ask for a fresh set of build questions at the next full review.
+	//
+	// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+	//
+	// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+	FreshQuestions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	//
 	// Takes any type of body and a specified content type.
@@ -2532,6 +2539,23 @@ func (c *Client) PublishBundleWithBody(ctx context.Context, docId DocId, content
 // Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 func (c *Client) PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPublishBundleRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FreshQuestions Ask for a fresh set of build questions at the next full review.
+//
+// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+//
+// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+func (c *Client) FreshQuestions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFreshQuestionsRequest(c.Server, docId)
 	if err != nil {
 		return nil, err
 	}
@@ -6685,6 +6709,40 @@ func NewPublishBundleRequestWithBody(server string, docId DocId, contentType str
 	return req, nil
 }
 
+// NewFreshQuestionsRequest constructs an http.Request for the FreshQuestions method
+func NewFreshQuestionsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/questions/fresh", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewRequestReviewRequest calls the generic RequestReview builder with application/json body
 func NewRequestReviewRequest(server string, docId DocId, body RequestReviewJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -10152,6 +10210,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 	PublishBundleWithResponse(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
+
+	// FreshQuestionsWithResponse Ask for a fresh set of build questions at the next full review.
+	//
+	// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+	FreshQuestionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*FreshQuestionsResponse, error)
 
 	// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	//
@@ -13663,6 +13730,47 @@ func (r PublishBundleResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PublishBundleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type FreshQuestionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r FreshQuestionsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r FreshQuestionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r FreshQuestionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FreshQuestionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r FreshQuestionsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -18140,6 +18248,21 @@ func (c *ClientWithResponses) PublishBundleWithResponse(ctx context.Context, doc
 	return ParsePublishBundleResponse(rsp)
 }
 
+// FreshQuestionsWithResponse Ask for a fresh set of build questions at the next full review.
+//
+// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+func (c *ClientWithResponses) FreshQuestionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*FreshQuestionsResponse, error) {
+	rsp, err := c.FreshQuestions(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFreshQuestionsResponse(rsp)
+}
+
 // RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -21372,6 +21495,35 @@ func ParsePublishBundleResponse(rsp *http.Response) (*PublishBundleResponse, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFreshQuestionsResponse parses an HTTP response from a FreshQuestionsWithResponse call
+func ParseFreshQuestionsResponse(rsp *http.Response) (*FreshQuestionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FreshQuestionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
