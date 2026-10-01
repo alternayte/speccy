@@ -232,3 +232,39 @@ func TestAgentCLI_LeavesTheControllingTerminal(t *testing.T) {
 		t.Error("the CLI keeps the controlling terminal, so a question on /dev/tty would wait for an answer nobody can give")
 	}
 }
+
+// A call goes out at temperature 0. A model that refuses a temperature gets the call again
+// with none, and every later call to it goes out with none at once.
+func TestGateway_TemperatureZeroWhereTheModelTakesIt(t *testing.T) {
+	ctx := context.Background()
+	g, _ := newGateway(t, nil)
+	var sent []*float64
+	refuse := false
+	g.Fake = BackendFunc(func(_ context.Context, _ string, c Call) (Raw, error) {
+		sent = append(sent, c.Temperature)
+		if refuse && c.Temperature != nil {
+			return Raw{}, &StatusError{Status: 400, Message: "`temperature` is not supported for this model."}
+		}
+		return Raw{Text: `{"answer":"Paris"}`}, nil
+	})
+	res, err := g.Call(ctx, call())
+	if err != nil || res.Temperature == nil || *res.Temperature != 0 || len(sent) != 1 {
+		t.Fatalf("a model that takes a temperature: err %v, temperature %v, %d calls; want 0 in one call", err, res.Temperature, len(sent))
+	}
+
+	g, _ = newGateway(t, nil)
+	g.Fake, sent, refuse = BackendFunc(func(_ context.Context, _ string, c Call) (Raw, error) {
+		sent = append(sent, c.Temperature)
+		if c.Temperature != nil {
+			return Raw{}, &StatusError{Status: 400, Message: "`temperature` is not supported for this model."}
+		}
+		return Raw{Text: `{"answer":"Paris"}`}, nil
+	}), nil, true
+	res, err = g.Call(ctx, call())
+	if err != nil || res.Temperature != nil || len(sent) != 2 {
+		t.Fatalf("a model that refuses a temperature: err %v, temperature %v, %d calls; want an answer with none after 2", err, res.Temperature, len(sent))
+	}
+	if _, err := g.Call(ctx, call()); err != nil || len(sent) != 3 || sent[2] != nil {
+		t.Errorf("the next call: err %v, %d calls in all; want one more call with no temperature", err, len(sent))
+	}
+}

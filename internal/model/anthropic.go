@@ -44,6 +44,9 @@ func (b *anthropicBackend) Call(ctx context.Context, model string, c Call) (Raw,
 	if c.System != "" {
 		params.System = []anthropic.TextBlockParam{{Text: c.System}}
 	}
+	if c.Temperature != nil {
+		params.Temperature = anthropic.Float(*c.Temperature)
+	}
 	if c.Search {
 		params.Tools = []anthropic.ToolUnionParam{webSearchTool(model)}
 	}

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,6 +42,8 @@ type Result struct {
 	// Fingerprint names the backend and model, for reader diversity (REQ-046) and the cache.
 	Fingerprint string
 	Attempts    int
+	// Temperature is the temperature the call went out with, or nil when it went out with none.
+	Temperature *float64
 }
 
 // Gateway sends calls for roles to the assigned backend.
@@ -56,6 +60,8 @@ type Gateway struct {
 	backoff func(attempt int) time.Duration
 	// build returns the backend for a row; tests can replace it.
 	build func(pgdb.ModelBackend) (Backend, error)
+	// noTemperature holds the backend and model pairs that refused a temperature.
+	noTemperature sync.Map
 }
 
 func (g *Gateway) clock() time.Time {
@@ -133,6 +139,13 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		return Result{}, err
 	}
 	res := Result{Backend: row.Kind, Model: model, Fingerprint: row.Kind + ":" + model}
+	// Temperature 0 where the backend and the model accept it. Some models refuse a
+	// temperature; the gateway learns that from the refusal and sends none after it.
+	refuses := row.ID.String() + "/" + model
+	if _, no := g.noTemperature.Load(refuses); takesTemperature(row.Kind) && !no {
+		zero := 0.0
+		c.Temperature = &zero
+	}
 	transientLeft, parseLeft := transientRetries, parseRetries
 	var lastParse error
 	for attempt := 0; ; attempt++ {
@@ -144,12 +157,18 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		timedOut := callCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil
 		cancel()
 		res.Attempts = attempt + 1
+		res.Temperature = c.Temperature
 		if err != nil {
 			if ctx.Err() != nil {
 				return res, ctx.Err()
 			}
 			if timedOut {
 				return res, fmt.Errorf("the %s backend did not answer within %s", row.Name, CallTimeout)
+			}
+			if c.Temperature != nil && refusesTemperature(err) {
+				g.noTemperature.Store(refuses, true)
+				c.Temperature = nil
+				continue
 			}
 			if Transient(err) && transientLeft > 0 {
 				transientLeft--
@@ -178,6 +197,13 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		}
 		parseLeft--
 	}
+}
+
+// refusesTemperature reports whether a backend rejected the request because of its
+// temperature: HTTP 400 with a message that names the parameter.
+func refusesTemperature(err error) bool {
+	var se *StatusError
+	return errors.As(err, &se) && se.Status == 400 && strings.Contains(strings.ToLower(se.Message), "temperature")
 }
 
 func compileSchema(raw []byte) (*jsonschema.Schema, error) {

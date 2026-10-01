@@ -44,6 +44,8 @@ type runCtx struct {
 	notes     []string
 	prices    map[string][2]float64 // role → price in, out per million tokens
 	stages    []stageTiming
+	// temps says, for each role this run called, whether its calls went out at temperature 0.
+	temps map[string]bool
 }
 
 // stageTiming is when a stage started and ended, for the run report (SDD §13.1).
@@ -81,6 +83,12 @@ func (rc *runCtx) call(ctx context.Context, g *model.Gateway, c model.Call) (mod
 	}
 	if res.Fingerprint != "" {
 		rc.roles[c.Role] = res.Fingerprint
+	}
+	if res.Attempts > 0 {
+		if rc.temps == nil {
+			rc.temps = map[string]bool{}
+		}
+		rc.temps[c.Role] = res.Temperature != nil
 	}
 	rc.prompts[c.PromptVersion[:strings.LastIndexByte(c.PromptVersion, '-')]] = c.PromptVersion
 	rc.mu.Unlock()

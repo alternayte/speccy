@@ -358,9 +358,12 @@ func (s *Service) fillRun(run *pgdb.ReviewRun, rc *runCtx) {
 	run.TokensIn, run.TokensOut, run.CacheHits, run.CostEstimate = rc.tokensIn, rc.tokensOut, int64(rc.cacheHits), rc.cost
 	run.Roles, _ = json.Marshal(rc.roles)
 	run.PromptVersions, _ = json.Marshal(rc.prompts)
-	notes := rc.notes
+	notes := slices.Clone(rc.notes)
 	if notes == nil {
 		notes = []string{}
+	}
+	if n := temperatureNote(rc.temps); n != "" {
+		notes = append(notes, n)
 	}
 	run.Notes, _ = json.Marshal(notes)
 	now := time.Now().UTC()
@@ -372,6 +375,28 @@ func (s *Service) fillRun(run *pgdb.ReviewRun, rc *runCtx) {
 		stages = []stageTiming{}
 	}
 	run.Stages, _ = json.Marshal(stages)
+}
+
+// temperatureNote names the temperature of the model calls of a run, for the run report: 0 for
+// the roles whose model accepts it, and none for the rest. It is "" for a run that called no
+// model.
+func temperatureNote(temps map[string]bool) string {
+	var zero, none []string
+	for _, role := range model.Roles {
+		if sent, called := temps[role]; called && sent {
+			zero = append(zero, role)
+		} else if called {
+			none = append(none, role)
+		}
+	}
+	var parts []string
+	if len(zero) > 0 {
+		parts = append(parts, "Temperature 0: "+strings.Join(zero, ", ")+".")
+	}
+	if len(none) > 0 {
+		parts = append(parts, "No temperature, because the model takes none: "+strings.Join(none, ", ")+".")
+	}
+	return strings.Join(parts, " ")
 }
 
 func (s *Service) parallel(ctx context.Context) int {
