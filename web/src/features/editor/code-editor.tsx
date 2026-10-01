@@ -19,10 +19,13 @@ const theme = EditorView.theme({
   ".cm-line": { padding: "0 var(--space-4)" },
   ".cm-gutters": { backgroundColor: "var(--surface)", color: "var(--ink-3)", border: "none" },
   ".cm-lineNumbers .cm-gutterElement": { padding: "0 var(--space-2) 0 var(--space-3)", minWidth: "3ch" },
-  ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--sunken)" },
+  // The selection layer sits behind the lines. A line with an opaque background hides the
+  // selection on it, so the active line is a wash that the selection shows through.
+  ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--ink) 5%, transparent)" },
+  ".cm-activeLineGutter": { backgroundColor: "var(--sunken)" },
   "&.cm-focused": { outline: "none" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": {
-    backgroundColor: "var(--accent-soft) !important",
+    backgroundColor: "color-mix(in srgb, var(--accent) 28%, transparent) !important",
   },
   ".cm-cursor": { borderLeftColor: "var(--accent)" },
   ".cm-searchMatch": { backgroundColor: "var(--warn-soft)" },
