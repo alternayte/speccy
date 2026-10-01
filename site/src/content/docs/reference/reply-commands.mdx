@@ -31,7 +31,7 @@ The Action reads replies when it runs. The workflow runs on `pull_request` event
 
 ### `/speccy waive <reason>`
 
-The Action writes a waiver for the check of the finding, and the section of the finding:
+The Action writes a waiver for the check of the finding. One waiver covers every shortfall of that check in its section. For a lint finding, the entry names the section of the finding:
 
 ```yaml sidecar
 waivers:
@@ -42,9 +42,13 @@ waivers:
     requested_by: kim
 ```
 
-- `section` is the heading path of the finding. For a check whose scope is the whole doc, or a finding with no heading, `section` is `[]` and the waiver covers the whole doc.
-- `section_hash` is the hash of the section text at that moment. The waiver ends when the section changes.
+- `section` is the heading path of the finding. For a rubric check that names a `section` in the profile, it is the heading path of that section.
+- `section_hash` is the hash of the section text at that moment. The waiver ends when the section changes. For a check that names a section, the hash covers the subsections too.
+- For a whole-doc check, `section` is `[]`, and the entry has `check_hash` in place of `section_hash`. An edit does not end this waiver. It ends when a full review passes the check, or when the profile changes the `question` or the `pass_when` of the check.
+- For a check of another stage that reads the whole doc, or a finding with no heading, `section` is `[]`. `section_hash` then covers the whole doc, so any edit ends the waiver.
 - `requested_by` is the GitHub login of the person who wrote the reply.
+
+[Sidecar format](/reference/sidecar/#waivers) shows each form.
 
 A new waiver for the same check and section replaces the old one.
 

@@ -278,7 +278,7 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	}
 	if stages != nil {
 		names := append([]string{StageLint}, stages...)
-		rc.note("Stages in this run: " + strings.Join(names, ", ") + ". The verdict counts only these stages.")
+		rc.note("Stages in this run: " + strings.Join(names, ", ") + ". The findings of the other stages stay from the last review that ran them.")
 	}
 	if roles, err := q.ListAssignments(ctx, s.Workspace); err == nil {
 		for _, r := range roles {

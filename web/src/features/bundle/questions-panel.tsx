@@ -1,9 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { ChevronRight, CircleCheck, CircleHelp, Split } from "lucide-react";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { Anchor, BuildQuestion } from "@/lib/api";
-import { listQuestionsOptions } from "@/lib/api/@tanstack/react-query.gen";
+import { freshQuestionsMutation, listQuestionsOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 
 const resultStyle = {
@@ -14,8 +14,21 @@ const resultStyle = {
 
 // QuestionsPanel lists the build questions of the last full review, with each reader's
 // answer and the result (REQ-040 to REQ-045). Readers are named by number (DEC-013).
-export function QuestionsPanel({ runId, onOpen }: { runId?: string; onOpen: (a: Anchor) => void }) {
+export function QuestionsPanel({
+  runId,
+  docId,
+  canEdit,
+  onOpen,
+}: {
+  runId?: string;
+  docId: string;
+  canEdit: boolean;
+  onOpen: (a: Anchor) => void;
+}) {
   const questions = useQuery({ ...listQuestionsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
+  // A doc keeps its questions from one review to the next. A person who wants other questions
+  // asks for a fresh set, and the next full review writes it.
+  const fresh = useMutation(freshQuestionsMutation());
   if (!runId) {
     return (
       <p className="px-3 py-3 text-xs text-ink-3">
@@ -50,6 +63,26 @@ export function QuestionsPanel({ runId, onOpen }: { runId?: string; onOpen: (a: 
           <QuestionRow key={q.id} question={q} onOpen={onOpen} />
         ))}
       </ul>
+      {canEdit ? (
+        <div className="border-t border-line px-3 py-3 text-xs text-ink-2">
+          {fresh.isSuccess ? (
+            <p role="status">The next full review writes a new set of build questions.</p>
+          ) : (
+            <>
+              <p>The doc keeps these questions from one review to the next.</p>
+              <button
+                type="button"
+                disabled={fresh.isPending}
+                onClick={() => fresh.mutate({ path: { docId } })}
+                className="mt-1 font-medium text-accent hover:underline disabled:text-ink-3"
+              >
+                Write a fresh set at the next review
+              </button>
+              {fresh.isError ? <p className="mt-1 text-bad">{problemMessage(fresh.error)}</p> : null}
+            </>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

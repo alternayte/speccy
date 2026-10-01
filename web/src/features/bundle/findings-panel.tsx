@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { AcceptedFix, Finding, FixSuggestion, Waiver } from "@/lib/api";
+import type { AcceptedFix, Finding, FixSuggestion, Trend, Waiver } from "@/lib/api";
 import {
   acceptFixMutation,
   approveWaiverMutation,
@@ -45,6 +45,8 @@ export function FindingsPanel({
   onOpenWaiver,
   onVerify,
   orderKey,
+  trend,
+  aiVersion,
 }: {
   runId?: string;
   docId: string;
@@ -58,6 +60,10 @@ export function FindingsPanel({
   onVerify?: (target: string) => void;
   // orderKey names the review whose order the rail keeps: the AI review, across lint runs.
   orderKey?: string;
+  // trend is what the last full review fixed, left open and found new against the one before.
+  trend?: Trend;
+  // aiVersion is the version the AI review read, when it is older than the current version.
+  aiVersion?: number;
 }) {
   const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
   // notice is the result of the last accepted fix or gap answer. It sits above the list,
@@ -139,6 +145,7 @@ export function FindingsPanel({
   return (
     <>
       {noticeView}
+      {trend ? <TrendLine trend={trend} /> : null}
       <ul className="divide-y divide-line">
         {items.map((f) => {
           const { icon: Icon, tone, label } = levelStyle[f.level];
@@ -158,7 +165,12 @@ export function FindingsPanel({
                   <Icon aria-hidden className={clsx("size-3.5 shrink-0", tone)} />
                   <span className={clsx("text-2xs font-semibold tracking-wide", tone)}>{label}</span>
                   <span className="min-w-0 truncate font-mono text-2xs text-ink-3">{f.check_slug}</span>
-                  {f.relaxed ? <span className="ml-auto text-2xs text-warn">relaxed</span> : null}
+                  {f.new ? (
+                    <span className="ml-auto rounded-sm bg-accent-soft px-1 text-2xs font-semibold text-accent">
+                      New
+                    </span>
+                  ) : null}
+                  {f.relaxed ? <span className={clsx("text-2xs text-warn", !f.new && "ml-auto")}>relaxed</span> : null}
                 </div>
                 <p className="mt-1.5 text-sm text-ink">{f.message}</p>
                 {/* A gap's anchor is the frontmatter, which says nothing about the gap. */}
@@ -171,6 +183,10 @@ export function FindingsPanel({
                   <p className="mt-1 truncate text-2xs text-ink-3">{f.anchor.heading_path.join(" › ")}</p>
                 ) : null}
                 {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
+                {/* A carried finding: the review that found it read an older version. */}
+                {aiVersion && f.run_id !== runId ? (
+                  <p className="mt-1 text-2xs text-ink-3">From the review of v{aiVersion}</p>
+                ) : null}
               </button>
               {f.verify_target && onVerify ? (
                 <div className="px-4 pb-2 text-xs">
@@ -329,7 +345,7 @@ function WaiverDialog({
         }
       }}
       title="Ask for a waiver"
-      description="A waiver is an approved exception for this check in this section. It ends when the section changes."
+      description="A waiver is an approved exception for this check. A waiver of a check about one section ends when that section changes. A waiver of a whole-doc check stays through edits, and ends when a review passes the check."
     >
       {finding ? (
         <form
@@ -389,14 +405,25 @@ function rank(waiver: unknown): number {
   return waiver ? 0 : 1;
 }
 
-// waiverCovers reports whether w excuses f: the same check, and the same section or the whole doc.
+// waiverCovers reports whether w excuses f: the same check, and the whole doc, the same
+// section, or a section above it. A check that names a section reads its subsections too, so
+// its waiver covers a shortfall in any of them.
 export function waiverCovers(w: Waiver, f: Finding): boolean {
   // An Acknowledgement is about one trace ID, and a doc has one coverage finding per ID.
   if (w.trace || f.trace_id) return w.check_slug === f.check_slug && w.trace?.id === f.trace_id;
-  return (
-    w.check_slug === f.check_slug &&
-    (w.section.length === 0 || w.section.join(" › ") === f.anchor.heading_path.join(" › "))
-  );
+  return w.check_slug === f.check_slug && w.section.every((title, i) => f.anchor.heading_path[i] === title);
+}
+
+// endedBecause says why an ended waiver ended, in words.
+function endedBecause(w: Waiver): string {
+  switch (w.ended_because) {
+    case "check_passed":
+      return "Ended: a review passed this check, so nothing is left to excuse. It applies again if a later review fails the check.";
+    case "check_changed":
+      return "Ended: the profile changed what this check asks. Ask for it again.";
+    default:
+      return `Ended: someone edited ${sectionName(w)} after this was approved. Run the review again.`;
+  }
 }
 
 // sectionName names the section a waiver covers, for a sentence.
@@ -608,18 +635,14 @@ function WaiversList({
               <p className="mt-1 text-ink">{w.reason}</p>
               <p className="mt-0.5 text-xs text-ink-3">
                 {w.requested_by}
-                {w.section.length ? ` · ${w.section.join(" › ")}` : " · whole doc"}
+                {w.section.length ? ` · ${w.section.join(" › ")}` : w.whole_doc ? " · whole-doc check" : " · whole doc"}
               </p>
               {w.status === "rejected" && w.decision_reason ? (
                 <p className="mt-1 text-xs text-ink-2">
                   <span className="font-semibold">Rejected:</span> {w.decision_reason}
                 </p>
               ) : null}
-              {w.status === "invalidated" ? (
-                <p className="mt-1 text-xs text-warn">
-                  Ended: someone edited {sectionName(w)} after this was approved. Run the review again.
-                </p>
-              ) : null}
+              {w.status === "invalidated" ? <p className="mt-1 text-xs text-warn">{endedBecause(w)}</p> : null}
               {w.status === "withdrawn" ? (
                 <p className="mt-1 text-xs text-ink-2">
                   Withdrawn by {w.withdrawn_by ?? "someone"}. The sidecar no longer holds it.
@@ -779,6 +802,19 @@ function fixText(result: AcceptedFix): { text: string; bad?: boolean } {
 }
 
 // Notice says what the last fix or gap answer did, above the list.
+// TrendLine says whether the doc got closer to Build Ready: what the last full review fixed,
+// left open and found new, against the full review before it. It counts a check in a section,
+// or a build question, so a finding the model words another way is still open, not new.
+function TrendLine({ trend }: { trend: Trend }) {
+  return (
+    <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+      Since the review of v{trend.since_version}:{" "}
+      <span className={clsx(trend.fixed > 0 && "font-semibold text-ok")}>{trend.fixed} fixed</span>, {trend.open} still
+      open, <span className={clsx(trend.new > 0 && "font-semibold text-ink")}>{trend.new} new</span>
+    </p>
+  );
+}
+
 function Notice({ slug, text, bad, onClose }: { slug: string; text: string; bad?: boolean; onClose: () => void }) {
   return (
     <div

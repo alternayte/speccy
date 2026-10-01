@@ -187,8 +187,9 @@ The settings of the lint stage.
 | `slug` | string matching `^[a-z][a-z0-9-]*(\.[a-z0-9-]+)+$` | yes | The ID of the check: lower-case words with dots between them, such as `sdd.data-model`. It is unique in the profile. |
 | `level` | one of `MUST`, `SHOULD`, `INFO` | yes | The level of a finding. An open MUST finding makes the verdict Not Build Ready. |
 | `stage` | one of `rubric`, `grounding`, `divergence`, `coherence` | yes | The review stage that runs the check. |
-| `scope` | one of `doc`, `section` |  | What the check reads. With doc, a waiver covers the whole doc. With section, a waiver covers one section. Default doc. |
+| `scope` | one of `doc`, `section` |  | What the check reads. With doc, the check reads the whole doc, or the one section that `section` names. With section, the check runs on every section, and a waiver covers one section. Default doc. |
 | `question` | string |  | The question the check asks about the doc. |
 | `pass_when` | string |  | What must hold for the check to pass. A finding gives it as the fix. |
 | `waiver` | one of `any_member`, `non_author`, `maintainer`, `forbidden` or object |  | Who approves a waiver of this check. It replaces `waivers.should` or `waivers.must` for this check. |
 | `sizes` | list of one of `feature`, `app`, `initiative` |  | The doc sizes this check applies to. An empty list applies at every size. |
+| `section` | string |  | The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, so an edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc. |

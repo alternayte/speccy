@@ -157,7 +157,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	out.TokensIn, out.TokensOut, out.CostUSD, out.CacheHits = rc.tokensIn, rc.tokensOut, rc.cost, rc.cacheHits
 	rc.mu.Unlock()
 	if stages != nil {
-		out.Notes = append(out.Notes, "Stages in this review: "+strings.Join(append([]string{StageLint}, stages...), ", ")+". The verdict counts only these stages.")
+		out.Notes = append(out.Notes, "Stages in this review: "+strings.Join(append([]string{StageLint}, stages...), ", ")+". The verdict counts only these stages, because this content has no earlier review.")
 	}
 	return out, nil
 }

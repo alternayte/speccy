@@ -32,7 +32,12 @@ A waiver is an approved exception for one check in one section, with a reason. A
 
 The tour offers the same request. On a finding point, click **Ask for a waiver**, or press `w`. Write the reason under **Reason for the waiver**, and click **Ask for the waiver**. The tour shows only the MUST findings that need a decision, such as a divergence or a contradiction.
 
-A waiver covers the section of the finding. A check with `scope: doc` in the profile reads the whole doc, so its waiver covers the whole doc, and the card reads "whole doc".
+A waiver is for one check in one section. A failed rubric check can give several findings, one for each shortfall, and one waiver covers all of them there. What the waiver binds to depends on the check:
+
+- A rubric check that names a section in the profile: that section with its subsections.
+- A lint rule, or a check with `scope: section`: the section of the finding.
+- A whole-doc check, which is a rubric check with no section: the check itself. The card reads "whole doc".
+- A check of another stage that reads the whole doc, such as `links.has-upstream`: the whole doc text. The card reads "whole doc".
 
 ## Who approves
 
@@ -96,11 +101,18 @@ For a folder that Speccy serves, the sidecar sits under the root of the folder, 
 
 ## When a waiver ends
 
-A waiver holds only while its section stays the same. Speccy records a hash of the section's own text with the request. Any edit of that text ends the waiver, and the check counts again. A waiver of the whole doc ends on any edit of the doc body.
+A waiver of a section holds only while that section stays the same. Speccy records a hash of the section's text with the request. Any edit of that text ends the waiver, and the check counts again. For a check that names a section, the text includes the subsections.
+
+A waiver of a whole-doc check does not end on an edit. It ends in two cases:
+
+- A full review passes the check, so nothing is left to excuse. When a later review fails the check again, the waiver becomes approved again. You do not ask again.
+- The profile changes the `question` or the `pass_when` of the check.
+
+A waiver of `links.has-upstream`, or of another check that reads the whole doc outside the rubric stage, ends on any edit of the doc body.
 
 <Steps>
 
-1. Look under **Waivers** at the end of the findings rail. The ended waiver carries the status **ended**. It names the section that someone edited after the approval, and it asks you to run the review again.
+1. Look under **Waivers** at the end of the findings rail. The ended waiver carries the status **ended**, and it says why it ended. For a changed section, it names the section that someone edited after the approval, and it asks you to run the review again.
 
 2. Run the review again, so the check reads the new text. Lint checks read it on the save already.
 
@@ -108,10 +120,10 @@ A waiver holds only while its section stays the same. Speccy records a hash of t
 
 </Steps>
 
-The authors of the bundle get a **Waiver ended** item in their inbox, because an edit often ends a waiver without the author seeing it. The old entry stays in the sidecar until a later approval replaces it. Speccy ignores it, because its hash no longer matches the section.
+The authors of the bundle get a **Waiver ended** item in their inbox, because an edit often ends a waiver without the author seeing it. The old entry stays in the sidecar until a later approval replaces it. Speccy ignores it while its hash does not match the section or the check.
 
 <Aside type="caution">
-A section that changes between the request and the approval makes the approval fail. Speccy says the waiver no longer fits the section. Ask for a new waiver on the new text.
+A section that changes between the request and the approval makes the approval fail. Speccy says the waiver no longer fits the section. Ask for a new waiver on the new text. For a whole-doc check, the approval fails when the profile changed the check after the request.
 </Aside>
 
 ## Related

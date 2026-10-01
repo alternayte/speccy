@@ -20,12 +20,15 @@ Each row names a test in the Speccy repo. `just verify` runs every test on each 
 | SHOULD findings never change the verdict. | [`TestVerdict_ShouldNeverBlocks`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
 | The verdict function is pure: the same input gives the same output. | [`TestVerdict_Deterministic`](https://github.com/alternayte/speccy/blob/main/internal/engine/verdict/verdict_test.go) |
 | An edit keeps the AI findings of the sections it did not touch, and drops the findings of a changed section. | [`TestAnEditCarriesTheAIFindingsOfUnchangedSections`](https://github.com/alternayte/speccy/blob/main/internal/features/review/carry_test.go) |
+| A whole-doc finding stays in the verdict after a save, until a full review judges its check again. | [`TestCarry_WholeDocFindingsSurviveASave`](https://github.com/alternayte/speccy/blob/main/internal/features/review/converge_test.go) |
+| A run with fewer stages keeps the findings of the stages it skips. | [`TestStageSubsetKeepsTheOtherStages`](https://github.com/alternayte/speccy/blob/main/internal/features/review/converge_test.go) |
 
 ## Waivers and approvals
 
 | Guarantee | Test |
 |---|---|
 | A waiver ends when its section changes. | [`TestWaiver_InvalidatedOnSectionEdit`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
+| A waiver of a whole-doc check does not end on an edit. | [`TestWaiver_WholeDocCheckOutlivesAnEdit`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
 | Speccy applies each value of the waiver policy. | [`TestWaiverPolicy_Table`](https://github.com/alternayte/speccy/blob/main/internal/features/waiver/waiver_test.go) |
 | An author cannot approve their own bundle. | [`TestApproval_AuthorCannotApprove`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
 | A change of the content revokes the approvals. | [`TestApproval_EditRevokes`](https://github.com/alternayte/speccy/blob/main/internal/app/collab_test.go) |
@@ -61,6 +64,7 @@ Each row names a test in the Speccy repo. `just verify` runs every test on each 
 | When every reader answers `NOT SPECIFIED` to a MUST question, Speccy makes a MUST gap finding. | [`TestDivergence_GapOnMust`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
 | An answer with a quote that is not in the bundle counts as `NOT SPECIFIED`. | [`TestDivergence_InventedQuoteRejected`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
 | One model for all readers gives the note "Low reader diversity", and the note does not block. | [`TestDivergence_LowDiversityFlagged`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
+| A doc keeps its build questions from one version to the next. | [`TestDivergence_QuestionsPinned`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
 | A reader never receives the answers of another reader, or the rubric. | [`TestDivergence_ReaderIsolation`](https://github.com/alternayte/speccy/blob/main/internal/features/review/divergence_test.go) |
 
 ## Coherence

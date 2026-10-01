@@ -17,7 +17,9 @@ Speccy lints each new version of a spec doc at once. Lint needs no model, so it 
 
 A full review runs lint, then the four model stages in a fixed order: rubric, grounding, divergence and coherence. Then it decides the verdict. You start a full review in the app, with `speccy review`, or with the MCP tool `review_bundle`.
 
-A run can take fewer stages. `speccy review --stages rubric,coherence` runs lint and those two stages. The run report then says "Stages in this run: lint, rubric, coherence. The verdict counts only these stages."
+A run can take fewer stages. `speccy review --stages rubric,coherence` runs lint and those two stages. The run report then says "Stages in this run: lint, rubric, coherence. The findings of the other stages stay from the last review that ran them."
+
+Such a run judges only its stages. Speccy carries the findings of each model stage that the run skips, from the last run that did that stage. The rule for [carried findings](/concepts/verdict/#carried-findings) applies to them. When the store holds no earlier review of the doc, the verdict counts only the stages of the run.
 
 A full review has a limit of 15 minutes. A failed run gives no verdict. It names the stage that failed and the cause, and the previous verdict reads Stale.
 
@@ -35,7 +37,15 @@ A lint finding describes the writing, never the author. Lint finishes a doc of 1
 
 [Rubric checks](/reference/checks/#rubric) are the questions of the profile. The reviewer model answers each check that applies at the size of the doc. Each check has a question and a `pass_when` rule, and the answer is pass or fail with quotes from the doc.
 
-A check with `scope: doc` reads the whole bundle: the spec doc and its text assets. The reviewer answers up to eight such checks in one call. A check with `scope: section` runs once for each section. A failed check gives a finding at the level of the check.
+What a check reads depends on the check:
+
+- A check that names a heading, such as `section: "Monitoring"`, reads that section with its subsections, the doc title and the text assets. An edit to another section does not send the check to the model again. When the doc has no such heading, the check reads the whole doc.
+- A check with `scope: section` runs once for each section.
+- Any other rubric check is a whole-doc check. It reads the whole bundle: the spec doc and its text assets. The model judges it again after any edit.
+
+The built-in PRD and SDD profiles name a section on each check that is about one section of the template. The reviewer answers up to eight checks in one call.
+
+A failed check reports every shortfall. A shortfall is one thing that a failed check found wrong. Each shortfall is one finding at the level of the check, with its own message and quote. Speccy sets no limit on their number.
 
 ## Grounding
 
@@ -67,7 +77,7 @@ A claim takes its class from the heading path of its section. Speccy decides the
 The [divergence stage](/reference/checks/#divergence) tests whether different readers get one meaning from the doc. It works on build questions: the questions an implementer must answer to build the thing.
 
 1. The reviewer writes build questions on the themes of the profile. `divergence.questions` sets how many: 10 to 20 in the built-in profiles. Each question must cite a section or a trace ID of the doc. Speccy drops a question that cites nothing.
-2. Speccy pins the questions to the version, so a second run asks the same questions.
+2. The doc keeps its questions from one version to the next, so a later review asks the same questions. Speccy drops a question when the text it cites is gone from the doc. The reviewer writes new questions only for the sections that are new since it wrote the questions.
 3. Each reader answers each question alone, from the bundle only. A reader never sees the rubric or the answers of another reader. Each answer quotes the doc, or says `NOT SPECIFIED`.
 4. Speccy looks for each quote in the bundle. An answer whose quotes are not in the bundle counts as `NOT SPECIFIED`.
 5. The judge groups the answers by meaning. The judge sees the answers under shuffled letters, never under reader names.
@@ -81,6 +91,10 @@ Each question gets one result:
 | Gap | Every reader answered `NOT SPECIFIED`. | `divergence.gap` |
 
 A finding of this stage is a MUST when its question cites a trace ID whose definition says MUST, or a section the template requires. Otherwise it is a SHOULD.
+
+In a later full review, the readers do not answer every question again. They answer a question whose cited text changed, and a question that was a gap or a divergence. A question that the readers agreed on, with the same cited text, keeps its answers.
+
+To replace the whole set, open the **Evidence** tab and click **Write a fresh set at the next review** under the build questions. The next full review then writes a new set. Speccy never uses the number of a question again.
 
 When fewer than two different models answer as readers, the run report says "Low reader diversity". One model finds less ambiguity than several. The note never blocks the verdict.
 
@@ -113,6 +127,8 @@ A stage never names a model. It names a role, and **Admin → Models** gives eac
 
 Give the readers models from different families. Two readers on one model tend to read a doc the same way, so they miss the ambiguity that the stage exists to find.
 
+Speccy sends temperature 0 to each model that accepts it, so the answers change less from one run to the next. When a model refuses a temperature, Speccy makes the call again with none. The run report has a note such as "Temperature 0: reviewer, reader_1." or "No temperature, because the model takes none: judge."
+
 A doc is data to a model, never an instruction. Each prompt marks the doc, the linked docs and the search results as data, so a sentence in a doc cannot change the verdict.
 
 ## The run report
@@ -127,6 +143,6 @@ Each run also records the profile version and the version of each prompt it used
 
 Before a full review, Speccy shows an estimate: the model calls, the steps from the cache, the tokens and the cost. The cost needs a price for each role in **Admin → Models**. Without prices, the estimate says "No prices set".
 
-The cache keeps the cost of a second run low. Each step has a key from its input, the profile version, the model and the prompt version. A section whose text did not change goes to no model again. A second run of an unchanged doc costs almost nothing.
+The cache keeps the cost of a second run low. Each step has a key from its input, the profile version, the model and the prompt version. A section whose text did not change goes to no model again. A second run of an unchanged doc costs almost nothing. After an edit to one section, a full review calls a model for the checks of that section and for the whole-doc checks. It also calls the readers for the build questions that cite the section or were open.
 
 An admin can set a monthly token budget in **Admin → Models**. When the workspace spends it, Speccy stops the review and says so. [Budget and model cost](/operations/budget-and-model-cost/) explains the budget and the prices.

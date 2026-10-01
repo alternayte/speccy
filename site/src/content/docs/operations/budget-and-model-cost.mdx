@@ -13,9 +13,9 @@ Lint calls no model. It runs on every save and costs nothing. Every other step c
 
 | Work | Role | Calls |
 |---|---|---|
-| Rubric stage | reviewer | One call per batch of 8 checks, for the doc. A check with section scope adds one batch for each section. |
+| Rubric stage | reviewer | One call per batch of 8 whole-doc checks. One call per batch of 8 checks for each section that checks name. A check with section scope adds one batch for each section. |
 | Grounding stage | reviewer | One call per section of 12 words or more to find the claims. Then calls that label the claims, with web search when the backend has it. |
-| Divergence stage | reviewer, readers, judge | One call to write the build questions, when the version has none yet. One call per reader per batch of 10 questions. About one judge call per question, when 2 or more readers answer. |
+| Divergence stage | reviewer, readers, judge | One call to write the build questions, when the doc has none yet or has new sections. One call per reader per batch of 10 questions that the readers answer again. About one judge call per question, when 2 or more readers answer. |
 | Coherence stage | reviewer | One call per linked doc that the contradiction check reads. |
 | A suggested fix, an AI answer in a thread, a diff summary | writer | One call each. |
 | A verification run | reviewer, judge | The reviewer maps trace IDs to the code. The judge reads each cited target. A contradiction gets a second judgement from the model of another role. |
@@ -28,6 +28,14 @@ An agent CLI that reports no token counts gets an estimate: the length of the pr
 ## The cache
 
 Speccy caches the answer of each step. A step with the same input, profile version, prompt version and model reads the answer from the cache, and it costs nothing. An unchanged section therefore costs nothing on the next review. Its AI findings stay as carried findings.
+
+After an edit to one section, a full review calls a model for these steps only:
+
+- The rubric checks that name that section, and the whole-doc checks. A whole-doc check reads the whole doc, so any edit sends it to the model again.
+- The grounding of that section.
+- The build questions that cite that section, and the questions that were a gap or a divergence. A question that the readers agreed on, with unchanged cited text, keeps its answers.
+
+A rubric check that names a `section` in the profile therefore costs less than a whole-doc check. [Change a profile](/how-to/change-a-profile/#add-a-rubric-check) shows the key.
 
 The cache key holds the backend kind and the model. When you change the model of a role, the next review calls that model for every step again.
 
@@ -98,7 +106,7 @@ The GitHub Action sets no budget.
 - **Use a cheaper model for the readers.** A reader answers build questions from the doc alone. Each role takes its own backend and model. The judge also decides the outcomes of a verification run, so keep a strong model there.
 - **Mix model families for the readers.** Diversity costs nothing extra. When fewer than 2 different models answer as readers, the run report says `Low reader diversity`. The note never blocks the verdict.
 - **Ask fewer build questions, with fewer readers.** In the profile, `divergence.readers` takes 1 to 3, and `divergence.questions.max` caps the questions. With one reader, the divergence test calls no judge, and it can find gaps but no divergence. [Change a profile](/how-to/change-a-profile/) shows how.
-- **Choose the stages in the CLI.** `speccy review --stages lint,rubric` runs lint and the rubric only. The verdict then counts only those stages, and the run report says so.
+- **Choose the stages in the CLI.** `speccy review --stages lint,rubric` runs lint and the rubric only. The run judges only those stages, and the run report says so. The findings of the other stages stay from the last review that ran them.
 - **Run lint only.** `speccy review --stages lint` calls no model. In the GitHub Action, leave out the `models` input, and only lint runs.
 
 ```sh

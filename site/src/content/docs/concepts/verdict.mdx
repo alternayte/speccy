@@ -55,9 +55,22 @@ Speccy also lints the current version again in two cases. A change to the sideca
 
 An edit does not throw away the last full review. When you save a new version, Speccy lints it, and it carries the AI findings of the last full review into the new verdict. A carried finding counts in the verdict of the current version, and the rail lists it.
 
-Speccy carries a finding only while its section has the same text. A finding in a section you changed drops out, because no model read the new text. A finding about the whole doc carries only while the whole doc body stays the same.
+Speccy carries a finding only while its section has the same text. A finding in a section you changed drops out, because no model read the new text.
 
-The control row names the review the carried findings come from, such as "AI review from v2 · 1 section changed". Run the review again to cover the changed sections. The unchanged sections come from the cache, so they cost nothing.
+A whole-doc finding is the exception. It is a finding of a whole-doc check, or a rubric finding with no quote, which says that content is missing. It stays in the verdict after an edit, until the next full review judges its check again. So a save cannot make the doc Build Ready by mistake.
+
+Two more cases use the same rule:
+
+- **A run with fewer stages.** `speccy review --stages divergence` judges only the divergence stage. The findings of the stages it skips carry from the last run that did those stages.
+- **A save during a review.** A full review can end on an old version, because the author saved while it ran. Speccy then carries its findings to the current version at once.
+
+The control row names the review the carried findings come from, such as "AI review from v2 · 1 section changed". In the rail, a carried finding shows "From the review of v2". Run the review again to cover the changed sections. The unchanged sections come from the cache, so they cost nothing.
+
+## The trend between two full reviews
+
+After the second full review of a spec doc, the **Findings** tab shows one line of counts. An example is "Since the review of v3: 4 fixed, 2 still open, 1 new". The line compares the full review with the full review before it.
+
+The line counts the open MUST and SHOULD findings. Its unit is one check in one section, or one build question. So a finding that the model words differently is still open, and it is not new. A new finding carries a "New" mark.
 
 ## A stale verdict
 

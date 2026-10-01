@@ -36,9 +36,6 @@ func aiFinding(stage, slug string) bool {
 	return false
 }
 
-// aiStages are the stages that call a model, in run order.
-var aiStages = []string{StageRubric, StageGrounding, StageDivergence, StageCoherence}
-
 // itemStage is the AI stage that scored a verdict item, or "" for an item that every run scores
 // again on the current text.
 func itemStage(it verdict.Item) string {
