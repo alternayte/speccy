@@ -92,6 +92,8 @@ type Config struct {
 	// Size is the doc's size. A heading whose MinSize is larger reports at INFO (REQ-134).
 	Size      kernel.Size
 	SlopExtra []string
+	// Acronyms are words of the profile that need no definition, on top of the common ones.
+	Acronyms []string
 	// Levels overrides a rule's default level. "off" turns the rule off (REQ-062).
 	Levels map[string]string
 }

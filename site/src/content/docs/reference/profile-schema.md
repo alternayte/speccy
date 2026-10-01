@@ -178,6 +178,7 @@ The settings of the lint stage.
 |---|---|---|---|
 | `overrides` | map of object |  | A level for a lint check, by slug: MUST, SHOULD, INFO, or off. The value off turns the check off. |
 | `slop_extra` | list of string |  | More filler phrases for `lint.slop-phrase` to find, on top of its own list. |
+| `acronyms` | list of string matching `^[A-Z][A-Z0-9]{1,5}$` |  | Acronyms that `lint.undefined-acronym` accepts with no definition, on top of the common ones. For example the labels of a team's document kinds: POL, STN, ADR. |
 
 ## Each item of `checks`
 

@@ -295,22 +295,29 @@ var sectionWords = []struct {
 	prefix string
 	words  []string
 }{
-	{"NFR", []string{"non-functional", "nonfunctional", "quality"}},
+	{"NFR", []string{"non functional", "nonfunctional", "quality"}},
 	{"REQ", []string{"requirement"}},
 	{"DEC", []string{"decision"}},
 }
 
+// headingGaps are the runs of spaces and hyphens in a heading. "Non-functional", "Non
+// Functional" and "Non - functional" are one heading to a reader.
+var headingGaps = regexp.MustCompile(`[\s-]+`)
+
 // SectionPrefix returns the trace ID prefix of the items under the heading path, or "" when the
-// headings name none of prefixes.
+// headings name none of prefixes. The innermost heading that names a prefix decides, so a doc
+// title with "Quality" in it does not make every section a list of NFRs.
 func SectionPrefix(path []string, prefixes []string) string {
-	heading := strings.ToLower(strings.Join(path, " "))
-	for _, h := range sectionWords {
-		if !slices.Contains(prefixes, h.prefix) {
-			continue
-		}
-		for _, w := range h.words {
-			if strings.Contains(heading, w) {
-				return h.prefix
+	for i := len(path) - 1; i >= 0; i-- {
+		heading := headingGaps.ReplaceAllString(strings.ToLower(path[i]), " ")
+		for _, h := range sectionWords {
+			if !slices.Contains(prefixes, h.prefix) {
+				continue
+			}
+			for _, w := range h.words {
+				if strings.Contains(heading, w) {
+					return h.prefix
+				}
 			}
 		}
 	}
@@ -488,11 +495,10 @@ func acronyms(d *doc, cfg Config, emit emitter) {
 	for _, p := range d.blocks {
 		for _, m := range acronymRe.FindAllSubmatchIndex(p.text, -1) {
 			a := string(p.text[m[2]:m[3]])
-			if commonAcronyms[a] || defined[a] || reported[a] || !hasLetter(a, 2) {
+			if commonAcronyms[a] || defined[a] || reported[a] || !hasLetter(a, 2) || slices.Contains(cfg.Acronyms, a) {
 				continue
 			}
-			// An ID such as REQ-012 or a ticket such as PAY-231 is not an acronym.
-			if m[1]+1 < len(p.text) && p.text[m[1]] == '-' && p.text[m[1]+1] >= '0' && p.text[m[1]+1] <= '9' {
+			if partOfName(p.text, m[0], m[1]) {
 				continue
 			}
 			if definesAcronym(p.text, m[0], m[1]) {
@@ -513,6 +519,37 @@ func acronyms(d *doc, cfg Config, emit emitter) {
 		}
 	}
 }
+
+// partOfName reports whether the capital word at text[s:e] is a part of an ID or of a product
+// name, not an acronym on its own:
+//   - a segment of a hyphenated ID that has a number after a hyphen, such as REQ-012 or
+//     SDD-SRV-ABC-001;
+//   - the label of a numbered item, such as POL 005;
+//   - a word that a dot joins to another, such as ASP.NET or .NET.
+func partOfName(text []byte, s, e int) bool {
+	idChar := func(b byte) bool { return b == '-' || (b >= 'A' && b <= 'Z') || isDigit(b) }
+	from, to := s, e
+	for from > 0 && idChar(text[from-1]) {
+		from--
+	}
+	for to < len(text) && idChar(text[to]) {
+		to++
+	}
+	for _, seg := range bytes.Split(text[from:to], []byte{'-'})[1:] {
+		if len(seg) > 0 && isDigit(seg[0]) {
+			return true
+		}
+	}
+	if e+1 < len(text) && text[e] == ' ' && isDigit(text[e+1]) {
+		return true
+	}
+	if s > 0 && text[s-1] == '.' {
+		return true
+	}
+	return e+1 < len(text) && text[e] == '.' && (isDigit(text[e+1]) || unicode.IsLetter(rune(text[e+1])))
+}
+
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
 func hasLetter(s string, n int) bool {
 	c := 0

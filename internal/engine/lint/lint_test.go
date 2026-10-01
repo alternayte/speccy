@@ -71,6 +71,11 @@ func TestRules(t *testing.T) {
 			"# T\n\nThe PSP sends a webhook. The API uses Payment Service Provider (PSP) terms. The RTO is low. The HTTP call uses REQ-001 and ticket PAY-231.\n",
 			nil, []string{"PSP", "RTO"}},
 		{"acronym defined first", UndefinedAcronym, "# T\n\nThe Recovery Time Objective (RTO) is 1 h. The RTO holds.\n", nil, nil},
+		{"acronym in an ID or a product name", UndefinedAcronym,
+			"# T\n\nSee SDD-SRV-ABC-001 and INIT-SRV-ABC-001. Policy POL 005 and ADR 036 apply. It runs on ASP.NET Core and .NET 9. The PSP-RTO link is slow. The MTBF.\n",
+			nil, []string{"PSP", "RTO", "MTBF"}},
+		{"acronyms of the profile", UndefinedAcronym, "# T\n\nThe PSP has an RTO.\n",
+			func(c *Config) { c.Acronyms = []string{"PSP"} }, []string{"RTO"}},
 		{"rfc2119 case", RFC2119Case,
 			"# T\n\n- **REQ-001:** The service must retry. It MUST log.\n- **DEC-001:** We may cache.\n- Users should see it.\n", nil,
 			[]string{"must"}},
@@ -91,6 +96,29 @@ func TestRules(t *testing.T) {
 				t.Errorf("findings = %q, want %q", got, c.want)
 			}
 		})
+	}
+}
+
+func TestSectionPrefix(t *testing.T) {
+	all := []string{"REQ", "DEC", "NFR"}
+	cases := []struct {
+		path []string
+		want string
+	}{
+		{[]string{"Doc", "Non-functional requirements"}, "NFR"},
+		{[]string{"Doc", "Non Functional Requirements"}, "NFR"},
+		{[]string{"Doc", "Non  -  Functional Requirements"}, "NFR"},
+		{[]string{"Doc", "Nonfunctional requirements"}, "NFR"},
+		{[]string{"Doc", "Functional Requirements"}, "REQ"},
+		// The innermost heading that names a prefix decides, not an ancestor.
+		{[]string{"Quality Platform SDD", "Decisions"}, "DEC"},
+		{[]string{"Doc", "Requirements", "Checkout"}, "REQ"},
+		{[]string{"Doc", "Context"}, ""},
+	}
+	for _, c := range cases {
+		if got := SectionPrefix(c.path, all); got != c.want {
+			t.Errorf("SectionPrefix(%q) = %q, want %q", c.path, got, c.want)
+		}
 	}
 }
 

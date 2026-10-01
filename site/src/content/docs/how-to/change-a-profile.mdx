@@ -97,11 +97,14 @@ lint:
     lint.passive-voice: { level: "off" }
     lint.sentence-length: { level: INFO }
   slop_extra: [going forward]
+  acronyms: [POL, STN, ADR]
 # The other keys and checks of the profile stay as they are.
 checks: []
 ```
 
 `slop_extra` adds phrases to the list that [`lint.slop-phrase`](/reference/checks/#lint.slop-phrase) looks for.
+
+`acronyms` names the acronyms that [`lint.undefined-acronym`](/reference/checks/#lint.undefined-acronym) accepts with no definition. Use it for the words that every doc of your team uses, such as the labels of your document kinds.
 
 <Aside>
 A check that fires on every doc of a repo you adopted does not need a new level. Relax it in `.speccy.yaml` with `adoption.relaxed` while the repo catches up. The check still reports, and it does not block. [Adopt a repo](/how-to/adopt-a-repo/) shows how.

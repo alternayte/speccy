@@ -744,7 +744,7 @@ func lintConfig(p profile.Profile, template []byte, mainDoc string, files []stri
 		MaxWords: p.Limits.MaxWords, MaxSectionWords: p.Limits.MaxSectionWords, MaxSentenceWords: p.Limits.MaxSentenceWords,
 		MaxCodeBlockLines: p.Limits.MaxCodeBlockLines, MaxTableRows: p.Limits.MaxTableRows,
 		Prefixes: p.Trace.Prefixes, UpstreamPrefixes: p.Trace.Cover,
-		Required: required, SlopExtra: p.Lint.SlopExtra, Levels: levels, Size: size,
+		Required: required, SlopExtra: p.Lint.SlopExtra, Acronyms: p.Lint.Acronyms, Levels: levels, Size: size,
 	}
 }
 

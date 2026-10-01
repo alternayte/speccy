@@ -192,7 +192,8 @@
             "properties": { "level": { "enum": ["MUST", "SHOULD", "INFO", "off"], "description": "The level of the check, or off." } }
           }
         },
-        "slop_extra": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "More filler phrases for `lint.slop-phrase` to find, on top of its own list." }
+        "slop_extra": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "More filler phrases for `lint.slop-phrase` to find, on top of its own list." },
+        "acronyms": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{1,5}$" }, "description": "Acronyms that `lint.undefined-acronym` accepts with no definition, on top of the common ones. For example the labels of a team's document kinds: POL, STN, ADR." }
       }
     },
     "checks": {

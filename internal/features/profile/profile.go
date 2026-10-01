@@ -142,6 +142,7 @@ type Lint struct {
 		Level string `yaml:"level" json:"level"`
 	} `yaml:"overrides" json:"overrides"`
 	SlopExtra []string `yaml:"slop_extra" json:"slop_extra"`
+	Acronyms  []string `yaml:"acronyms" json:"acronyms"`
 }
 
 type Check struct {
