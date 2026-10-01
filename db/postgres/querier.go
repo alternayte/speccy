@@ -153,6 +153,8 @@ type Querier interface {
 	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
 	// REQ-007: the latest finished run of a kind on a version.
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
+	// The last finished full review of a spec doc, on any version. Its AI findings carry.
+	LatestFullReview(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	LatestRun(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)

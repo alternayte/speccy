@@ -417,6 +417,43 @@ func (q *Queries) LatestCompleteRun(ctx context.Context, arg LatestCompleteRunPa
 	return i, err
 }
 
+const latestFullReview = `-- name: LatestFullReview :one
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = ?1 AND status = 'complete' AND kind = 'full'
+ORDER BY started_at DESC, id DESC
+LIMIT 1
+`
+
+// The last finished full review of a spec doc, on any version. Its AI findings carry.
+func (q *Queries) LatestFullReview(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error) {
+	row := q.db.QueryRowContext(ctx, latestFullReview, specDocID)
+	var i ReviewRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpecDocID,
+		&i.VersionID,
+		&i.ProfileKey,
+		&i.ProfileVersion,
+		&i.Kind,
+		&i.Status,
+		&i.Stage,
+		&i.Roles,
+		&i.PromptVersions,
+		&i.TokensIn,
+		&i.TokensOut,
+		&i.CostEstimate,
+		&i.CacheHits,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Notes,
+		&i.Stages,
+		&i.DecisionsHash,
+	)
+	return i, err
+}
+
 const latestRun = `-- name: LatestRun :one
 SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
 WHERE spec_doc_id = ?1

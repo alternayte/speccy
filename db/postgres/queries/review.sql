@@ -49,6 +49,13 @@ WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND version_id = sqlc.arg(version_id) 
 ORDER BY started_at DESC, id DESC
 LIMIT 1;
 
+-- name: LatestFullReview :one
+-- The last finished full review of a spec doc, on any version. Its AI findings carry.
+SELECT * FROM review_run
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND status = 'complete' AND kind = 'full'
+ORDER BY started_at DESC, id DESC
+LIMIT 1;
+
 -- name: ListRuns :many
 SELECT * FROM review_run
 WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND started_at < sqlc.arg(before)

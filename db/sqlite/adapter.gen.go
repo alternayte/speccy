@@ -584,6 +584,11 @@ func (a Adapter) LatestCompleteRun(ctx context.Context, arg pgdb.LatestCompleteR
 	return pgdb.ReviewRun(r), err
 }
 
+func (a Adapter) LatestFullReview(ctx context.Context, specDocID uuid.UUID) (pgdb.ReviewRun, error) {
+	r, err := a.q.LatestFullReview(ctx, specDocID)
+	return pgdb.ReviewRun(r), err
+}
+
 func (a Adapter) LatestRun(ctx context.Context, specDocID uuid.UUID) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRun(ctx, specDocID)
 	return pgdb.ReviewRun(r), err

@@ -2,9 +2,10 @@ package review
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"slices"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -42,19 +43,12 @@ func aiFinding(stage, slug string) bool {
 // so the score counts them; a failed item whose every finding dropped is no longer known.
 func (s *Service) carry(ctx context.Context, b pgdb.SpecDoc, in input, ev *evaluation) error {
 	q := s.DB.Queries()
-	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{SpecDocID: b.ID, Before: time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), PageSize: 50})
+	full, err := q.LatestFullReview(ctx, b.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
 		return err
-	}
-	var full *pgdb.ReviewRun
-	for i := range runs {
-		if runs[i].Kind == "full" && runs[i].Status == "complete" {
-			full = &runs[i]
-			break
-		}
-	}
-	if full == nil {
-		return nil
 	}
 	vd, err := q.GetVerdict(ctx, full.ID)
 	if err != nil {
