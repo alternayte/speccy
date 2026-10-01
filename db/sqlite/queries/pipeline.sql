@@ -68,6 +68,11 @@ SET status = sqlc.arg(status), stage = sqlc.arg(stage), error = sqlc.arg(error),
     stages = sqlc.arg(stages), finished_at = sqlc.arg(finished_at)
 WHERE id = sqlc.arg(id);
 
+-- name: FailActiveRun :exec
+-- Ends a run that its job left queued or running. A run that reached an end stays as it is.
+UPDATE review_run SET status = 'failed', error = sqlc.arg(error), finished_at = sqlc.arg(finished_at)
+WHERE id = sqlc.arg(id) AND status IN ('queued', 'running');
+
 -- name: RunningRunFor :one
 SELECT * FROM review_run
 WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND kind = 'full' AND status IN ('queued', 'running')

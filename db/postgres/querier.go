@@ -72,6 +72,8 @@ type Querier interface {
 	DeleteVersionFilesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteVersionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteWaiversOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	// Ends a run that its job left queued or running. A run that reached an end stays as it is.
+	FailActiveRun(ctx context.Context, arg FailActiveRunParams) error
 	FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error

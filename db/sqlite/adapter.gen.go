@@ -236,6 +236,10 @@ func (a Adapter) DeleteWaiversOfSpecDoc(ctx context.Context, specDocID uuid.UUID
 	return a.q.DeleteWaiversOfSpecDoc(ctx, specDocID)
 }
 
+func (a Adapter) FailActiveRun(ctx context.Context, arg pgdb.FailActiveRunParams) error {
+	return a.q.FailActiveRun(ctx, FailActiveRunParams(arg))
+}
+
 func (a Adapter) FailVerificationRun(ctx context.Context, arg pgdb.FailVerificationRunParams) error {
 	return a.q.FailVerificationRun(ctx, FailVerificationRunParams(arg))
 }

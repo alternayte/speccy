@@ -198,6 +198,18 @@ func (s *Service) RunNext(ctx context.Context) (ran bool, err error) {
 	status, msg := "done", ""
 	if runErr != nil {
 		status, msg = "failed", runErr.Error()
+		// execute ends its run itself when a stage fails. An error from it means the run has
+		// no end yet, for example a store error at its first read. A run left queued or running
+		// would refuse every later review of the doc.
+		if job.Kind == jobKindRun && json.Unmarshal(job.Payload, &p) == nil && p.RunID != "" {
+			cause := "The review stopped before it ended: " + strings.TrimSuffix(msg, ".")
+			if err := s.DB.Queries().FailActiveRun(context.WithoutCancel(ctx), pgdb.FailActiveRunParams{
+				ID: uuidOf(p.RunID), Error: cause, FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
+			}); err != nil {
+				slog.Error("end the run of a failed job", "run", p.RunID, "err", err)
+			}
+			s.Progress.Publish(uuidOf(p.RunID), Event{Type: "failed", Message: cause})
+		}
 	}
 	// A job's own failure is stored on its run; the job only records that it ended.
 	if err := s.DB.Queries().FinishJob(context.WithoutCancel(ctx), pgdb.FinishJobParams{ID: job.ID, Status: status, LastError: msg}); err != nil {

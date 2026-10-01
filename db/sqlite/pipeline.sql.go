@@ -82,6 +82,23 @@ func (q *Queries) DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnecti
 	return err
 }
 
+const failActiveRun = `-- name: FailActiveRun :exec
+UPDATE review_run SET status = 'failed', error = ?1, finished_at = ?2
+WHERE id = ?3 AND status IN ('queued', 'running')
+`
+
+type FailActiveRunParams struct {
+	Error      string
+	FinishedAt sql.NullTime
+	ID         uuid.UUID
+}
+
+// Ends a run that its job left queued or running. A run that reached an end stays as it is.
+func (q *Queries) FailActiveRun(ctx context.Context, arg FailActiveRunParams) error {
+	_, err := q.db.ExecContext(ctx, failActiveRun, arg.Error, arg.FinishedAt, arg.ID)
+	return err
+}
+
 const finishJob = `-- name: FinishJob :exec
 UPDATE job SET status = ?1, last_error = ?2, locked_until = NULL
 WHERE id = ?3

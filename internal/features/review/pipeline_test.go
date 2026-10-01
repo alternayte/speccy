@@ -3,6 +3,7 @@ package review_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -571,5 +572,39 @@ func TestEstimate_CountsSectionChecks(t *testing.T) {
 				t.Errorf("a section check adds %d calls to the estimate, want 3", n)
 			}
 		})
+	}
+}
+
+// A job that ends with an error before its run reached an end, such as a store error at its
+// first read, ends the run too. A run left queued or running refuses every later review of
+// the doc, with no time limit.
+func TestAJobThatEndsWithAnErrorFreesItsDoc(t *testing.T) {
+	ctx := context.Background()
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": groundedSDD}, "fake-1")
+	q := pe.bundles.DB.Queries()
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, err := pe.reviews.StartRun(ctx, b, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pe.reviews.Jobs = map[string]func(context.Context, []byte) error{
+		"review_run": func(context.Context, []byte) error { return errors.New("database is locked") },
+	}
+	if ran, err := pe.reviews.RunNext(ctx); !ran || err == nil {
+		t.Fatalf("run the job: ran %v, err %v, want the job's error", ran, err)
+	}
+	run, err := q.GetRunByID(ctx, started.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.Status != "failed" || !strings.Contains(run.Error, "database is locked") {
+		t.Errorf("run status %q, error %q, want failed with the cause", run.Status, run.Error)
+	}
+	pe.reviews.Jobs = nil
+	if _, err := pe.reviews.StartRun(ctx, b, nil); err != nil {
+		t.Errorf("a new review after the failed job: %v", err)
 	}
 }
