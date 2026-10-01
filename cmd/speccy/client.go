@@ -46,9 +46,18 @@ func openSessionIn(ctx context.Context, dir string, keep bool) (*session, error)
 		// request from a fork can restore that cache and run its own steps, so the key that
 		// opens the store's secrets lives outside it, for this run only. SPECCY_MODELS writes
 		// the API keys again on each run. A key file from an older Speccy leaves the folder.
+		//
+		// Outside CI, a key file there is the key of a local state: the app sealed its secrets
+		// with it, and it cannot open one of them again once the file is gone (#90).
 		state = dir
-		if err := os.Remove(filepath.Join(dir, "key")); err != nil && !os.IsNotExist(err) {
-			return nil, err
+		if old := filepath.Join(dir, "key"); os.Getenv("CI") != "" || os.Getenv("GITHUB_ACTIONS") != "" {
+			if err := os.Remove(old); err != nil && !os.IsNotExist(err) {
+				return nil, err
+			}
+		} else if _, err := os.Stat(old); err == nil {
+			return nil, fmt.Errorf("SPECCY_STATE_DIR names a state folder that holds the key file %s, which is the key of a local Speccy. "+
+				"SPECCY_STATE_DIR is for a CI job: its key lasts for one run, and SPECCY_MODELS gives the API keys each time. "+
+				"Unset SPECCY_STATE_DIR to use this state, or point it at another folder. In a CI system that does not set CI, set CI=true", old)
 		}
 		tmp, err := os.MkdirTemp("", "speccy-key-")
 		if err != nil {

@@ -109,8 +109,8 @@ func (s *Sealer) Open(sealed []byte) ([]byte, error) {
 // OtherKey is the error at use of a secret that another key sealed. what names the secret, such
 // as "The secret of the Claude backend", and where the admin page that takes it again.
 func OtherKey(what, where string) *Error {
-	return Invalid("secret_other_key", "%s was sealed with another key: the key file or SPECCY_MASTER_KEY changed after it was stored. "+
-		"Enter the secret again in %s.", what, where)
+	return Invalid("secret_other_key", "%s was sealed with another key: the key file or SPECCY_MASTER_KEY changed after it was stored, "+
+		"or SPECCY_STATE_DIR is set and SPECCY_MODELS is not. Enter the secret again in %s.", what, where)
 }
 
 // Last4 returns the last 4 characters of a secret, which is all the API shows (SDD §14.1).

@@ -176,6 +176,42 @@ func TestCLI_StateDirHoldsNoKey(t *testing.T) {
 	}
 }
 
+// SPECCY_STATE_DIR on the state folder of the local app leaves that folder's key in place (#90).
+// Without the key, the app can open none of its stored secrets after the next start. Only a CI
+// run removes a key file, which an older Speccy left in the cache.
+func TestCLI_StateDirKeepsTheKeyOfALocalState(t *testing.T) {
+	dir := fixtures(t, "draft-prd")
+	for _, c := range []struct {
+		name, ci string
+		wantCode int
+		wantKey  bool
+	}{
+		{"on a laptop", "", exitRun, true},
+		{"in CI", "true", exitOK, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			state := t.TempDir()
+			key := filepath.Join(state, "key")
+			if err := os.WriteFile(key, []byte("c3BlY2N5LXRlc3Qta2V5LTAwMDAwMDAwMDAwMDAwMDA="), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("SPECCY_STATE_DIR", state)
+			t.Setenv("CI", c.ci)
+			t.Setenv("GITHUB_ACTIONS", "")
+			code, out, errOut := runIn(t, dir, "review", ".", "--stages", "lint")
+			if code != c.wantCode {
+				t.Fatalf("exit %d, want %d\n%s\n%s", code, c.wantCode, out, errOut)
+			}
+			if _, err := os.Stat(key); (err == nil) != c.wantKey {
+				t.Errorf("the key file exists = %v, want %v", err == nil, c.wantKey)
+			}
+			if c.wantKey && (!strings.Contains(errOut, "SPECCY_STATE_DIR") || !strings.Contains(errOut, key)) {
+				t.Errorf("the message does not name SPECCY_STATE_DIR and the key file:\n%s", errOut)
+			}
+		})
+	}
+}
+
 // speccy init offers the guessed profile as its default answer, so Enter adopts the doc with
 // the type the app would pick. A person cannot check this by hand without a terminal.
 func TestInit_EnterTakesTheGuess(t *testing.T) {

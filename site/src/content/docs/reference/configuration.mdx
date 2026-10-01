@@ -76,7 +76,7 @@ These variables apply to `speccy review`, `speccy action` and the other headless
 | `SPECCY_OPENAI_API_KEY` | none | The API key of the `openai` backend in `SPECCY_MODELS`. |
 | `SPECCY_OPENROUTER_API_KEY` | none | The API key of the `openrouter` backend in `SPECCY_MODELS`. |
 | `SPECCY_DEEPSEEK_API_KEY` | none | The API key of the `deepseek` backend in `SPECCY_MODELS`. |
-| `SPECCY_STATE_DIR` | `.speccy/state` under the root | The store folder. CI sets it to keep the store, and its cache, between runs. |
+| `SPECCY_STATE_DIR` | `.speccy/state` under the root | The store folder of a CI job, which keeps the store and its cache between runs. The key lasts for one run, so `SPECCY_MODELS` gives the API keys each time. Do not point it at the state folder of the local app: outside CI, Speccy stops when the folder holds a key file. |
 | `SPECCY_REPORTS_DIR` | `speccy-reports` | Where `speccy action` writes one HTML report for each reviewed bundle. |
 | `SPECCY_TOKEN` | none | A personal API token for `--server`. Make one under **Account → API tokens** on the server. |
 
