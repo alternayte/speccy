@@ -97,7 +97,27 @@ func TestLinkRule(t *testing.T) {
 	if _, ok := r.Target("docs/sub/sdd-payments.md"); ok {
 		t.Error("{name} matched across a folder")
 	}
-	for _, bad := range []string{"a implements", "a owns b", "a implements b/{x}", "{x}/{x} refines b"} {
+	// {dir*} stands for one or more whole folders, so one rule covers docs at every depth (#98).
+	deep, err := ParseLinkRule("{dir*}/SDD{rest} implements {dir*}/PRD{rest}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for from, want := range map[string]string{
+		"top/SDD-pay.md":   "top/PRD-pay.md",
+		"a/b/c/SDD-pay.md": "a/b/c/PRD-pay.md",
+		"SDD-pay.md":       "",
+		"a/notSDD-pay.md":  "",
+	} {
+		if to, ok := deep.Target(from); to != want || ok != (want != "") {
+			t.Errorf("Target(%q) = %q, %v, want %q", from, to, ok, want)
+		}
+	}
+	for _, bad := range []string{
+		"a implements", "a owns b", "a implements b/{x}", "{x}/{x} refines b",
+		// A variable for folders stands between slashes, and any other brace text is a mistake,
+		// not a literal that matches nothing.
+		"sdd-{dir*}.md implements prd-{dir*}.md", "{dir*}/a implements {dir}/b", "{Dir}/a implements b", "{dir**}/a implements b", "a{/b implements c",
+	} {
 		if _, err := ParseLinkRule(bad); err == nil {
 			t.Errorf("ParseLinkRule(%q) gave no error", bad)
 		}

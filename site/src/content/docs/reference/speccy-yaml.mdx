@@ -69,6 +69,7 @@ A link rule links two spec docs by a path convention, so the docs need no `links
 - A rule is three words: the path of the spec doc that links, the link kind, and the path of the target spec doc.
 - Both paths are file paths relative to the root.
 - `{name}` matches one path segment, or part of one. A variable name has lower-case letters and `_`.
+- `{name*}` matches one or more whole folders, so one rule covers docs at every depth: `{dir*}/SDD{rest} implements {dir*}/PRD{rest}`. It stands between two `/`, or at an end of the path.
 - The kind is `implements`, `refines`, `references` or `supersedes`.
 - A rule makes a link only when the target spec doc exists.
 - A link in the frontmatter comes first. A rule adds no second link of the same kind to the same target.
@@ -152,6 +153,8 @@ Speccy checks every entry, and it joins the problems with `;` after `.speccy.yam
 | A rule with another kind | `link_rules[0]: "…": the kind "implemented-by" is not one of implements, refines, references, supersedes` |
 | A variable twice in the first path | `link_rules[0]: "…": {name} appears twice in the first path` |
 | A variable only in the second path | `link_rules[0]: "…": {name} is in the second path but not the first` |
+| A folder variable inside a segment | `link_rules[0]: "…": {dir*} stands for whole folders, so it must be between two / or at an end of the path` |
+| A brace that is not a variable | `link_rules[0]: "…": "{Dir}/sdd.md" has a brace that is not a variable. A variable is {name} or {name*}, with lower-case letters and _` |
 | A scheme with other characters | `link_patterns: the scheme "Jira" is not lower-case letters, digits, and - . +` |
 | A built-in scheme | `link_patterns: the scheme "github" is built in, so a pattern cannot replace it` |
 | A pattern with no `{key}` | `link_patterns: the pattern "https://x/" has no {key}` |

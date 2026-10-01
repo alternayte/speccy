@@ -157,7 +157,8 @@ var BundleLinkKinds = LinkKinds[:len(LinkKinds)-1]
 
 // LinkRule links spec docs by path convention (REQ-132): "docs/sdd-{name}.md implements
 // docs/prd-{name}.md". A path is a spec doc's file, relative to the root. {name} matches one
-// path segment or part of one.
+// path segment or part of one. {name*} matches one or more whole segments, so one rule covers
+// docs at every depth.
 type LinkRule struct {
 	From string
 	Kind string
@@ -166,7 +167,8 @@ type LinkRule struct {
 	vars []string
 }
 
-var ruleVar = regexp.MustCompile(`\{([a-z_]+)\}`)
+// ruleVar finds a variable. The name it captures holds the star of a {name*}.
+var ruleVar = regexp.MustCompile(`\{([a-z_]+\*?)\}`)
 
 // ParseLinkRule parses one rule.
 func ParseLinkRule(rule string) (LinkRule, error) {
@@ -178,6 +180,13 @@ func ParseLinkRule(rule string) (LinkRule, error) {
 	if !slices.Contains(BundleLinkKinds, r.Kind) {
 		return LinkRule{}, fmt.Errorf("%q: the kind %q is not one of %s", rule, r.Kind, strings.Join(BundleLinkKinds, ", "))
 	}
+	// Brace text that is not a variable would be a literal that no path has, so the rule would
+	// link nothing and say nothing.
+	for _, p := range []string{r.From, r.To} {
+		if rest := ruleVar.ReplaceAllString(p, ""); strings.ContainsAny(rest, "{}") {
+			return LinkRule{}, fmt.Errorf("%q: %q has a brace that is not a variable. A variable is {name} or {name*}, with lower-case letters and _", rule, p)
+		}
+	}
 	var pattern strings.Builder
 	pattern.WriteString("^")
 	last := 0
@@ -188,7 +197,14 @@ func ParseLinkRule(rule string) (LinkRule, error) {
 			return LinkRule{}, fmt.Errorf("%q: {%s} appears twice in the first path", rule, name)
 		}
 		r.vars = append(r.vars, name)
-		pattern.WriteString("([^/]+)")
+		if strings.HasSuffix(name, "*") {
+			if (m[0] > 0 && r.From[m[0]-1] != '/') || (m[1] < len(r.From) && r.From[m[1]] != '/') {
+				return LinkRule{}, fmt.Errorf("%q: {%s} stands for whole folders, so it must be between two / or at an end of the path", rule, name)
+			}
+			pattern.WriteString("(.+)")
+		} else {
+			pattern.WriteString("([^/]+)")
+		}
 		last = m[1]
 	}
 	pattern.WriteString(regexp.QuoteMeta(r.From[last:]) + "$")
