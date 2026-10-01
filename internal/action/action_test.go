@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -61,17 +62,41 @@ func (f *fakePR) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			send(map[string]any{"data": map[string]any{}})
 			return
 		}
-		var nodes []map[string]any
-		for _, t := range f.threads {
-			comments := []map[string]any{{"body": t.body}}
-			for _, r := range t.replies {
-				comments = append(comments, map[string]any{"body": r.Body, "author": map[string]string{"login": r.Author}})
+		// GitHub gives at most 100 threads, and 100 comments of a thread, in one page.
+		page := func(n int) (from, to int, info map[string]any) {
+			if a, ok := in.Variables["after"].(string); ok && a != "" {
+				from, _ = strconv.Atoi(a)
 			}
+			to = min(from+100, n)
+			return from, to, map[string]any{"hasNextPage": to < n, "endCursor": strconv.Itoa(to)}
+		}
+		comments := func(t thread, from, to int) []map[string]any {
+			all := []map[string]any{{"body": t.body}}
+			for _, r := range t.replies {
+				all = append(all, map[string]any{"body": r.Body, "author": map[string]string{"login": r.Author}})
+			}
+			return all[min(from, len(all)):min(to, len(all))]
+		}
+		if strings.Contains(in.Query, "node(id:") {
+			for _, t := range f.threads {
+				if t.id == in.Variables["id"] {
+					from, to, info := page(len(t.replies) + 1)
+					send(map[string]any{"data": map[string]any{"node": map[string]any{
+						"comments": map[string]any{"pageInfo": info, "nodes": comments(t, from, to)}}}})
+				}
+			}
+			return
+		}
+		from, to, info := page(len(f.threads))
+		var nodes []map[string]any
+		for _, t := range f.threads[from:to] {
+			n := len(t.replies) + 1
 			nodes = append(nodes, map[string]any{"id": t.id, "isResolved": t.resolved,
-				"comments": map[string]any{"nodes": comments}})
+				"comments": map[string]any{"nodes": comments(t, 0, 100),
+					"pageInfo": map[string]any{"hasNextPage": n > 100, "endCursor": "100"}}})
 		}
 		send(map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{
-			"reviewThreads": map[string]any{"nodes": nodes}}}}})
+			"reviewThreads": map[string]any{"nodes": nodes, "pageInfo": info}}}}})
 	case p == "/pulls/7/reviews":
 		var in struct {
 			Comments []github.ReviewComment `json:"comments"`
@@ -478,5 +503,96 @@ func TestAction_EnforceRamp(t *testing.T) {
 	}
 	if body := f.issue[0].Body; !strings.Contains(body, "@kim turned `links.has-upstream` back on") {
 		t.Errorf("the summary does not name the change:\n%s", body)
+	}
+}
+
+// Two findings with the same check, message and quote, such as two lower-case "must", each get
+// a comment of their own. When one is fixed, its comment is resolved and the other finding
+// keeps one open comment on its line.
+func TestAction_TwinFindingsHaveTheirOwnComments(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	src := []byte("# Refunds\n\n## Requirements\n\n- **REQ-001:** An agent must refund in one step.\n- **REQ-002:** A refund must show in the history.\n")
+	twin := func(nth int) api.Finding {
+		at := strings.Index(string(src), "must")
+		if nth == 2 {
+			at = strings.LastIndex(string(src), "must")
+		}
+		return api.Finding{CheckSlug: "lint.rfc2119-case", Level: api.FindingLevelSHOULD, Message: "lower case",
+			Anchor: api.Anchor{File: "PRD.md", Quote: "must", Start: at, End: at + 4}}
+	}
+	b := Bundle{Slug: "refunds", Dir: "refunds", MainDoc: "PRD.md", Verdict: "not_build_ready",
+		Files: map[string][]byte{"PRD.md": src}, Findings: []api.Finding{twin(1), twin(2)}}
+	files := []github.PRFile{{Filename: "refunds/PRD.md", Patch: patchFor(5, 6)}}
+	if res := Run(ctx, o, []Bundle{b}, files); res.Posted != 2 || keyIn(f.threads[0].body) == keyIn(f.threads[1].body) {
+		t.Fatalf("posted %d comments with the keys %q and %q, want 2 with different keys", res.Posted, keyIn(f.threads[0].body), keyIn(f.threads[1].body))
+	}
+	if res := Run(ctx, o, []Bundle{b}, files); res.Posted != 0 || res.Resolved != 0 {
+		t.Fatalf("a second push with the same findings: posted %d, resolved %d", res.Posted, res.Resolved)
+	}
+
+	// The author fixes line 5.
+	b.Files = map[string][]byte{"PRD.md": []byte(strings.Replace(string(src), "must", "MUST", 1))}
+	b.Findings = []api.Finding{twin(2)}
+	Run(ctx, o, []Bundle{b}, files)
+	var open []int
+	for _, th := range f.threads {
+		if !th.resolved {
+			open = append(open, th.line)
+		}
+	}
+	if !slices.Equal(open, []int{6}) {
+		t.Errorf("open comments on lines %v, want one on line 6", open)
+	}
+}
+
+// A pull request with more than 100 review threads: Speccy sees them all, so it resolves the
+// ones whose findings are gone and reads a reply command past the 100th comment of a thread.
+func TestAction_SeesEveryThreadAndReply(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	for i := range 130 {
+		f.threads = append(f.threads, thread{id: fmt.Sprintf("T%d", i+1), body: fmt.Sprintf("old %s%016x -->", keyMarker, i)})
+	}
+	for range 120 {
+		f.threads[0].replies = append(f.threads[0].replies, github.Reply{Author: "ana", Body: "A note."})
+	}
+	f.threads[0].replies = append(f.threads[0].replies, github.Reply{Author: "ana", Body: "/speccy waive The provider sets this limit."})
+	threads, err := o.GitHub.ReviewThreads(ctx, o.Repo, o.PR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmds := Commands(threads); len(threads) != 130 || len(cmds) != 1 || cmds[0].Kind != "waive" {
+		t.Fatalf("%d threads and the commands %+v, want 130 threads and the waive command", len(threads), cmds)
+	}
+	if res := Run(ctx, o, nil, nil); res.Resolved != 130 {
+		t.Errorf("resolved %d threads whose findings are gone, want 130", res.Resolved)
+	}
+}
+
+// The verify gate posts a breach once. A second run on the same pull request adds no second
+// comment, and a breach that is gone has its comment resolved.
+func TestVerify_BreachCommentOnce(t *testing.T) {
+	ctx := context.Background()
+	f, o := newPR(t)
+	holds, line := true, 12
+	b := VerifyBundle{Slug: "refunds", Run: api.Verification{Outcomes: []api.VerificationOutcome{{
+		TraceId: "REQ-001", Outcome: api.Breached,
+		Targets: []api.VerificationTarget{{Kind: api.Code, Path: "pay/refund.go", Line: &line, Holds: &holds, Quote: "func Refund("}},
+	}}}}
+	files := []github.PRFile{{Filename: "pay/refund.go", Patch: patchFor(12)}}
+	if res := RunVerify(ctx, o, []VerifyBundle{b}, files); res.Posted != 1 {
+		t.Fatalf("posted %d, want 1 (warnings %v)", res.Posted, res.Warnings)
+	}
+	if res := RunVerify(ctx, o, []VerifyBundle{b}, files); res.Posted != 0 || len(f.threads) != 1 {
+		t.Fatalf("second run: posted %d, %d threads, want 0 and 1", res.Posted, len(f.threads))
+	}
+	// The review run of the same pull request leaves the verify comment alone.
+	if res := Run(ctx, o, nil, nil); res.Resolved != 0 || f.threads[0].resolved {
+		t.Fatalf("the review run resolved the verify comment")
+	}
+	b.Run.Outcomes = nil
+	if res := RunVerify(ctx, o, []VerifyBundle{b}, files); res.Resolved != 1 || !f.threads[0].resolved {
+		t.Errorf("after the fix: resolved %d, thread resolved %v", res.Resolved, f.threads[0].resolved)
 	}
 }

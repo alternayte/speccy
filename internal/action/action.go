@@ -139,6 +139,43 @@ func key(slug, check, message, quote string) string {
 	return hex.EncodeToString(h[:8])
 }
 
+// findingKeys returns the key of each finding of the bundle, in the order of b.Findings. Two
+// findings with the same check, message and quote, such as two lower-case "must", would share
+// a key: one comment would stand for both, and it would stay open after one of them is fixed.
+// Each such finding takes the text of its line into its key, and the place among findings on
+// equal lines. A finding with no twin keeps the plain key, so its open comment stays its own.
+func findingKeys(b Bundle) []string {
+	keys := make([]string, len(b.Findings))
+	twins := map[string][]int{}
+	for i, f := range b.Findings {
+		keys[i] = key(b.Slug, f.CheckSlug, f.Message, f.Anchor.Quote)
+		twins[keys[i]] = append(twins[keys[i]], i)
+	}
+	for _, group := range twins {
+		if len(group) < 2 {
+			continue
+		}
+		sort.SliceStable(group, func(x, y int) bool {
+			a, c := b.Findings[group[x]].Anchor, b.Findings[group[y]].Anchor
+			return a.File < c.File || (a.File == c.File && a.Start < c.Start)
+		})
+		seen := map[string]int{}
+		for _, i := range group {
+			f := b.Findings[i]
+			src := b.Files[f.Anchor.File]
+			text, _ := lineText(src, lineOf(src, f.Anchor.Start))
+			k := key(b.Slug, f.CheckSlug, f.Message, f.Anchor.Quote+"\x00"+text)
+			if n := seen[k]; n > 0 {
+				keys[i] = key(b.Slug, f.CheckSlug, f.Message, fmt.Sprintf("%s\x00%s\x00%d", f.Anchor.Quote, text, n))
+			} else {
+				keys[i] = k
+			}
+			seen[k]++
+		}
+	}
+	return keys
+}
+
 func lineOf(src []byte, offset int) int {
 	if offset > len(src) {
 		offset = len(src)
@@ -231,9 +268,14 @@ func suggestion(line string) string { return "\n\n```suggestion\n" + line + "\n`
 // the summary.
 func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, rest []candidate) {
 	rank := map[api.FindingLevel]int{api.FindingLevelMUST: 0, api.FindingLevelSHOULD: 1, api.FindingLevelINFO: 2}
-	fs := append([]api.Finding(nil), b.Findings...)
-	sort.SliceStable(fs, func(i, j int) bool { return rank[fs[i].Level] < rank[fs[j].Level] })
-	for _, f := range fs {
+	keys := findingKeys(b)
+	order := make([]int, len(b.Findings))
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(i, j int) bool { return rank[b.Findings[order[i]].Level] < rank[b.Findings[order[j]].Level] })
+	for _, i := range order {
+		f := b.Findings[i]
 		if f.Waived || (f.Anchor.Detached != nil && *f.Anchor.Detached) {
 			continue
 		}
@@ -254,7 +296,7 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 		if f.Level != api.FindingLevelMUST && !fixOK {
 			continue // SHOULD and INFO findings stay in the report
 		}
-		k := key(b.Slug, f.CheckSlug, f.Message, f.Anchor.Quote)
+		k := keys[i]
 		body := fmt.Sprintf("**%s** `%s`: %s", f.Level, f.CheckSlug, f.Message)
 		if f.Fix != nil {
 			body += "\n\nFix: " + *f.Fix
@@ -273,7 +315,7 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 	}
 	// REQ-136: suggested trace IDs for unnumbered items, when the profile's ID check failed.
 	idsFailed := false
-	for _, f := range fs {
+	for _, f := range b.Findings {
 		if !f.Waived && (strings.HasSuffix(f.CheckSlug, ".req.ids") || strings.HasSuffix(f.CheckSlug, ".decisions.ids")) {
 			idsFailed = true
 		}
@@ -298,12 +340,15 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 }
 
 // keyIn returns the finding key in a comment body.
-func keyIn(body string) string {
-	i := strings.Index(body, keyMarker)
+func keyIn(body string) string { return markedKey(body, keyMarker) }
+
+// markedKey returns the key that follows marker in a comment body.
+func markedKey(body, marker string) string {
+	i := strings.Index(body, marker)
 	if i < 0 {
 		return ""
 	}
-	rest := body[i+len(keyMarker):]
+	rest := body[i+len(marker):]
 	if j := strings.Index(rest, " "); j >= 0 {
 		return rest[:j]
 	}

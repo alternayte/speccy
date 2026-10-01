@@ -180,50 +180,89 @@ func (c *Client) graphql(ctx context.Context, query string, vars map[string]any,
 	return nil
 }
 
-// ReviewThreads lists the review threads of a pull request (the first 100).
+// threadComments is one page of the comments of a review thread, as GraphQL returns it.
+type threadComments struct {
+	PageInfo pageInfo `json:"pageInfo"`
+	Nodes    []struct {
+		Body   string `json:"body"`
+		Author *struct {
+			Login string `json:"login"`
+		} `json:"author"`
+	} `json:"nodes"`
+}
+
+type pageInfo struct {
+	HasNextPage bool   `json:"hasNextPage"`
+	EndCursor   string `json:"endCursor"`
+}
+
+// add puts a page of comments on the thread: the first comment is its body, the rest replies.
+func (th *Thread) add(page threadComments, first bool) {
+	for i, cm := range page.Nodes {
+		if first && i == 0 {
+			th.Body = cm.Body
+			continue
+		}
+		login := ""
+		if cm.Author != nil {
+			login = cm.Author.Login
+		}
+		th.Replies = append(th.Replies, Reply{Author: login, Body: cm.Body})
+	}
+}
+
+// ReviewThreads lists every review thread of a pull request, with every comment. GitHub gives
+// 100 of each in a page, so a long pull request takes more than one request.
 func (c *Client) ReviewThreads(ctx context.Context, repo string, number int) ([]Thread, error) {
 	owner, name := splitRepo(repo)
-	var data struct {
-		Repository struct {
-			PullRequest struct {
-				ReviewThreads struct {
-					Nodes []struct {
-						ID         string `json:"id"`
-						IsResolved bool   `json:"isResolved"`
-						Comments   struct {
-							Nodes []struct {
-								Body   string `json:"body"`
-								Author *struct {
-									Login string `json:"login"`
-								} `json:"author"`
-							} `json:"nodes"`
-						} `json:"comments"`
-					} `json:"nodes"`
-				} `json:"reviewThreads"`
-			} `json:"pullRequest"`
-		} `json:"repository"`
-	}
-	q := `query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:50){nodes{body author{login}}}}}}}}`
-	if err := c.graphql(ctx, q, map[string]any{"owner": owner, "name": name, "n": number}, &data); err != nil {
-		return nil, err
-	}
+	const q = `query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$n){` +
+		`reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{id isResolved ` +
+		`comments(first:100){pageInfo{hasNextPage endCursor} nodes{body author{login}}}}}}}}`
+	const more = `query($id:ID!,$after:String){node(id:$id){... on PullRequestReviewThread{` +
+		`comments(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{body author{login}}}}}}`
 	var out []Thread
-	for _, t := range data.Repository.PullRequest.ReviewThreads.Nodes {
-		th := Thread{ID: t.ID, Resolved: t.IsResolved}
-		for i, cm := range t.Comments.Nodes {
-			if i == 0 {
-				th.Body = cm.Body
-				continue
-			}
-			login := ""
-			if cm.Author != nil {
-				login = cm.Author.Login
-			}
-			th.Replies = append(th.Replies, Reply{Author: login, Body: cm.Body})
+	var after any
+	for {
+		var data struct {
+			Repository struct {
+				PullRequest struct {
+					ReviewThreads struct {
+						PageInfo pageInfo `json:"pageInfo"`
+						Nodes    []struct {
+							ID         string         `json:"id"`
+							IsResolved bool           `json:"isResolved"`
+							Comments   threadComments `json:"comments"`
+						} `json:"nodes"`
+					} `json:"reviewThreads"`
+				} `json:"pullRequest"`
+			} `json:"repository"`
 		}
-		out = append(out, th)
+		if err := c.graphql(ctx, q, map[string]any{"owner": owner, "name": name, "n": number, "after": after}, &data); err != nil {
+			return nil, err
+		}
+		threads := data.Repository.PullRequest.ReviewThreads
+		for _, t := range threads.Nodes {
+			th := Thread{ID: t.ID, Resolved: t.IsResolved}
+			th.add(t.Comments, true)
+			for page := t.Comments.PageInfo; page.HasNextPage; {
+				var rest struct {
+					Node struct {
+						Comments threadComments `json:"comments"`
+					} `json:"node"`
+				}
+				if err := c.graphql(ctx, more, map[string]any{"id": t.ID, "after": page.EndCursor}, &rest); err != nil {
+					return nil, err
+				}
+				th.add(rest.Node.Comments, false)
+				page = rest.Node.Comments.PageInfo
+			}
+			out = append(out, th)
+		}
+		if !threads.PageInfo.HasNextPage {
+			return out, nil
+		}
+		after = threads.PageInfo.EndCursor
 	}
-	return out, nil
 }
 
 // ResolveThread marks a review thread resolved.

@@ -76,8 +76,9 @@ func apply(ctx context.Context, o Options, bundles []Bundle, threads []github.Th
 	out := applied{paste: map[string]string{}}
 	targets := map[string]target{}
 	for _, b := range bundles {
-		for _, f := range b.Findings {
-			targets[key(b.Slug, f.CheckSlug, f.Message, f.Anchor.Quote)] = target{bundle: b, finding: f}
+		keys := findingKeys(b)
+		for i, f := range b.Findings {
+			targets[keys[i]] = target{bundle: b, finding: f}
 		}
 	}
 	out.decisions = Decide(Commands(threads), targets)
