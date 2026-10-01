@@ -13,7 +13,7 @@ import (
 // Prompt versions. A change to a prompt's text changes its version, which changes the cache
 // key (SDD §8.10) and is recorded on the run (REQ-022).
 const (
-	PromptRubric = "rubric-v1"
+	PromptRubric = "rubric-v2"
 	PromptClaims = "claims-v2"
 	PromptVerify = "verify-v1"
 	// PromptQuestions, PromptReader, and PromptJudge are the divergence test (SDD §8.5).
@@ -60,7 +60,8 @@ func rubricPrompt(docType string, checks []rubricCheck, scopeNote string, bundle
 	var b strings.Builder
 	fmt.Fprintf(&b, "Review this %s against each check below. For each check, answer:\n", docType)
 	b.WriteString("- \"pass\" when the doc meets the pass condition,\n- \"fail\" when it does not,\n- \"not_applicable\" only when the check cannot apply to this doc.\n")
-	b.WriteString("Give a short reason, and up to 3 quotes from the data that support the answer. For a fail, quote the text that falls short, or give no quote when the content is missing.\n\n")
+	b.WriteString("Give a short reason, and up to 3 quotes from the data that support the answer.\n")
+	b.WriteString("For a fail, also list every shortfall: each place where the doc falls short of the pass condition. Do not stop at the first one, and do not list one shortfall twice. Give each shortfall its own short reason and one quote of the text that falls short, or an empty quote when the content is missing. For a pass or not_applicable, list no shortfall.\n\n")
 	if scopeNote != "" {
 		b.WriteString(scopeNote + "\n\n")
 	}
@@ -87,12 +88,16 @@ func rubricSchema(slugs []string) []byte {
 				"type": "array",
 				"items": map[string]any{
 					"type": "object", "additionalProperties": false,
-					"required": []string{"slug", "result", "reason", "quotes"},
+					"required": []string{"slug", "result", "reason", "quotes", "shortfalls"},
 					"properties": map[string]any{
 						"slug":   map[string]any{"type": "string", "enum": slugs},
 						"result": map[string]any{"type": "string", "enum": []string{"pass", "fail", "not_applicable"}},
 						"reason": map[string]any{"type": "string"},
 						"quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"shortfalls": map[string]any{"type": "array", "items": map[string]any{
+							"type": "object", "additionalProperties": false, "required": []string{"reason", "quote"},
+							"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}},
+						}},
 					},
 				},
 			},

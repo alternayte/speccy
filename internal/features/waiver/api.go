@@ -118,17 +118,22 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	if standalone && f.CheckSlug != upstreamSlug {
 		return nil, kernel.Invalid("not_upstream", "Only a missing upstream link takes the standalone answer.")
 	}
-	if path == nil || p.Profile.DocScope(f.CheckSlug) || standalone {
-		path = []string{}
-	}
 	main, doc, err := a.mainDoc(ctx, b)
 	if err != nil {
 		return nil, err
 	}
-	hash, ok := section.HashAt(doc, main, path)
+	// The waiver binds as the finding does: to the section the check names, to the finding's
+	// section, or to the check itself for a whole-doc check (SDD §9.3).
+	bound, ok := p.Profile.Bind(f.CheckSlug, doc, main, path)
+	if standalone {
+		// A standalone Acknowledgement is about the doc as a whole, and no edit ends it.
+		h, _ := section.HashAt(doc, main, nil)
+		bound, ok = profile.Binding{Path: []string{}, Hash: h}, true
+	}
 	if !ok {
 		return nil, kernel.Conflict("section_gone", "The section of this finding is not in the current version. Run the review again.")
 	}
+	path, hash := bound.Path, bound.Hash
 	r := Request{
 		ID: kernel.NewID(), BundleID: b.ID, Check: f.CheckSlug, Level: kernel.Level(f.Level), Section: path, SectionHash: hash,
 		Reason: req.Body.Reason, By: kernel.ActorFrom(ctx).UserID, Policy: PolicyFor(p.Profile, f.CheckSlug, kernel.Level(f.Level)),
@@ -234,17 +239,23 @@ func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approve
 	if err != nil {
 		return err
 	}
-	if h, ok := section.HashAt(doc, main, s.Section); !ok || h != s.SectionHash {
+	p := a.Profiles()[b.ProfileKey]
+	if !p.Profile.Holds(s.Check, s.Section, s.SectionHash, doc, main) {
+		if profile.IsCheckHash(s.SectionHash) {
+			return kernel.Conflict("check_changed", "The profile changed what this check asks after the request, so this waiver no longer fits it. Ask for a new waiver.")
+		}
 		return kernel.Conflict("section_changed", "The section changed after the request, so this waiver no longer fits it. Ask for a new waiver.")
 	}
 	dec, err := a.Decisions(ctx, b)
 	if err != nil {
 		return err
 	}
-	dec = dec.WithWaiver(source.Waiver{
-		Check: s.Check, Section: s.Section, Reason: s.Reason, SectionHash: s.SectionHash,
-		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(),
-	})
+	w := source.Waiver{Check: s.Check, Section: s.Section, Reason: s.Reason, SectionHash: s.SectionHash,
+		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label()}
+	if profile.IsCheckHash(s.SectionHash) {
+		w.SectionHash, w.CheckHash = "", s.SectionHash
+	}
+	dec = dec.WithWaiver(w)
 	return a.SetDecisions(ctx, b, dec, approvedBy, "Approved a waiver for "+s.Check)
 }
 
@@ -425,17 +436,23 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 	return w, nil
 }
 
-// Invalidate ends each approved waiver of b whose section changed (REQ-074, T-010), and brings
-// back an ended one whose section returned to the text it was approved for. The sidecar is
-// the truth (DEC-009): its entry applies whenever the section hash matches, so the status
-// follows it, and a reader of the sidecar alone (CI) agrees with the app. It runs after every
-// new version.
+// Invalidate ends each approved waiver of b that no longer holds (REQ-074, T-010), and brings
+// back an ended one that holds again. The sidecar is the truth (DEC-009): its entry applies
+// whenever its hash matches, so the status follows it, and a reader of the sidecar alone (CI)
+// agrees with the app. It runs after every new version and after every full review.
+//
+// A waiver of a section holds while the section is the text it was approved for. A waiver of
+// a whole-doc check holds while the check asks the same thing and the last full review failed
+// the check: an edit does not end it, and a review that passes the check does, because nothing
+// is left to excuse. If a later review fails the check again, the sidecar entry applies again,
+// and so does the waiver.
 func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
-	decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error)) error {
+	decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error), profiles func() map[string]profile.Versioned) error {
 	if !b.CurrentVersionID.Valid {
 		return nil
 	}
-	rows, err := db.Queries().ListSpecDocWaivers(ctx, b.ID)
+	q := db.Queries()
+	rows, err := q.ListSpecDocWaivers(ctx, b.ID)
 	if err != nil {
 		return err
 	}
@@ -443,13 +460,15 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 	var doc section.Doc
 	loaded := false
 	var dec *source.Decisions
+	var passed map[string]bool
+	p := profiles()[b.ProfileKey].Profile
 	for _, r := range rows {
 		ended := r.Status == StatusInvalidated && r.Scope == ScopeCheck
 		if r.Status != StatusApproved && !ended || Acknowledgement(r.Scope) {
 			continue
 		}
 		if !loaded {
-			files, err := version.Files(ctx, db.Queries(), b.CurrentVersionID.UUID)
+			files, err := version.Files(ctx, q, b.CurrentVersionID.UUID)
 			if err != nil {
 				return err
 			}
@@ -462,10 +481,23 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 		}
 		var path []string
 		_ = json.Unmarshal(r.SectionPath, &path)
-		hash, _ := section.HashAt(doc, main, path)
-		decide := func(s State) ([]es.Event, error) { return DecideInvalidate(s, hash) }
+		holds, why := p.Holds(r.CheckSlug, path, r.SectionHash, doc, main), EndedSectionChanged
+		if profile.IsCheckHash(r.SectionHash) {
+			why = EndedCheckChanged
+			if holds {
+				if passed == nil {
+					if passed, err = passedChecks(ctx, q, b); err != nil {
+						return err
+					}
+				}
+				if passed[r.CheckSlug] {
+					holds, why = false, EndedCheckPassed
+				}
+			}
+		}
+		decide := func(s State) ([]es.Event, error) { return DecideInvalidate(s, holds, why) }
 		if ended {
-			if hash != r.SectionHash {
+			if !holds {
 				continue
 			}
 			if dec == nil {
@@ -476,15 +508,46 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 				dec = &d
 			}
 			inSidecar := slices.ContainsFunc(dec.Waivers, func(w source.Waiver) bool {
-				return w.Check == r.CheckSlug && slices.Equal(w.Section, path) && w.SectionHash == r.SectionHash
+				return w.Check == r.CheckSlug && slices.Equal(w.Section, path) && (w.SectionHash == r.SectionHash || w.CheckHash == r.SectionHash)
 			})
-			decide = func(s State) ([]es.Event, error) { return DecideRestore(s, hash, inSidecar) }
+			decide = func(s State) ([]es.Event, error) { return DecideRestore(s, holds, inSidecar) }
 		}
 		if _, err := es.Run(ctx, st, StreamType, r.ID, decide, Evolve); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// passedChecks returns the checks that the last full review of b passed. A check with a
+// waived failure did not pass.
+func passedChecks(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (map[string]bool, error) {
+	out := map[string]bool{}
+	full, err := q.LatestFullReview(ctx, b.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	vd, err := q.GetVerdict(ctx, full.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var items []struct {
+		Slug   string `json:"slug"`
+		Passed bool   `json:"passed"`
+	}
+	_ = json.Unmarshal(vd.Items, &items)
+	for _, it := range items {
+		if it.Slug != "" {
+			out[it.Slug] = it.Passed
+		}
+	}
+	return out, nil
 }
 
 // RequestVerificationWaiver asks to excuse one trace ID in one code repo. It keeps the whole

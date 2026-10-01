@@ -178,7 +178,7 @@ func unmerged(ctx context.Context, o Options, doc string) ([]source.Waiver, erro
 	var out []source.Waiver
 	for _, w := range head.Waivers {
 		if !slices.ContainsFunc(base.Waivers, func(b source.Waiver) bool {
-			return b.Check == w.Check && slices.Equal(b.Section, w.Section) && b.SectionHash == w.SectionHash
+			return b.Check == w.Check && slices.Equal(b.Section, w.Section) && b.SectionHash == w.SectionHash && b.CheckHash == w.CheckHash
 		}) {
 			out = append(out, w)
 		}
@@ -192,7 +192,8 @@ func dependsOn(b Bundle, ws []source.Waiver) int {
 	n := 0
 	for _, w := range ws {
 		if !slices.ContainsFunc(b.Findings, func(f api.Finding) bool {
-			return f.Waived && f.CheckSlug == w.Check && slices.Equal(waiverSection(target{bundle: b, finding: f}), w.Section)
+			bound, ok := binding(target{bundle: b, finding: f})
+			return ok && f.Waived && f.CheckSlug == w.Check && slices.Equal(bound.Path, w.Section)
 		}) {
 			continue
 		}

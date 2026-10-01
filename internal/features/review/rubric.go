@@ -156,37 +156,92 @@ type rubricAnswer struct {
 	Result string   `json:"result"`
 	Reason string   `json:"reason"`
 	Quotes []string `json:"quotes"`
+	// Shortfalls are the reasons a failed check fails. Each becomes one finding.
+	Shortfalls []shortfall `json:"shortfalls"`
+}
+
+// shortfall is one reason that a rubric check fails, with its quote. The quote is empty when
+// the content is missing.
+type shortfall struct {
+	Reason string `json:"reason"`
+	Quote  string `json:"quote"`
 }
 
 // scopeUnit is what one group of rubric checks reads: the whole bundle, or one section.
 type scopeUnit struct {
-	sec       *section.Section
+	sec *section.Section
+	// named says the checks name sec: the model reads sec with its child sections and the doc
+	// title, and no other doc text. Otherwise sec is one section of a scope: section check,
+	// which reads the bundle for context.
+	named     bool
 	inputHash string
 	checks    []rubricCheck
 	levels    map[string]kernel.Level
 }
 
-// rubricStage answers every rubric check with the reviewer (SDD §8.3). Checks with scope
-// section run per section; others per doc. Each check's answer is cached (REQ-021).
-func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *evaluation, fingerprint string) error {
-	var docChecks []rubricCheck
+// assets are the text files of the bundle other than the main doc, as model files.
+func assets(in input) []model.File {
+	var out []model.File
+	for _, f := range textAssets(in) {
+		out = append(out, model.File{Path: f.path, Content: []byte(f.text)})
+	}
+	return out
+}
+
+// docTitle is the title of the doc: the frontmatter's, or the first heading.
+func docTitle(in input) string {
+	if t := strings.TrimSpace(in.fm.Title); t != "" {
+		return t
+	}
+	for _, s := range in.doc.Sections {
+		if s.Level == 1 {
+			return s.Title
+		}
+	}
+	return in.bundle.Title
+}
+
+// namedHash is the input hash of the checks that name sec: the section with its child
+// sections, the doc title, and the text assets. An edit to another section leaves it as it is.
+func namedHash(in input, sec *section.Section) string {
+	parts := []string{sec.TreeHash(in.main), docTitle(in)}
+	for _, f := range textAssets(in) {
+		parts = append(parts, f.path, version.Hash([]byte(f.text)))
+	}
+	return hashOf(parts...)
+}
+
+// rubricUnits groups the rubric checks of the profile by what each reads: the whole bundle,
+// the section a check names, or every section for a check with scope section.
+func rubricUnits(in input) []scopeUnit {
 	levels := map[string]kernel.Level{}
-	var sectionChecks []rubricCheck
+	var docChecks, sectionChecks []rubricCheck
+	named := map[*section.Section][]rubricCheck{}
+	var order []*section.Section
 	for _, c := range in.profile.Profile.Checks {
 		if c.Stage != StageRubric || !c.AppliesAt(in.size) {
 			continue
 		}
 		levels[c.Slug] = in.level(c.Slug, kernel.Level(c.Level))
 		rcheck := rubricCheck{Slug: c.Slug, Question: c.Question, PassWhen: c.PassWhen}
-		if c.Scope == "section" {
+		switch sec := c.Named(in.doc); {
+		case c.Scope == "section":
 			sectionChecks = append(sectionChecks, rcheck)
-		} else {
+		case sec != nil:
+			if _, ok := named[sec]; !ok {
+				order = append(order, sec)
+			}
+			named[sec] = append(named[sec], rcheck)
+		default:
 			docChecks = append(docChecks, rcheck)
 		}
 	}
 	var units []scopeUnit
 	if len(docChecks) > 0 {
 		units = append(units, scopeUnit{inputHash: bundleHash(in), checks: docChecks, levels: levels})
+	}
+	for _, sec := range order {
+		units = append(units, scopeUnit{sec: sec, named: true, inputHash: namedHash(in, sec), checks: named[sec], levels: levels})
 	}
 	if len(sectionChecks) > 0 {
 		for i := range in.doc.Sections {
@@ -197,6 +252,13 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 			units = append(units, scopeUnit{sec: sec, inputHash: sec.Hash, checks: sectionChecks, levels: levels})
 		}
 	}
+	return units
+}
+
+// rubricStage answers every rubric check with the reviewer (SDD §8.3). Checks with scope
+// section run per section; others per doc. Each check's answer is cached (REQ-021).
+func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *evaluation, fingerprint string) error {
+	units := rubricUnits(in)
 
 	type result struct {
 		unit    scopeUnit
@@ -241,16 +303,41 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 			if a.Result != "fail" {
 				continue
 			}
-			an, quotes := rubricAnchor(in, r.unit.sec, a.Quotes)
-			msg := a.Reason
-			if r.unit.sec != nil {
-				msg = fmt.Sprintf("%s: %s", strings.Join(r.unit.sec.Path, " › "), a.Reason)
+			// Each shortfall is one finding, so the author sees every one in this review and not
+			// the next one after each fix. An answer with none, from an older cache entry or a
+			// model that gave none, is one finding with the reason of the check.
+			falls := a.Shortfalls
+			if len(falls) == 0 {
+				falls = []shortfall{{Reason: a.Reason}}
+				if len(a.Quotes) > 0 {
+					falls[0].Quote = a.Quotes[0]
+				}
 			}
-			ev.findings = append(ev.findings, pending{
-				slug: c.Slug, level: lvl, stage: StageRubric, anchor: an, message: sentence(msg),
-				fix:      "Change the doc so that this holds: " + c.PassWhen,
-				evidence: map[string]any{"question": c.Question, "reason": a.Reason, "quotes": quotes},
-			})
+			seen := map[shortfall]bool{}
+			for _, sf := range falls {
+				sf.Reason, sf.Quote = strings.TrimSpace(sf.Reason), strings.TrimSpace(sf.Quote)
+				if sf.Reason == "" {
+					sf.Reason = a.Reason
+				}
+				if seen[sf] {
+					continue
+				}
+				seen[sf] = true
+				var quoted []string
+				if sf.Quote != "" {
+					quoted = []string{sf.Quote}
+				}
+				an, quotes := rubricAnchor(in, r.unit.sec, quoted)
+				msg := sf.Reason
+				if r.unit.sec != nil && !r.unit.named {
+					msg = fmt.Sprintf("%s: %s", strings.Join(r.unit.sec.Path, " › "), sf.Reason)
+				}
+				ev.findings = append(ev.findings, pending{
+					slug: c.Slug, level: lvl, stage: StageRubric, anchor: an, message: sentence(msg),
+					fix:      "Change the doc so that this holds: " + c.PassWhen,
+					evidence: map[string]any{"question": c.Question, "reason": sf.Reason, "quotes": quotes},
+				})
+			}
 		}
 	}
 	return nil
@@ -278,8 +365,20 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		todo = append(todo, c)
 	}
 	bundle := bundleData(in.bundle.DocPath, in.main, textAssets(in))
+	files := snapshot(in)
 	scopeNote := ""
-	if u.sec != nil {
+	switch {
+	case u.named:
+		// The model reads the named section and nothing else of the doc, so its answer holds
+		// when another section changes.
+		name := strings.Join(u.sec.Path, " > ")
+		scopeNote = fmt.Sprintf("The data holds one section of the doc \"%s\": the section \"%s\" with its subsections. Answer the checks from this section. The rest of the doc is not here; do not guess what it says.", docTitle(in), name)
+		bundle = data("Section "+name, string(in.main[u.sec.Start:u.sec.End]))
+		for _, a := range textAssets(in) {
+			bundle += "\n" + data("Asset "+a.path, a.text)
+		}
+		files = assets(in)
+	case u.sec != nil:
 		scopeNote = fmt.Sprintf("Answer the checks for the section \"%s\" only. The whole bundle is below for context.", strings.Join(u.sec.Path, " > "))
 		bundle = data("Section "+strings.Join(u.sec.Path, " > "), string(u.sec.Own(in.main))) + "\n" + bundle
 	}
@@ -287,7 +386,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		n := min(rubricBatch, len(todo))
 		batch := todo[:n]
 		todo = todo[n:]
-		got, err := s.askRubric(ctx, rc, in, batch, scopeNote, bundle)
+		got, err := s.askRubric(ctx, rc, in, batch, scopeNote, bundle, files)
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +398,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 			}
 		}
 		if len(missing) > 0 {
-			again, err := s.askRubric(ctx, rc, in, missing, scopeNote, bundle)
+			again, err := s.askRubric(ctx, rc, in, missing, scopeNote, bundle, files)
 			if err != nil {
 				return nil, err
 			}
@@ -322,7 +421,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 	return answers, nil
 }
 
-func (s *Service) askRubric(ctx context.Context, rc *runCtx, in input, checks []rubricCheck, scopeNote, bundle string) (map[string]rubricAnswer, error) {
+func (s *Service) askRubric(ctx context.Context, rc *runCtx, in input, checks []rubricCheck, scopeNote, bundle string, files []model.File) (map[string]rubricAnswer, error) {
 	slugs := make([]string, len(checks))
 	for i, c := range checks {
 		slugs[i] = c.Slug
@@ -331,7 +430,7 @@ func (s *Service) askRubric(ctx context.Context, rc *runCtx, in input, checks []
 	res, err := rc.call(ctx, s.Gateway, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptRubric, System: systemPrompt,
 		Prompt: rubricPrompt(in.profile.Profile.Name, checks, scopeNote, bundle),
-		Schema: rubricSchema(slugs), Files: snapshot(in),
+		Schema: rubricSchema(slugs), Files: files,
 	})
 	if err != nil {
 		return nil, err

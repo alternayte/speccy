@@ -85,6 +85,9 @@ type Service struct {
 	// Jobs runs the queued jobs of other features, by job kind. The one worker runs them in
 	// turn with the reviews, so model calls stay within one queue.
 	Jobs map[string]func(ctx context.Context, payload []byte) error
+	// AfterReview runs after a full review of a doc ends with a verdict. The app ends the
+	// waivers of the whole-doc checks that the review passed.
+	AfterReview func(ctx context.Context, b pgdb.SpecDoc) error
 
 	mu     sync.Mutex // one lint pass at a time
 	wakeMu sync.Mutex
@@ -675,7 +678,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, err
 	}
 	// The AI findings of the last full review hold for the sections that did not change.
-	if err := s.carry(ctx, b, in, &ev); err != nil {
+	if err := s.carry(ctx, b, in, &ev, func(string) bool { return false }); err != nil {
 		return run, err
 	}
 	return run, s.save(ctx, run, in, ev, p.Profile, false)

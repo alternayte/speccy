@@ -310,12 +310,38 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 		return fail(err)
 	}
 
+	// A run with a stage subset judges only its stages. The findings of the stages it skips
+	// stay in the verdict, from the last run that did them, so the run never drops a finding
+	// by not looking.
+	if stages != nil {
+		if err := s.carry(ctx, b, in, &ev, stages.has); err != nil {
+			return fail(err)
+		}
+	}
+
 	stage = StageVerdict
 	rc.enter(stage)
 	run.Status, run.Stage = "complete", StageVerdict
 	s.fillRun(&run, rc)
 	if err := s.save(ctx, run, in, ev, p.Profile, true); err != nil {
 		return fail(err)
+	}
+	// The author saved an edit while the review ran: the review read an old version. Lint the
+	// current version again now, so that it carries this review's findings at once and not
+	// after the next save.
+	if cur, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: s.Workspace, ID: run.SpecDocID}); err == nil &&
+		cur.CurrentVersionID.Valid && cur.CurrentVersionID.UUID != run.VersionID {
+		s.mu.Lock()
+		_, err := s.Lint(ctx, cur, cur.CurrentVersionID.UUID)
+		s.mu.Unlock()
+		if err != nil {
+			slog.Error("lint the current version after a review of an older one", "doc", cur.Slug, "err", err)
+		}
+	}
+	if s.AfterReview != nil {
+		if err := s.AfterReview(ctx, b); err != nil {
+			slog.Error("after the review", "doc", b.Slug, "err", err)
+		}
 	}
 	rc.publish(Event{Type: "done", Stage: stage})
 	return nil
@@ -408,25 +434,23 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 		est.TokensIn += int64(calls) * (bundleTokens + extraTokens + 1500)
 		est.TokensOut += int64(calls) * 1500
 	}
-	var docSlugs, sectionSlugs []string
-	for _, c := range p.Profile.Checks {
-		if c.Stage != StageRubric || !c.AppliesAt(in.size) {
-			continue
+	for _, u := range rubricUnits(in) {
+		slugs := make([]string, len(u.checks))
+		for i, c := range u.checks {
+			slugs[i] = c.Slug
 		}
-		if c.Scope == "section" {
-			sectionSlugs = append(sectionSlugs, c.Slug)
-		} else {
-			docSlugs = append(docSlugs, c.Slug)
-		}
-	}
-	rubricUnit(bundleHash(in), docSlugs, 0)
-	if len(sectionSlugs) > 0 {
-		for i := range in.doc.Sections {
-			sec := in.doc.Sections[i]
-			if sec.Level == 0 || len(strings.Fields(section.Normalize(sec.Own(in.main)))) == 0 {
-				continue
+		switch {
+		case u.named:
+			// The call holds the section and the assets, not the bundle.
+			assetTokens := int64(0)
+			for _, f := range textAssets(in) {
+				assetTokens += int64(len(f.text)) / 4
 			}
-			rubricUnit(sec.Hash, sectionSlugs, int64(len(sec.Own(in.main)))/4)
+			rubricUnit(u.inputHash, slugs, int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
+		case u.sec != nil:
+			rubricUnit(u.inputHash, slugs, int64(len(u.sec.Own(in.main)))/4)
+		default:
+			rubricUnit(u.inputHash, slugs, 0)
 		}
 	}
 	// Grounding: a claims call per uncached section, and about one label call per two sections.

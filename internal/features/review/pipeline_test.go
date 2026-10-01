@@ -57,6 +57,12 @@ func insideData(prompt string) string {
 type reviewer struct {
 	rubricPass bool
 	questions  []fakeQuestion
+	// shortfalls are the shortfalls the reviewer gives for a failed check, by slug. passes are
+	// the slugs it passes.
+	shortfalls map[string][]map[string]string
+	passes     map[string]bool
+	// rubric holds each rubric prompt, in call order.
+	rubric []string
 
 	mu      sync.Mutex
 	calls   map[string]int      // by prompt version
@@ -99,6 +105,9 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		r.calls = map[string]int{}
 	}
 	r.calls[c.PromptVersion]++
+	if c.PromptVersion == review.PromptRubric {
+		r.rubric = append(r.rubric, c.Prompt)
+	}
 	if c.PromptVersion == review.PromptReader {
 		if r.prompts == nil {
 			r.prompts = map[string][]string{}
@@ -116,7 +125,13 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		}
 		var results []map[string]any
 		for _, m := range slugsRe.FindAllStringSubmatch(outsideData(c.Prompt), -1) {
-			results = append(results, map[string]any{"slug": m[1], "result": result, "reason": "The doc does not state it.", "quotes": []string{}})
+			res, falls := result, []map[string]string{}
+			if r.passes[m[1]] {
+				res = "pass"
+			} else if res == "fail" && r.shortfalls[m[1]] != nil {
+				falls = r.shortfalls[m[1]]
+			}
+			results = append(results, map[string]any{"slug": m[1], "result": res, "reason": "The doc does not state it.", "quotes": []string{}, "shortfalls": falls})
 		}
 		out = map[string]any{"results": results}
 	case review.PromptClaims:

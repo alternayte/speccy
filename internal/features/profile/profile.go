@@ -4,7 +4,9 @@ package profile
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +23,7 @@ import (
 	"golang.org/x/text/message"
 	"gopkg.in/yaml.v3"
 
+	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/engine/sourcepolicy"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -155,6 +158,33 @@ type Check struct {
 	Waiver   *Policy `yaml:"waiver,omitempty" json:"waiver,omitempty"`
 	// Sizes are the doc sizes this check applies to. An empty list applies at every size.
 	Sizes []string `yaml:"sizes,omitempty" json:"sizes,omitempty"`
+	// Section is the heading a rubric check is about. The check then reads that section only,
+	// so an edit to another section does not change its answer. A doc with no such heading
+	// gets the check as a whole-doc check.
+	Section string `yaml:"section,omitempty" json:"section,omitempty"`
+}
+
+// Hash identifies what the check asks: its question and its pass condition. A waiver of a
+// whole-doc check holds while this hash stays.
+func (c Check) Hash() string {
+	sum := sha256.Sum256([]byte(c.Question + "\x00" + c.PassWhen))
+	return checkHashPrefix + hex.EncodeToString(sum[:])
+}
+
+// Named returns the section of doc that the check names, or nil: the check names none, or the
+// doc has no heading with that title. The match is the one lint.required-headings uses, so
+// "## 5. Monitoring" has the section "Monitoring".
+func (c Check) Named(doc section.Doc) *section.Section {
+	if c.Section == "" {
+		return nil
+	}
+	want := lint.NormTitle(c.Section)
+	for i := range doc.Sections {
+		if s := &doc.Sections[i]; s.Level > 0 && lint.NormTitle(s.Title) == want {
+			return s
+		}
+	}
+	return nil
 }
 
 // AppliesAt reports whether the check runs on a doc of size sz.
@@ -256,6 +286,12 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 			problems = append(problems, fmt.Sprintf("/checks/%d/slug: %q appears more than once", i, c.Slug))
 		}
 		seen[c.Slug] = true
+		if c.Section != "" && c.Stage != "rubric" {
+			problems = append(problems, fmt.Sprintf("/checks/%d/section: only a rubric check names a section", i))
+		}
+		if c.Section != "" && c.Scope == "section" {
+			problems = append(problems, fmt.Sprintf("/checks/%d/section: a check with scope section runs on every section, so it names none", i))
+		}
 	}
 	if p.Divergence.Questions.Min > p.Divergence.Questions.Max {
 		problems = append(problems, "/divergence/questions: min is larger than max")
@@ -451,13 +487,79 @@ func (l lineIndex) line(off int) int {
 	return n
 }
 
-// DocScope reports whether the check with slug reads the whole doc (scope: doc). Its finding
-// is about the doc, so a waiver of it covers the whole doc, not the section the finding points at.
-func (p Profile) DocScope(slug string) bool {
+// Holds reports whether a waiver of check, recorded for the section at path with hash, still
+// holds in doc. A hash from Check.Hash holds while the check asks the same thing. A section
+// hash holds while the section's own text is the same, or the section with its child sections
+// for a waiver that recorded the tree hash. An empty path is the whole doc text.
+func (p Profile) Holds(check string, path []string, hash string, doc section.Doc, src []byte) bool {
+	if hash == "" {
+		return false
+	}
+	if strings.HasPrefix(hash, checkHashPrefix) {
+		c, ok := p.Check(check)
+		return ok && len(path) == 0 && c.Hash() == hash
+	}
+	if len(path) == 0 {
+		h, _ := section.HashAt(doc, src, nil)
+		return h == hash
+	}
+	sec := section.At(doc, path)
+	return sec != nil && (sec.Hash == hash || sec.TreeHash(src) == hash)
+}
+
+// IsCheckHash reports whether a recorded waiver hash is a check's hash, not a section's.
+func IsCheckHash(hash string) bool { return strings.HasPrefix(hash, checkHashPrefix) }
+
+const checkHashPrefix = "check:"
+
+// Check returns the check with slug.
+func (p Profile) Check(slug string) (Check, bool) {
 	for _, c := range p.Checks {
 		if c.Slug == slug {
-			return c.Scope != "section"
+			return c, true
 		}
 	}
-	return false
+	return Check{}, false
+}
+
+// Binding is what a finding of a check, and a waiver of it, belong to in one doc.
+type Binding struct {
+	// Path is the section. It is empty for the whole doc.
+	Path []string
+	// Whole says the check is a whole-doc check here: it has no section, or the doc has no
+	// heading that it names. Its waiver holds while Hash stays, not while the doc text stays.
+	Whole bool
+	// Tree says the section counts with its child sections: the check names it and reads them.
+	Tree bool
+	// Hash is the hash a waiver records: the check's hash, the section's tree hash, or the
+	// section's own hash.
+	Hash string
+}
+
+// Bind says where a finding of the check with slug binds in doc. findingPath is the heading
+// path of the finding's anchor. ok is false when the section is not in the doc.
+//   - A check that names a section the doc has: that section, with its child sections.
+//   - A check with scope section, and a check that is not in the profile, such as a lint
+//     rule: the section of the finding.
+//   - Any other rubric check: the whole doc, as a whole-doc check.
+//   - A check of another stage: the whole doc text.
+func (p Profile) Bind(slug string, doc section.Doc, src []byte, findingPath []string) (b Binding, ok bool) {
+	c, known := p.Check(slug)
+	if sec := c.Named(doc); sec != nil {
+		return Binding{Path: sec.Path, Tree: true, Hash: sec.TreeHash(src)}, true
+	}
+	if known && c.Scope != "section" && c.Stage == "rubric" {
+		return Binding{Path: []string{}, Whole: true, Hash: c.Hash()}, true
+	}
+	if len(findingPath) == 0 || known && c.Scope != "section" {
+		// A check of another stage that reads the whole doc, such as a link check, or a finding
+		// on the text before the first heading: the doc text, so any edit ends its waiver.
+		h, _ := section.HashAt(doc, src, nil)
+		return Binding{Path: []string{}, Hash: h}, true
+	}
+	sec := section.At(doc, findingPath)
+	if sec == nil {
+		return Binding{}, false
+	}
+	return Binding{Path: sec.Path, Hash: sec.Hash}, true
 }
