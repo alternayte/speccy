@@ -288,7 +288,7 @@ func lintStage(in input) evaluation {
 	}
 	if up := in.profile.Profile.Links.Upstream; up != nil && up.Required {
 		level := in.level(HasUpstreamSlug, checkLevel(in.profile.Profile, HasUpstreamSlug, kernel.Must))
-		has, missing := hasUpstream(in, up.Kinds, up.Types)
+		has, missing, outside := hasUpstream(in, up.Kinds, up.Types)
 		ev.in.UpstreamRequired = level == kernel.Must
 		ev.in.HasUpstream = has
 		ev.items = append(ev.items, verdict.Item{Slug: HasUpstreamSlug, Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
@@ -310,6 +310,11 @@ func lintStage(in input) evaluation {
 				if len(in.upstreams) > 0 {
 					f.message += fmt.Sprintf(" The %s bundles are: %s.", strings.ToUpper(strings.Join(up.Types, " or ")), quoteList(in.upstreams))
 				}
+			} else if outside != "" {
+				// The doc has a link, so "has no link" would be false (#97).
+				f := &ev.findings[len(ev.findings)-1]
+				f.message = fmt.Sprintf("The link target %q is outside Speccy, so Speccy cannot read it as the upstream doc of this %s.", outside, strings.ToUpper(in.profile.Profile.Key))
+				f.fix = "Add that doc to Speccy as a source, then use its slug as the target. Or add a standalone: entry with the reason."
 			}
 		}
 	}
@@ -784,9 +789,12 @@ func plural(n int) string {
 	return "s"
 }
 
-func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
+// hasUpstream reports whether the doc links an upstream doc or stands alone. When it does not,
+// missing is the first link target that names no bundle, and outside is the first one that
+// points outside Speccy, such as a URL.
+func hasUpstream(in input, kinds, types []string) (has bool, missing, outside string) {
 	if standalone(in.dec) {
-		return true, ""
+		return true, "", ""
 	}
 	for _, l := range in.links {
 		if !slices.Contains(kinds, l.kind) {
@@ -795,14 +803,16 @@ func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
 		if l.target == nil {
 			if l.targetKind == "bundle" && missing == "" {
 				missing = l.ref
+			} else if l.targetKind == "external" && outside == "" {
+				outside = l.ref
 			}
 			continue
 		}
 		if len(types) == 0 || slices.Contains(types, l.target.ProfileKey) {
-			return true, ""
+			return true, "", ""
 		}
 	}
-	return false, missing
+	return false, missing, outside
 }
 
 func profileKeys(ps map[string]profile.Versioned) []string {

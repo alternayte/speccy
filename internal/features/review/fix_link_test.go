@@ -77,3 +77,24 @@ func TestAcceptLink_WrappedJSON(t *testing.T) {
 		})
 	}
 }
+
+// #97: a link of an upstream kind to a file at a GitHub URL is not a link to a bundle, so the
+// check still fails. The finding says what the link is and what to do, not that no link exists.
+func TestHasUpstream_LinkOutsideSpeccy(t *testing.T) {
+	url := "https://github.com/acme/specs/blob/main/pay/PRD.md"
+	for _, e := range storetest.Engines() {
+		t.Run(e.Name, func(t *testing.T) {
+			en := newEnv(t, e, map[string]string{
+				"pay/SDD.md": "---\ntype: sdd\nlinks:\n  - kind: implements\n    target: " + url + "\n---\n# SDD\n\nThe service retries a payment.\n",
+			})
+			_, fs, _ := en.latest(t, "pay")
+			up := findingsOf(fs, review.HasUpstreamSlug)
+			if len(up) != 1 {
+				t.Fatalf("%d links.has-upstream findings, want 1", len(up))
+			}
+			if !strings.Contains(up[0].Message, url) || strings.Contains(up[0].Message, "has no implements link") {
+				t.Errorf("message = %q, want one that names the link", up[0].Message)
+			}
+		})
+	}
+}
