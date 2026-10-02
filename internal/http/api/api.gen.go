@@ -2282,6 +2282,9 @@ type Finding struct {
 	// New The last full review found this, and the full review before it did not. See Trend.
 	New *bool `json:"new,omitempty"`
 
+	// Question For an answer finding, the question that the author must answer to fix it. It names the subject and asks only for the missing fact. A finding of the divergence stage has its build question here, and one of the grounding stage has its claim.
+	Question *string `json:"question,omitempty"`
+
 	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
 	Relaxed bool `json:"relaxed"`
 

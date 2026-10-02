@@ -4123,6 +4123,12 @@ components:
           description: The line where the text of the finding ends.
         fix_kind:
           $ref: "#/components/schemas/FixKind"
+        question:
+          type: string
+          description: >
+            For an answer finding, the question that the author must answer to fix it. It names
+            the subject and asks only for the missing fact. A finding of the divergence stage
+            has its build question here, and one of the grounding stage has its claim.
         run_id:
           type: string
           format: uuid

@@ -199,6 +199,7 @@ export function FindingsPanel({
           {f.anchor.heading_path.length ? (
             <p className="mt-1 truncate text-2xs text-ink-3">{f.anchor.heading_path.join(" › ")}</p>
           ) : null}
+          {f.question ? <p className="mt-1 text-xs text-ink">Question: {f.question}</p> : null}
           {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
           {/* A carried finding: the review that found it read an older version. */}
           {aiVersion && f.carried ? <p className="mt-1 text-2xs text-ink-3">From the review of v{aiVersion}</p> : null}
@@ -1013,6 +1014,8 @@ function SuggestFix({
           ask();
         }}
       >
+        {/* The question comes first: the author must not work it out from the pass condition. */}
+        {finding.question ? <p className="mb-1.5 font-medium text-ink">{finding.question}</p> : null}
         <label className="block text-ink-2">
           Your answer
           <Textarea

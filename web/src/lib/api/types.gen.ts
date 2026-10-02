@@ -831,6 +831,11 @@ export type Finding = {
     end_line: number;
     fix_kind: FixKind;
     /**
+     * For an answer finding, the question that the author must answer to fix it. It names the subject and asks only for the missing fact. A finding of the divergence stage has its build question here, and one of the grounding stage has its claim.
+     *
+     */
+    question?: string;
+    /**
      * The run the finding belongs to. A carried finding belongs to the last full review.
      */
     run_id: string;

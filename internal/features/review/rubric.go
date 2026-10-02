@@ -194,17 +194,17 @@ func withPrior(a rubricAnswer, prior []shortfall) rubricAnswer {
 		}
 	}
 	var out []shortfall
-	seen := map[shortfall]bool{}
+	seen := map[[2]string]bool{}
 	for i, sf := range prior {
-		if !fixed[i+1] && !seen[sf] {
-			seen[sf] = true
+		if !fixed[i+1] && !seen[sf.same()] {
+			seen[sf.same()] = true
 			out = append(out, sf)
 		}
 	}
 	for _, sf := range a.Shortfalls {
 		sf.Reason, sf.Quote = strings.TrimSpace(sf.Reason), strings.TrimSpace(sf.Quote)
-		if !seen[sf] {
-			seen[sf] = true
+		if !seen[sf.same()] {
+			seen[sf.same()] = true
 			out = append(out, sf)
 		}
 	}
@@ -263,7 +263,9 @@ func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[stri
 		if strings.TrimSpace(ev.Reason) == "" {
 			continue
 		}
-		sf := shortfall{Reason: strings.TrimSpace(ev.Reason)}
+		var sugg suggestion
+		_ = json.Unmarshal(f.Suggestion, &sugg)
+		sf := shortfall{Reason: strings.TrimSpace(ev.Reason), Question: sugg.Question}
 		for _, quote := range ev.Quotes {
 			if quote.Found {
 				sf.Quote = strings.TrimSpace(quote.Text)
@@ -312,7 +314,13 @@ func priorKey(slug, sectionPath string) string { return slug + "\x00" + sectionP
 type shortfall struct {
 	Reason string `json:"reason"`
 	Quote  string `json:"quote"`
+	// Question is what the author must answer to fix the shortfall: it names the subject and
+	// asks only for the missing fact (#110).
+	Question string `json:"question,omitempty"`
 }
+
+// same names a shortfall by what it says, without its question.
+func (sf shortfall) same() [2]string { return [2]string{sf.Reason, sf.Quote} }
 
 // scopeUnit is what one group of rubric checks reads: the whole bundle, or one section.
 type scopeUnit struct {
@@ -472,16 +480,16 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 					falls[0].Quote = a.Quotes[0]
 				}
 			}
-			seen := map[shortfall]bool{}
+			seen := map[[2]string]bool{}
 			for _, sf := range falls {
 				sf.Reason, sf.Quote = strings.TrimSpace(sf.Reason), strings.TrimSpace(sf.Quote)
 				if sf.Reason == "" {
 					sf.Reason = a.Reason
 				}
-				if seen[sf] {
+				if seen[sf.same()] {
 					continue
 				}
-				seen[sf] = true
+				seen[sf.same()] = true
 				var quoted []string
 				if sf.Quote != "" {
 					quoted = []string{sf.Quote}
@@ -494,6 +502,7 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 				ev.findings = append(ev.findings, pending{
 					slug: c.Slug, level: lvl, stage: StageRubric, anchor: an, message: sentence(msg),
 					fix:      "Change the doc so that this holds: " + c.PassWhen,
+					question: strings.TrimSpace(sf.Question),
 					evidence: map[string]any{"question": c.Question, "reason": sf.Reason, "quotes": quotes, "section": r.unit.sectionKey()},
 				})
 			}

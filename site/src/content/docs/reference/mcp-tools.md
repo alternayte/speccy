@@ -17,7 +17,7 @@ Get one bundle: its files, its verdict, and the text of its spec doc.
 
 ## `get_findings`
 
-Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person, so ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.
+Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person: the finding has the question to ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|

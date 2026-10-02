@@ -61,7 +61,7 @@ func rubricPrompt(docType string, checks []rubricCheck, scopeNote string, bundle
 	fmt.Fprintf(&b, "Review this %s against each check below. For each check, answer:\n", docType)
 	b.WriteString("- \"pass\" when the doc meets the pass condition,\n- \"fail\" when it does not,\n- \"not_applicable\" only when the check cannot apply to this doc.\n")
 	b.WriteString("Give a short reason, and up to 3 quotes from the data that support the answer.\n")
-	b.WriteString("For a fail, also list every shortfall: each place where the doc falls short of the pass condition. Do not stop at the first one, and do not list one shortfall twice. Give each shortfall its own short reason and one quote of the text that falls short, or an empty quote when the content is missing. For a pass or not_applicable, list no shortfall.\n\n")
+	b.WriteString("For a fail, also list every shortfall: each place where the doc falls short of the pass condition. Do not stop at the first one, and do not list one shortfall twice. Give each shortfall its own short reason and one quote of the text that falls short, or an empty quote when the content is missing. Give each shortfall a question too: one question that the author can answer with the fact that is missing. Name the subject of the quoted text in it, and ask only for what is missing. For a pass or not_applicable, list no shortfall.\n\n")
 	if scopeNote != "" {
 		b.WriteString(scopeNote + "\n\n")
 	}
@@ -120,7 +120,7 @@ func rubricSchema(slugs []string) []byte {
 						}},
 						"shortfalls": map[string]any{"type": "array", "items": map[string]any{
 							"type": "object", "additionalProperties": false, "required": []string{"reason", "quote"},
-							"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}},
+							"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}, "question": map[string]any{"type": "string"}},
 						}},
 					},
 				},

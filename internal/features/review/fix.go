@@ -133,8 +133,10 @@ func applyEdits(src []byte, edits []edit) ([]byte, []edit, bool) {
 
 // suggestion is the finding's suggestion column: the fix text from the review, and the patch.
 type suggestion struct {
-	Fix   string `json:"fix,omitempty"`
-	Patch *patch `json:"patch,omitempty"`
+	Fix string `json:"fix,omitempty"`
+	// Question is the question the reviewer wrote for the shortfall of a rubric check.
+	Question string `json:"question,omitempty"`
+	Patch    *patch `json:"patch,omitempty"`
 }
 
 func (a *API) finding(ctx context.Context, runID, id uuid.UUID) (pgdb.ReviewRun, pgdb.SpecDoc, pgdb.Finding, error) {
@@ -407,6 +409,9 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 	}
 	p.WriteString("\n")
 	if answer != "" {
+		if q := answerQuestion(f.CheckSlug, f.Message, an.Quote, sugg.Question, f.Evidence); q != "" {
+			p.WriteString(data("The question the author answered", q))
+		}
 		p.WriteString(data("The author's answer", answer))
 	}
 	if strings.TrimSpace(an.Quote) != "" && an.Quote != pt.Old && len(an.Quote) < len(src) {

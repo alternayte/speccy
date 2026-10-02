@@ -193,6 +193,10 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 			fix := f.fix
 			af.Fix = &fix
 		}
+		evidence, _ := json.Marshal(f.evidence)
+		if question := answerQuestion(f.slug, f.message, f.anchor.Quote, f.question, evidence); question != "" {
+			af.Question = &question
+		}
 		if l := Layer(f.slug, f.stage, f.level); l != "" {
 			layer := api.FindingLayer(l)
 			af.Layer = &layer

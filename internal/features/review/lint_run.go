@@ -133,6 +133,8 @@ type pending struct {
 	anchor   anchor.Anchor
 	message  string
 	fix      string
+	// question is the question the reviewer wrote for a shortfall: what the author must answer.
+	question string
 	evidence any
 }
 
@@ -452,8 +454,8 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			units[id.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 		}
 		sugg := dbtype.JSON(`{}`)
-		if f.fix != "" {
-			sugg, _ = json.Marshal(map[string]string{"fix": f.fix})
+		if f.fix != "" || f.question != "" {
+			sugg, _ = json.Marshal(suggestion{Fix: f.fix, Question: f.question})
 		}
 		rows = append(rows, pgdb.InsertFindingParams{
 			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],

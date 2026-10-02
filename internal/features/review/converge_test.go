@@ -256,7 +256,8 @@ func TestRubric_ShortfallsStayUntilFixed(t *testing.T) {
 	pe := newPipeline(t, storetest.Engines()[0], convergeFiles(), "fake-1")
 	pe.fake.passes = map[string]bool{"sdd.limits": true}
 	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {
-		{"reason": "The read limit and the retry limit do not agree.", "quote": "Stripe allows 100 read requests per second in live mode"},
+		{"reason": "The read limit and the retry limit do not agree.", "quote": "Stripe allows 100 read requests per second in live mode",
+			"question": "Which limit holds for reads: 100 a second, or the retry limit?"},
 		{"reason": "The body limit has two values.", "quote": "at 999 kilobytes for every endpoint"},
 	}}
 	messages := func(fs []pgdb.Finding) string {
@@ -295,12 +296,22 @@ func TestRubric_ShortfallsStayUntilFixed(t *testing.T) {
 		t.Errorf("the second review must ask about the shortfall whose text stands, and not about the one whose text is gone:\n%s", prompt)
 	}
 
+	if q := questionOf(t, pe, "The read limit and the retry limit do not agree."); q != "Which limit holds for reads: 100 a second, or the retry limit?" {
+		t.Errorf("the question of the shortfall that stayed: %q", q)
+	}
+
 	// The model says that the first shortfall is fixed: it leaves.
 	pe.fake.fixed = map[string][]int{"sdd.consistency": {1}}
 	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "at 999 kilobytes for every endpoint", "at 800 kilobytes for every endpoint", 1))
 	_, fs, _ = pe.run(t, "pay")
 	if got := messages(fs); strings.Contains(got, "The read limit and the retry limit do not agree") {
 		t.Errorf("after the model said fixed: %q; the shortfall must leave", got)
+	}
+
+	// #110: the question that the reviewer wrote for the shortfall stays with the finding, also
+	// in the review where the model did not mention the shortfall again.
+	if q := questionOf(t, pe, "The read limit and the retry limit do not agree."); q != "" {
+		t.Errorf("the finding left, and its question %q is still listed", q)
 	}
 
 	// A person asks for a fresh review: the next one asks about no shortfall of a review before it.
@@ -319,4 +330,31 @@ func TestRubric_ShortfallsStayUntilFixed(t *testing.T) {
 	if strings.Contains(lastPrompt(), "Shortfalls of the last review") {
 		t.Error("a fresh review asked about the shortfalls of the review before it")
 	}
+}
+
+// questionOf returns the question of the finding with a message in the current verdict of the
+// pay doc, or "" when the verdict has no such finding.
+func questionOf(t *testing.T, pe *pipelineEnv, message string) string {
+	t.Helper()
+	ctx := context.Background()
+	q := pe.bundles.DB.Queries()
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := q.LatestRun(ctx, b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews}
+	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: run.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range res.(api.ListFindings200JSONResponse).Items {
+		if f.Message == message && f.Question != nil {
+			return *f.Question
+		}
+	}
+	return ""
 }
