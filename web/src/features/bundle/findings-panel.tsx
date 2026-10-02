@@ -10,6 +10,7 @@ import type { AcceptedFix, AcceptedFixes, Finding, FixSuggestion, SectionFixes, 
 import {
   acceptFixMutation,
   acceptFixesMutation,
+  addGithubSourceMutation,
   approveWaiverMutation,
   getFixPromptOptions,
   getSpecDocOptions,
@@ -26,6 +27,7 @@ import { TextDiff } from "./text-diff";
 import { checkDocsURL } from "@/lib/docs";
 import { problemMessage } from "@/lib/problem";
 import { levelStyle } from "./verdict";
+import { useMe } from "@/features/account/me";
 import { GapAnswer } from "@/features/trace/gap-answer";
 import { MarkStandalone } from "@/features/trace/mark-standalone";
 
@@ -106,6 +108,9 @@ export function FindingsPanel({
   });
   const requests = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
   const decide = useDecide(docId);
+  // Only an admin adds a GitHub source. Local mode's one user is an admin.
+  const me = useMe();
+  const canAddSource = me.data?.mode === "local" || me.data?.role === "admin";
   // A GitHub bundle's sidecar reaches the repo through a pull request, so an approval here is
   // not final until that pull request merges (REQ-123, DEC-009).
   const bundle = useQuery(getSpecDocOptions({ path: { docId } }));
@@ -289,13 +294,27 @@ export function FindingsPanel({
               // A missing upstream link has a second answer: the doc stands alone. A
               // request that waits for approval sits on the finding above instead.
               f.check_slug === upstreamSlug && f.level !== "INFO" && !pending(f) ? (
-                <button
-                  type="button"
-                  onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
-                  className="text-xs text-ink-2 hover:text-ink"
-                >
-                  Mark it standalone
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
+                    className="text-xs text-ink-2 hover:text-ink"
+                  >
+                    Mark it standalone
+                  </button>
+                  {f.source_url && canAddSource ? (
+                    <AddSource
+                      url={f.source_url}
+                      docId={docId}
+                      onAdded={() =>
+                        setNotice({
+                          slug: f.check_slug,
+                          text: "Added the doc as a GitHub source. Speccy reads it now.",
+                        })
+                      }
+                    />
+                  ) : null}
+                </>
               ) : null
             }
           />
@@ -390,6 +409,32 @@ export function FindingsPanel({
           }}
         />
       ) : null}
+    </>
+  );
+}
+
+// AddSource adds the doc that an upstream link names as a GitHub source, so the link resolves
+// to a spec doc that Speccy reads (#97).
+function AddSource({ url, docId, onAdded }: { url: string; docId: string; onAdded: () => void }) {
+  const qc = useQueryClient();
+  const add = useMutation({
+    ...addGithubSourceMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
+      onAdded();
+    },
+  });
+  return (
+    <>
+      <button
+        type="button"
+        disabled={add.isPending}
+        onClick={() => add.mutate({ body: { url } })}
+        className="text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
+      >
+        {add.isPending ? "Adding the source" : "Add it as a source"}
+      </button>
+      {add.isError ? <span className="basis-full text-xs text-bad">{problemMessage(add.error)}</span> : null}
     </>
   );
 }

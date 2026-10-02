@@ -326,6 +326,13 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 				af.TraceId = &ev.ID
 			}
 		}
+		if f.CheckSlug == HasUpstreamSlug {
+			var ev sourceEvidence
+			_ = json.Unmarshal(f.Evidence, &ev)
+			if ev.SourceURL != "" {
+				af.SourceUrl = &ev.SourceURL
+			}
+		}
 		if f.CheckSlug == CodeDriftSlug {
 			var ev map[string]string
 			_ = json.Unmarshal(f.Evidence, &ev)

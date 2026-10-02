@@ -861,6 +861,10 @@ export type Finding = {
      */
     trace_id?: string;
     /**
+     * For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
+     */
+    source_url?: string;
+    /**
      * The anchor in the bundle's current version, re-anchored when the run read an older version.
      */
     anchor: Anchor;

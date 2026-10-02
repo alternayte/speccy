@@ -4111,6 +4111,9 @@ components:
         trace_id:
           type: string
           description: For a coverage gap, the upstream trace ID it is about.
+        source_url:
+          type: string
+          description: For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
         anchor:
           $ref: "#/components/schemas/Anchor"
           description: The anchor in the bundle's current version, re-anchored when the run read an older version.

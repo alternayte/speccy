@@ -2241,7 +2241,10 @@ type Finding struct {
 
 	// RunId The run the finding belongs to. A carried finding belongs to the last full review.
 	RunId openapi_types.UUID `json:"run_id"`
-	Stage string             `json:"stage"`
+
+	// SourceUrl For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
+	SourceUrl *string `json:"source_url,omitempty"`
+	Stage     string  `json:"stage"`
 
 	// TraceId For a coverage gap, the upstream trace ID it is about.
 	TraceId *string `json:"trace_id,omitempty"`

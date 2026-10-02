@@ -34,13 +34,13 @@ func TestAdoptedLinkStandsUntilTheDocNamesItsOwn(t *testing.T) {
 	all := []pgdb.SpecDoc{prd, other, sdd}
 	adopted := []adoptedLink{{kind: "implements", target: "docs/PRD.md"}}
 
-	links := resolveLinksIn(all, nil, sdd, []byte("# SDD\n"), adopted, nil, nil, nil)
+	links := resolveLinksIn(all, nil, sdd, []byte("# SDD\n"), adopted, nil, nil, nil, nil)
 	if len(links) != 1 || links[0].origin != originAdopted || links[0].target == nil || links[0].target.ID != prd.ID {
 		t.Fatalf("links = %+v, want one adopted link to the PRD", links)
 	}
 
 	own := []byte("---\ntype: sdd\nlinks:\n  - kind: implements\n    target: OTHER.md\n---\n# SDD\n")
-	links = resolveLinksIn(all, nil, sdd, own, adopted, nil, nil, nil)
+	links = resolveLinksIn(all, nil, sdd, own, adopted, nil, nil, nil, nil)
 	if len(links) != 1 || links[0].origin != originFrontmatter || links[0].target.ID != other.ID {
 		t.Fatalf("links = %+v, want only the doc's own link", links)
 	}
@@ -65,5 +65,38 @@ func TestBundleSlugResolvesToTheOneAcceptedDoc(t *testing.T) {
 	}
 	if got := findTarget(all, place, sdd, "./PRD.md", func(string) bool { return false }); got == nil || got.ID != prd.ID {
 		t.Errorf("findTarget(./PRD.md) = %v, want the PRD in the same bundle", got)
+	}
+}
+
+// #97: a link whose target is a doc on a GitHub branch resolves to the spec doc of the source
+// that holds that file, by its URL or by the github: form. A branch name can hold a slash. A
+// link at a commit, or to a file that no source holds, stays an external link.
+func TestGitHubDocLinkResolvesToTheSourceDoc(t *testing.T) {
+	src := uuid.New()
+	prd := bundleAt("docs/prd/PRD - Pay", `{"source_id":"`+src.String()+`","dir":"docs/prd","file":"PRD - Pay.md"}`, "PRD - Pay.md", "prd")
+	sdd := bundleAt("pay/SDD", `{"dir":"pay"}`, "SDD.md", "sdd")
+	all := []pgdb.SpecDoc{prd, sdd}
+	held := githubDocs{src: {ID: src, Repo: "acme/specs", Branch: "feature/pay", ApiUrl: "https://api.github.com"}}
+	for _, c := range []struct {
+		target   string
+		resolves bool
+	}{
+		{"https://github.com/acme/specs/blob/feature/pay/docs/prd/PRD%20-%20Pay.md", true},
+		{"github:acme/specs@feature/pay#docs/prd/PRD - Pay.md", true},
+		{"https://github.com/acme/specs/blob/main/docs/prd/PRD%20-%20Pay.md", false},
+		{"https://github.com/acme/specs/blob/0123456789abcdef0123456789abcdef01234567/docs/prd/PRD%20-%20Pay.md", false},
+		{"https://github.com/other/specs/blob/feature/pay/docs/prd/PRD%20-%20Pay.md", false},
+	} {
+		main := []byte("---\ntype: sdd\nlinks:\n  - kind: implements\n    target: \"" + c.target + "\"\n---\n# SDD\n")
+		links := resolveLinksIn(all, nil, sdd, main, nil, nil, nil, nil, held)
+		if len(links) != 1 {
+			t.Fatalf("%s: %d links", c.target, len(links))
+		}
+		if got := links[0].target != nil && links[0].target.ID == prd.ID; got != c.resolves {
+			t.Errorf("%s: resolves to the PRD = %v, want %v (kind %s)", c.target, got, c.resolves, links[0].targetKind)
+		}
+		if !c.resolves && (links[0].targetKind != "external" || links[0].external == nil) {
+			t.Errorf("%s: an unresolved target must stay an external link, got %+v", c.target, links[0])
+		}
 	}
 }

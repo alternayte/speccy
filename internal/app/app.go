@@ -26,6 +26,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
+	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
@@ -130,6 +131,13 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		}
 		return waiver.Invalidate(ctx, db, events, cur, svc.Decisions, profiles.Current)
 	}
+	// Local mode has one user, who asked for the review: a link to an upstream doc on GitHub
+	// adds its source (#97). In hosted mode only an admin adds a source. The bundle API that
+	// adds it is built below, after the first sync, whose lint already reads the setting.
+	var addSource func(ctx context.Context, url string) error
+	if root != nil {
+		reviews.AddSource = func(ctx context.Context, url string) error { return addSource(ctx, url) }
+	}
 	if err := svc.Sync(ctx); err != nil {
 		return nil, err
 	}
@@ -162,6 +170,10 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		Approvals:  approvalAPI.ApprovalCount,
 		Handoffs:   handoffAPI.CountForVersion,
 	}}
+	addSource = func(ctx context.Context, url string) error {
+		_, err := bundleAPI.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: url}})
+		return err
+	}
 	return &App{
 		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI,
 		API: speccyhttp.API{

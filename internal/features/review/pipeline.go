@@ -17,6 +17,7 @@ import (
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/store"
@@ -88,6 +89,9 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 	if !ok {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
 	}
+	// A link to an upstream doc on GitHub that no source holds: add the source first, so this
+	// review reads the doc (#97).
+	s.addUpstreamSources(ctx, b, p.Profile)
 	for _, role := range stages.roles(p.Profile) {
 		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
 			return pgdb.ReviewRun{}, err
@@ -596,4 +600,38 @@ func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages St
 		}
 	}
 	return ev, nil
+}
+
+// addUpstreamSources adds a GitHub source for each link of an upstream kind whose target is a
+// doc on a GitHub branch that no source holds. A source that does not add leaves the finding
+// of links.has-upstream, which says what to do.
+func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p profile.Profile) {
+	if s.AddSource == nil || p.Links.Upstream == nil || !b.CurrentVersionID.Valid {
+		return
+	}
+	files, err := version.Files(ctx, s.DB.Queries(), b.CurrentVersionID.UUID)
+	if err != nil {
+		return
+	}
+	var main []byte
+	for _, f := range files {
+		if f.Path == b.DocPath {
+			main = f.Content
+		}
+	}
+	links, err := s.resolveLinks(ctx, b, main)
+	if err != nil {
+		return
+	}
+	for _, l := range links {
+		if l.target != nil || l.external == nil || !slices.Contains(p.Links.Upstream.Kinds, l.kind) {
+			continue
+		}
+		if _, _, _, pinned, ok := l.external.GitHubDoc(); !ok || pinned {
+			continue
+		}
+		if err := s.AddSource(ctx, l.external.URL); err != nil {
+			slog.Warn("add the upstream doc as a GitHub source", "url", l.external.URL, "err", err)
+		}
+	}
 }

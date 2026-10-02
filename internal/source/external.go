@@ -20,8 +20,12 @@ const URLScheme = "url"
 // path carry no colon, so they are not external.
 var schemePrefix = regexp.MustCompile(`^([a-z][a-z0-9+.-]*):(.+)$`)
 
-// repoRef matches "owner/repo", with an optional "@commit" and an optional "#path".
-var repoRef = regexp.MustCompile(`^([^/@#\s]+/[^/@#\s]+)(?:@([0-9a-fA-F]{7,40}))?(?:#(.+))?$`)
+// repoRef matches "owner/repo", with an optional "@ref" and an optional "#path". The ref is a
+// commit SHA or a branch name.
+var repoRef = regexp.MustCompile(`^([^/@#\s]+/[^/@#\s]+)(?:@([^@#\s]+))?(?:#(.+))?$`)
+
+// commitSHA is a full or abbreviated commit SHA. A ref that is not one is a branch name.
+var commitSHA = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 
 // ExternalTarget is a parsed link target outside Speccy: an issue, a page, a repo path, or a
 // commit.
@@ -34,10 +38,42 @@ type ExternalTarget struct {
 	URL string
 	// Host is the host of URL. The MCP connection that reads the target matches on it.
 	Host string
-	// Repo, Path, and Commit are set for a github target only. An empty Path is the whole repo.
+	// Repo, Path, Commit and Branch are set for a github target only. An empty Path is the
+	// whole repo. The ref of the target is a commit, or a branch (#97), or neither.
 	Repo   string
 	Path   string
 	Commit string
+	Branch string
+}
+
+// GitHubDoc reads a target as a file in a GitHub repo: "github:owner/repo@ref#path", or the
+// URL of a file, ".../owner/repo/blob/<ref>/<path>". host is the host of the repo. refPath is
+// the ref and the path as one text, "<ref>/<path>", because a branch name can hold a slash:
+// the caller matches it against the branches it knows. pinned is true when the ref is a
+// commit SHA, so the file never changes.
+func (t ExternalTarget) GitHubDoc() (host, repo, refPath string, pinned, ok bool) {
+	switch t.Scheme {
+	case GitHubScheme:
+		if t.Path == "" || (t.Commit == "" && t.Branch == "") {
+			return "", "", "", false, false
+		}
+		return t.Host, t.Repo, t.Commit + t.Branch + "/" + t.Path, t.Commit != "", true
+	case URLScheme:
+		u, err := url.Parse(t.URL)
+		if err != nil {
+			return "", "", "", false, false
+		}
+		p, err := url.PathUnescape(strings.Trim(u.Path, "/"))
+		if err != nil {
+			return "", "", "", false, false
+		}
+		parts := strings.SplitN(p, "/", 5)
+		if len(parts) < 5 || parts[2] != "blob" {
+			return "", "", "", false, false
+		}
+		return u.Host, parts[0] + "/" + parts[1], parts[3] + "/" + parts[4], commitSHA.MatchString(parts[3]), true
+	}
+	return "", "", "", false, false
 }
 
 // IsExternalTarget reports whether a frontmatter target names something outside Speccy.
@@ -81,17 +117,25 @@ func parseURLTarget(target string) (ExternalTarget, error) {
 	return ExternalTarget{Scheme: URLScheme, Ref: target, URL: target, Host: u.Host}, nil
 }
 
-// parseGitHubTarget parses "owner/repo", "owner/repo#path", or "owner/repo@commit#path".
+// parseGitHubTarget parses "owner/repo", "owner/repo#path", or "owner/repo@ref#path", where
+// the ref is a commit SHA or a branch.
 func parseGitHubTarget(ref string) (ExternalTarget, error) {
 	m := repoRef.FindStringSubmatch(ref)
 	if m == nil {
-		return ExternalTarget{}, fmt.Errorf("the github target %q is not owner/repo, owner/repo#path, or owner/repo@commit#path", ref)
+		return ExternalTarget{}, fmt.Errorf("the github target %q is not owner/repo, owner/repo#path, or owner/repo@ref#path", ref)
 	}
-	t := ExternalTarget{Scheme: GitHubScheme, Ref: ref, Host: "github.com", Repo: m[1], Commit: m[2], Path: strings.Trim(m[3], "/")}
+	t := ExternalTarget{Scheme: GitHubScheme, Ref: ref, Host: "github.com", Repo: m[1], Path: strings.Trim(m[3], "/")}
+	if commitSHA.MatchString(m[2]) {
+		t.Commit = m[2]
+	} else {
+		t.Branch = m[2]
+	}
 	t.URL = "https://github.com/" + t.Repo
-	switch {
-	case t.Commit != "" && t.Path != "":
-		t.URL += "/tree/" + t.Commit + "/" + t.Path
+	switch at := t.Commit + t.Branch; {
+	case at != "" && t.Path != "":
+		t.URL += "/tree/" + at + "/" + t.Path
+	case t.Branch != "":
+		t.URL += "/tree/" + t.Branch
 	case t.Commit != "":
 		t.URL += "/commit/" + t.Commit
 	case t.Path != "":
