@@ -1069,6 +1069,21 @@ func (q *Queries) RunningRunFor(ctx context.Context, specDocID uuid.UUID) (Revie
 	return i, err
 }
 
+const setSpecDocFresh = `-- name: SetSpecDocFresh :exec
+UPDATE spec_doc SET fresh_at = ?1 WHERE id = ?2
+`
+
+type SetSpecDocFreshParams struct {
+	FreshAt sql.NullTime
+	ID      uuid.UUID
+}
+
+// The next full review of the doc judges each rubric check from nothing.
+func (q *Queries) SetSpecDocFresh(ctx context.Context, arg SetSpecDocFreshParams) error {
+	_, err := q.db.ExecContext(ctx, setSpecDocFresh, arg.FreshAt, arg.ID)
+	return err
+}
+
 const startRunExecution = `-- name: StartRunExecution :exec
 UPDATE review_run
 SET status = 'running', stage = ?1, profile_version = ?2

@@ -111,6 +111,10 @@ UPDATE question SET retired_at = sqlc.arg(retired_at) WHERE id = sqlc.arg(id);
 -- name: RetireQuestions :exec
 UPDATE question SET retired_at = sqlc.arg(retired_at) WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND retired_at IS NULL;
 
+-- name: SetSpecDocFresh :exec
+-- The next full review of the doc judges each rubric check from nothing.
+UPDATE spec_doc SET fresh_at = sqlc.arg(fresh_at) WHERE id = sqlc.arg(id);
+
 -- name: UpdateQuestionCites :exec
 UPDATE question SET cites = sqlc.arg(cites), level = sqlc.arg(level), anchor = sqlc.arg(anchor) WHERE id = sqlc.arg(id);
 

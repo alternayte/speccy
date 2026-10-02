@@ -369,6 +369,7 @@ type SpecDoc struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	BundleID         uuid.UUID
+	FreshAt          sql.NullTime
 }
 
 type SpecDocReviewer struct {

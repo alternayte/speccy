@@ -61,6 +61,9 @@ type reviewer struct {
 	// the slugs it passes.
 	shortfalls map[string][]map[string]string
 	passes     map[string]bool
+	// fixed are the shortfalls of the last review that the reviewer says are fixed, by slug and
+	// by their number in the prompt. It says nothing about the others.
+	fixed map[string][]int
 	// rubric holds each rubric prompt, in call order.
 	rubric []string
 
@@ -131,7 +134,15 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			} else if res == "fail" && r.shortfalls[m[1]] != nil {
 				falls = r.shortfalls[m[1]]
 			}
-			results = append(results, map[string]any{"slug": m[1], "result": res, "reason": "The doc does not state it.", "quotes": []string{}, "shortfalls": falls})
+			answer := map[string]any{"slug": m[1], "result": res, "reason": "The doc does not state it.", "quotes": []string{}, "shortfalls": falls}
+			if ns := r.fixed[m[1]]; len(ns) > 0 {
+				prior := []map[string]any{}
+				for _, n := range ns {
+					prior = append(prior, map[string]any{"n": n, "state": "fixed"})
+				}
+				answer["prior"] = prior
+			}
+			results = append(results, answer)
 		}
 		out = map[string]any{"results": results}
 	case review.PromptClaims:

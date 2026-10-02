@@ -454,10 +454,10 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 	var scratch struct{}
 	// Rubric: a call per batch of uncached doc checks, and for each section with text, a call
 	// per batch of its uncached section checks.
-	rubricUnit := func(inputHash string, slugs []string, extraTokens int64) {
+	rubricUnit := func(inputHash string, checks []rubricCheck, extraTokens int64) {
 		uncached := 0
-		for _, slug := range slugs {
-			k := cacheKey{Step: "rubric:" + slug, InputHash: inputHash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
+		for _, c := range checks {
+			k := cacheKey{Step: "rubric:" + c.Slug, InputHash: inputHash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
 			if hit, _ := s.cached(ctx, k, &scratch); hit {
 				est.CachedHits++
 			} else {
@@ -469,11 +469,11 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 		est.TokensIn += int64(calls) * (bundleTokens + extraTokens + 1500)
 		est.TokensOut += int64(calls) * 1500
 	}
-	for _, u := range rubricUnits(in) {
-		slugs := make([]string, len(u.checks))
-		for i, c := range u.checks {
-			slugs[i] = c.Slug
-		}
+	units, err := s.unitsWithPrior(ctx, in)
+	if err != nil {
+		return est, err
+	}
+	for _, u := range units {
 		switch {
 		case u.named:
 			// The call holds the section and the assets, not the bundle.
@@ -481,11 +481,11 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 			for _, f := range textAssets(in) {
 				assetTokens += int64(len(f.text)) / 4
 			}
-			rubricUnit(u.inputHash, slugs, int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
+			rubricUnit(u.inputHash, u.checks, int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
 		case u.sec != nil:
-			rubricUnit(u.inputHash, slugs, int64(len(u.sec.Own(in.main)))/4)
+			rubricUnit(u.inputHash, u.checks, int64(len(u.sec.Own(in.main)))/4)
 		default:
-			rubricUnit(u.inputHash, slugs, 0)
+			rubricUnit(u.inputHash, u.checks, 0)
 		}
 	}
 	// Grounding: a claims call per uncached section, and about one label call per two sections.

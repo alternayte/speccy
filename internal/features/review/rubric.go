@@ -2,7 +2,9 @@ package review
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/engine/verdict"
@@ -166,7 +169,143 @@ type rubricAnswer struct {
 	Quotes []string `json:"quotes"`
 	// Shortfalls are the reasons a failed check fails. Each becomes one finding.
 	Shortfalls []shortfall `json:"shortfalls"`
+	// Prior is what the model says about each shortfall of the last review, by its number.
+	Prior []priorState `json:"prior,omitempty"`
 }
+
+// priorState is the model's answer about one shortfall of the last review.
+type priorState struct {
+	N     int    `json:"n"`
+	State string `json:"state"`
+}
+
+// withPrior returns the answer of a failed check with the shortfalls of the last review that
+// still stand, in front of the ones the model found now. A shortfall of the last review
+// leaves only when the model says it is fixed: one that the model does not mention stays,
+// because silence is not evidence of a fix. A check that passes has no shortfall.
+func withPrior(a rubricAnswer, prior []shortfall) rubricAnswer {
+	if a.Result != "fail" || len(prior) == 0 {
+		return a
+	}
+	fixed := map[int]bool{}
+	for _, p := range a.Prior {
+		if p.State == "fixed" {
+			fixed[p.N] = true
+		}
+	}
+	var out []shortfall
+	seen := map[shortfall]bool{}
+	for i, sf := range prior {
+		if !fixed[i+1] && !seen[sf] {
+			seen[sf] = true
+			out = append(out, sf)
+		}
+	}
+	for _, sf := range a.Shortfalls {
+		sf.Reason, sf.Quote = strings.TrimSpace(sf.Reason), strings.TrimSpace(sf.Quote)
+		if !seen[sf] {
+			seen[sf] = true
+			out = append(out, sf)
+		}
+	}
+	a.Shortfalls = out
+	return a
+}
+
+// priorShortfalls returns the shortfalls of the last full review of the doc, by check and by
+// the section of a check that runs for each section. A shortfall whose quoted text is gone
+// from the doc is left out: the text it was about does not exist. A doc that a person asked a
+// fresh review for after that review has none.
+//
+// fresh marks the cache entries of the doc since the last request for a fresh review, or is
+// empty when nobody asked for one: a fresh review reads no answer of a review before it.
+func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[string][]shortfall, fresh string, err error) {
+	if in.version == uuid.Nil || in.bundle.ID == uuid.Nil {
+		return nil, "", nil // content that is not saved has no review before it
+	}
+	q := s.DB.Queries()
+	doc, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: s.Workspace, ID: in.bundle.ID})
+	if err != nil {
+		return nil, "", err
+	}
+	if doc.FreshAt.Valid {
+		fresh = fmt.Sprintf(":fresh:%d", doc.FreshAt.Time.UnixNano())
+	}
+	full, err := q.LatestFullReview(ctx, in.bundle.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fresh, nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	if doc.FreshAt.Valid && !full.StartedAt.After(doc.FreshAt.Time) {
+		return nil, fresh, nil
+	}
+	rows, err := q.ListFindings(ctx, full.ID)
+	if err != nil {
+		return nil, "", err
+	}
+	carried, err := carriedRows(ctx, q, full.ID)
+	if err != nil {
+		return nil, "", err
+	}
+	out := map[string][]shortfall{}
+	for _, f := range append(rows, carried...) {
+		if f.Stage != StageRubric {
+			continue
+		}
+		var ev struct {
+			Reason  string          `json:"reason"`
+			Quotes  []quoteEvidence `json:"quotes"`
+			Section string          `json:"section"`
+		}
+		_ = json.Unmarshal(f.Evidence, &ev)
+		if strings.TrimSpace(ev.Reason) == "" {
+			continue
+		}
+		sf := shortfall{Reason: strings.TrimSpace(ev.Reason)}
+		for _, quote := range ev.Quotes {
+			if quote.Found {
+				sf.Quote = strings.TrimSpace(quote.Text)
+				break
+			}
+		}
+		if sf.Quote != "" {
+			if _, _, ok := anchor.Find(in.main, sf.Quote); !ok {
+				continue
+			}
+		}
+		key := priorKey(f.CheckSlug, ev.Section)
+		out[key] = append(out[key], sf)
+	}
+	return out, fresh, nil
+}
+
+// unitsWithPrior returns the rubric units of the doc, each check with the shortfalls of the
+// last full review that it judges again, one by one.
+func (s *Service) unitsWithPrior(ctx context.Context, in input) ([]scopeUnit, error) {
+	units := rubricUnits(in)
+	prior, fresh, err := s.priorShortfalls(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	for i := range units {
+		u := &units[i]
+		// A check whose text did not change keeps its cached answer, with the shortfalls it
+		// had. After a request for a fresh review, the answers before it do not count.
+		u.inputHash += fresh
+		checks := make([]rubricCheck, len(u.checks))
+		for k, c := range u.checks {
+			c.Prior = prior[priorKey(c.Slug, u.sectionKey())]
+			checks[k] = c
+		}
+		u.checks = checks
+	}
+	return units, nil
+}
+
+// priorKey names a check, and the section of a check that runs once for each section.
+func priorKey(slug, sectionPath string) string { return slug + "\x00" + sectionPath }
 
 // shortfall is one reason that a rubric check fails, with its quote. The quote is empty when
 // the content is missing.
@@ -185,6 +324,15 @@ type scopeUnit struct {
 	inputHash string
 	checks    []rubricCheck
 	levels    map[string]kernel.Level
+}
+
+// sectionKey names the section of a unit of a check that runs once for each section, and is
+// empty for a check that runs once for the doc or for the section it names.
+func (u scopeUnit) sectionKey() string {
+	if u.sec == nil || u.named {
+		return ""
+	}
+	return strings.Join(u.sec.Path, " > ")
 }
 
 // assets are the text files of the bundle other than the main doc, as model files.
@@ -266,7 +414,10 @@ func rubricUnits(in input) []scopeUnit {
 // rubricStage answers every rubric check with the reviewer (SDD §8.3). Checks with scope
 // section run per section; others per doc. Each check's answer is cached (REQ-021).
 func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *evaluation, fingerprint string) error {
-	units := rubricUnits(in)
+	units, err := s.unitsWithPrior(ctx, in)
+	if err != nil {
+		return err
+	}
 
 	type result struct {
 		unit    scopeUnit
@@ -343,7 +494,7 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 				ev.findings = append(ev.findings, pending{
 					slug: c.Slug, level: lvl, stage: StageRubric, anchor: an, message: sentence(msg),
 					fix:      "Change the doc so that this holds: " + c.PassWhen,
-					evidence: map[string]any{"question": c.Question, "reason": sf.Reason, "quotes": quotes},
+					evidence: map[string]any{"question": c.Question, "reason": sf.Reason, "quotes": quotes, "section": r.unit.sectionKey()},
 				})
 			}
 		}
@@ -354,13 +505,13 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 // answerChecks answers the checks of one unit: from the cache, then in batches.
 func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scopeUnit, fingerprint string, progress func(int)) (map[string]rubricAnswer, error) {
 	answers := map[string]rubricAnswer{}
-	key := func(slug string) cacheKey {
-		return cacheKey{Step: "rubric:" + slug, InputHash: u.inputHash, ProfileVer: in.profile.Version, Fingerprint: fingerprint, PromptVersion: PromptRubric}
+	key := func(c rubricCheck) cacheKey {
+		return cacheKey{Step: "rubric:" + c.Slug, InputHash: u.inputHash, ProfileVer: in.profile.Version, Fingerprint: fingerprint, PromptVersion: PromptRubric}
 	}
 	var todo []rubricCheck
 	for _, c := range u.checks {
 		var a rubricAnswer
-		ok, err := s.cached(ctx, key(c.Slug), &a)
+		ok, err := s.cached(ctx, key(c), &a)
 		if err != nil {
 			return nil, err
 		}
@@ -419,8 +570,11 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 			if !ok {
 				a = rubricAnswer{Slug: c.Slug, Result: "not_applicable", Reason: "The reviewer gave no answer for this check."}
 				rc.note(fmt.Sprintf("The reviewer gave no answer for %s; it counts as not applicable.", c.Slug))
-			} else if err := s.putCache(ctx, key(c.Slug), a); err != nil {
-				return nil, err
+			} else {
+				a = withPrior(a, c.Prior)
+				if err := s.putCache(ctx, key(c), a); err != nil {
+					return nil, err
+				}
 			}
 			answers[c.Slug] = a
 		}

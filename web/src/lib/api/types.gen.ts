@@ -1144,6 +1144,29 @@ export type ContentReviewRequest = {
     files: Array<ContentFile>;
 };
 
+export type CheckConflictsRequest = {
+    /**
+     * The name of the doc type, such as Software Design Document.
+     */
+    name?: string;
+    checks: Array<{
+        slug: string;
+        question: string;
+        pass_when: string;
+        section?: string;
+    }>;
+};
+
+export type CheckConflicts = {
+    conflicts: Array<{
+        /**
+         * One slug for a check that pulls against itself, or two or more for checks that pull against each other.
+         */
+        checks: Array<string>;
+        reason: string;
+    }>;
+};
+
 export type UrlReviewRequest = {
     /**
      * The GitHub URL of a file, a folder, a branch, a commit or a pull request.
@@ -3517,6 +3540,31 @@ export type ReviewContentResponses = {
 };
 
 export type ReviewContentResponse = ReviewContentResponses[keyof ReviewContentResponses];
+
+export type FindCheckConflictsData = {
+    body: CheckConflictsRequest;
+    path?: never;
+    query?: never;
+    url: '/profiles/conflicts';
+};
+
+export type FindCheckConflictsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type FindCheckConflictsError = FindCheckConflictsErrors[keyof FindCheckConflictsErrors];
+
+export type FindCheckConflictsResponses = {
+    /**
+     * The conflicts. An empty list means the model found none.
+     */
+    200: CheckConflicts;
+};
+
+export type FindCheckConflictsResponse = FindCheckConflictsResponses[keyof FindCheckConflictsResponses];
 
 export type ReviewUrlData = {
     body: UrlReviewRequest;

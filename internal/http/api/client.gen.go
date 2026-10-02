@@ -952,6 +952,20 @@ type ClientInterface interface {
 	// Corresponds with POST /profiles (the `CreateProfile` operationId).
 	CreateProfile(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// FindCheckConflictsWithBody Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+	FindCheckConflictsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FindCheckConflicts Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+	FindCheckConflicts(ctx context.Context, body FindCheckConflictsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GuessProfileWithBody The profile that fits a markdown doc, from its headings (REQ-008).
 	//
 	// Takes any type of body and a specified content type.
@@ -3525,6 +3539,40 @@ func (c *Client) CreateProfileWithBody(ctx context.Context, contentType string, 
 // Corresponds with POST /profiles (the `CreateProfile` operationId).
 func (c *Client) CreateProfile(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateProfileRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FindCheckConflictsWithBody Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+func (c *Client) FindCheckConflictsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFindCheckConflictsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FindCheckConflicts Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+func (c *Client) FindCheckConflicts(ctx context.Context, body FindCheckConflictsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFindCheckConflictsRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8544,6 +8592,46 @@ func NewCreateProfileRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewFindCheckConflictsRequest calls the generic FindCheckConflicts builder with application/json body
+func NewFindCheckConflictsRequest(server string, body FindCheckConflictsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewFindCheckConflictsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewFindCheckConflictsRequestWithBody constructs an http.Request for the FindCheckConflicts method, with any body, and a specified content type
+func NewFindCheckConflictsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/profiles/conflicts")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGuessProfileRequest calls the generic GuessProfile builder with application/json body
 func NewGuessProfileRequest(server string, body GuessProfileJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -11042,6 +11130,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /profiles (the `CreateProfile` operationId).
 	CreateProfileWithResponse(ctx context.Context, body CreateProfileJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProfileResponse, error)
+
+	// FindCheckConflictsWithBodyWithResponse Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+	FindCheckConflictsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FindCheckConflictsResponse, error)
+
+	// FindCheckConflictsWithResponse Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+	FindCheckConflictsWithResponse(ctx context.Context, body FindCheckConflictsJSONRequestBody, reqEditors ...RequestEditorFn) (*FindCheckConflictsResponse, error)
 
 	// GuessProfileWithBodyWithResponse The profile that fits a markdown doc, from its headings (REQ-008).
 	//
@@ -16198,6 +16300,54 @@ func (r CreateProfileResponse) ContentType() string {
 	return ""
 }
 
+type FindCheckConflictsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CheckConflicts
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r FindCheckConflictsResponse) GetJSON200() *CheckConflicts {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r FindCheckConflictsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r FindCheckConflictsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r FindCheckConflictsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FindCheckConflictsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r FindCheckConflictsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GuessProfileResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -19723,6 +19873,32 @@ func (c *ClientWithResponses) CreateProfileWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseCreateProfileResponse(rsp)
+}
+
+// FindCheckConflictsWithBodyWithResponse Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+func (c *ClientWithResponses) FindCheckConflictsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*FindCheckConflictsResponse, error) {
+	rsp, err := c.FindCheckConflictsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFindCheckConflictsResponse(rsp)
+}
+
+// FindCheckConflictsWithResponse Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /profiles/conflicts (the `FindCheckConflicts` operationId).
+func (c *ClientWithResponses) FindCheckConflictsWithResponse(ctx context.Context, body FindCheckConflictsJSONRequestBody, reqEditors ...RequestEditorFn) (*FindCheckConflictsResponse, error) {
+	rsp, err := c.FindCheckConflicts(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFindCheckConflictsResponse(rsp)
 }
 
 // GuessProfileWithBodyWithResponse The profile that fits a markdown doc, from its headings (REQ-008).
@@ -23691,6 +23867,39 @@ func ParseCreateProfileResponse(rsp *http.Response) (*CreateProfileResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ProfileDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFindCheckConflictsResponse parses an HTTP response from a FindCheckConflictsWithResponse call
+func ParseFindCheckConflictsResponse(rsp *http.Response) (*FindCheckConflictsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FindCheckConflictsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CheckConflicts
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

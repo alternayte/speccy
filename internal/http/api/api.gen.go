@@ -2020,6 +2020,28 @@ type CategoryCount struct {
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
 
+// CheckConflicts defines model for CheckConflicts.
+type CheckConflicts struct {
+	Conflicts []struct {
+		// Checks One slug for a check that pulls against itself, or two or more for checks that pull against each other.
+		Checks []string `json:"checks"`
+		Reason string   `json:"reason"`
+	} `json:"conflicts"`
+}
+
+// CheckConflictsRequest defines model for CheckConflictsRequest.
+type CheckConflictsRequest struct {
+	Checks []struct {
+		PassWhen string  `json:"pass_when"`
+		Question string  `json:"question"`
+		Section  *string `json:"section,omitempty"`
+		Slug     string  `json:"slug"`
+	} `json:"checks"`
+
+	// Name The name of the doc type, such as Software Design Document.
+	Name *string `json:"name,omitempty"`
+}
+
 // Cite defines model for Cite.
 type Cite struct {
 	Id   *string   `json:"id,omitempty"`
@@ -4146,6 +4168,9 @@ type SuggestLinksJSONRequestBody = LinkSuggestRequest
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
 
+// FindCheckConflictsJSONRequestBody defines body for FindCheckConflicts for application/json ContentType.
+type FindCheckConflictsJSONRequestBody = CheckConflictsRequest
+
 // GuessProfileJSONRequestBody defines body for GuessProfile for application/json ContentType.
 type GuessProfileJSONRequestBody GuessProfileJSONBody
 
@@ -4505,6 +4530,9 @@ type ServerInterface interface {
 	// CreateProfile Create a profile for a new doc type. Admins only.
 	// (POST /profiles)
 	CreateProfile(w http.ResponseWriter, r *http.Request)
+	// FindCheckConflicts Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	// (POST /profiles/conflicts)
+	FindCheckConflicts(w http.ResponseWriter, r *http.Request)
 	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
 	// (POST /profiles/guess)
 	GuessProfile(w http.ResponseWriter, r *http.Request)
@@ -7181,6 +7209,20 @@ func (siw *ServerInterfaceWrapper) CreateProfile(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// FindCheckConflicts operation middleware
+func (siw *ServerInterfaceWrapper) FindCheckConflicts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FindCheckConflicts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GuessProfile operation middleware
 func (siw *ServerInterfaceWrapper) GuessProfile(w http.ResponseWriter, r *http.Request) {
 
@@ -8258,6 +8300,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/conflicts", wrapper.FindCheckConflicts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews/url", wrapper.ReviewUrl)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}/report", wrapper.GetContentReviewReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs/estimate", wrapper.EstimateRun)
@@ -12276,6 +12319,45 @@ func (response CreateProfiledefaultApplicationProblemPlusJSONResponse) VisitCrea
 	return err
 }
 
+type FindCheckConflictsRequestObject struct {
+	Body *FindCheckConflictsJSONRequestBody
+}
+
+type FindCheckConflictsResponseObject interface {
+	VisitFindCheckConflictsResponse(w http.ResponseWriter) error
+}
+
+type FindCheckConflicts200JSONResponse CheckConflicts
+
+func (response FindCheckConflicts200JSONResponse) VisitFindCheckConflictsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FindCheckConflictsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response FindCheckConflictsdefaultApplicationProblemPlusJSONResponse) VisitFindCheckConflictsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GuessProfileRequestObject struct {
 	Body *GuessProfileJSONRequestBody
 }
@@ -14068,6 +14150,9 @@ type StrictServerInterface interface {
 	// CreateProfile Create a profile for a new doc type. Admins only.
 	// (POST /profiles)
 	CreateProfile(ctx context.Context, request CreateProfileRequestObject) (CreateProfileResponseObject, error)
+	// FindCheckConflicts Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	// (POST /profiles/conflicts)
+	FindCheckConflicts(ctx context.Context, request FindCheckConflictsRequestObject) (FindCheckConflictsResponseObject, error)
 	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
 	// (POST /profiles/guess)
 	GuessProfile(ctx context.Context, request GuessProfileRequestObject) (GuessProfileResponseObject, error)
@@ -17042,6 +17127,37 @@ func (sh *strictHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateProfileResponseObject); ok {
 		if err := validResponse.VisitCreateProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FindCheckConflicts operation middleware
+func (sh *strictHandler) FindCheckConflicts(w http.ResponseWriter, r *http.Request) {
+	var request FindCheckConflictsRequestObject
+
+	var body FindCheckConflictsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FindCheckConflicts(ctx, request.(FindCheckConflictsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FindCheckConflicts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FindCheckConflictsResponseObject); ok {
+		if err := validResponse.VisitFindCheckConflictsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

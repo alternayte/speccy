@@ -1360,6 +1360,10 @@ func (a Adapter) SetSpecDocBundle(ctx context.Context, arg pgdb.SetSpecDocBundle
 	return a.q.SetSpecDocBundle(ctx, SetSpecDocBundleParams(arg))
 }
 
+func (a Adapter) SetSpecDocFresh(ctx context.Context, arg pgdb.SetSpecDocFreshParams) error {
+	return a.q.SetSpecDocFresh(ctx, SetSpecDocFreshParams(arg))
+}
+
 func (a Adapter) SetSpecDocSourceRef(ctx context.Context, arg pgdb.SetSpecDocSourceRefParams) error {
 	return a.q.SetSpecDocSourceRef(ctx, SetSpecDocSourceRefParams(arg))
 }

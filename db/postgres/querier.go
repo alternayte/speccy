@@ -257,6 +257,8 @@ type Querier interface {
 	// A scan keeps a spec doc in the bundle of its folder, with its slug: a second spec doc in the
 	// folder changes the slug of the first.
 	SetSpecDocBundle(ctx context.Context, arg SetSpecDocBundleParams) error
+	// The next full review of the doc judges each rubric check from nothing.
+	SetSpecDocFresh(ctx context.Context, arg SetSpecDocFreshParams) error
 	SetSpecDocSourceRef(ctx context.Context, arg SetSpecDocSourceRefParams) error
 	SetWorkspaceSettings(ctx context.Context, arg SetWorkspaceSettingsParams) error
 	// One conditional update spends an invite, so two parallel acceptances use it once.

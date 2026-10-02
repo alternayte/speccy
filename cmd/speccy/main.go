@@ -59,7 +59,8 @@ const usage = `Usage:
                                                          it and posts nothing.
   speccy tui                                             Open the terminal UI.
   speccy mcp [--root folder]                             Run the MCP server over stdio.
-  speccy profile validate <file>                         Check a profile file.
+  speccy profile validate <file> [--conflicts]           Check a profile file. --conflicts asks the reviewer
+                                                         model for checks that pull against each other.
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
                 [--label <name>] [--acknowledged]
