@@ -461,6 +461,10 @@ func sentences(d *doc, cfg Config, emit emitter) {
 						"Split it into shorter sentences, one idea each.")
 				}
 				for _, m := range passiveRe.FindAllIndex(trimmed, -1) {
+					// "is read-only" has a compound adjective, not a passive verb (#104).
+					if m[1] < len(trimmed) && trimmed[m[1]] == '-' {
+						continue
+					}
 					s, e := p.span(lead+m[0], lead+m[1])
 					emit(PassiveVoice, s, e, "This sentence uses the passive voice, so it hides who acts.",
 						"Name the actor: \"the service retries\", not \"the request is retried\".")

@@ -83,6 +83,8 @@ func TestRules(t *testing.T) {
 			[]string{"x\n", "a"}},
 		{"passive voice", PassiveVoice, "# T\n\nThe request is retried by the client. The server retries.\n", nil,
 			[]string{"is retried"}},
+		{"a hyphenated adjective is not the passive voice", PassiveVoice,
+			"# T\n\nThe field is read-only and cache-friendly. This change is read-mostly over data the engine owns.\n", nil, nil},
 		{"rule off", Weasel, "# T\n\nSome users.\n", func(c *Config) { c.Levels = map[string]string{Weasel: "off"} }, nil},
 	}
 	for _, c := range cases {
