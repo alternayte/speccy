@@ -23,7 +23,7 @@ A profile is the versioned configuration for one doc type. It holds the template
 | `approvals` | How many approvals a spec doc needs. |
 | `divergence` | How many readers answer the build questions, how many questions the reviewer writes, and their themes. |
 | `grounding` | The source policy of the grounding stage. |
-| `lint` | `overrides` change the level of a lint rule, or turn it `off`. `slop_extra` adds phrases to the slop list. |
+| `lint` | `overrides` change the level of a lint rule, or turn it `off`. `slop_extra` adds phrases to the slop list. `acronyms` adds acronyms that need no definition. |
 | `checks` | The rubric and the other checks, each with a slug, a level, a stage and a question. |
 
 The [Profile schema](/reference/profile-schema/) lists every key and its values.
@@ -118,7 +118,7 @@ Size decides three things:
 
 So Speccy does not judge a feature doc by the standard of an app doc. A size larger than the work makes Speccy ask for sections nobody needs. A size smaller than the work hides the questions an implementer asks.
 
-A check's `scope` field is a different thing from size. Scope says whether a check reads the whole doc or one section.
+A check's `scope` field is a different thing from size. Scope says whether a check runs once for the doc or once for each section. A rubric check can also name one heading with `section`, and it then reads only that section. A rubric check that does neither is a whole-doc check.
 
 ### A doc with no size
 

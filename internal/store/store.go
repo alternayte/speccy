@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net/url"
 	"path/filepath"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
 	"github.com/pressly/goose/v3"
@@ -50,12 +51,16 @@ func OpenSQLite(ctx context.Context, path string) (*DB, error) {
 	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "synchronous(NORMAL)")
 	q.Set("_time_format", "sqlite")
+	// A transaction takes the write lock when it starts. A deferred transaction reads first, and
+	// its later write fails at once, with no wait, when another process wrote in between: the
+	// app, speccy mcp and the headless commands can share one state folder (#86).
+	q.Set("_txlock", "immediate")
 	sqldb, err := sql.Open("sqlite", "file:"+path+"?"+q.Encode())
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
 	}
-	// SQLite allows one writer. One connection serialises writes in the process,
-	// so a write never fails with SQLITE_BUSY.
+	// SQLite allows one writer. One connection serialises writes in the process. A write of
+	// another process on the same file waits for busy_timeout.
 	sqldb.SetMaxOpenConns(1)
 	if err := sqldb.PingContext(ctx); err != nil {
 		_ = sqldb.Close()
@@ -127,6 +132,11 @@ const Baseline = 31
 // Speccy migrated, stops here with a message that says what to do, not with a failed migration
 // or a failed query later.
 func (d *DB) Migrate(ctx context.Context) error {
+	unlock, err := d.lockMigrations(ctx)
+	if err != nil {
+		return fmt.Errorf("migrate %s: %w", d.Engine, err)
+	}
+	defer unlock()
 	p, err := d.Migrations()
 	if err != nil {
 		return fmt.Errorf("migrate %s: %w", d.Engine, err)
@@ -171,6 +181,11 @@ func (d *DB) MigrateSet(ctx context.Context, fsys fs.FS, table string) error {
 	if d.Engine == SQLite {
 		dialect = goose.DialectSQLite3
 	}
+	unlock, err := d.lockMigrations(ctx)
+	if err != nil {
+		return fmt.Errorf("migrate %s: %w", table, err)
+	}
+	defer unlock()
 	p, err := goose.NewProvider(dialect, d.SQL, fsys, goose.WithTableName(table), goose.WithAllowOutofOrder(true))
 	if err != nil {
 		return fmt.Errorf("migrate %s: %w", table, err)
@@ -180,6 +195,45 @@ func (d *DB) MigrateSet(ctx context.Context, fsys fs.FS, table string) error {
 	}
 	return nil
 }
+
+// lockMigrations lets one process at a time apply migrations to a SQLite state. Two processes
+// that start together on a new or an old state would each read the same version and each run
+// the same migration, and the second fails with "table already exists" (#86). Goose has a
+// session lock for Postgres and none for SQLite.
+//
+// The lock is an exclusive transaction on a second, empty SQLite file beside the database: it
+// works on every platform, a waiting process waits for it, and the lock of a process that died
+// goes with it. It cannot be on the database itself, because the migrations write there.
+func (d *DB) lockMigrations(ctx context.Context) (unlock func(), err error) {
+	if d.Engine != SQLite {
+		return func() {}, nil
+	}
+	q := url.Values{}
+	q.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", migrateLockWait.Milliseconds()))
+	lock, err := sql.Open("sqlite", "file:"+filepath.Join(filepath.Dir(d.path), "migrate.lock")+"?"+q.Encode())
+	if err != nil {
+		return nil, err
+	}
+	conn, err := lock.Conn(ctx)
+	if err == nil {
+		_, err = conn.ExecContext(ctx, "BEGIN EXCLUSIVE")
+	}
+	if err != nil {
+		if conn != nil {
+			_ = conn.Close()
+		}
+		_ = lock.Close()
+		return nil, fmt.Errorf("wait for another Speccy process to finish its migrations: %w", err)
+	}
+	return func() {
+		_, _ = conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+		_ = conn.Close()
+		_ = lock.Close()
+	}, nil
+}
+
+// migrateLockWait is how long a process waits for another one to finish its migrations.
+const migrateLockWait = time.Minute
 
 // tooOld says that the database is from a Speccy before 0.15.0, and what to do.
 func (d *DB) tooOld() error {

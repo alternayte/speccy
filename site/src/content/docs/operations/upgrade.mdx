@@ -11,7 +11,7 @@ This runbook moves a local install, a CI job or a hosted server to a new Speccy 
 
 ## What happens at start
 
-Each process that opens the store applies the pending migrations first. In local mode, that is the app, `speccy tui`, `speccy mcp` and the headless commands, on `.speccy/state/speccy.db`. In hosted mode, `speccy serve --hosted` and `speccy admin` apply them to the Postgres database. Hosted mode then applies the migrations of the sign-in tables, which have their own version table, `auth_goose_db_version`.
+Each process that opens the store applies the pending migrations first. In local mode, that is the app, `speccy tui`, `speccy mcp` and the headless commands, on `.speccy/state/speccy.db`. Only one of them applies the migrations at a time: the others wait for the lock file `.speccy/state/migrate.lock`, which holds no data. In hosted mode, `speccy serve --hosted` and `speccy admin` apply them to the Postgres database. Hosted mode then applies the migrations of the sign-in tables, which have their own version table, `auth_goose_db_version`.
 
 You run no migration command. Speccy has no command that reverts a migration.
 

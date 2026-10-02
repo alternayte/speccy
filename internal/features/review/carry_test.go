@@ -3,6 +3,7 @@ package review_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -55,6 +56,22 @@ func TestAnEditCarriesTheAIFindingsOfUnchangedSections(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// The AI findings carry however many saves follow the full review. They left the verdict with
+// no sign on the 51st save, because the search for the full review read one page of runs.
+func TestCarrySurvivesManySaves(t *testing.T) {
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": groundedSDD}, "fake-1")
+	pe.run(t, "pay")
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "with the order ID", "with the order ID and item 0", 1))
+	first, _ := pe.current(t, "pay")
+	for i := 1; i <= 55; i++ {
+		pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "with the order ID", fmt.Sprintf("with the order ID and item %d", i), 1))
+	}
+	last, v := pe.current(t, "pay")
+	if len(last) != len(first) || v.AiVersionNumber == nil {
+		t.Errorf("after 56 saves the rail has %d findings and AI version %v, want the %d findings of the first save", len(last), v.AiVersionNumber, len(first))
 	}
 }
 

@@ -92,6 +92,8 @@ type Config struct {
 	// Size is the doc's size. A heading whose MinSize is larger reports at INFO (REQ-134).
 	Size      kernel.Size
 	SlopExtra []string
+	// Acronyms are words of the profile that need no definition, on top of the common ones.
+	Acronyms []string
 	// Levels overrides a rule's default level. "off" turns the rule off (REQ-062).
 	Levels map[string]string
 }
@@ -103,6 +105,9 @@ type Finding struct {
 	Message string
 	Fix     string
 	Anchor  anchor.Anchor
+	// Candidate is set for a broken link when exactly one file of the bundle has the name the
+	// link names: the path the link can take with no fact from the author.
+	Candidate string
 }
 
 // Result is the output of a lint run.
@@ -120,6 +125,8 @@ type doc struct {
 	sections section.Doc
 	root     ast.Node
 	blocks   []prose
+	// candidates holds, by body offset of a broken link, the one bundle file with its name.
+	candidates map[int]string
 }
 
 // prose is the plain text of one block, with a map back to source offsets.
@@ -143,7 +150,7 @@ func Run(src []byte, cfg Config) Result {
 	sd := section.Parse(src)
 	body := src[sd.BodyStart:]
 	root := section.Markdown().Parser().Parse(text.NewReader(body))
-	d := &doc{src: src, body: body, offset: sd.BodyStart, sections: sd, root: root}
+	d := &doc{src: src, body: body, offset: sd.BodyStart, sections: sd, root: root, candidates: map[int]string{}}
 	d.blocks = collectProse(root, body)
 
 	levels := map[string]kernel.Level{}
@@ -181,6 +188,11 @@ func Run(src []byte, cfg Config) Result {
 		acronyms, rfc2119, proseLimits, assetNudges, requirementGrammar,
 	} {
 		rule(d, cfg, emit)
+	}
+	for i, f := range out {
+		if f.Slug == BrokenLink {
+			out[i].Candidate = d.candidates[f.Anchor.Start-d.offset]
+		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Anchor.Start < out[j].Anchor.Start })
 	return Result{Findings: out, Rules: levels}

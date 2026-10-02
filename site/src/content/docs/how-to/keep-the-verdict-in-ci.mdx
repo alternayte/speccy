@@ -135,7 +135,7 @@ In standalone mode, the Action keeps the Speccy store between runs, in the Actio
 
 The store holds the result of each model step. Speccy keys a result by the section text, the check or stage, the profile version, the model and the prompt version. So a section that did not change costs no model call on the next run. A change to the model or the profile makes new calls.
 
-The Action sets `SPECCY_STATE_DIR` to the cached folder. Another CI system gets the same cache when it keeps that folder between runs.
+The Action sets `SPECCY_STATE_DIR` to the cached folder. Another CI system gets the same cache when it keeps that folder between runs. Most CI systems set the variable `CI`. Set `CI=true` in one that does not: Speccy then removes a key file that an older Speccy left in the folder.
 
 ## The HTML reports
 

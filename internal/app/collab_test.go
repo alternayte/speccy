@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -397,5 +398,152 @@ func TestThread_AIAnswers(t *testing.T) {
 	guest := kernel.WithActor(ctx, kernel.Actor{Guest: &kernel.Guest{ID: uuid.New(), BundleID: e.b.ID, Name: "G"}})
 	if _, err := e.app.API.PostMessage(guest, api.PostMessageRequestObject{ThreadId: th.Id, Body: &api.PostMessageJSONRequestBody{Body: "And?"}}); err == nil {
 		t.Error("a guest asked the AI")
+	}
+}
+
+const memoYAML = `key: memo
+name: Memo
+template: memo.md
+waivers: { should: any_member, must: maintainer }
+approvals: { required: 1 }
+checks:
+  - slug: memo.owner
+    level: MUST
+    stage: rubric
+    question: Does the doc name an owner?
+    pass_when: The doc names an owner.
+`
+
+// A waiver of a whole-doc check does not end on an edit (#100). It ends when a full review
+// passes the check, because nothing is left to excuse, and it applies again when a later
+// review fails the check again, as the sidecar entry does.
+func TestWaiver_WholeDocCheckOutlivesAnEdit(t *testing.T) {
+	e := newEnv(t, storetest.Engines()[0])
+	ctx := context.Background()
+	a := e.app
+	if _, err := a.Profiles.Save(ctx, "memo", []byte(memoYAML), []byte("# Memo\n"), "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.API.SetMaintainers(kernel.WithActor(ctx, kernel.Actor{UserID: "admin", Role: kernel.RoleAdmin}),
+		api.SetMaintainersRequestObject{Key: "memo", Body: &api.SetMaintainersJSONRequestBody{UserIds: []string{"keeper"}}}); err != nil {
+		t.Fatal(err)
+	}
+	memo := "---\ntype: memo\ntitle: Pay\n---\n\n# Pay\n\n## Limits\n\nThe request limit is 5.\n\n## Other\n\nThe service logs each call.\n"
+	b, err := a.Bundles.CreateDB(ctx, "memo", []source.File{{Path: "MEMO.md", Content: []byte(memo)}}, "author")
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.b = b
+	q := a.Bundles.DB.Queries()
+	id := kernel.NewID()
+	if err := q.InsertBackend(ctx, pgdb.InsertBackendParams{ID: id, WorkspaceID: a.Workspace, Kind: model.KindFake, Name: "fake",
+		Config: dbtype.JSON(`{}`), CreatedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.UpsertAssignment(ctx, pgdb.UpsertAssignmentParams{WorkspaceID: a.Workspace, Role: model.RoleReviewer, BackendID: id, Model: "fake-reviewer"}); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	result := "fail"
+	a.Reviews.Gateway.Fake = model.BackendFunc(func(context.Context, string, model.Call) (model.Raw, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return model.Raw{Text: `{"results":[{"slug":"memo.owner","result":"` + result + `","reason":"No owner is named.","quotes":[],"shortfalls":[]}]}`}, nil
+	})
+	review1 := func(next string) {
+		t.Helper()
+		mu.Lock()
+		result = next
+		mu.Unlock()
+		cur, _ := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: b.ID})
+		run, err := a.Reviews.StartRun(ctx, cur, review.Stages{review.StageRubric})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 200 {
+			r, _ := q.GetRunByID(ctx, run.ID)
+			if r.Status == "complete" || r.Status == "failed" {
+				if r.Status == "failed" {
+					t.Fatalf("the review failed: %s", r.Error)
+				}
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatal("the review did not end")
+	}
+	waiver := func() api.Waiver {
+		t.Helper()
+		ws, err := a.API.ListWaivers(as("author"), api.ListWaiversRequestObject{DocId: b.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		items := ws.(api.ListWaivers200JSONResponse).Items
+		if len(items) != 1 {
+			t.Fatalf("%d waivers, want 1", len(items))
+		}
+		return items[0]
+	}
+
+	review1("fail")
+	if r, must := e.verdict(t); r != "not_build_ready" || must != 1 {
+		t.Fatalf("after the review: %s with %d MUST, want not_build_ready with 1", r, must)
+	}
+	res, err := a.API.RequestWaiver(as("author"), api.RequestWaiverRequestObject{DocId: b.ID,
+		Body: &api.RequestWaiverJSONRequestBody{FindingId: e.mustFinding(t, "memo.owner"), Reason: "The team page names the owner of every memo."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.API.ApproveWaiver(as("keeper"), api.ApproveWaiverRequestObject{WaiverId: api.Waiver(res.(api.RequestWaiver200JSONResponse)).Id}); err != nil {
+		t.Fatal(err)
+	}
+	if w := waiver(); w.WholeDoc == nil || !*w.WholeDoc || len(w.Section) != 0 {
+		t.Errorf("the waiver %+v, want a waiver of a whole-doc check", w)
+	}
+	if d := sidecar(t, e); len(d.Waivers) != 1 || d.Waivers[0].CheckHash == "" || d.Waivers[0].SectionHash != "" {
+		t.Errorf("the sidecar %+v, want one waiver bound to the check, not to the doc text", d.Waivers)
+	}
+	if r, _ := e.verdict(t); r != "build_ready" {
+		t.Fatalf("after the approval: %s, want build_ready", r)
+	}
+
+	// An edit to another section: the waiver holds, and the finding stays waived.
+	e.edit2(t, "MEMO.md", strings.Replace(memo, "logs each call", "logs each call and each retry", 1))
+	if r, _ := e.verdict(t); r != "build_ready" || waiver().Status != "approved" {
+		t.Fatalf("after an edit: %s with the waiver %s, want build_ready and approved", r, waiver().Status)
+	}
+
+	// A review that passes the check ends the waiver.
+	// The hook that ends the waiver runs just after the run is stored.
+	settles := func(status string) {
+		t.Helper()
+		for range 100 {
+			if waiver().Status == api.WaiverStatus(status) {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	review1("pass")
+	settles("invalidated")
+	if w := waiver(); w.Status != "invalidated" || w.EndedBecause == nil || *w.EndedBecause != api.CheckPassed {
+		t.Errorf("after a review that passes the check: the waiver is %s because %v, want ended because the check passed", w.Status, w.EndedBecause)
+	}
+	// A later review fails the check again: the sidecar entry applies, and so does the waiver.
+	e.edit2(t, "MEMO.md", strings.Replace(memo, "logs each call", "logs each call, each retry and each error", 1))
+	review1("fail")
+	settles("approved")
+	if r, _ := e.verdict(t); r != "build_ready" || waiver().Status != "approved" {
+		t.Errorf("after a review that fails the check again: %s with the waiver %s, want build_ready and approved", r, waiver().Status)
+	}
+}
+
+func (e *env) edit2(t *testing.T, path, content string) {
+	t.Helper()
+	q := e.app.Bundles.DB.Queries()
+	b, _ := q.GetSpecDoc(context.Background(), pgdb.GetSpecDocParams{WorkspaceID: e.app.Workspace, ID: e.b.ID})
+	if _, _, err := e.app.Bundles.Change(as("author"), b.ID, b.CurrentVersionID.UUID,
+		source.Op{Kind: source.OpWrite, Path: path, Content: []byte(content)}, "author", "Edit"); err != nil {
+		t.Fatal(err)
 	}
 }

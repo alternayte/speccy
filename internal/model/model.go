@@ -58,7 +58,16 @@ type Call struct {
 	// Search lets the model use its native web search (REQ-034). Only set it when
 	// SearchCapable says the backend has one.
 	Search bool
+	// Temperature is the sampling temperature to send, or nil to send none. The gateway sets
+	// it: 0 for a backend and model that accept it, so that the same input gives the same
+	// answer as often as the model allows.
+	Temperature *float64
 }
+
+// takesTemperature reports whether a backend kind has a temperature setting at all. An agent
+// CLI has none. A model behind an API may still refuse it; the gateway finds that out from the
+// first answer.
+func takesTemperature(kind string) bool { return kind != KindAgentCLI }
 
 // Raw is what a backend returns: the answer text and the tokens it used.
 type Raw struct {
@@ -67,6 +76,9 @@ type Raw struct {
 	TokensOut int64
 	// Estimated is true when the backend reports no token counts (some agent CLIs).
 	Estimated bool
+	// Truncated is true when the backend stopped the answer at the token limit. A model that
+	// reasons spends the limit on its thinking, and the text that is left is not whole.
+	Truncated bool
 }
 
 // Backend calls one kind of model service.

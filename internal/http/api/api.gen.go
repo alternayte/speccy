@@ -521,6 +521,24 @@ func (e FindingBriefLevel) Valid() bool {
 	}
 }
 
+// Defines values for FixKind.
+const (
+	Answer FixKind = "answer"
+	Reword FixKind = "reword"
+)
+
+// Valid indicates whether the value is a known member of the FixKind enum.
+func (e FixKind) Valid() bool {
+	switch e {
+	case Answer:
+		return true
+	case Reword:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InboxItemKind.
 const (
 	InboxItemKindMention        InboxItemKind = "mention"
@@ -1421,6 +1439,27 @@ func (e Visibility) Valid() bool {
 	}
 }
 
+// Defines values for WaiverEndedBecause.
+const (
+	CheckChanged   WaiverEndedBecause = "check_changed"
+	CheckPassed    WaiverEndedBecause = "check_passed"
+	SectionChanged WaiverEndedBecause = "section_changed"
+)
+
+// Valid indicates whether the value is a known member of the WaiverEndedBecause enum.
+func (e WaiverEndedBecause) Valid() bool {
+	switch e {
+	case CheckChanged:
+		return true
+	case CheckPassed:
+		return true
+	case SectionChanged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WaiverStatus.
 const (
 	WaiverStatusApproved    WaiverStatus = "approved"
@@ -1535,6 +1574,12 @@ type AcceptFixRequest struct {
 	LinkTo *openapi_types.UUID `json:"link_to,omitempty"`
 }
 
+// AcceptFixesRequest defines model for AcceptFixesRequest.
+type AcceptFixesRequest struct {
+	// FindingIds The finding_id of each section rewrite the author accepted.
+	FindingIds []openapi_types.UUID `json:"finding_ids"`
+}
+
 // AcceptedFix defines model for AcceptedFix.
 type AcceptedFix struct {
 	// Changed False when the fix left the doc unchanged, so no version was created.
@@ -1550,6 +1595,19 @@ type AcceptedFix struct {
 
 // AcceptedFixResult For a lint finding, whether the lint of the result still gives it. An AI finding needs a new review to check.
 type AcceptedFixResult string
+
+// AcceptedFixes defines model for AcceptedFixes.
+type AcceptedFixes struct {
+	// Changed False when the rewrites left the doc unchanged, so no version was created.
+	Changed bool `json:"changed"`
+
+	// Left How many reword findings of those checks lint still gives in those sections.
+	Left int `json:"left"`
+
+	// Sections How many section rewrites were applied.
+	Sections int      `json:"sections"`
+	Version  *Version `json:"version,omitempty"`
+}
 
 // AddedSource defines model for AddedSource.
 type AddedSource struct {
@@ -1630,6 +1688,24 @@ type BackendKind string
 // BackendList defines model for BackendList.
 type BackendList struct {
 	Items []Backend `json:"items"`
+}
+
+// BackendModel defines model for BackendModel.
+type BackendModel struct {
+	// Id The name a role sends to the backend.
+	Id string `json:"id"`
+
+	// Name The display name, when the backend gives one.
+	Name *string `json:"name,omitempty"`
+
+	// PriceInPerMtok Dollars per million input tokens. Only OpenRouter gives prices.
+	PriceInPerMtok  *float32 `json:"price_in_per_mtok,omitempty"`
+	PriceOutPerMtok *float32 `json:"price_out_per_mtok,omitempty"`
+}
+
+// BackendModelList defines model for BackendModelList.
+type BackendModelList struct {
+	Items []BackendModel `json:"items"`
 }
 
 // BackendTest defines model for BackendTest.
@@ -1895,8 +1971,11 @@ type BundleVerdict struct {
 
 	// StaleUpstream With stale_reason upstream_changed, the linked spec docs that have a newer version than the run read.
 	StaleUpstream *[]BundleRef `json:"stale_upstream,omitempty"`
-	VersionNumber int64        `json:"version_number"`
-	WaiverCount   int          `json:"waiver_count"`
+
+	// Trend What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
+	Trend         *Trend `json:"trend,omitempty"`
+	VersionNumber int64  `json:"version_number"`
+	WaiverCount   int    `json:"waiver_count"`
 }
 
 // BundleVerdictKind lint means only the lint stage ran.
@@ -2107,6 +2186,12 @@ type DocChoice struct {
 	Profile string `json:"profile"`
 }
 
+// DroppedFix A section whose rewrite Speccy did not keep.
+type DroppedFix struct {
+	HeadingPath []string `json:"heading_path"`
+	Reason      string   `json:"reason"`
+}
+
 // FileDiff defines model for FileDiff.
 type FileDiff struct {
 	Binary bool `json:"binary"`
@@ -2123,18 +2208,33 @@ type FileList struct {
 	Version Version      `json:"version"`
 }
 
-// Finding defines model for Finding.
+// Finding One failed check. The rail and the MCP tool get_findings read this one shape.
 type Finding struct {
 	// Anchor The anchor in the bundle's current version, re-anchored when the run read an older version.
-	Anchor    Anchor             `json:"anchor"`
-	CheckSlug string             `json:"check_slug"`
-	Fix       *string            `json:"fix,omitempty"`
-	Id        openapi_types.UUID `json:"id"`
+	Anchor Anchor `json:"anchor"`
+
+	// Carried An AI finding of the last full review, which read an older version. Its section has not changed since.
+	Carried   *bool  `json:"carried,omitempty"`
+	CheckSlug string `json:"check_slug"`
+
+	// EndLine The line where the text of the finding ends.
+	EndLine int     `json:"end_line"`
+	Fix     *string `json:"fix,omitempty"`
+
+	// FixKind reword: the fix changes the words and no fact, so the bulk fix or an agent may fix the finding alone. answer: the fix needs a fact from the author.
+	FixKind FixKind            `json:"fix_kind"`
+	Id      openapi_types.UUID `json:"id"`
 
 	// Layer The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
-	Layer   *FindingLayer `json:"layer,omitempty"`
-	Level   FindingLevel  `json:"level"`
-	Message string        `json:"message"`
+	Layer *FindingLayer `json:"layer,omitempty"`
+	Level FindingLevel  `json:"level"`
+
+	// Line The line of the file where the text of the finding starts, from 1, in the current version. 0 when the anchor is detached.
+	Line    int    `json:"line"`
+	Message string `json:"message"`
+
+	// New The last full review found this, and the full review before it did not. See Trend.
+	New *bool `json:"new,omitempty"`
 
 	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
 	Relaxed bool `json:"relaxed"`
@@ -2174,16 +2274,30 @@ type FindingList struct {
 	Items []Finding `json:"items"`
 }
 
-// FixSuggestion A patch that replaces one exact text in one file (REQ-025).
+// FixKind reword: the fix changes the words and no fact, so the bulk fix or an agent may fix the finding alone. answer: the fix needs a fact from the author.
+type FixKind string
+
+// FixPrompt defines model for FixPrompt.
+type FixPrompt struct {
+	Prompt string `json:"prompt"`
+}
+
+// FixSuggestion A patch that replaces one text in one file (REQ-025). Speccy picks the text: the paragraph or the section of the finding, or no text when the fix adds a section. The model writes only the new text.
 type FixSuggestion struct {
+	EndLine     int                `json:"end_line"`
 	Explanation string             `json:"explanation"`
 	File        string             `json:"file"`
 	FindingId   openapi_types.UUID `json:"finding_id"`
 
+	// Line The line where the replaced text starts, or where the new text goes, from 1.
+	Line int `json:"line"`
+
 	// LinkChoices For a missing upstream link, the docs the link can name. The patch is empty; the person picks one, and Speccy writes the link (#75).
 	LinkChoices *[]LinkChoice `json:"link_choices,omitempty"`
 	New         string        `json:"new"`
-	Old         string        `json:"old"`
+
+	// Old The text the patch replaces. Empty when the patch adds text.
+	Old string `json:"old"`
 
 	// VersionId The version the patch was written for.
 	VersionId openapi_types.UUID `json:"version_id"`
@@ -2873,6 +2987,34 @@ type SectionDiff struct {
 	Status      ChangeStatus `json:"status"`
 }
 
+// SectionFix One section rewritten for every reword finding of one check in it.
+type SectionFix struct {
+	EndLine int    `json:"end_line"`
+	File    string `json:"file"`
+
+	// FindingId The finding that holds the rewrite. Send it to accept the rewrite.
+	FindingId openapi_types.UUID `json:"finding_id"`
+
+	// Findings How many findings of the check the rewrite fixes.
+	Findings    int      `json:"findings"`
+	HeadingPath []string `json:"heading_path"`
+	Line        int      `json:"line"`
+	New         string   `json:"new"`
+	Old         string   `json:"old"`
+}
+
+// SectionFixes defines model for SectionFixes.
+type SectionFixes struct {
+	// Calls The model calls made, one for each section with a reword finding of the check.
+	Calls     int          `json:"calls"`
+	CheckSlug string       `json:"check_slug"`
+	Dropped   []DroppedFix `json:"dropped"`
+	Sections  []SectionFix `json:"sections"`
+
+	// VersionId The version the rewrites were written for.
+	VersionId openapi_types.UUID `json:"version_id"`
+}
+
 // SectionRange The byte range of the waiver's section in the current main doc. Absent when the section is gone.
 type SectionRange struct {
 	End   int `json:"end"`
@@ -2937,6 +3079,9 @@ type SpecDoc struct {
 	Github *BundleGithub      `json:"github,omitempty"`
 	Id     openapi_types.UUID `json:"id"`
 
+	// LocalDir For a local bundle, the folder on disk that holds the bundle's files. A coding agent edits the files there.
+	LocalDir *string `json:"local_dir,omitempty"`
+
 	// NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
 	NextAction *NextAction `json:"next_action,omitempty"`
 
@@ -2982,6 +3127,18 @@ type StartRunRequest struct {
 
 // StartRunRequestStages defines model for StartRunRequest.Stages.
 type StartRunRequestStages string
+
+// SuggestFixRequest defines model for SuggestFixRequest.
+type SuggestFixRequest struct {
+	// Answer For an answer finding, the fact the author gives. Speccy writes it into the doc in the doc's style.
+	Answer *string `json:"answer,omitempty"`
+}
+
+// SuggestFixesRequest defines model for SuggestFixesRequest.
+type SuggestFixesRequest struct {
+	// CheckSlug A reword check, such as lint.passive-voice.
+	CheckSlug string `json:"check_slug"`
+}
 
 // SuggestedLink defines model for SuggestedLink.
 type SuggestedLink struct {
@@ -3192,6 +3349,16 @@ type TraceView struct {
 	Suggestions []IdSuggestion `json:"suggestions"`
 }
 
+// Trend What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
+type Trend struct {
+	Fixed int `json:"fixed"`
+	New   int `json:"new"`
+	Open  int `json:"open"`
+
+	// SinceVersion The version that the earlier full review read.
+	SinceVersion int64 `json:"since_version"`
+}
+
 // VerdictResult defines model for VerdictResult.
 type VerdictResult string
 
@@ -3391,8 +3558,11 @@ type Waiver struct {
 	// DecisionReason Why the waiver is rejected. Only a rejected waiver has one.
 	DecisionReason *string            `json:"decision_reason,omitempty"`
 	DocId          openapi_types.UUID `json:"doc_id"`
-	Id             openapi_types.UUID `json:"id"`
-	Level          string             `json:"level"`
+
+	// EndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+	EndedBecause *WaiverEndedBecause `json:"ended_because,omitempty"`
+	Id           openapi_types.UUID  `json:"id"`
+	Level        string              `json:"level"`
 
 	// Needed The approvals the policy needs.
 	Needed int `json:"needed"`
@@ -3418,9 +3588,15 @@ type Waiver struct {
 	// Verification What a verification waiver excuses. It never goes in the sidecar.
 	Verification *VerificationExcuse `json:"verification,omitempty"`
 
+	// WholeDoc True for a waiver of a whole-doc check. An edit does not end it. It ends when a full review passes the check, or when the profile changes what the check asks.
+	WholeDoc *bool `json:"whole_doc,omitempty"`
+
 	// WithdrawnBy Who withdrew the Acknowledgement. Only a withdrawn one has it.
 	WithdrawnBy *string `json:"withdrawn_by,omitempty"`
 }
+
+// WaiverEndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+type WaiverEndedBecause string
 
 // WaiverStatus withdrawn is an approved Acknowledgement that a person took out of the sidecar.
 type WaiverStatus string
@@ -3928,8 +4104,17 @@ type RenderMarkdownJSONRequestBody = RenderRequest
 // ReviewContentJSONRequestBody defines body for ReviewContent for application/json ContentType.
 type ReviewContentJSONRequestBody = ContentReviewRequest
 
+// SuggestFixJSONRequestBody defines body for SuggestFix for application/json ContentType.
+type SuggestFixJSONRequestBody = SuggestFixRequest
+
 // AcceptFixJSONRequestBody defines body for AcceptFix for application/json ContentType.
 type AcceptFixJSONRequestBody = AcceptFixRequest
+
+// SuggestFixesJSONRequestBody defines body for SuggestFixes for application/json ContentType.
+type SuggestFixesJSONRequestBody = SuggestFixesRequest
+
+// AcceptFixesJSONRequestBody defines body for AcceptFixes for application/json ContentType.
+type AcceptFixesJSONRequestBody = AcceptFixesRequest
 
 // JoinShareJSONRequestBody defines body for JoinShare for application/json ContentType.
 type JoinShareJSONRequestBody JoinShareJSONBody
@@ -3966,6 +4151,9 @@ type ServerInterface interface {
 	// UpdateBackend Change a backend. Leave the secret out to keep the stored one.
 	// (PUT /admin/backends/{backendId})
 	UpdateBackend(w http.ResponseWriter, r *http.Request, backendId BackendId)
+	// ListBackendModels The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+	// (GET /admin/backends/{backendId}/models)
+	ListBackendModels(w http.ResponseWriter, r *http.Request, backendId BackendId)
 	// TestBackend Send one short call to a backend and model, to check the setup.
 	// (POST /admin/backends/{backendId}/test)
 	TestBackend(w http.ResponseWriter, r *http.Request, backendId BackendId)
@@ -4113,6 +4301,9 @@ type ServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /docs/{docId}/files/rename)
 	RenameFile(w http.ResponseWriter, r *http.Request, docId DocId)
+	// GetFixPrompt The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+	// (GET /docs/{docId}/fix-prompt)
+	GetFixPrompt(w http.ResponseWriter, r *http.Request, docId DocId)
 	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
 	// (GET /docs/{docId}/handoff)
 	ListHandoffs(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -4131,6 +4322,9 @@ type ServerInterface interface {
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /docs/{docId}/publish)
 	PublishBundle(w http.ResponseWriter, r *http.Request, docId DocId)
+	// FreshQuestions Ask for a fresh set of build questions at the next full review.
+	// (POST /docs/{docId}/questions/fresh)
+	FreshQuestions(w http.ResponseWriter, r *http.Request, docId DocId)
 	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	// (POST /docs/{docId}/review-request)
 	RequestReview(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -4293,12 +4487,18 @@ type ServerInterface interface {
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(w http.ResponseWriter, r *http.Request, runId RunId)
-	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
 	// (POST /runs/{runId}/findings/{findingId}/fix)
 	SuggestFix(w http.ResponseWriter, r *http.Request, runId RunId, findingId FindingId)
 	// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
 	// (POST /runs/{runId}/findings/{findingId}/fix/accept)
 	AcceptFix(w http.ResponseWriter, r *http.Request, runId RunId, findingId FindingId)
+	// SuggestFixes Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+	// (POST /runs/{runId}/fixes)
+	SuggestFixes(w http.ResponseWriter, r *http.Request, runId RunId)
+	// AcceptFixes Apply the section rewrites the author accepted, as one version.
+	// (POST /runs/{runId}/fixes/accept)
+	AcceptFixes(w http.ResponseWriter, r *http.Request, runId RunId)
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	// (GET /runs/{runId}/questions)
 	ListQuestions(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -4426,6 +4626,32 @@ func (siw *ServerInterfaceWrapper) UpdateBackend(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateBackend(w, r, backendId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBackendModels operation middleware
+func (siw *ServerInterfaceWrapper) ListBackendModels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "backendId" -------------
+	var backendId BackendId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "backendId", r.PathValue("backendId"), &backendId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "backendId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBackendModels(w, r, backendId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5727,6 +5953,32 @@ func (siw *ServerInterfaceWrapper) RenameFile(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// GetFixPrompt operation middleware
+func (siw *ServerInterfaceWrapper) GetFixPrompt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFixPrompt(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListHandoffs operation middleware
 func (siw *ServerInterfaceWrapper) ListHandoffs(w http.ResponseWriter, r *http.Request) {
 
@@ -5916,6 +6168,32 @@ func (siw *ServerInterfaceWrapper) PublishBundle(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PublishBundle(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// FreshQuestions operation middleware
+func (siw *ServerInterfaceWrapper) FreshQuestions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FreshQuestions(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7313,6 +7591,58 @@ func (siw *ServerInterfaceWrapper) AcceptFix(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// SuggestFixes operation middleware
+func (siw *ServerInterfaceWrapper) SuggestFixes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SuggestFixes(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AcceptFixes operation middleware
+func (siw *ServerInterfaceWrapper) AcceptFixes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AcceptFixes(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListQuestions operation middleware
 func (siw *ServerInterfaceWrapper) ListQuestions(w http.ResponseWriter, r *http.Request) {
 
@@ -7866,6 +8196,9 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/report", wrapper.GetRunReport)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix", wrapper.SuggestFix)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix/accept", wrapper.AcceptFix)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/fixes", wrapper.SuggestFixes)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/fixes/accept", wrapper.AcceptFixes)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/fix-prompt", wrapper.GetFixPrompt)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/skipped", wrapper.ListSkipped)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/skipped", wrapper.AdoptSkipped)
@@ -7880,6 +8213,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/threads/{threadId}/status", wrapper.SetThreadStatus)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.ListWaivers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/waivers", wrapper.RequestWaiver)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/questions/fresh", wrapper.FreshQuestions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/acknowledgements/withdraw", wrapper.WithdrawAcknowledgement)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/approve", wrapper.ApproveWaiver)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/waivers/{waiverId}/reject", wrapper.RejectWaiver)
@@ -7906,6 +8240,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/backends/{backendId}", wrapper.DeleteBackend)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/backends/{backendId}", wrapper.UpdateBackend)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/backends/{backendId}/test", wrapper.TestBackend)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/backends/{backendId}/models", wrapper.ListBackendModels)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/presets", wrapper.ListPresets)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/roles", wrapper.ListRoles)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/roles/{role}", wrapper.UnassignRole)
@@ -8074,6 +8409,45 @@ type UpdateBackenddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response UpdateBackenddefaultApplicationProblemPlusJSONResponse) VisitUpdateBackendResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBackendModelsRequestObject struct {
+	BackendId BackendId `json:"backendId"`
+}
+
+type ListBackendModelsResponseObject interface {
+	VisitListBackendModelsResponse(w http.ResponseWriter) error
+}
+
+type ListBackendModels200JSONResponse BackendModelList
+
+func (response ListBackendModels200JSONResponse) VisitListBackendModelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBackendModelsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBackendModelsdefaultApplicationProblemPlusJSONResponse) VisitListBackendModelsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -10011,6 +10385,45 @@ func (response RenameFiledefaultApplicationProblemPlusJSONResponse) VisitRenameF
 	return err
 }
 
+type GetFixPromptRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetFixPromptResponseObject interface {
+	VisitGetFixPromptResponse(w http.ResponseWriter) error
+}
+
+type GetFixPrompt200JSONResponse FixPrompt
+
+func (response GetFixPrompt200JSONResponse) VisitGetFixPromptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFixPromptdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetFixPromptdefaultApplicationProblemPlusJSONResponse) VisitGetFixPromptResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListHandoffsRequestObject struct {
 	DocId DocId `json:"docId"`
 }
@@ -10248,6 +10661,39 @@ type PublishBundledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response PublishBundledefaultApplicationProblemPlusJSONResponse) VisitPublishBundleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FreshQuestionsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type FreshQuestionsResponseObject interface {
+	VisitFreshQuestionsResponse(w http.ResponseWriter) error
+}
+
+type FreshQuestions204Response struct {
+}
+
+func (response FreshQuestions204Response) VisitFreshQuestionsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type FreshQuestionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response FreshQuestionsdefaultApplicationProblemPlusJSONResponse) VisitFreshQuestionsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -12413,6 +12859,7 @@ func (response ListFindingsdefaultApplicationProblemPlusJSONResponse) VisitListF
 type SuggestFixRequestObject struct {
 	RunId     RunId     `json:"runId"`
 	FindingId FindingId `json:"findingId"`
+	Body      *SuggestFixJSONRequestBody
 }
 
 type SuggestFixResponseObject interface {
@@ -12480,6 +12927,86 @@ type AcceptFixdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response AcceptFixdefaultApplicationProblemPlusJSONResponse) VisitAcceptFixResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuggestFixesRequestObject struct {
+	RunId RunId `json:"runId"`
+	Body  *SuggestFixesJSONRequestBody
+}
+
+type SuggestFixesResponseObject interface {
+	VisitSuggestFixesResponse(w http.ResponseWriter) error
+}
+
+type SuggestFixes200JSONResponse SectionFixes
+
+func (response SuggestFixes200JSONResponse) VisitSuggestFixesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuggestFixesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SuggestFixesdefaultApplicationProblemPlusJSONResponse) VisitSuggestFixesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptFixesRequestObject struct {
+	RunId RunId `json:"runId"`
+	Body  *AcceptFixesJSONRequestBody
+}
+
+type AcceptFixesResponseObject interface {
+	VisitAcceptFixesResponse(w http.ResponseWriter) error
+}
+
+type AcceptFixes200JSONResponse AcceptedFixes
+
+func (response AcceptFixes200JSONResponse) VisitAcceptFixesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AcceptFixesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AcceptFixesdefaultApplicationProblemPlusJSONResponse) VisitAcceptFixesResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -13130,6 +13657,9 @@ type StrictServerInterface interface {
 	// UpdateBackend Change a backend. Leave the secret out to keep the stored one.
 	// (PUT /admin/backends/{backendId})
 	UpdateBackend(ctx context.Context, request UpdateBackendRequestObject) (UpdateBackendResponseObject, error)
+	// ListBackendModels The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+	// (GET /admin/backends/{backendId}/models)
+	ListBackendModels(ctx context.Context, request ListBackendModelsRequestObject) (ListBackendModelsResponseObject, error)
 	// TestBackend Send one short call to a backend and model, to check the setup.
 	// (POST /admin/backends/{backendId}/test)
 	TestBackend(ctx context.Context, request TestBackendRequestObject) (TestBackendResponseObject, error)
@@ -13277,6 +13807,9 @@ type StrictServerInterface interface {
 	// RenameFile Rename or move a file inside the bundle. Creates a version (REQ-005).
 	// (POST /docs/{docId}/files/rename)
 	RenameFile(ctx context.Context, request RenameFileRequestObject) (RenameFileResponseObject, error)
+	// GetFixPrompt The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+	// (GET /docs/{docId}/fix-prompt)
+	GetFixPrompt(ctx context.Context, request GetFixPromptRequestObject) (GetFixPromptResponseObject, error)
 	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
 	// (GET /docs/{docId}/handoff)
 	ListHandoffs(ctx context.Context, request ListHandoffsRequestObject) (ListHandoffsResponseObject, error)
@@ -13295,6 +13828,9 @@ type StrictServerInterface interface {
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /docs/{docId}/publish)
 	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
+	// FreshQuestions Ask for a fresh set of build questions at the next full review.
+	// (POST /docs/{docId}/questions/fresh)
+	FreshQuestions(ctx context.Context, request FreshQuestionsRequestObject) (FreshQuestionsResponseObject, error)
 	// RequestReview Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	// (POST /docs/{docId}/review-request)
 	RequestReview(ctx context.Context, request RequestReviewRequestObject) (RequestReviewResponseObject, error)
@@ -13457,12 +13993,18 @@ type StrictServerInterface interface {
 	// ListFindings List the findings of a run, in document order.
 	// (GET /runs/{runId}/findings)
 	ListFindings(ctx context.Context, request ListFindingsRequestObject) (ListFindingsResponseObject, error)
-	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
 	// (POST /runs/{runId}/findings/{findingId}/fix)
 	SuggestFix(ctx context.Context, request SuggestFixRequestObject) (SuggestFixResponseObject, error)
 	// AcceptFix Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
 	// (POST /runs/{runId}/findings/{findingId}/fix/accept)
 	AcceptFix(ctx context.Context, request AcceptFixRequestObject) (AcceptFixResponseObject, error)
+	// SuggestFixes Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+	// (POST /runs/{runId}/fixes)
+	SuggestFixes(ctx context.Context, request SuggestFixesRequestObject) (SuggestFixesResponseObject, error)
+	// AcceptFixes Apply the section rewrites the author accepted, as one version.
+	// (POST /runs/{runId}/fixes/accept)
+	AcceptFixes(ctx context.Context, request AcceptFixesRequestObject) (AcceptFixesResponseObject, error)
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	// (GET /runs/{runId}/questions)
 	ListQuestions(ctx context.Context, request ListQuestionsRequestObject) (ListQuestionsResponseObject, error)
@@ -13656,6 +14198,32 @@ func (sh *strictHandler) UpdateBackend(w http.ResponseWriter, r *http.Request, b
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateBackendResponseObject); ok {
 		if err := validResponse.VisitUpdateBackendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBackendModels operation middleware
+func (sh *strictHandler) ListBackendModels(w http.ResponseWriter, r *http.Request, backendId BackendId) {
+	var request ListBackendModelsRequestObject
+
+	request.BackendId = backendId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBackendModels(ctx, request.(ListBackendModelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBackendModels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBackendModelsResponseObject); ok {
+		if err := validResponse.VisitListBackendModelsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -15028,6 +15596,32 @@ func (sh *strictHandler) RenameFile(w http.ResponseWriter, r *http.Request, docI
 	}
 }
 
+// GetFixPrompt operation middleware
+func (sh *strictHandler) GetFixPrompt(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetFixPromptRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFixPrompt(ctx, request.(GetFixPromptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFixPrompt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFixPromptResponseObject); ok {
+		if err := validResponse.VisitGetFixPromptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListHandoffs operation middleware
 func (sh *strictHandler) ListHandoffs(w http.ResponseWriter, r *http.Request, docId DocId) {
 	var request ListHandoffsRequestObject
@@ -15215,6 +15809,32 @@ func (sh *strictHandler) PublishBundle(w http.ResponseWriter, r *http.Request, d
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PublishBundleResponseObject); ok {
 		if err := validResponse.VisitPublishBundleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// FreshQuestions operation middleware
+func (sh *strictHandler) FreshQuestions(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request FreshQuestionsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FreshQuestions(ctx, request.(FreshQuestionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FreshQuestions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FreshQuestionsResponseObject); ok {
+		if err := validResponse.VisitFreshQuestionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -16770,6 +17390,16 @@ func (sh *strictHandler) SuggestFix(w http.ResponseWriter, r *http.Request, runI
 	request.RunId = runId
 	request.FindingId = findingId
 
+	var body SuggestFixJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
 	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.SuggestFix(ctx, request.(SuggestFixRequestObject))
 	}
@@ -16820,6 +17450,72 @@ func (sh *strictHandler) AcceptFix(w http.ResponseWriter, r *http.Request, runId
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AcceptFixResponseObject); ok {
 		if err := validResponse.VisitAcceptFixResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SuggestFixes operation middleware
+func (sh *strictHandler) SuggestFixes(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request SuggestFixesRequestObject
+
+	request.RunId = runId
+
+	var body SuggestFixesJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SuggestFixes(ctx, request.(SuggestFixesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SuggestFixes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SuggestFixesResponseObject); ok {
+		if err := validResponse.VisitSuggestFixesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AcceptFixes operation middleware
+func (sh *strictHandler) AcceptFixes(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request AcceptFixesRequestObject
+
+	request.RunId = runId
+
+	var body AcceptFixesJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AcceptFixes(ctx, request.(AcceptFixesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AcceptFixes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AcceptFixesResponseObject); ok {
+		if err := validResponse.VisitAcceptFixesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

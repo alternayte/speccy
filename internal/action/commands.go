@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
@@ -132,13 +133,17 @@ func Decide(cmds []Command, targets map[string]target) []Decision {
 			case c.Kind == "ack":
 				d.Alone = &source.Standalone{Reason: reason, AcknowledgedBy: c.By}
 			default:
-				hash, ok := sectionHash(t)
+				bound, ok := binding(t)
 				if !ok {
 					d.Refused = "its section is not in the doc any more, so nothing was written"
 					break
 				}
-				d.Waiver = &source.Waiver{Check: t.finding.CheckSlug, Section: waiverSection(t), Reason: reason,
-					SectionHash: hash, RequestedBy: c.By}
+				d.Waiver = &source.Waiver{Check: t.finding.CheckSlug, Section: bound.Path, Reason: reason, RequestedBy: c.By}
+				if bound.Whole {
+					d.Waiver.CheckHash = bound.Hash
+				} else {
+					d.Waiver.SectionHash = bound.Hash
+				}
 			}
 		}
 		d.Line = summaryLine(d, t)
@@ -153,22 +158,14 @@ const (
 	upstreamSlug = "links.has-upstream"
 )
 
-// waiverSection is the section a waiver covers: the finding's heading path, or the whole doc
-// for a doc-scope check, as in the app (§9.3).
-func waiverSection(t target) []string {
-	if t.finding.Anchor.HeadingPath == nil || t.bundle.DocScope[t.finding.CheckSlug] {
-		return []string{}
-	}
-	return t.finding.Anchor.HeadingPath
-}
-
-// sectionHash is the hash of the section the waiver covers, now.
-func sectionHash(t target) (string, bool) {
+// binding is what a waiver of the finding binds to, as in the app (§9.3): the section the
+// check names, the finding's section, or the check itself for a whole-doc check.
+func binding(t target) (profile.Binding, bool) {
 	main := t.bundle.Files[t.bundle.MainDoc]
 	if main == nil {
-		return "", false
+		return profile.Binding{}, false
 	}
-	return section.HashAt(section.Parse(main), main, waiverSection(t))
+	return t.bundle.Checks.Bind(t.finding.CheckSlug, section.Parse(main), main, t.finding.Anchor.HeadingPath)
 }
 
 func summaryLine(d Decision, t target) string {

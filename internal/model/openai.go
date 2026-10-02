@@ -52,6 +52,9 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 	if c.MaxTokens > 0 {
 		body["max_tokens"] = c.MaxTokens
 	}
+	if c.Temperature != nil {
+		body["temperature"] = *c.Temperature
+	}
 	if c.Search && b.kind == KindOpenRouter {
 		// OpenRouter's web plugin adds search results to any model.
 		body["plugins"] = []map[string]any{{"id": "web"}}
@@ -84,6 +87,7 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 				Content string `json:"content"`
 				Refusal string `json:"refusal"`
 			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
 		Usage struct {
 			PromptTokens     int64 `json:"prompt_tokens"`
@@ -99,7 +103,8 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 	if r := out.Choices[0].Message.Refusal; r != "" {
 		return Raw{}, fmt.Errorf("the model declined the request: %s", r)
 	}
-	return Raw{Text: out.Choices[0].Message.Content, TokensIn: out.Usage.PromptTokens, TokensOut: out.Usage.CompletionTokens}, nil
+	return Raw{Text: out.Choices[0].Message.Content, TokensIn: out.Usage.PromptTokens, TokensOut: out.Usage.CompletionTokens,
+		Truncated: out.Choices[0].FinishReason == "length"}, nil
 }
 
 // errorMessage returns the message of an API error body, or the start of the body.

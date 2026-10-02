@@ -179,7 +179,7 @@ The Bundles screen shows the same next action on each row, so you can pick the w
 
 ## 7. Read the findings
 
-Open the **Findings** tab in the rail. Each finding names its check, its level and the text that failed the check. A click on a finding scrolls the preview to that text.
+Open the **Findings** tab in the rail. Each MUST finding shows as a card. The SHOULD and INFO findings show as one row for each check, with a count, and a click opens a row. Each finding names its check, its level and the text that failed the check. A click on a finding scrolls the preview to that text.
 
 ![The Findings tab, beside the text each finding points at](../../../assets/shots/guide-findings.png)
 
@@ -187,7 +187,7 @@ The overlay marks the failed text in the preview, one layer per kind: Risk, Ambi
 
 Each finding has these controls:
 
-- **Suggest fix** asks the writer model for a patch. You see the old and the new text, and **Accept** writes it.
+- **Suggest fix** asks the writer model for a patch. You see the diff, and **Accept** writes it. A finding that needs a fact shows **Answer and fix**, and asks for your answer first. [Fix the findings of a review](/how-to/fix-findings/) shows each way to fix a finding.
 - **Ask for a waiver** asks for an exception for this check in this section.
 - **Discuss** opens a thread on the finding.
 - **What this check means** opens the entry of the check in the [Check catalog](/reference/checks/).

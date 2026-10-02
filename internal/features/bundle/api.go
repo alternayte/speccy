@@ -3,7 +3,9 @@ package bundle
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"path/filepath"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -52,6 +54,18 @@ func toAPI(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (api.SpecDoc, e
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// localDir is the folder on disk that holds the files of local spec doc b, or nil for a doc
+// that is not on disk. A coding agent edits the files there.
+func (s *Service) localDir(b pgdb.SpecDoc) *string {
+	if b.SourceKind != KindLocal || s.Local == nil {
+		return nil
+	}
+	var ref localRef
+	_ = json.Unmarshal(b.SourceRef, &ref)
+	dir := filepath.Join(s.Local.Dir(), filepath.FromSlash(ref.Dir))
+	return &dir
+}
 
 // bundleToAPI is bundle b with its spec docs. Its state is the worst state of the spec docs.
 func bundleToAPI(b pgdb.Bundle, docs []api.SpecDoc) api.Bundle {
@@ -105,6 +119,7 @@ func (a *API) specDocs(ctx context.Context, q store.Querier, b pgdb.Bundle, wait
 		if err != nil {
 			return nil, err
 		}
+		ad.LocalDir = a.Service.localDir(d)
 		if err := a.brief(ctx, q, d, &ad, waiting); err != nil {
 			return nil, err
 		}

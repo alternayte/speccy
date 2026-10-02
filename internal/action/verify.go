@@ -21,6 +21,10 @@ type VerifyBundle struct {
 // one of each on a pull request.
 const verifyMarker = "<!-- speccy:verify -->"
 
+// breachMarker starts the key of an inline breach comment. It is not the marker of a review
+// finding, so the review run and the verify run each resolve only their own comments.
+const breachMarker = "<!-- speccy:breach:"
+
 // RunVerify posts the trace ID table of each bundle as one summary comment, and an inline
 // comment on each breached target that the pull request changed. A breached target outside the
 // diff goes in the summary instead, because GitHub refuses a comment on an unchanged line.
@@ -34,7 +38,20 @@ func RunVerify(ctx context.Context, o Options, bundles []VerifyBundle, files []g
 		changed[f.Filename] = ChangedLines(f.Patch)
 	}
 
+	threads, threadsErr := o.GitHub.ReviewThreads(ctx, o.Repo, o.PR)
+	if threadsErr != nil {
+		res.Warnings = append(res.Warnings, "Speccy could not read the review threads, so it posts no inline comments: "+threadsErr.Error())
+	}
+	open := map[string]bool{}
+	for _, t := range threads {
+		if k := markedKey(t.Body, breachMarker); k != "" && !t.Resolved {
+			open[k] = true
+		}
+	}
+
 	var post []github.ReviewComment
+	current := map[string]bool{}
+	inline, limit := 0, o.InlineLimit
 	rest := map[string][]string{}
 	for _, b := range bundles {
 		for _, o := range b.Run.Outcomes {
@@ -55,14 +72,18 @@ func RunVerify(ctx context.Context, o Options, bundles []VerifyBundle, files []g
 				rest[b.Slug] = append(rest[b.Slug], breachLine(o, where))
 				continue
 			}
-			post = append(post, github.ReviewComment{Path: line.Path, Line: at, Side: "RIGHT", Body: breachBody(o)})
+			// The same breach on a moved line keeps its key, so a new push adds no second comment.
+			k := key(b.Slug, "verify.breached", o.TraceId, line.Path)
+			current[k] = true
+			if inline++; inline > limit {
+				rest[""] = append(rest[""], line.Path)
+				continue
+			}
+			if open[k] || threadsErr != nil {
+				continue
+			}
+			post = append(post, github.ReviewComment{Path: line.Path, Line: at, Side: "RIGHT", Body: breachBody(o) + "\n" + breachMarker + k + " -->"})
 		}
-	}
-	if len(post) > o.InlineLimit {
-		for _, c := range post[o.InlineLimit:] {
-			rest[""] = append(rest[""], c.Path)
-		}
-		post = post[:o.InlineLimit]
 	}
 	if len(post) > 0 {
 		if err := o.GitHub.CreateReview(ctx, o.Repo, o.PR, o.HeadSHA,
@@ -70,6 +91,16 @@ func RunVerify(ctx context.Context, o Options, bundles []VerifyBundle, files []g
 			res.Warnings = append(res.Warnings, "Speccy could not post inline comments: "+err.Error())
 		} else {
 			res.Posted = len(post)
+		}
+	}
+	// Resolve the comments of breaches that are gone.
+	for _, t := range threads {
+		if k := markedKey(t.Body, breachMarker); k != "" && !t.Resolved && !current[k] {
+			if err := o.GitHub.ResolveThread(ctx, t.ID); err != nil {
+				res.Warnings = append(res.Warnings, "Speccy could not resolve a comment: "+err.Error())
+				continue
+			}
+			res.Resolved++
 		}
 	}
 

@@ -85,6 +85,9 @@ type Service struct {
 	// Jobs runs the queued jobs of other features, by job kind. The one worker runs them in
 	// turn with the reviews, so model calls stay within one queue.
 	Jobs map[string]func(ctx context.Context, payload []byte) error
+	// AfterReview runs after a full review of a doc ends with a verdict. The app ends the
+	// waivers of the whole-doc checks that the review passed.
+	AfterReview func(ctx context.Context, b pgdb.SpecDoc) error
 
 	mu     sync.Mutex // one lint pass at a time
 	wakeMu sync.Mutex
@@ -256,7 +259,11 @@ func lintStage(in input) evaluation {
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
 	for _, f := range res.Findings {
-		ev.findings = append(ev.findings, pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix})
+		p := pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix}
+		if f.Candidate != "" {
+			p.evidence = candidateEvidence{Candidate: f.Candidate}
+		}
+		ev.findings = append(ev.findings, p)
 		failed[f.Slug] = true
 	}
 	for slug, lvl := range res.Rules {
@@ -288,7 +295,7 @@ func lintStage(in input) evaluation {
 	}
 	if up := in.profile.Profile.Links.Upstream; up != nil && up.Required {
 		level := in.level(HasUpstreamSlug, checkLevel(in.profile.Profile, HasUpstreamSlug, kernel.Must))
-		has, missing := hasUpstream(in, up.Kinds, up.Types)
+		has, missing, outside := hasUpstream(in, up.Kinds, up.Types)
 		ev.in.UpstreamRequired = level == kernel.Must
 		ev.in.HasUpstream = has
 		ev.items = append(ev.items, verdict.Item{Slug: HasUpstreamSlug, Category: verdict.Coherence, Level: level, Passed: has, Applicable: true})
@@ -310,6 +317,11 @@ func lintStage(in input) evaluation {
 				if len(in.upstreams) > 0 {
 					f.message += fmt.Sprintf(" The %s bundles are: %s.", strings.ToUpper(strings.Join(up.Types, " or ")), quoteList(in.upstreams))
 				}
+			} else if outside != "" {
+				// The doc has a link, so "has no link" would be false (#97).
+				f := &ev.findings[len(ev.findings)-1]
+				f.message = fmt.Sprintf("The link target %q is outside Speccy, so Speccy cannot read it as the upstream doc of this %s.", outside, strings.ToUpper(in.profile.Profile.Key))
+				f.fix = "Add that doc to Speccy as a source, then use its slug as the target. Or add a standalone: entry with the reason."
 			}
 		}
 	}
@@ -389,18 +401,26 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	}
 	vin.OpenBlockingThreads = int(blocking)
 	var carried []carriedFinding
+	// units is the unit of each open MUST and SHOULD finding, by finding ID, for the trend.
+	units := map[string]string{}
 	for i, f := range ev.findings {
-		if f.carried != uuid.Nil {
-			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
-			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
-			continue
-		}
-		id := kernel.NewID()
-		anchorJSON, _ := json.Marshal(f.anchor)
 		evidence := dbtype.JSON(`{}`)
 		if f.evidence != nil {
 			e, _ := json.Marshal(f.evidence)
 			evidence = e
+		}
+		if f.carried != uuid.Nil {
+			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
+			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
+			if counts(string(f.level), waived[i]) {
+				units[f.carried.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
+			}
+			continue
+		}
+		id := kernel.NewID()
+		anchorJSON, _ := json.Marshal(f.anchor)
+		if counts(string(f.level), waived[i]) {
+			units[id.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 		}
 		sugg := dbtype.JSON(`{}`)
 		if f.fix != "" {
@@ -415,6 +435,17 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	vin.Items = ev.items
 	v := verdict.Decide(vin)
 	finished := time.Now().UTC()
+	// A full review says what it fixed, left open and found new since the one before it.
+	trendJSON := dbtype.JSON(`{}`)
+	if run.Kind == "full" {
+		t, err := trendOf(ctx, s.DB.Queries(), in.bundle, run, p, units)
+		if err != nil {
+			return err
+		}
+		if t != nil {
+			trendJSON, _ = json.Marshal(t)
+		}
+	}
 	return s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
 		if existing {
@@ -480,7 +511,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			RunID: run.ID, Result: string(v.Result), Score: int64(v.Score), Radar: dbtype.JSON(radar),
 			WaiverCount: int64(v.WaiverCount), RelaxedCount: int64(relaxedCount(p, ev.relaxed)), BlockingFindingIds: dbtype.JSON(blocking),
 			Items: dbtype.JSON(items), CarriedRunID: carriedRun, CarriedFindings: dbtype.JSON(carriedJSON),
-			SectionsChanged: int64(ev.sectionsChanged),
+			SectionsChanged: int64(ev.sectionsChanged), Trend: trendJSON,
 		})
 	})
 }
@@ -670,7 +701,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, err
 	}
 	// The AI findings of the last full review hold for the sections that did not change.
-	if err := s.carry(ctx, b, in, &ev); err != nil {
+	if err := s.carry(ctx, b, in, &ev, func(string) bool { return false }); err != nil {
 		return run, err
 	}
 	return run, s.save(ctx, run, in, ev, p.Profile, false)
@@ -744,7 +775,7 @@ func lintConfig(p profile.Profile, template []byte, mainDoc string, files []stri
 		MaxWords: p.Limits.MaxWords, MaxSectionWords: p.Limits.MaxSectionWords, MaxSentenceWords: p.Limits.MaxSentenceWords,
 		MaxCodeBlockLines: p.Limits.MaxCodeBlockLines, MaxTableRows: p.Limits.MaxTableRows,
 		Prefixes: p.Trace.Prefixes, UpstreamPrefixes: p.Trace.Cover,
-		Required: required, SlopExtra: p.Lint.SlopExtra, Levels: levels, Size: size,
+		Required: required, SlopExtra: p.Lint.SlopExtra, Acronyms: p.Lint.Acronyms, Levels: levels, Size: size,
 	}
 }
 
@@ -784,9 +815,12 @@ func plural(n int) string {
 	return "s"
 }
 
-func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
+// hasUpstream reports whether the doc links an upstream doc or stands alone. When it does not,
+// missing is the first link target that names no bundle, and outside is the first one that
+// points outside Speccy, such as a URL.
+func hasUpstream(in input, kinds, types []string) (has bool, missing, outside string) {
 	if standalone(in.dec) {
-		return true, ""
+		return true, "", ""
 	}
 	for _, l := range in.links {
 		if !slices.Contains(kinds, l.kind) {
@@ -795,14 +829,16 @@ func hasUpstream(in input, kinds, types []string) (has bool, missing string) {
 		if l.target == nil {
 			if l.targetKind == "bundle" && missing == "" {
 				missing = l.ref
+			} else if l.targetKind == "external" && outside == "" {
+				outside = l.ref
 			}
 			continue
 		}
 		if len(types) == 0 || slices.Contains(types, l.target.ProfileKey) {
-			return true, ""
+			return true, "", ""
 		}
 	}
-	return false, missing
+	return false, missing, outside
 }
 
 func profileKeys(ps map[string]profile.Versioned) []string {

@@ -179,8 +179,11 @@ type Waiver struct {
 	Check       string   `yaml:"check"`
 	Section     []string `yaml:"section,flow"`
 	Reason      string   `yaml:"reason"`
-	SectionHash string   `yaml:"section_hash"`
-	RequestedBy string   `yaml:"requested_by,omitempty"`
+	SectionHash string   `yaml:"section_hash,omitempty"`
+	// CheckHash is set in place of SectionHash on a waiver of a whole-doc check. The waiver
+	// holds while the check asks the same question, whatever the doc text is.
+	CheckHash   string `yaml:"check_hash,omitempty"`
+	RequestedBy string `yaml:"requested_by,omitempty"`
 }
 
 // TraceAck acknowledges in the sidecar that an upstream trace ID is intentionally not covered

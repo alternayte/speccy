@@ -68,6 +68,11 @@ SET status = sqlc.arg(status), stage = sqlc.arg(stage), error = sqlc.arg(error),
     stages = sqlc.arg(stages), finished_at = sqlc.arg(finished_at)
 WHERE id = sqlc.arg(id);
 
+-- name: FailActiveRun :exec
+-- Ends a run that its job left queued or running. A run that reached an end stays as it is.
+UPDATE review_run SET status = 'failed', error = sqlc.arg(error), finished_at = sqlc.arg(finished_at)
+WHERE id = sqlc.arg(id) AND status IN ('queued', 'running');
+
 -- name: RunningRunFor :one
 SELECT * FROM review_run
 WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND kind = 'full' AND status IN ('queued', 'running')
@@ -82,21 +87,42 @@ WHERE id = sqlc.arg(id);
 -- name: GetRunByID :one
 SELECT * FROM review_run WHERE id = sqlc.arg(id);
 
--- name: ListQuestions :many
-SELECT * FROM question WHERE version_id = sqlc.arg(version_id) ORDER BY number;
+-- name: ListLiveQuestions :many
+-- The build questions a doc keeps: every question that is not retired.
+SELECT * FROM question WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND retired_at IS NULL ORDER BY number;
+
+-- name: ListDocQuestions :many
+-- Every question the doc ever had, the retired ones too. A new question takes the next number.
+SELECT * FROM question WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY number;
+
+-- name: ListRunQuestions :many
+-- The questions a run answered, which may be retired since.
+SELECT q.* FROM question q JOIN question_result r ON r.question_id = q.id
+WHERE r.run_id = sqlc.arg(run_id) ORDER BY q.number;
+
+-- name: RetireQuestion :exec
+UPDATE question SET retired_at = sqlc.arg(retired_at) WHERE id = sqlc.arg(id);
+
+-- name: RetireQuestions :exec
+UPDATE question SET retired_at = sqlc.arg(retired_at) WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND retired_at IS NULL;
+
+-- name: UpdateQuestionCites :exec
+UPDATE question SET cites = sqlc.arg(cites), level = sqlc.arg(level), anchor = sqlc.arg(anchor) WHERE id = sqlc.arg(id);
+
+-- name: LatestQuestionResult :one
+-- The result of a question in the last finished run that asked it.
+SELECT r.* FROM question_result r JOIN review_run run ON run.id = r.run_id
+WHERE r.question_id = sqlc.arg(question_id) AND run.status = 'complete'
+ORDER BY run.started_at DESC, run.id DESC
+LIMIT 1;
+
+-- name: ListQuestionAnswers :many
+SELECT * FROM answer WHERE run_id = sqlc.arg(run_id) AND question_id = sqlc.arg(question_id) ORDER BY reader_role;
 
 -- name: InsertQuestion :exec
 INSERT INTO question (id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), sqlc.arg(version_id), sqlc.arg(number),
         sqlc.arg(text), sqlc.arg(level), sqlc.arg(cites), sqlc.arg(anchor), sqlc.arg(input_hash));
-
--- name: ListQuestionsByInput :many
--- REQ-047: the questions of an earlier version of the bundle with the same content.
-SELECT q.* FROM question q
-WHERE q.spec_doc_id = sqlc.arg(spec_doc_id) AND q.input_hash = sqlc.arg(input_hash) AND q.input_hash <> ''
-  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.spec_doc_id = sqlc.arg(spec_doc_id)
-                      AND q2.input_hash = sqlc.arg(input_hash) LIMIT 1)
-ORDER BY q.number;
 
 -- name: InsertAnswer :exec
 INSERT INTO answer (question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found)

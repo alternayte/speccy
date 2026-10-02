@@ -288,6 +288,7 @@ type Question struct {
 	Cites       dbtype.JSON
 	Anchor      dbtype.JSON
 	InputHash   string
+	RetiredAt   sql.NullTime
 }
 
 type QuestionResult struct {
@@ -434,6 +435,7 @@ type Verdict struct {
 	CarriedRunID       uuid.NullUUID
 	CarriedFindings    dbtype.JSON
 	SectionsChanged    int64
+	Trend              dbtype.JSON
 }
 
 type VerificationOutcome struct {

@@ -54,18 +54,21 @@ checks:
     level: MUST
     stage: rubric
     scope: doc
+    section: Non-goals
     question: Does the doc list what the system will not do?
     pass_when: A section lists at least one thing the system will not do.
   - slug: sdd.decisions.ids
     level: MUST
     stage: rubric
     scope: doc
+    section: Decisions
     question: Does every design decision have a trace ID?
     pass_when: Every design decision has a trace ID.
   - slug: sdd.decisions.alternatives
     level: SHOULD
     stage: rubric
     scope: doc
+    section: Decisions
     question: Does each decision list a rejected alternative?
     pass_when: Each decision lists at least one rejected alternative with a reason.
   - slug: sdd.components
@@ -73,6 +76,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Components
     question: Does each component have a stated responsibility?
     pass_when: Each component has a stated responsibility.
   - slug: sdd.data.model
@@ -80,6 +84,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Data model
     question: Is each stored entity described with fields, types, and constraints?
     pass_when: Each stored entity has fields, types, and constraints, in the doc or a linked asset.
   - slug: sdd.data.ownership
@@ -94,6 +99,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Interfaces
     question: Does each interface have inputs, outputs, and errors?
     pass_when: Each interface has inputs, outputs, and errors, in the doc or a linked asset.
   - slug: sdd.failure-modes
@@ -101,6 +107,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Failure modes
     question: Does each external dependency have a stated failure behaviour?
     pass_when: Each external dependency has a stated failure behaviour.
   - slug: sdd.state
@@ -115,6 +122,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Limits
     question: Do sizes, rates, and timeouts have numbers?
     pass_when: Sizes, rates, and timeouts have numbers.
   - slug: sdd.security
@@ -122,6 +130,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Security
     question: Are authentication, authorisation, secrets, and untrusted input addressed?
     pass_when: Authentication, authorisation, secrets, and untrusted input are addressed.
   - slug: sdd.observability
@@ -129,6 +138,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Observability
     question: Are logs, metrics, and alerts stated?
     pass_when: Logs, metrics, and alerts are stated.
   - slug: sdd.testing
@@ -136,6 +146,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Testing
     question: Does the test strategy name what proves each MUST requirement?
     pass_when: The test strategy names what proves each MUST requirement.
   - slug: sdd.migration
@@ -143,6 +154,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Migration
     question: Are data and rollout migration described?
     pass_when: Data and rollout migration are described, or marked not applicable.
   - slug: sdd.performance
@@ -157,6 +169,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Delivery
     question: Are milestones ordered with exit criteria?
     pass_when: Milestones are ordered and each has exit criteria.
   - slug: sdd.open-questions
@@ -164,6 +177,7 @@ checks:
     stage: rubric
     sizes: [app, initiative]
     scope: doc
+    section: Open questions
     question: Are open questions listed?
     pass_when: Open questions are listed, or the doc says "none".
   - slug: sdd.consistency

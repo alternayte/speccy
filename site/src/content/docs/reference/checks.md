@@ -9,6 +9,8 @@ This page lists each check that Speccy runs with the built-in PRD and SDD profil
 
 A check has a slug, a level and a stage. A MUST finding makes the verdict Not Build Ready. A SHOULD finding counts in the score. An INFO finding is a hint. A profile can change the level of a check. [The review pipeline](/concepts/review-pipeline/) explains the stages.
 
+A check also has a fix kind. A reword finding needs a change to the words and no fact, so **Fix all** or a coding agent can fix it alone. An answer finding needs a fact from the author. [Fix the findings of a review](/how-to/fix-findings/) shows both.
+
 ## Lint
 
 Lint checks run without a model, on every save. They check the writing and the structure.
@@ -17,6 +19,7 @@ Lint checks run without a model, on every save. They check the writing and the s
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 Speccy reads the doc's frontmatter. The block parses, it sits where Speccy looks, and it holds links in the form Speccy reads.
 
@@ -26,6 +29,7 @@ To fix a finding: Correct the YAML or JSON of the block, move it to the top of t
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 No code block and no table is longer than the profile's limits for the doc body.
 
@@ -35,6 +39,7 @@ To fix a finding: Move the code or the table into an asset in the bundle, and li
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: reword when one file of the bundle has the name the link names, and answer when none or more than one has it
 
 Each relative link and image points at a file in the bundle.
 
@@ -44,6 +49,7 @@ To fix a finding: Correct the path, or add the file to the bundle.
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 Each referenced trace ID has a definition in this doc or in a doc it implements or refines.
 
@@ -53,6 +59,7 @@ To fix a finding: Define the ID, correct the reference, or link the doc that def
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 No trace ID has two definitions in the doc.
 
@@ -62,6 +69,7 @@ To fix a finding: Give the second item a new ID.
 
 - Level: INFO
 - Profiles: every profile
+- Fix kind: reword
 
 A sentence names who acts. Speccy marks passive voice, such as "the request is retried".
 
@@ -71,6 +79,7 @@ To fix a finding: Name the actor, such as "the service retries the request".
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 The prose has no placeholder, such as TBD, TODO, XXX, FIXME, a `{{…}}` or `<…>` marker, or lorem ipsum.
 
@@ -80,6 +89,7 @@ To fix a finding: Write the text that the placeholder holds a place for, or dele
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 The doc and each section's own text stay under the profile's word limits.
 
@@ -89,6 +99,7 @@ To fix a finding: Move detail into an asset or a linked doc, or split the sectio
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 The doc has each heading that the profile template requires for the doc's size.
 
@@ -98,6 +109,7 @@ To fix a finding: Add the missing heading and its text. A heading with a section
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 A requirement definition parses into a trigger and a response, in one of the EARS shapes. The check is off until a profile gives it a level.
 
@@ -107,6 +119,7 @@ To fix a finding: Write the requirement as "When <trigger>, the <system> shall <
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: reword
 
 A requirement item writes MUST, SHOULD and MAY in upper case.
 
@@ -116,6 +129,7 @@ To fix a finding: Write the keyword in upper case, so that a reader sees the req
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: reword
 
 No sentence is longer than the profile's sentence word limit. Headings and table cells do not count.
 
@@ -125,6 +139,7 @@ To fix a finding: Split the sentence. Put one statement in each sentence.
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: reword
 
 The prose has no filler phrase from Speccy's list, such as "it is important to note that".
 
@@ -134,6 +149,7 @@ To fix a finding: Delete the phrase, and state the fact.
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 Each acronym has a definition at its first use, as "Full name (ABC)" or "ABC (Full name)".
 
@@ -143,6 +159,7 @@ To fix a finding: Write the full name next to the first use of the acronym.
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 The prose has no vague word from Speccy's list, such as "fast", "several" or "as needed".
 
@@ -152,6 +169,7 @@ To fix a finding: Replace the word with a number, a name or a condition that a b
 
 - Level: INFO
 - Profiles: every profile
+- Fix kind: answer
 
 A section that names requirements, decisions or non-functional requirements defines at least one trace ID. The finding is a hint, not a defect.
 
@@ -161,6 +179,7 @@ To fix a finding: Use Add IDs on the Traceability page, or write an ID at the st
 
 - Level: INFO
 - Profiles: every profile
+- Fix kind: answer
 
 A token that looks like a trace ID, at the place of a definition, has a prefix that the profile reads.
 
@@ -174,6 +193,7 @@ Rubric checks ask a model one question about the doc. The profile writes the que
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Do any two statements in the doc contradict each other?
 
@@ -184,6 +204,7 @@ It passes when: No two statements in the doc contradict each other.
 - Level: MUST
 - Profiles: PRD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are dependencies on other teams or systems listed?
 
@@ -194,6 +215,7 @@ It passes when: Dependencies on other teams or systems are listed, or the doc sa
 - Level: SHOULD
 - Profiles: PRD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does each metric have a baseline?
 
@@ -203,6 +225,7 @@ It passes when: Each metric has a current baseline value.
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Is each goal measurable?
 
@@ -213,6 +236,7 @@ It passes when: Each goal has a metric and a target value.
 - Level: SHOULD
 - Profiles: PRD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are performance, security, accessibility, and privacy needs addressed?
 
@@ -222,6 +246,7 @@ It passes when: Performance, security, accessibility, and privacy needs are stat
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Does the doc list what the product will not do?
 
@@ -232,6 +257,7 @@ It passes when: A section lists at least one thing the product will not do.
 - Level: MUST
 - Profiles: PRD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are open questions listed with an owner?
 
@@ -241,6 +267,7 @@ It passes when: Open questions are listed with an owner each, or the doc says "n
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Does the problem statement have evidence?
 
@@ -250,6 +277,7 @@ It passes when: The problem has evidence, such as a metric, a ticket, or a user 
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Does the doc name who has the problem?
 
@@ -260,6 +288,7 @@ It passes when: The doc names the people or the role that has the problem.
 - Level: SHOULD
 - Profiles: PRD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does the doc state what ships first?
 
@@ -269,6 +298,7 @@ It passes when: The doc states what ships first.
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Does every requirement have an acceptance criterion?
 
@@ -278,6 +308,7 @@ It passes when: Every requirement has an acceptance criterion that a tester can 
 
 - Level: MUST
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Does every requirement have a trace ID?
 
@@ -287,6 +318,7 @@ It passes when: Every requirement has a trace ID.
 
 - Level: SHOULD
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Does every requirement have a priority?
 
@@ -296,6 +328,7 @@ It passes when: Every requirement has a priority (MUST, SHOULD, or COULD).
 
 - Level: SHOULD
 - Profiles: PRD
+- Fix kind: answer
 
 The check asks: Do the requirements state what users need, not a technical design?
 
@@ -306,6 +339,7 @@ It passes when: Requirements state what users need, not a technical design.
 - Level: SHOULD
 - Profiles: PRD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are risks listed with a mitigation or an owner?
 
@@ -316,6 +350,7 @@ It passes when: Risks are listed, each with a mitigation or an owner.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does each component have a stated responsibility?
 
@@ -325,6 +360,7 @@ It passes when: Each component has a stated responsibility.
 
 - Level: MUST
 - Profiles: SDD
+- Fix kind: answer
 
 The check asks: Do any two statements in the doc contradict each other?
 
@@ -335,6 +371,7 @@ It passes when: No two statements in the doc contradict each other.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Is each stored entity described with fields, types, and constraints?
 
@@ -345,6 +382,7 @@ It passes when: Each stored entity has fields, types, and constraints, in the do
 - Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does each entity have one owning component?
 
@@ -354,6 +392,7 @@ It passes when: Each entity has exactly one owning component.
 
 - Level: SHOULD
 - Profiles: SDD
+- Fix kind: answer
 
 The check asks: Does each decision list a rejected alternative?
 
@@ -363,6 +402,7 @@ It passes when: Each decision lists at least one rejected alternative with a rea
 
 - Level: MUST
 - Profiles: SDD
+- Fix kind: answer
 
 The check asks: Does every design decision have a trace ID?
 
@@ -373,6 +413,7 @@ It passes when: Every design decision has a trace ID.
 - Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are milestones ordered with exit criteria?
 
@@ -383,6 +424,7 @@ It passes when: Milestones are ordered and each has exit criteria.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does each external dependency have a stated failure behaviour?
 
@@ -393,6 +435,7 @@ It passes when: Each external dependency has a stated failure behaviour.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does each interface have inputs, outputs, and errors?
 
@@ -403,6 +446,7 @@ It passes when: Each interface has inputs, outputs, and errors, in the doc or a 
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Do sizes, rates, and timeouts have numbers?
 
@@ -413,6 +457,7 @@ It passes when: Sizes, rates, and timeouts have numbers.
 - Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are data and rollout migration described?
 
@@ -422,6 +467,7 @@ It passes when: Data and rollout migration are described, or marked not applicab
 
 - Level: MUST
 - Profiles: SDD
+- Fix kind: answer
 
 The check asks: Does the doc list what the system will not do?
 
@@ -432,6 +478,7 @@ It passes when: A section lists at least one thing the system will not do.
 - Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are logs, metrics, and alerts stated?
 
@@ -442,6 +489,7 @@ It passes when: Logs, metrics, and alerts are stated.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are open questions listed?
 
@@ -452,6 +500,7 @@ It passes when: Open questions are listed, or the doc says "none".
 - Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Do performance targets have numbers?
 
@@ -462,6 +511,7 @@ It passes when: Performance targets have numbers.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Are authentication, authorisation, secrets, and untrusted input addressed?
 
@@ -472,6 +522,7 @@ It passes when: Authentication, authorisation, secrets, and untrusted input are 
 - Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does each stateful entity have its states and transitions?
 
@@ -482,6 +533,7 @@ It passes when: Each stateful entity has its states and transitions.
 - Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
+- Fix kind: answer
 
 The check asks: Does the test strategy name what proves each MUST requirement?
 
@@ -495,6 +547,7 @@ Grounding checks compare the doc's factual claims with the sources that the prof
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 No factual claim in the doc conflicts with a source that the profile's source policy accepts.
 
@@ -504,6 +557,7 @@ To fix a finding: Correct the claim, or cite a source that supports it.
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 Each factual claim in the doc has a source that the profile's source policy accepts.
 
@@ -517,6 +571,7 @@ Divergence checks give the doc to independent readers, who answer the build ques
 
 - Level: the level of its build question
 - Profiles: every profile
+- Fix kind: answer
 
 Independent readers give one meaning for each build question.
 
@@ -526,6 +581,7 @@ To fix a finding: Rewrite the text that the question cites, so that it has one m
 
 - Level: the level of its build question
 - Profiles: every profile
+- Fix kind: answer
 
 The doc answers each build question. All the readers answered that the doc does not say.
 
@@ -539,6 +595,7 @@ Coherence checks read the doc together with the docs it links to.
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 No statement in this doc conflicts with a statement in a doc it implements, refines or references.
 
@@ -548,6 +605,7 @@ To fix a finding: Change one of the two statements, so that the docs agree.
 
 - Level: SHOULD
 - Profiles: PRD, SDD
+- Fix kind: answer
 
 The check asks: Does this doc agree with the issues and pages it links to?
 
@@ -557,6 +615,7 @@ It passes when: No statement in this doc conflicts with a linked issue or page.
 
 - Level: SHOULD
 - Profiles: every profile
+- Fix kind: answer
 
 No paragraph repeats more than half of a paragraph in the upstream doc.
 
@@ -566,6 +625,7 @@ To fix a finding: Link to the upstream text, and do not repeat it.
 
 - Level: SHOULD
 - Profiles: PRD, SDD
+- Fix kind: answer
 
 The check asks: Has the code this doc points at changed since this version?
 
@@ -575,6 +635,7 @@ It passes when: No implemented-by target has a commit newer than this version.
 
 - Level: MUST
 - Profiles: PRD, SDD
+- Fix kind: answer
 
 The check asks: Does every external link target parse?
 
@@ -584,6 +645,7 @@ It passes when: Every external link target is a github target, a scheme with a p
 
 - Level: MUST
 - Profiles: every profile
+- Fix kind: answer
 
 A doc of the size the profile names links the docs it covers.
 
@@ -593,6 +655,7 @@ To fix a finding: Add a references or refines link for each doc that this doc co
 
 - Level: MUST
 - Profiles: SDD
+- Fix kind: answer
 
 The check asks: Does the doc link to the PRD it implements?
 
@@ -602,6 +665,7 @@ It passes when: An implements link to a PRD exists, or a standalone acknowledgem
 
 - Level: MUST
 - Profiles: SDD
+- Fix kind: answer
 
 The check asks: Is every upstream REQ and NFR referenced or acknowledged?
 
