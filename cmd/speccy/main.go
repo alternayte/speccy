@@ -20,7 +20,9 @@ import (
 
 	"github.com/alternayte/speccy/internal/app"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
+	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/mcpserver"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/store"
 	"github.com/alternayte/speccy/web"
@@ -52,7 +54,7 @@ const usage = `Usage:
                                                          changes, and comment on it. --verify runs the
                                                          verification gate instead of the review.
   speccy tui                                             Open the terminal UI.
-  speccy mcp                                             Run the MCP server over stdio.
+  speccy mcp [--root folder]                             Run the MCP server over stdio.
   speccy profile validate <file>                         Check a profile file.
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
@@ -170,7 +172,7 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 	}
 
 	url := "http://" + ln.Addr().String()
-	fmt.Fprintf(stdout, "Speccy is running at %s\nPress Ctrl+C to stop.\n", url)
+	fmt.Fprintf(stdout, "Speccy is running at %s\nAn agent connects to the MCP server at %s/mcp\nPress Ctrl+C to stop.\n", url, url)
 	if o, client := handler.ownerInfo(); client {
 		fmt.Fprintf(stdout, "%s (process %d) owns the state of this folder, so the app sends its calls to it.\n", o.Kind, o.PID)
 	}
@@ -180,7 +182,18 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if err := speccyhttp.Serve(ctx, ln, handler); err != nil {
+	// Local mode serves MCP on the app's port too (#88): an agent connects to the running app,
+	// and starts no process of its own. The port takes calls from this machine only.
+	client, err := handler.client()
+	if err != nil {
+		_ = ln.Close()
+		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
+		return exitRun
+	}
+	mux := nethttp.NewServeMux()
+	mux.Handle("/mcp", mcpserver.LocalHTTP(func(context.Context, nethttp.Header) (*api.ClientWithResponses, error) { return client, nil }))
+	mux.Handle("/", handler)
+	if err := speccyhttp.Serve(ctx, ln, speccyhttp.LoopbackOnly(mux)); err != nil {
 		fmt.Fprintf(stderr, "Speccy stopped: %v.\n", err)
 		return exitRun
 	}

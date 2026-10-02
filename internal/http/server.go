@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	nethttp "net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -272,4 +273,40 @@ func SPA(spa fs.FS) nethttp.Handler { return spaHandler(spa) }
 // outside the API that must answer in the API's form.
 func WriteProblem(w nethttp.ResponseWriter, status int, code, detail string) {
 	writeProblem(w, status, code, detail)
+}
+
+// LoopbackOnly guards the local app's port. Local mode has no sign-in, so the port must take
+// calls only from this machine's own pages and programs. A web page of another site can send
+// a request to a loopback port: its Origin is not a loopback origin, or, with DNS rebinding,
+// its Host is the site's own name. Both get 403. A program with no Origin, such as an agent or
+// curl, passes.
+func LoopbackOnly(next nethttp.Handler) nethttp.Handler {
+	return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		if !loopbackHost(r.Host) {
+			writeProblem(w, nethttp.StatusForbidden, "not_local", "Local mode takes calls to a loopback address only, not to "+r.Host+".")
+			return
+		}
+		if origin := r.Header.Get("Origin"); origin != "" {
+			u, err := url.Parse(origin)
+			if err != nil || !loopbackHost(u.Host) {
+				writeProblem(w, nethttp.StatusForbidden, "not_local", "Local mode takes calls from pages on this machine only, not from "+origin+".")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// loopbackHost reports whether a host, with or without a port, is localhost or a loopback IP.
+func loopbackHost(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

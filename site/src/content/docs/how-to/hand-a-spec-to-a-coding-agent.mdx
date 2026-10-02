@@ -100,6 +100,20 @@ claude mcp add speccy -- speccy mcp
 
 `speccy mcp` serves the tools over stdio, as the local user. It uses `.speccy/state/`, so the app, the CLI and the agent share the same reviews, threads and handoffs.
 
+`speccy mcp` finds the docs from the current folder. For an MCP client that sets no working folder, name the folder:
+
+```sh
+claude mcp add speccy -- speccy mcp --root ~/docs
+```
+
+When the app runs, the agent can use the app's MCP endpoint, and starts no process of its own:
+
+```sh
+claude mcp add --transport http speccy http://127.0.0.1:7878/mcp
+```
+
+The local endpoint needs no token. It takes calls from this machine only: Speccy refuses a call from a web page of another site.
+
 One Speccy process owns the state of a folder at a time. The first process to start is the owner: it holds the store and runs each review. Each later process sends its calls to the owner. Thus a review that the agent starts with `review_bundle` shows its stages live in the app. A review from the app can run in `speccy mcp`, when `speccy mcp` is the owner. [More than one Speccy process in a folder](/operations/upgrade/#more-than-one-speccy-process-in-a-folder) has the rules.
 
 </TabItem>

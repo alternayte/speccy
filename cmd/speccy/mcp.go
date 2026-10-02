@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -23,8 +25,19 @@ import (
 // current folder (REQ-110). It uses .speccy/state, so the app, the CLI, and agents share
 // models, reviews, and threads. Stdout carries the protocol; messages go to stderr.
 func runMCP(args []string, stderr io.Writer) int {
-	if len(args) != 0 {
-		fmt.Fprint(stderr, "Usage: speccy mcp\n")
+	fl := flag.NewFlagSet("speccy mcp", flag.ContinueOnError)
+	fl.SetOutput(stderr)
+	fl.Usage = func() { fmt.Fprint(stderr, "Usage: speccy mcp [--root folder]\n") }
+	// Some MCP clients set no working folder, so the folder with the docs can come as a flag (#89).
+	rootDir := fl.String("root", "", "the folder with the docs (default: the current folder)")
+	if err := fl.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
+		return exitUsage
+	}
+	if fl.NArg() != 0 {
+		fl.Usage()
 		return exitUsage
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
@@ -34,6 +47,12 @@ func runMCP(args []string, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
 		return exitUsage
+	}
+	if *rootDir != "" {
+		if cwd, err = filepath.Abs(*rootDir); err != nil {
+			fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
+			return exitUsage
+		}
 	}
 	root, err := local.Open(findRoot(cwd))
 	if err != nil {

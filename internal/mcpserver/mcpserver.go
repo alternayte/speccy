@@ -601,6 +601,14 @@ func (tools) postMessage(ctx context.Context, c *api.ClientWithResponses, in mes
 	return res.JSON200, nil
 }
 
+// LocalHTTP serves the MCP server over streamable HTTP in local mode (#88). Local mode has no
+// sign-in, so a call needs no token: the agent is the local user, as over stdio. The caller
+// puts it behind the loopback guard of the local app.
+func LocalHTTP(clientFor ClientFor) http.Handler {
+	s := New(clientFor)
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return s }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
+}
+
 // HTTP serves the MCP server over streamable HTTP (REQ-110). A call needs a personal API
 // token in the Authorization header; each tool sends that header on to the API.
 func HTTP(clientFor ClientFor) http.Handler {
