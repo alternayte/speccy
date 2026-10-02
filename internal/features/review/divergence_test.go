@@ -8,6 +8,7 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/review"
+	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
@@ -252,7 +253,9 @@ func TestDivergence_ReaderIsolation(t *testing.T) {
 	}
 }
 
-// REQ-047: a run on the same version reuses the pinned questions; a new version gets new ones.
+// REQ-047: a doc keeps its build questions. A run on the same version, or on a new one, asks
+// the same questions. A new section gets questions of its own, a question whose cite is gone
+// leaves, and only a person who asks for a fresh set changes the whole set.
 func TestDivergence_QuestionsPinned(t *testing.T) {
 	ctx := context.Background()
 	pe := newDivergence(t, storetest.Engines()[0], fakeQuestion{"What does the service log?", "REQ-002"})
@@ -275,9 +278,54 @@ func TestDivergence_QuestionsPinned(t *testing.T) {
 	if n := pe.fake.count(review.PromptQuestions); n != 1 {
 		t.Errorf("a version with only a new waiver wrote questions again (%d times in all)", n)
 	}
+	// A new version keeps the questions of the doc. The readers agreed on this one, and the
+	// text it cites is the same, so its answers stay and no reader is called.
+	readerCalls := pe.fake.count(review.PromptReader)
 	pe.write(t, "pay/SPEC.md", strings.Replace(divergenceSDD, "each quarter", "each month", 1))
+	run3, _, _ := pe.run(t, "pay")
+	r3, _ := q.ListQuestionResults(ctx, run3.ID)
+	if n := pe.fake.count(review.PromptQuestions); n != 1 || len(r3) != 1 || r3[0].QuestionID != r1[0].QuestionID {
+		t.Fatalf("a new version wrote questions %d times in all and has the results %+v, want the same question and no new set", n, r3)
+	}
+	if n := pe.fake.count(review.PromptReader); n != readerCalls {
+		t.Errorf("the readers answered an agreed question on unchanged text again (%d calls more)", n-readerCalls)
+	}
+	// An edit to the text the question cites: the readers answer it again.
+	edited := strings.Replace(divergenceSDD, "logs each attempt with", "logs each attempt and each retry with", 1)
+	pe.write(t, "pay/SPEC.md", edited)
 	pe.run(t, "pay")
-	if n := pe.fake.count(review.PromptQuestions); n != 2 {
-		t.Errorf("a new version wrote questions %d times in all, want 2", n)
+	if n := pe.fake.count(review.PromptReader); n == readerCalls {
+		t.Error("the readers did not answer a question again after its cited text changed")
+	}
+	// A new section gets questions of its own, and the old question stays.
+	pe.fake.questions = []fakeQuestion{{"What is the unknown rollout order?", "Rollout"}}
+	pe.write(t, "pay/SPEC.md", edited+"\n## Rollout\n\nThe service ships to one region first.\n")
+	run5, _, _ := pe.run(t, "pay")
+	r5, _ := q.ListQuestionResults(ctx, run5.ID)
+	kept := false
+	for _, r := range r5 {
+		kept = kept || r.QuestionID == r1[0].QuestionID
+	}
+	if n := pe.fake.count(review.PromptQuestions); n != 2 || len(r5) != 2 || !kept {
+		t.Fatalf("a new section: questions written %d times in all, results %+v, want one more question and the old one kept", n, r5)
+	}
+	// The section goes away: its question leaves, and nothing new is written.
+	pe.write(t, "pay/SPEC.md", strings.Replace(edited, "each quarter", "each year", 1))
+	run6, _, _ := pe.run(t, "pay")
+	r6, _ := q.ListQuestionResults(ctx, run6.ID)
+	if n := pe.fake.count(review.PromptQuestions); n != 2 || len(r6) != 1 || r6[0].QuestionID != r1[0].QuestionID {
+		t.Errorf("after the section left: questions written %d times in all, results %+v, want the first question alone", n, r6)
+	}
+	// A person asks for a fresh set: the next review writes one.
+	b, _ := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews}
+	if _, err := a.FreshQuestions(ctx, api.FreshQuestionsRequestObject{DocId: b.ID}); err != nil {
+		t.Fatal(err)
+	}
+	pe.fake.questions = []fakeQuestion{{"Who retries a failed request?", "REQ-001"}}
+	run7, _, _ := pe.run(t, "pay")
+	r7, _ := q.ListQuestionResults(ctx, run7.ID)
+	if n := pe.fake.count(review.PromptQuestions); n != 3 || len(r7) != 1 || r7[0].QuestionID == r1[0].QuestionID {
+		t.Errorf("after a fresh set: questions written %d times in all, results %+v, want a new question", n, r7)
 	}
 }

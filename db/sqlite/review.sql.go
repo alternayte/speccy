@@ -141,7 +141,7 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, erro
 }
 
 const getVerdict = `-- name: GetVerdict :one
-SELECT run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids, items, carried_run_id, carried_findings, sections_changed FROM verdict WHERE run_id = ?1
+SELECT run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids, items, carried_run_id, carried_findings, sections_changed, trend FROM verdict WHERE run_id = ?1
 `
 
 func (q *Queries) GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error) {
@@ -159,6 +159,7 @@ func (q *Queries) GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, err
 		&i.CarriedRunID,
 		&i.CarriedFindings,
 		&i.SectionsChanged,
+		&i.Trend,
 	)
 	return i, err
 }
@@ -337,10 +338,10 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) error {
 
 const insertVerdict = `-- name: InsertVerdict :exec
 INSERT INTO verdict (run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids,
-                     items, carried_run_id, carried_findings, sections_changed)
+                     items, carried_run_id, carried_findings, sections_changed, trend)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, ?9,
-        ?10, ?11)
+        ?10, ?11, ?12)
 `
 
 type InsertVerdictParams struct {
@@ -355,6 +356,7 @@ type InsertVerdictParams struct {
 	CarriedRunID       uuid.NullUUID
 	CarriedFindings    dbtype.JSON
 	SectionsChanged    int64
+	Trend              dbtype.JSON
 }
 
 func (q *Queries) InsertVerdict(ctx context.Context, arg InsertVerdictParams) error {
@@ -370,6 +372,7 @@ func (q *Queries) InsertVerdict(ctx context.Context, arg InsertVerdictParams) er
 		arg.CarriedRunID,
 		arg.CarriedFindings,
 		arg.SectionsChanged,
+		arg.Trend,
 	)
 	return err
 }
@@ -667,6 +670,48 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ReviewRun
 		return nil, err
 	}
 	return items, nil
+}
+
+const previousFullReview = `-- name: PreviousFullReview :one
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+WHERE spec_doc_id = ?1 AND status = 'complete' AND kind = 'full' AND started_at < ?2
+ORDER BY started_at DESC, id DESC
+LIMIT 1
+`
+
+type PreviousFullReviewParams struct {
+	SpecDocID uuid.UUID
+	Before    time.Time
+}
+
+// The last finished full review of a spec doc that started before another one.
+func (q *Queries) PreviousFullReview(ctx context.Context, arg PreviousFullReviewParams) (ReviewRun, error) {
+	row := q.db.QueryRowContext(ctx, previousFullReview, arg.SpecDocID, arg.Before)
+	var i ReviewRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpecDocID,
+		&i.VersionID,
+		&i.ProfileKey,
+		&i.ProfileVersion,
+		&i.Kind,
+		&i.Status,
+		&i.Stage,
+		&i.Roles,
+		&i.PromptVersions,
+		&i.TokensIn,
+		&i.TokensOut,
+		&i.CostEstimate,
+		&i.CacheHits,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Notes,
+		&i.Stages,
+		&i.DecisionsHash,
+	)
+	return i, err
 }
 
 const setFindingSuggestion = `-- name: SetFindingSuggestion :exec

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"runtime"
@@ -230,5 +232,115 @@ func TestAgentCLI_LeavesTheControllingTerminal(t *testing.T) {
 	detach(cmd)
 	if cmd.SysProcAttr == nil || !cmd.SysProcAttr.Setsid {
 		t.Error("the CLI keeps the controlling terminal, so a question on /dev/tty would wait for an answer nobody can give")
+	}
+}
+
+// A call goes out at temperature 0. A model that refuses a temperature gets the call again
+// with none, and every later call to it goes out with none at once.
+func TestGateway_TemperatureZeroWhereTheModelTakesIt(t *testing.T) {
+	ctx := context.Background()
+	g, _ := newGateway(t, nil)
+	var sent []*float64
+	refuse := false
+	g.Fake = BackendFunc(func(_ context.Context, _ string, c Call) (Raw, error) {
+		sent = append(sent, c.Temperature)
+		if refuse && c.Temperature != nil {
+			return Raw{}, &StatusError{Status: 400, Message: "`temperature` is not supported for this model."}
+		}
+		return Raw{Text: `{"answer":"Paris"}`}, nil
+	})
+	res, err := g.Call(ctx, call())
+	if err != nil || res.Temperature == nil || *res.Temperature != 0 || len(sent) != 1 {
+		t.Fatalf("a model that takes a temperature: err %v, temperature %v, %d calls; want 0 in one call", err, res.Temperature, len(sent))
+	}
+
+	g, _ = newGateway(t, nil)
+	g.Fake, sent, refuse = BackendFunc(func(_ context.Context, _ string, c Call) (Raw, error) {
+		sent = append(sent, c.Temperature)
+		if c.Temperature != nil {
+			return Raw{}, &StatusError{Status: 400, Message: "`temperature` is not supported for this model."}
+		}
+		return Raw{Text: `{"answer":"Paris"}`}, nil
+	}), nil, true
+	res, err = g.Call(ctx, call())
+	if err != nil || res.Temperature != nil || len(sent) != 2 {
+		t.Fatalf("a model that refuses a temperature: err %v, temperature %v, %d calls; want an answer with none after 2", err, res.Temperature, len(sent))
+	}
+	if _, err := g.Call(ctx, call()); err != nil || len(sent) != 3 || sent[2] != nil {
+		t.Errorf("the next call: err %v, %d calls in all; want one more call with no temperature", err, len(sent))
+	}
+}
+
+// An answer cut off at the token limit gets one more call with a higher limit. A second cut-off
+// is an error that says so, not a JSON error.
+func TestGateway_CutOffAnswer(t *testing.T) {
+	ctx := context.Background()
+	g, _ := newGateway(t, nil)
+	var limits []int64
+	g.Fake = BackendFunc(func(_ context.Context, _ string, c Call) (Raw, error) {
+		limits = append(limits, c.MaxTokens)
+		if len(limits) == 1 {
+			return Raw{Text: `{"answer":"Par`, Truncated: true}, nil
+		}
+		return Raw{Text: `{"answer":"Paris"}`}, nil
+	})
+	c := call()
+	c.MaxTokens = 4000
+	if _, err := g.Call(ctx, c); err != nil || !slices.Equal(limits, []int64{4000, 16000}) {
+		t.Fatalf("err %v, limits %v; want an answer after a second call at 16000", err, limits)
+	}
+
+	g, _ = newGateway(t, nil)
+	g.Fake = BackendFunc(func(context.Context, string, Call) (Raw, error) {
+		return Raw{Text: `{"answer":"Par`, Truncated: true}, nil
+	})
+	_, err := g.Call(ctx, c)
+	if ke, ok := kernel.AsError(err); !ok || ke.Code != "answer_cut_off" || strings.Contains(ke.Detail, "JSON") {
+		t.Fatalf("a second cut-off: %v; want answer_cut_off", err)
+	}
+}
+
+// The model list comes from the backend's models endpoint with the stored key. OpenRouter
+// gives the price of one token; the list has dollars per million tokens. The other API
+// backends give no price.
+func TestModels_OpenRouterPrices(t *testing.T) {
+	var auth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"data":[
+			{"id":"openai/gpt-5","name":"OpenAI: GPT-5","pricing":{"prompt":"0.00000125","completion":"0.00001"}},
+			{"id":"anthropic/claude-sonnet-4.5","name":"Anthropic: Claude Sonnet 4.5","pricing":{"prompt":"0.000003","completion":"0.000015"}},
+			{"id":"openrouter/auto","name":"Auto Router","pricing":{"prompt":"-1","completion":"-1"}}]}`))
+	}))
+	defer srv.Close()
+	ctx := context.Background()
+	g := &Gateway{}
+	for _, kind := range []string{KindOpenRouter, KindOpenAI} {
+		g.build = func(pgdb.ModelBackend) (Backend, error) { return newOpenAICompatible(kind, "sk-test", srv.URL), nil }
+		got, err := g.Models(ctx, pgdb.ModelBackend{Name: kind, Kind: kind})
+		if err != nil || len(got) != 3 || auth != "Bearer sk-test" {
+			t.Fatalf("%s: %d models, err %v, Authorization %q", kind, len(got), err, auth)
+		}
+		// The list is in the order of the IDs.
+		sonnet, gpt, auto := got[0], got[1], got[2]
+		if sonnet.ID != "anthropic/claude-sonnet-4.5" || gpt.ID != "openai/gpt-5" || auto.PriceIn != nil {
+			t.Fatalf("%s: models %+v", kind, got)
+		}
+		if kind == KindOpenAI {
+			if sonnet.PriceIn != nil || gpt.PriceOut != nil {
+				t.Errorf("an OpenAI backend gave prices: %+v", got)
+			}
+			continue
+		}
+		if *sonnet.PriceIn != 3 || *sonnet.PriceOut != 15 || *gpt.PriceIn != 1.25 || *gpt.PriceOut != 10 {
+			t.Errorf("prices per million tokens: sonnet %v/%v, gpt %v/%v", *sonnet.PriceIn, *sonnet.PriceOut, *gpt.PriceIn, *gpt.PriceOut)
+		}
+	}
+	// An agent CLI has no models endpoint.
+	g.build = func(pgdb.ModelBackend) (Backend, error) { return BackendFunc(nil), nil }
+	if _, err := g.Models(ctx, pgdb.ModelBackend{Name: "claude", Kind: KindAgentCLI}); err == nil {
+		t.Error("an agent CLI gave a model list")
+	} else if ke, ok := kernel.AsError(err); !ok || ke.Code != "no_model_list" {
+		t.Errorf("an agent CLI: %v", err)
 	}
 }

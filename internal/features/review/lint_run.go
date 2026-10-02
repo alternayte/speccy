@@ -85,6 +85,9 @@ type Service struct {
 	// Jobs runs the queued jobs of other features, by job kind. The one worker runs them in
 	// turn with the reviews, so model calls stay within one queue.
 	Jobs map[string]func(ctx context.Context, payload []byte) error
+	// AfterReview runs after a full review of a doc ends with a verdict. The app ends the
+	// waivers of the whole-doc checks that the review passed.
+	AfterReview func(ctx context.Context, b pgdb.SpecDoc) error
 
 	mu     sync.Mutex // one lint pass at a time
 	wakeMu sync.Mutex
@@ -256,7 +259,11 @@ func lintStage(in input) evaluation {
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
 	for _, f := range res.Findings {
-		ev.findings = append(ev.findings, pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix})
+		p := pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix}
+		if f.Candidate != "" {
+			p.evidence = candidateEvidence{Candidate: f.Candidate}
+		}
+		ev.findings = append(ev.findings, p)
 		failed[f.Slug] = true
 	}
 	for slug, lvl := range res.Rules {
@@ -394,18 +401,26 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	}
 	vin.OpenBlockingThreads = int(blocking)
 	var carried []carriedFinding
+	// units is the unit of each open MUST and SHOULD finding, by finding ID, for the trend.
+	units := map[string]string{}
 	for i, f := range ev.findings {
-		if f.carried != uuid.Nil {
-			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
-			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
-			continue
-		}
-		id := kernel.NewID()
-		anchorJSON, _ := json.Marshal(f.anchor)
 		evidence := dbtype.JSON(`{}`)
 		if f.evidence != nil {
 			e, _ := json.Marshal(f.evidence)
 			evidence = e
+		}
+		if f.carried != uuid.Nil {
+			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
+			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
+			if counts(string(f.level), waived[i]) {
+				units[f.carried.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
+			}
+			continue
+		}
+		id := kernel.NewID()
+		anchorJSON, _ := json.Marshal(f.anchor)
+		if counts(string(f.level), waived[i]) {
+			units[id.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 		}
 		sugg := dbtype.JSON(`{}`)
 		if f.fix != "" {
@@ -420,6 +435,17 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	vin.Items = ev.items
 	v := verdict.Decide(vin)
 	finished := time.Now().UTC()
+	// A full review says what it fixed, left open and found new since the one before it.
+	trendJSON := dbtype.JSON(`{}`)
+	if run.Kind == "full" {
+		t, err := trendOf(ctx, s.DB.Queries(), in.bundle, run, p, units)
+		if err != nil {
+			return err
+		}
+		if t != nil {
+			trendJSON, _ = json.Marshal(t)
+		}
+	}
 	return s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
 		if existing {
@@ -485,7 +511,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			RunID: run.ID, Result: string(v.Result), Score: int64(v.Score), Radar: dbtype.JSON(radar),
 			WaiverCount: int64(v.WaiverCount), RelaxedCount: int64(relaxedCount(p, ev.relaxed)), BlockingFindingIds: dbtype.JSON(blocking),
 			Items: dbtype.JSON(items), CarriedRunID: carriedRun, CarriedFindings: dbtype.JSON(carriedJSON),
-			SectionsChanged: int64(ev.sectionsChanged),
+			SectionsChanged: int64(ev.sectionsChanged), Trend: trendJSON,
 		})
 	})
 }
@@ -675,7 +701,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, err
 	}
 	// The AI findings of the last full review hold for the sections that did not change.
-	if err := s.carry(ctx, b, in, &ev); err != nil {
+	if err := s.carry(ctx, b, in, &ev, func(string) bool { return false }); err != nil {
 		return run, err
 	}
 	return run, s.save(ctx, run, in, ev, p.Profile, false)

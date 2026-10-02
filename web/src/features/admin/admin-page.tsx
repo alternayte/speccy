@@ -23,6 +23,7 @@ import { problemMessage } from "@/lib/problem";
 import { BackendDialog, kinds } from "./backend-dialog";
 import { GitHubSection } from "./github-section";
 import { MCPSection } from "./mcp-section";
+import { ModelPicker } from "./model-picker";
 import { InvitesSection, PeopleSection, SettingsSection } from "./people-section";
 import { useMe } from "@/features/account/me";
 
@@ -302,12 +303,19 @@ function RoleRow({ role: r, backends }: { role: Role; backends: Backend[] }) {
             </option>
           ))}
         </select>
-        <Input
-          aria-label={`Model for ${r.role}`}
-          className="w-52"
+        <ModelPicker
+          backend={backends.find((b) => b.id === backend)}
+          role={r.role}
           value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="Model"
+          onChange={setModel}
+          onPick={(m) => {
+            setModel(m.id);
+            // Only OpenRouter gives prices. The fields stay editable: a team can have its own rates.
+            if (m.price_in_per_mtok != null && m.price_out_per_mtok != null) {
+              setPriceIn(String(m.price_in_per_mtok));
+              setPriceOut(String(m.price_out_per_mtok));
+            }
+          }}
         />
         <Input
           aria-label={`Input price per million tokens for ${r.role}`}

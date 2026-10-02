@@ -57,6 +57,12 @@ func insideData(prompt string) string {
 type reviewer struct {
 	rubricPass bool
 	questions  []fakeQuestion
+	// shortfalls are the shortfalls the reviewer gives for a failed check, by slug. passes are
+	// the slugs it passes.
+	shortfalls map[string][]map[string]string
+	passes     map[string]bool
+	// rubric holds each rubric prompt, in call order.
+	rubric []string
 
 	mu      sync.Mutex
 	calls   map[string]int      // by prompt version
@@ -99,6 +105,9 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		r.calls = map[string]int{}
 	}
 	r.calls[c.PromptVersion]++
+	if c.PromptVersion == review.PromptRubric {
+		r.rubric = append(r.rubric, c.Prompt)
+	}
 	if c.PromptVersion == review.PromptReader {
 		if r.prompts == nil {
 			r.prompts = map[string][]string{}
@@ -116,7 +125,13 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		}
 		var results []map[string]any
 		for _, m := range slugsRe.FindAllStringSubmatch(outsideData(c.Prompt), -1) {
-			results = append(results, map[string]any{"slug": m[1], "result": result, "reason": "The doc does not state it.", "quotes": []string{}})
+			res, falls := result, []map[string]string{}
+			if r.passes[m[1]] {
+				res = "pass"
+			} else if res == "fail" && r.shortfalls[m[1]] != nil {
+				falls = r.shortfalls[m[1]]
+			}
+			results = append(results, map[string]any{"slug": m[1], "result": res, "reason": "The doc does not state it.", "quotes": []string{}, "shortfalls": falls})
 		}
 		out = map[string]any{"results": results}
 	case review.PromptClaims:
@@ -206,12 +221,37 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		}
 		out = map[string]any{"analysis": "Grouped by text.", "groups": groups}
 	case review.PromptFix:
-		out = map[string]any{"old": "at 999 kilobytes for every endpoint", "new": "at 1 megabyte for every endpoint", "explanation": "Uses the provider's limit."}
+		// The writer gets the part to replace, and returns only its new text. With an answer
+		// from the author it states the answer; with none it rewords.
+		part := labelled(c.Prompt, "The part to replace")
+		if answer := labelled(c.Prompt, "The author's answer"); answer != "" {
+			out = map[string]any{"new": strings.Replace(part, "999 kilobytes", answer, 1), "explanation": "States the author's answer."}
+		} else {
+			out = map[string]any{"new": rewordings.Replace(part), "explanation": "Names the actor."}
+		}
+	case review.PromptFixAll:
+		out = map[string]any{"new": rewordings.Replace(labelled(c.Prompt, "The section to rewrite"))}
 	default:
 		return model.Raw{}, fmt.Errorf("unexpected prompt %s", c.PromptVersion)
 	}
 	js, _ := json.Marshal(out)
 	return model.Raw{Text: string(js), TokensIn: 100, TokensOut: 50}, nil
+}
+
+// rewordings are the passive sentences the fake writer can put in the active voice.
+var rewordings = strings.NewReplacer(
+	"The request is retried.", "The client retries the request.",
+	"The order is stored.", "The service stores the order.",
+	"The invoice is sent.", "The service sends the invoice.",
+)
+
+// labelled returns the content of the data block with the label in a prompt, or "".
+func labelled(prompt, label string) string {
+	m := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(label) + `:\n<<<DATA [0-9a-f]+\n(.*?)\nDATA [0-9a-f]+>>>`).FindStringSubmatch(prompt)
+	if m == nil {
+		return ""
+	}
+	return m[1]
 }
 
 func (r *reviewer) count(prompt string) int {

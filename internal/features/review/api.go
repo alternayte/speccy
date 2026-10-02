@@ -117,18 +117,27 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.R
 		return nil, err
 	}
 	fs = append(fs, carried...)
+	trendOfRun := vd.Trend
 	if run.Kind == "full" {
 		out.AiRunId = &run.ID
-	}
-	if vd.CarriedRunID.Valid {
-		if full, err := q.GetRunByID(ctx, vd.CarriedRunID.UUID); err == nil && full.VersionID != run.VersionID {
-			if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: full.VersionID}); err == nil {
-				n, changed := fv.Number, int(vd.SectionsChanged)
-				out.AiRunId, out.AiVersionNumber, out.SectionsChanged = &full.ID, &n, &changed
-			}
-		} else if err == nil {
+	} else if vd.CarriedRunID.Valid {
+		// A lint run shows the AI review it carries: the version that review read, and its trend.
+		if full, err := q.GetRunByID(ctx, vd.CarriedRunID.UUID); err == nil {
 			out.AiRunId = &full.ID
+			if full.VersionID != run.VersionID {
+				if fv, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: full.VersionID}); err == nil {
+					n, changed := fv.Number, int(vd.SectionsChanged)
+					out.AiVersionNumber, out.SectionsChanged = &n, &changed
+				}
+			}
+			if fvd, err := q.GetVerdict(ctx, full.ID); err == nil {
+				trendOfRun = fvd.Trend
+			}
 		}
+	}
+	var t trend
+	if json.Unmarshal(trendOfRun, &t) == nil && t.SinceRun != uuid.Nil {
+		out.Trend = &api.Trend{SinceVersion: t.SinceVersion, Fixed: t.Fixed, Open: t.Open, New: t.New}
 	}
 	for _, f := range fs {
 		if f.Waived {
@@ -249,10 +258,25 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		return nil, err
 	}
 	rows = append(rows, carried...)
-	var cur *version.Current
-	if b.CurrentVersionID.Valid && (b.CurrentVersionID.UUID != run.VersionID || len(carried) > 0) {
-		if cur, err = version.LoadCurrent(ctx, q, b); err != nil {
-			return nil, err
+	// The current version gives each finding its lines, and moves an anchor of an older version.
+	cur, err := version.LoadCurrent(ctx, q, b)
+	if err != nil {
+		return nil, err
+	}
+	moved := b.CurrentVersionID.Valid && (b.CurrentVersionID.UUID != run.VersionID || len(carried) > 0)
+	// The findings that the last full review found and the one before it did not (the trend).
+	isNew := map[string]bool{}
+	if vd, err := q.GetVerdict(ctx, run.ID); err == nil {
+		trendOfRun := vd.Trend
+		if run.Kind != "full" && vd.CarriedRunID.Valid {
+			if fvd, err := q.GetVerdict(ctx, vd.CarriedRunID.UUID); err == nil {
+				trendOfRun = fvd.Trend
+			}
+		}
+		var t trend
+		_ = json.Unmarshal(trendOfRun, &t)
+		for _, id := range t.NewIDs {
+			isNew[id] = true
 		}
 	}
 	out := api.FindingList{Items: make([]api.Finding, 0, len(rows))}
@@ -260,7 +284,7 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		var an anchor.Anchor
 		_ = json.Unmarshal(f.Anchor, &an)
 		detached := false
-		if cur != nil {
+		if moved {
 			var ok bool
 			an, ok = cur.Anchor(an)
 			detached = !ok
@@ -271,10 +295,20 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		_ = json.Unmarshal(f.Suggestion, &sugg)
 		af := api.Finding{
 			Id: f.ID, RunId: f.RunID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
-			Anchor: anchorAPI(an),
+			Anchor: anchorAPI(an), FixKind: fixKind(f.CheckSlug, f.Evidence),
 		}
 		if detached {
 			af.Anchor.Detached = &detached
+		} else {
+			af.Line, af.EndLine = lines(cur.File(an.File), an)
+		}
+		if f.RunID != run.ID {
+			yes := true
+			af.Carried = &yes
+		}
+		if isNew[f.ID.String()] {
+			yes := true
+			af.New = &yes
 		}
 		if l := Layer(f.CheckSlug, f.Stage, kernel.Level(f.Level)); l != "" {
 			layer := api.FindingLayer(l)
@@ -327,6 +361,15 @@ func Layer(slug, stage string, level kernel.Level) string {
 		return "slop"
 	}
 	return ""
+}
+
+// lines returns the first and the last line of an anchor in src, from 1.
+func lines(src []byte, an anchor.Anchor) (int, int) {
+	first := lineOf(src, an.Start)
+	if an.End <= an.Start {
+		return first, first
+	}
+	return first, lineOf(src, an.End-1)
 }
 
 func ptrInt(n int) *int { return &n }

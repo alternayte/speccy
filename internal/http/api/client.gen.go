@@ -129,6 +129,11 @@ type ClientInterface interface {
 	// Corresponds with PUT /admin/backends/{backendId} (the `UpdateBackend` operationId).
 	UpdateBackend(ctx context.Context, backendId BackendId, body UpdateBackendJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListBackendModels The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+	//
+	// Corresponds with GET /admin/backends/{backendId}/models (the `ListBackendModels` operationId).
+	ListBackendModels(ctx context.Context, backendId BackendId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// TestBackendWithBody Send one short call to a backend and model, to check the setup.
 	//
 	// Takes any type of body and a specified content type.
@@ -525,6 +530,11 @@ type ClientInterface interface {
 	// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
 	RenameFile(ctx context.Context, docId DocId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetFixPrompt The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+	//
+	// Corresponds with GET /docs/{docId}/fix-prompt (the `GetFixPrompt` operationId).
+	GetFixPrompt(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListHandoffs The handoffs of a bundle, newest first (REQ-136).
 	//
 	// Corresponds with GET /docs/{docId}/handoff (the `ListHandoffs` operationId).
@@ -596,6 +606,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 	PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// FreshQuestions Ask for a fresh set of build questions at the next full review.
+	//
+	// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+	//
+	// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+	FreshQuestions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RequestReviewWithBody Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	//
@@ -1078,10 +1095,19 @@ type ClientInterface interface {
 	// Corresponds with GET /runs/{runId}/findings (the `ListFindings` operationId).
 	ListFindings(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+	// SuggestFixWithBody Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+	//
+	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
-	SuggestFix(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error)
+	SuggestFixWithBody(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
+	SuggestFix(ctx context.Context, runId RunId, findingId FindingId, body SuggestFixJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// AcceptFixWithBody Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
 	//
@@ -1096,6 +1122,34 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
 	AcceptFix(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SuggestFixesWithBody Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+	SuggestFixesWithBody(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SuggestFixes Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+	SuggestFixes(ctx context.Context, runId RunId, body SuggestFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AcceptFixesWithBody Apply the section rewrites the author accepted, as one version.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+	AcceptFixesWithBody(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AcceptFixes Apply the section rewrites the author accepted, as one version.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+	AcceptFixes(ctx context.Context, runId RunId, body AcceptFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListQuestions List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	//
@@ -1324,6 +1378,21 @@ func (c *Client) UpdateBackendWithBody(ctx context.Context, backendId BackendId,
 // Corresponds with PUT /admin/backends/{backendId} (the `UpdateBackend` operationId).
 func (c *Client) UpdateBackend(ctx context.Context, backendId BackendId, body UpdateBackendJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateBackendRequest(c.Server, backendId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListBackendModels The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+//
+// Corresponds with GET /admin/backends/{backendId}/models (the `ListBackendModels` operationId).
+func (c *Client) ListBackendModels(ctx context.Context, backendId BackendId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListBackendModelsRequest(c.Server, backendId)
 	if err != nil {
 		return nil, err
 	}
@@ -2370,6 +2439,21 @@ func (c *Client) RenameFile(ctx context.Context, docId DocId, body RenameFileJSO
 	return c.Client.Do(req)
 }
 
+// GetFixPrompt The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+//
+// Corresponds with GET /docs/{docId}/fix-prompt (the `GetFixPrompt` operationId).
+func (c *Client) GetFixPrompt(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFixPromptRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListHandoffs The handoffs of a bundle, newest first (REQ-136).
 //
 // Corresponds with GET /docs/{docId}/handoff (the `ListHandoffs` operationId).
@@ -2532,6 +2616,23 @@ func (c *Client) PublishBundleWithBody(ctx context.Context, docId DocId, content
 // Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 func (c *Client) PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPublishBundleRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// FreshQuestions Ask for a fresh set of build questions at the next full review.
+//
+// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+//
+// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+func (c *Client) FreshQuestions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewFreshQuestionsRequest(c.Server, docId)
 	if err != nil {
 		return nil, err
 	}
@@ -3793,11 +3894,30 @@ func (c *Client) ListFindings(ctx context.Context, runId RunId, reqEditors ...Re
 	return c.Client.Do(req)
 }
 
-// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+// SuggestFixWithBody Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+//
+// Takes any type of body and a specified content type.
 //
 // Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
-func (c *Client) SuggestFix(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewSuggestFixRequest(c.Server, runId, findingId)
+func (c *Client) SuggestFixWithBody(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestFixRequestWithBody(c.Server, runId, findingId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestFix Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
+func (c *Client) SuggestFix(ctx context.Context, runId RunId, findingId FindingId, body SuggestFixJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestFixRequest(c.Server, runId, findingId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3832,6 +3952,74 @@ func (c *Client) AcceptFixWithBody(ctx context.Context, runId RunId, findingId F
 // Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
 func (c *Client) AcceptFix(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAcceptFixRequest(c.Server, runId, findingId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestFixesWithBody Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+func (c *Client) SuggestFixesWithBody(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestFixesRequestWithBody(c.Server, runId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestFixes Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+func (c *Client) SuggestFixes(ctx context.Context, runId RunId, body SuggestFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestFixesRequest(c.Server, runId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AcceptFixesWithBody Apply the section rewrites the author accepted, as one version.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+func (c *Client) AcceptFixesWithBody(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAcceptFixesRequestWithBody(c.Server, runId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AcceptFixes Apply the section rewrites the author accepted, as one version.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+func (c *Client) AcceptFixes(ctx context.Context, runId RunId, body AcceptFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAcceptFixesRequest(c.Server, runId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4344,6 +4532,40 @@ func NewUpdateBackendRequestWithBody(server string, backendId BackendId, content
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListBackendModelsRequest constructs an http.Request for the ListBackendModels method
+func NewListBackendModelsRequest(server string, backendId BackendId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "backendId", backendId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/backends/%s/models", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -6390,6 +6612,40 @@ func NewRenameFileRequestWithBody(server string, docId DocId, contentType string
 	return req, nil
 }
 
+// NewGetFixPromptRequest constructs an http.Request for the GetFixPrompt method
+func NewGetFixPromptRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/fix-prompt", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListHandoffsRequest constructs an http.Request for the ListHandoffs method
 func NewListHandoffsRequest(server string, docId DocId) (*http.Request, error) {
 	var err error
@@ -6681,6 +6937,40 @@ func NewPublishBundleRequestWithBody(server string, docId DocId, contentType str
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewFreshQuestionsRequest constructs an http.Request for the FreshQuestions method
+func NewFreshQuestionsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/questions/fresh", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -8851,8 +9141,19 @@ func NewListFindingsRequest(server string, runId RunId) (*http.Request, error) {
 	return req, nil
 }
 
-// NewSuggestFixRequest constructs an http.Request for the SuggestFix method
-func NewSuggestFixRequest(server string, runId RunId, findingId FindingId) (*http.Request, error) {
+// NewSuggestFixRequest calls the generic SuggestFix builder with application/json body
+func NewSuggestFixRequest(server string, runId RunId, findingId FindingId, body SuggestFixJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSuggestFixRequestWithBody(server, runId, findingId, "application/json", bodyReader)
+}
+
+// NewSuggestFixRequestWithBody constructs an http.Request for the SuggestFix method, with any body, and a specified content type
+func NewSuggestFixRequestWithBody(server string, runId RunId, findingId FindingId, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -8884,10 +9185,12 @@ func NewSuggestFixRequest(server string, runId RunId, findingId FindingId) (*htt
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -8927,6 +9230,100 @@ func NewAcceptFixRequestWithBody(server string, runId RunId, findingId FindingId
 	}
 
 	operationPath := fmt.Sprintf("/runs/%s/findings/%s/fix/accept", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewSuggestFixesRequest calls the generic SuggestFixes builder with application/json body
+func NewSuggestFixesRequest(server string, runId RunId, body SuggestFixesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSuggestFixesRequestWithBody(server, runId, "application/json", bodyReader)
+}
+
+// NewSuggestFixesRequestWithBody constructs an http.Request for the SuggestFixes method, with any body, and a specified content type
+func NewSuggestFixesRequestWithBody(server string, runId RunId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/runs/%s/fixes", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewAcceptFixesRequest calls the generic AcceptFixes builder with application/json body
+func NewAcceptFixesRequest(server string, runId RunId, body AcceptFixesJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAcceptFixesRequestWithBody(server, runId, "application/json", bodyReader)
+}
+
+// NewAcceptFixesRequestWithBody constructs an http.Request for the AcceptFixes method, with any body, and a specified content type
+func NewAcceptFixesRequestWithBody(server string, runId RunId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/runs/%s/fixes/accept", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -9619,6 +10016,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /admin/backends/{backendId} (the `UpdateBackend` operationId).
 	UpdateBackendWithResponse(ctx context.Context, backendId BackendId, body UpdateBackendJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBackendResponse, error)
 
+	// ListBackendModelsWithResponse The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/backends/{backendId}/models (the `ListBackendModels` operationId).
+	ListBackendModelsWithResponse(ctx context.Context, backendId BackendId, reqEditors ...RequestEditorFn) (*ListBackendModelsResponse, error)
+
 	// TestBackendWithBodyWithResponse Send one short call to a backend and model, to check the setup.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -10077,6 +10481,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /docs/{docId}/files/rename (the `RenameFile` operationId).
 	RenameFileWithResponse(ctx context.Context, docId DocId, body RenameFileJSONRequestBody, reqEditors ...RequestEditorFn) (*RenameFileResponse, error)
 
+	// GetFixPromptWithResponse The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/fix-prompt (the `GetFixPrompt` operationId).
+	GetFixPromptWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetFixPromptResponse, error)
+
 	// ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -10152,6 +10563,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 	PublishBundleWithResponse(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
+
+	// FreshQuestionsWithResponse Ask for a fresh set of build questions at the next full review.
+	//
+	// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+	FreshQuestionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*FreshQuestionsResponse, error)
 
 	// RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
 	//
@@ -10696,12 +11116,19 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /runs/{runId}/findings (the `ListFindings` operationId).
 	ListFindingsWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*ListFindingsResponse, error)
 
-	// SuggestFixWithResponse Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+	// SuggestFixWithBodyWithResponse Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
 	//
-	// Returns a wrapper object for the known response body format(s).
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
-	SuggestFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error)
+	SuggestFixWithBodyWithResponse(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error)
+
+	// SuggestFixWithResponse Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
+	SuggestFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, body SuggestFixJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error)
 
 	// AcceptFixWithBodyWithResponse Apply the finding's suggested patch to the current version as a new version (REQ-025). Speccy changes the doc only on this request.
 	//
@@ -10716,6 +11143,34 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /runs/{runId}/findings/{findingId}/fix/accept (the `AcceptFix` operationId).
 	AcceptFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, body AcceptFixJSONRequestBody, reqEditors ...RequestEditorFn) (*AcceptFixResponse, error)
+
+	// SuggestFixesWithBodyWithResponse Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+	SuggestFixesWithBodyWithResponse(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestFixesResponse, error)
+
+	// SuggestFixesWithResponse Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+	SuggestFixesWithResponse(ctx context.Context, runId RunId, body SuggestFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestFixesResponse, error)
+
+	// AcceptFixesWithBodyWithResponse Apply the section rewrites the author accepted, as one version.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+	AcceptFixesWithBodyWithResponse(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AcceptFixesResponse, error)
+
+	// AcceptFixesWithResponse Apply the section rewrites the author accepted, as one version.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+	AcceptFixesWithResponse(ctx context.Context, runId RunId, body AcceptFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*AcceptFixesResponse, error)
 
 	// ListQuestionsWithResponse List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
 	//
@@ -11051,6 +11506,54 @@ func (r UpdateBackendResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateBackendResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListBackendModelsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BackendModelList
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListBackendModelsResponse) GetJSON200() *BackendModelList {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListBackendModelsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListBackendModelsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListBackendModelsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListBackendModelsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListBackendModelsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -13382,6 +13885,54 @@ func (r RenameFileResponse) ContentType() string {
 	return ""
 }
 
+type GetFixPromptResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FixPrompt
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetFixPromptResponse) GetJSON200() *FixPrompt {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetFixPromptResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetFixPromptResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFixPromptResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFixPromptResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetFixPromptResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListHandoffsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13663,6 +14214,47 @@ func (r PublishBundleResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PublishBundleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type FreshQuestionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r FreshQuestionsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r FreshQuestionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r FreshQuestionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r FreshQuestionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r FreshQuestionsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -16359,6 +16951,102 @@ func (r AcceptFixResponse) ContentType() string {
 	return ""
 }
 
+type SuggestFixesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SectionFixes
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SuggestFixesResponse) GetJSON200() *SectionFixes {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SuggestFixesResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SuggestFixesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SuggestFixesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SuggestFixesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SuggestFixesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AcceptFixesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AcceptedFixes
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AcceptFixesResponse) GetJSON200() *AcceptedFixes {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AcceptFixesResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AcceptFixesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AcceptFixesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AcceptFixesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AcceptFixesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListQuestionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -17160,6 +17848,19 @@ func (c *ClientWithResponses) UpdateBackendWithResponse(ctx context.Context, bac
 		return nil, err
 	}
 	return ParseUpdateBackendResponse(rsp)
+}
+
+// ListBackendModelsWithResponse The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/backends/{backendId}/models (the `ListBackendModels` operationId).
+func (c *ClientWithResponses) ListBackendModelsWithResponse(ctx context.Context, backendId BackendId, reqEditors ...RequestEditorFn) (*ListBackendModelsResponse, error) {
+	rsp, err := c.ListBackendModels(ctx, backendId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListBackendModelsResponse(rsp)
 }
 
 // TestBackendWithBodyWithResponse Send one short call to a backend and model, to check the setup.
@@ -18004,6 +18705,19 @@ func (c *ClientWithResponses) RenameFileWithResponse(ctx context.Context, docId 
 	return ParseRenameFileResponse(rsp)
 }
 
+// GetFixPromptWithResponse The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/fix-prompt (the `GetFixPrompt` operationId).
+func (c *ClientWithResponses) GetFixPromptWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetFixPromptResponse, error) {
+	rsp, err := c.GetFixPrompt(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFixPromptResponse(rsp)
+}
+
 // ListHandoffsWithResponse The handoffs of a bundle, newest first (REQ-136).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -18138,6 +18852,21 @@ func (c *ClientWithResponses) PublishBundleWithResponse(ctx context.Context, doc
 		return nil, err
 	}
 	return ParsePublishBundleResponse(rsp)
+}
+
+// FreshQuestionsWithResponse Ask for a fresh set of build questions at the next full review.
+//
+// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/questions/fresh (the `FreshQuestions` operationId).
+func (c *ClientWithResponses) FreshQuestionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*FreshQuestionsResponse, error) {
+	rsp, err := c.FreshQuestions(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseFreshQuestionsResponse(rsp)
 }
 
 // RequestReviewWithBodyWithResponse Ask for a review and assign reviewers (REQ-090). A draft moves to in review.
@@ -19145,13 +19874,26 @@ func (c *ClientWithResponses) ListFindingsWithResponse(ctx context.Context, runI
 	return ParseListFindingsResponse(rsp)
 }
 
-// SuggestFixWithResponse Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+// SuggestFixWithBodyWithResponse Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
 //
-// Returns a wrapper object for the known response body format(s).
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
-func (c *ClientWithResponses) SuggestFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error) {
-	rsp, err := c.SuggestFix(ctx, runId, findingId, reqEditors...)
+func (c *ClientWithResponses) SuggestFixWithBodyWithResponse(ctx context.Context, runId RunId, findingId FindingId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error) {
+	rsp, err := c.SuggestFixWithBody(ctx, runId, findingId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestFixResponse(rsp)
+}
+
+// SuggestFixWithResponse Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/findings/{findingId}/fix (the `SuggestFix` operationId).
+func (c *ClientWithResponses) SuggestFixWithResponse(ctx context.Context, runId RunId, findingId FindingId, body SuggestFixJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestFixResponse, error) {
+	rsp, err := c.SuggestFix(ctx, runId, findingId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -19182,6 +19924,58 @@ func (c *ClientWithResponses) AcceptFixWithResponse(ctx context.Context, runId R
 		return nil, err
 	}
 	return ParseAcceptFixResponse(rsp)
+}
+
+// SuggestFixesWithBodyWithResponse Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+func (c *ClientWithResponses) SuggestFixesWithBodyWithResponse(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestFixesResponse, error) {
+	rsp, err := c.SuggestFixesWithBody(ctx, runId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestFixesResponse(rsp)
+}
+
+// SuggestFixesWithResponse Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/fixes (the `SuggestFixes` operationId).
+func (c *ClientWithResponses) SuggestFixesWithResponse(ctx context.Context, runId RunId, body SuggestFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestFixesResponse, error) {
+	rsp, err := c.SuggestFixes(ctx, runId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestFixesResponse(rsp)
+}
+
+// AcceptFixesWithBodyWithResponse Apply the section rewrites the author accepted, as one version.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+func (c *ClientWithResponses) AcceptFixesWithBodyWithResponse(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AcceptFixesResponse, error) {
+	rsp, err := c.AcceptFixesWithBody(ctx, runId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAcceptFixesResponse(rsp)
+}
+
+// AcceptFixesWithResponse Apply the section rewrites the author accepted, as one version.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/fixes/accept (the `AcceptFixes` operationId).
+func (c *ClientWithResponses) AcceptFixesWithResponse(ctx context.Context, runId RunId, body AcceptFixesJSONRequestBody, reqEditors ...RequestEditorFn) (*AcceptFixesResponse, error) {
+	rsp, err := c.AcceptFixes(ctx, runId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAcceptFixesResponse(rsp)
 }
 
 // ListQuestionsWithResponse List a run's build questions, reader answers, and results (REQ-040 to REQ-046).
@@ -19581,6 +20375,39 @@ func ParseUpdateBackendResponse(rsp *http.Response) (*UpdateBackendResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Backend
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListBackendModelsResponse parses an HTTP response from a ListBackendModelsWithResponse call
+func ParseListBackendModelsResponse(rsp *http.Response) (*ListBackendModelsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListBackendModelsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BackendModelList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -21191,6 +22018,39 @@ func ParseRenameFileResponse(rsp *http.Response) (*RenameFileResponse, error) {
 	return response, nil
 }
 
+// ParseGetFixPromptResponse parses an HTTP response from a GetFixPromptWithResponse call
+func ParseGetFixPromptResponse(rsp *http.Response) (*GetFixPromptResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFixPromptResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FixPrompt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListHandoffsResponse parses an HTTP response from a ListHandoffsWithResponse call
 func ParseListHandoffsResponse(rsp *http.Response) (*ListHandoffsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -21372,6 +22232,35 @@ func ParsePublishBundleResponse(rsp *http.Response) (*PublishBundleResponse, err
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseFreshQuestionsResponse parses an HTTP response from a FreshQuestionsWithResponse call
+func ParseFreshQuestionsResponse(rsp *http.Response) (*FreshQuestionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &FreshQuestionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
@@ -23208,6 +24097,72 @@ func ParseAcceptFixResponse(rsp *http.Response) (*AcceptFixResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest AcceptedFix
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSuggestFixesResponse parses an HTTP response from a SuggestFixesWithResponse call
+func ParseSuggestFixesResponse(rsp *http.Response) (*SuggestFixesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SuggestFixesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SectionFixes
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAcceptFixesResponse parses an HTTP response from a AcceptFixesWithResponse call
+func ParseAcceptFixesResponse(rsp *http.Response) (*AcceptFixesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AcceptFixesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AcceptedFixes
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

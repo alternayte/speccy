@@ -95,6 +95,8 @@ type State struct {
 	DecisionReason string `json:"decision_reason"`
 	// WithdrawnBy is who took an approved Acknowledgement out of the sidecar.
 	WithdrawnBy string `json:"withdrawn_by,omitempty"`
+	// EndedBecause is why an ended waiver ended: one of the Ended values.
+	EndedBecause string `json:"ended_because,omitempty"`
 }
 
 // Approver is who acts on a waiver, and their relation to the bundle and its profile.
@@ -213,21 +215,28 @@ func DecideReject(s State, a Approver, reason string) ([]es.Event, error) {
 	return []es.Event{es.NewEvent(Rejected, byV1{V: 1, By: a.UserID, Reason: strings.TrimSpace(reason)})}, nil
 }
 
-// DecideInvalidate ends an approved waiver when its section hash changed (REQ-074).
-func DecideInvalidate(s State, currentHash string) ([]es.Event, error) {
-	if s.Status != StatusApproved || s.SectionHash == currentHash {
+// Why a waiver ended (REQ-074).
+const (
+	EndedSectionChanged = "section_changed" // an edit changed the section it covers
+	EndedCheckPassed    = "check_passed"    // a full review passed the whole-doc check
+	EndedCheckChanged   = "check_changed"   // the profile changed what the check asks
+)
+
+// DecideInvalidate ends an approved waiver that no longer holds (REQ-074), and records why.
+func DecideInvalidate(s State, holds bool, why string) ([]es.Event, error) {
+	if s.Status != StatusApproved || holds {
 		return nil, nil
 	}
-	return []es.Event{es.NewEvent(Invalidated, byV1{V: 1, By: "system", Hash: currentHash})}, nil
+	return []es.Event{es.NewEvent(Invalidated, byV1{V: 1, By: "system", Reason: why})}, nil
 }
 
-// DecideRestore brings back an ended waiver when its section hash is again the one it was
-// approved for, and the sidecar still holds its entry.
-func DecideRestore(s State, currentHash string, inSidecar bool) ([]es.Event, error) {
-	if s.Status != StatusInvalidated || s.SectionHash != currentHash || !inSidecar {
+// DecideRestore brings back an ended waiver that holds again, while the sidecar still has its
+// entry.
+func DecideRestore(s State, holds, inSidecar bool) ([]es.Event, error) {
+	if s.Status != StatusInvalidated || !holds || !inSidecar {
 		return nil, nil
 	}
-	return []es.Event{es.NewEvent(Restored, byV1{V: 1, By: "system", Hash: currentHash})}, nil
+	return []es.Event{es.NewEvent(Restored, byV1{V: 1, By: "system"})}, nil
 }
 
 // DecideWithdraw withdraws an approved Acknowledgement. It needs no approval: a withdrawal
@@ -269,9 +278,14 @@ func Evolve(s State, e es.Event) State {
 		_ = json.Unmarshal(e.Payload, &p)
 		s.Status, s.DecidedBy, s.DecisionReason = StatusRejected, p.By, p.Reason
 	case Invalidated:
-		s.Status = StatusInvalidated
+		var p byV1
+		_ = json.Unmarshal(e.Payload, &p)
+		s.Status, s.EndedBecause = StatusInvalidated, p.Reason
+		if s.EndedBecause == "" {
+			s.EndedBecause = EndedSectionChanged // an event from before the reason was recorded
+		}
 	case Restored:
-		s.Status = StatusApproved
+		s.Status, s.EndedBecause = StatusApproved, ""
 	case Withdrawn:
 		var p byV1
 		_ = json.Unmarshal(e.Payload, &p)

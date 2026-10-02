@@ -116,10 +116,19 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		if err := reviews.EnsureLinted(ctx); err != nil {
 			return err
 		}
-		if err := invalidateWaivers(ctx, db, events, ws, svc); err != nil {
+		if err := invalidateWaivers(ctx, db, events, ws, svc, profiles.Current); err != nil {
 			return err
 		}
 		return approval.OnNewVersions(ctx, db, events, ws)
+	}
+	// A full review that passes a whole-doc check ends the waiver of that check, and one that
+	// fails it again brings the waiver back.
+	reviews.AfterReview = func(ctx context.Context, b pgdb.SpecDoc) error {
+		cur, err := db.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: ws, ID: b.ID})
+		if err != nil {
+			return err
+		}
+		return waiver.Invalidate(ctx, db, events, cur, svc.Decisions, profiles.Current)
 	}
 	if err := svc.Sync(ctx); err != nil {
 		return nil, err
@@ -174,7 +183,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 
 // invalidateWaivers ends the approved waivers of every bundle whose section changed (REQ-074),
 // and brings back an ended one whose section returned to its approved text.
-func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws uuid.UUID, svc *bundle.Service) error {
+func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws uuid.UUID, svc *bundle.Service, profiles func() map[string]profile.Versioned) error {
 	rows, err := db.Queries().ListWorkspaceWaivers(ctx, ws)
 	if err != nil {
 		return err
@@ -189,7 +198,7 @@ func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws u
 		if err != nil {
 			return err
 		}
-		if err := waiver.Invalidate(ctx, db, events, b, svc.Decisions); err != nil {
+		if err := waiver.Invalidate(ctx, db, events, b, svc.Decisions, profiles); err != nil {
 			return err
 		}
 	}

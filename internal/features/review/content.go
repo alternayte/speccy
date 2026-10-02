@@ -136,7 +136,8 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		id := kernel.NewID()
 		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i]})
 		af := api.Finding{Id: id, CheckSlug: f.slug, Level: api.FindingLevel(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
-			Message: f.message, Waived: waived[i], Anchor: anchorAPI(f.anchor)}
+			Message: f.message, Waived: waived[i], Anchor: anchorAPI(f.anchor), FixKind: f.kind()}
+		af.Line, af.EndLine = lines(mainContent(c, f.anchor.File), f.anchor)
 		if f.fix != "" {
 			fix := f.fix
 			af.Fix = &fix
@@ -157,7 +158,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	out.TokensIn, out.TokensOut, out.CostUSD, out.CacheHits = rc.tokensIn, rc.tokensOut, rc.cost, rc.cacheHits
 	rc.mu.Unlock()
 	if stages != nil {
-		out.Notes = append(out.Notes, "Stages in this review: "+strings.Join(append([]string{StageLint}, stages...), ", ")+". The verdict counts only these stages.")
+		out.Notes = append(out.Notes, "Stages in this review: "+strings.Join(append([]string{StageLint}, stages...), ", ")+". The verdict counts only these stages, because this content has no earlier review.")
 	}
 	return out, nil
 }

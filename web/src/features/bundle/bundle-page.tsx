@@ -475,7 +475,8 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
                   // One rail per doc: the list of the doc before never stands in for this one (#74).
                   key={docId}
                   runId={b.verdict?.run_id}
-                  orderKey={b.verdict?.ai_run_id}
+                  trend={b.verdict?.trend}
+                  aiVersion={b.verdict?.ai_version_number}
                   selected={selectedFinding}
                   canEdit={canEdit && !guest}
                   docId={docId}
@@ -519,7 +520,12 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
                     Build questions
                     {b.verdict?.ai_version_number ? ` · from v${b.verdict.ai_version_number}` : ""}
                   </h3>
-                  <QuestionsPanel runId={b.verdict?.ai_run_id} onOpen={openAnchor} />
+                  <QuestionsPanel
+                    runId={b.verdict?.ai_run_id}
+                    docId={docId}
+                    canEdit={canEdit && !guest}
+                    onOpen={openAnchor}
+                  />
                 </>
               ) : (
                 <>

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -184,7 +185,7 @@ func (a *API) ListQuestions(ctx context.Context, req api.ListQuestionsRequestObj
 	if err != nil {
 		return nil, err
 	}
-	questions, err := q.ListQuestions(ctx, run.VersionID)
+	questions, err := q.ListRunQuestions(ctx, run.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +222,24 @@ func (a *API) ListQuestions(ctx context.Context, req api.ListQuestionsRequestObj
 		out.Items = append(out.Items, item)
 	}
 	return out, nil
+}
+
+// FreshQuestions retires the build questions of a doc, so the next full review writes a new
+// set. A doc keeps its questions across versions, and this is the only way the whole set
+// changes. It calls no model.
+func (a *API) FreshQuestions(ctx context.Context, req api.FreshQuestionsRequestObject) (api.FreshQuestionsResponseObject, error) {
+	q := a.DB.Queries()
+	b, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: req.DocId})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, kernel.NotFound("bundle_not_found", "No bundle has the ID %s.", req.DocId)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := q.RetireQuestions(ctx, pgdb.RetireQuestionsParams{SpecDocID: b.ID, RetiredAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}}); err != nil {
+		return nil, err
+	}
+	return api.FreshQuestions204Response{}, nil
 }
 
 // readerNumber is 1 for reader_1, and so on.

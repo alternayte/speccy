@@ -490,6 +490,26 @@ func (q *Queries) InsertRunLink(ctx context.Context, arg InsertRunLinkParams) er
 	return err
 }
 
+const latestQuestionResult = `-- name: LatestQuestionResult :one
+SELECT r.run_id, r.question_id, r.result, r.groups FROM question_result r JOIN review_run run ON run.id = r.run_id
+WHERE r.question_id = $1 AND run.status = 'complete'
+ORDER BY run.started_at DESC, run.id DESC
+LIMIT 1
+`
+
+// The result of a question in the last finished run that asked it.
+func (q *Queries) LatestQuestionResult(ctx context.Context, questionID uuid.UUID) (QuestionResult, error) {
+	row := q.db.QueryRowContext(ctx, latestQuestionResult, questionID)
+	var i QuestionResult
+	err := row.Scan(
+		&i.RunID,
+		&i.QuestionID,
+		&i.Result,
+		&i.Groups,
+	)
+	return i, err
+}
+
 const listAnswers = `-- name: ListAnswers :many
 SELECT question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found FROM answer WHERE run_id = $1 ORDER BY question_id, reader_role
 `
@@ -547,6 +567,46 @@ func (q *Queries) ListClaims(ctx context.Context, runID uuid.UUID) ([]Claim, err
 			&i.Sources,
 			&i.Anchor,
 			&i.Class,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocQuestions = `-- name: ListDocQuestions :many
+SELECT id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash, retired_at FROM question WHERE spec_doc_id = $1 ORDER BY number
+`
+
+// Every question the doc ever had, the retired ones too. A new question takes the next number.
+func (q *Queries) ListDocQuestions(ctx context.Context, specDocID uuid.UUID) ([]Question, error) {
+	rows, err := q.db.QueryContext(ctx, listDocQuestions, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Question
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpecDocID,
+			&i.VersionID,
+			&i.Number,
+			&i.Text,
+			&i.Level,
+			&i.Cites,
+			&i.Anchor,
+			&i.InputHash,
+			&i.RetiredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -669,6 +729,46 @@ func (q *Queries) ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID
 	return items, nil
 }
 
+const listLiveQuestions = `-- name: ListLiveQuestions :many
+SELECT id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash, retired_at FROM question WHERE spec_doc_id = $1 AND retired_at IS NULL ORDER BY number
+`
+
+// The build questions a doc keeps: every question that is not retired.
+func (q *Queries) ListLiveQuestions(ctx context.Context, specDocID uuid.UUID) ([]Question, error) {
+	rows, err := q.db.QueryContext(ctx, listLiveQuestions, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Question
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpecDocID,
+			&i.VersionID,
+			&i.Number,
+			&i.Text,
+			&i.Level,
+			&i.Cites,
+			&i.Anchor,
+			&i.InputHash,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMCPConnections = `-- name: ListMCPConnections :many
 SELECT id, workspace_id, name, transport, command_or_url, secret_encrypted, secret_last4, tool_allowlist, is_search, search_tool, created_at, hosts, fetch_tool FROM mcp_connection WHERE workspace_id = $1 ORDER BY name
 `
@@ -696,6 +796,46 @@ func (q *Queries) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID)
 			&i.CreatedAt,
 			&i.Hosts,
 			&i.FetchTool,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuestionAnswers = `-- name: ListQuestionAnswers :many
+SELECT question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found FROM answer WHERE run_id = $1 AND question_id = $2 ORDER BY reader_role
+`
+
+type ListQuestionAnswersParams struct {
+	RunID      uuid.UUID
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) ListQuestionAnswers(ctx context.Context, arg ListQuestionAnswersParams) ([]Answer, error) {
+	rows, err := q.db.QueryContext(ctx, listQuestionAnswers, arg.RunID, arg.QuestionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Answer
+	for rows.Next() {
+		var i Answer
+		if err := rows.Scan(
+			&i.QuestionID,
+			&i.RunID,
+			&i.ReaderRole,
+			&i.ModelFingerprint,
+			&i.Answer,
+			&i.Quotes,
+			&i.QuotesFound,
 		); err != nil {
 			return nil, err
 		}
@@ -742,92 +882,6 @@ func (q *Queries) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]Q
 	return items, nil
 }
 
-const listQuestions = `-- name: ListQuestions :many
-SELECT id, workspace_id, spec_doc_id, version_id, number, text, level, cites, anchor, input_hash FROM question WHERE version_id = $1 ORDER BY number
-`
-
-func (q *Queries) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]Question, error) {
-	rows, err := q.db.QueryContext(ctx, listQuestions, versionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Question
-	for rows.Next() {
-		var i Question
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.SpecDocID,
-			&i.VersionID,
-			&i.Number,
-			&i.Text,
-			&i.Level,
-			&i.Cites,
-			&i.Anchor,
-			&i.InputHash,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listQuestionsByInput = `-- name: ListQuestionsByInput :many
-SELECT q.id, q.workspace_id, q.spec_doc_id, q.version_id, q.number, q.text, q.level, q.cites, q.anchor, q.input_hash FROM question q
-WHERE q.spec_doc_id = $1 AND q.input_hash = $2 AND q.input_hash <> ''
-  AND q.version_id = (SELECT q2.version_id FROM question q2 WHERE q2.spec_doc_id = $1
-                      AND q2.input_hash = $2 LIMIT 1)
-ORDER BY q.number
-`
-
-type ListQuestionsByInputParams struct {
-	SpecDocID uuid.UUID
-	InputHash string
-}
-
-// REQ-047: the questions of an earlier version of the bundle with the same content.
-func (q *Queries) ListQuestionsByInput(ctx context.Context, arg ListQuestionsByInputParams) ([]Question, error) {
-	rows, err := q.db.QueryContext(ctx, listQuestionsByInput, arg.SpecDocID, arg.InputHash)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Question
-	for rows.Next() {
-		var i Question
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.SpecDocID,
-			&i.VersionID,
-			&i.Number,
-			&i.Text,
-			&i.Level,
-			&i.Cites,
-			&i.Anchor,
-			&i.InputHash,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRunLinks = `-- name: ListRunLinks :many
 SELECT run_id, spec_doc_id, version_id FROM run_link WHERE run_id = $1 ORDER BY spec_doc_id
 `
@@ -855,6 +909,47 @@ func (q *Queries) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]RunLink,
 	return items, nil
 }
 
+const listRunQuestions = `-- name: ListRunQuestions :many
+SELECT q.id, q.workspace_id, q.spec_doc_id, q.version_id, q.number, q.text, q.level, q.cites, q.anchor, q.input_hash, q.retired_at FROM question q JOIN question_result r ON r.question_id = q.id
+WHERE r.run_id = $1 ORDER BY q.number
+`
+
+// The questions a run answered, which may be retired since.
+func (q *Queries) ListRunQuestions(ctx context.Context, runID uuid.UUID) ([]Question, error) {
+	rows, err := q.db.QueryContext(ctx, listRunQuestions, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Question
+	for rows.Next() {
+		var i Question
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SpecDocID,
+			&i.VersionID,
+			&i.Number,
+			&i.Text,
+			&i.Level,
+			&i.Cites,
+			&i.Anchor,
+			&i.InputHash,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const putCache = `-- name: PutCache :exec
 INSERT INTO cache_entry (key_hash, result, created_at) VALUES ($1, $2, $3)
 ON CONFLICT (key_hash) DO NOTHING
@@ -868,6 +963,34 @@ type PutCacheParams struct {
 
 func (q *Queries) PutCache(ctx context.Context, arg PutCacheParams) error {
 	_, err := q.db.ExecContext(ctx, putCache, arg.KeyHash, arg.Result, arg.CreatedAt)
+	return err
+}
+
+const retireQuestion = `-- name: RetireQuestion :exec
+UPDATE question SET retired_at = $1 WHERE id = $2
+`
+
+type RetireQuestionParams struct {
+	RetiredAt sql.NullTime
+	ID        uuid.UUID
+}
+
+func (q *Queries) RetireQuestion(ctx context.Context, arg RetireQuestionParams) error {
+	_, err := q.db.ExecContext(ctx, retireQuestion, arg.RetiredAt, arg.ID)
+	return err
+}
+
+const retireQuestions = `-- name: RetireQuestions :exec
+UPDATE question SET retired_at = $1 WHERE spec_doc_id = $2 AND retired_at IS NULL
+`
+
+type RetireQuestionsParams struct {
+	RetiredAt sql.NullTime
+	SpecDocID uuid.UUID
+}
+
+func (q *Queries) RetireQuestions(ctx context.Context, arg RetireQuestionsParams) error {
+	_, err := q.db.ExecContext(ctx, retireQuestions, arg.RetiredAt, arg.SpecDocID)
 	return err
 }
 
@@ -961,6 +1084,27 @@ func (q *Queries) UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnecti
 		arg.Hosts,
 		arg.FetchTool,
 		arg.WorkspaceID,
+		arg.ID,
+	)
+	return err
+}
+
+const updateQuestionCites = `-- name: UpdateQuestionCites :exec
+UPDATE question SET cites = $1, level = $2, anchor = $3 WHERE id = $4
+`
+
+type UpdateQuestionCitesParams struct {
+	Cites  dbtype.JSON
+	Level  string
+	Anchor dbtype.JSON
+	ID     uuid.UUID
+}
+
+func (q *Queries) UpdateQuestionCites(ctx context.Context, arg UpdateQuestionCitesParams) error {
+	_, err := q.db.ExecContext(ctx, updateQuestionCites,
+		arg.Cites,
+		arg.Level,
+		arg.Anchor,
 		arg.ID,
 	)
 	return err

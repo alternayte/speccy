@@ -75,10 +75,17 @@ UPDATE finding SET suggestion = sqlc.arg(suggestion) WHERE id = sqlc.arg(id);
 
 -- name: InsertVerdict :exec
 INSERT INTO verdict (run_id, result, score, radar, waiver_count, relaxed_count, blocking_finding_ids,
-                     items, carried_run_id, carried_findings, sections_changed)
+                     items, carried_run_id, carried_findings, sections_changed, trend)
 VALUES (sqlc.arg(run_id), sqlc.arg(result), sqlc.arg(score), sqlc.arg(radar), sqlc.arg(waiver_count),
         sqlc.arg(relaxed_count), sqlc.arg(blocking_finding_ids), sqlc.arg(items), sqlc.narg(carried_run_id),
-        sqlc.arg(carried_findings), sqlc.arg(sections_changed));
+        sqlc.arg(carried_findings), sqlc.arg(sections_changed), sqlc.arg(trend));
+
+-- name: PreviousFullReview :one
+-- The last finished full review of a spec doc that started before another one.
+SELECT * FROM review_run
+WHERE spec_doc_id = sqlc.arg(spec_doc_id) AND status = 'complete' AND kind = 'full' AND started_at < sqlc.arg(before)
+ORDER BY started_at DESC, id DESC
+LIMIT 1;
 
 -- name: GetVerdict :one
 SELECT * FROM verdict WHERE run_id = sqlc.arg(run_id);

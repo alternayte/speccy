@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
@@ -43,11 +44,11 @@ type Bundle struct {
 	Findings []api.Finding
 	Files    map[string][]byte
 	// Prefixes are the profile's trace ID prefixes, for suggested IDs (REQ-136). CoverPrefixes
-	// are the upstream prefixes an acknowledgement may name, and DocScope says which checks a
-	// waiver covers for the whole doc.
+	// are the upstream prefixes an acknowledgement may name, and Checks says where a waiver of
+	// each check binds: a section, or the whole doc.
 	Prefixes      []string
 	CoverPrefixes []string
-	DocScope      map[string]bool
+	Checks        profile.Profile
 	// Report is a link to the full report, or "".
 	Report string
 }

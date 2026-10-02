@@ -70,12 +70,12 @@ func TestWaiver_ReasonAndInvalidation(t *testing.T) {
 	}
 	s := requested(profile.Policy{Name: "any_member"})
 	s = apply(s, must(DecideApprove(s, Approver{UserID: "m"})))
-	if ev, _ := DecideInvalidate(s, "sha256:a"); len(ev) != 0 {
+	if ev, _ := DecideInvalidate(s, true, EndedSectionChanged); len(ev) != 0 {
 		t.Error("an unchanged section invalidated the waiver")
 	}
-	s = apply(s, must(DecideInvalidate(s, "sha256:b")))
-	if s.Status != StatusInvalidated {
-		t.Errorf("status %s after a section change, want invalidated", s.Status)
+	s = apply(s, must(DecideInvalidate(s, false, EndedSectionChanged)))
+	if s.Status != StatusInvalidated || s.EndedBecause != EndedSectionChanged {
+		t.Errorf("status %s because %q after a section change, want invalidated because the section changed", s.Status, s.EndedBecause)
 	}
 }
 

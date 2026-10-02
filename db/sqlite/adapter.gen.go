@@ -593,6 +593,11 @@ func (a Adapter) LatestFullReview(ctx context.Context, specDocID uuid.UUID) (pgd
 	return pgdb.ReviewRun(r), err
 }
 
+func (a Adapter) LatestQuestionResult(ctx context.Context, questionID uuid.UUID) (pgdb.QuestionResult, error) {
+	r, err := a.q.LatestQuestionResult(ctx, questionID)
+	return pgdb.QuestionResult(r), err
+}
+
 func (a Adapter) LatestRun(ctx context.Context, specDocID uuid.UUID) (pgdb.ReviewRun, error) {
 	r, err := a.q.LatestRun(ctx, specDocID)
 	return pgdb.ReviewRun(r), err
@@ -747,6 +752,18 @@ func (a Adapter) ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) (
 	return out, nil
 }
 
+func (a Adapter) ListDocQuestions(ctx context.Context, specDocID uuid.UUID) ([]pgdb.Question, error) {
+	rows, err := a.q.ListDocQuestions(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Question, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Question(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListEvents(ctx context.Context, streamID uuid.UUID) ([]pgdb.EsEvent, error) {
 	rows, err := a.q.ListEvents(ctx, streamID)
 	if err != nil {
@@ -859,6 +876,18 @@ func (a Adapter) ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID)
 	return out, nil
 }
 
+func (a Adapter) ListLiveQuestions(ctx context.Context, specDocID uuid.UUID) ([]pgdb.Question, error) {
+	rows, err := a.q.ListLiveQuestions(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Question, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Question(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.McpConnection, error) {
 	rows, err := a.q.ListMCPConnections(ctx, workspaceID)
 	if err != nil {
@@ -923,6 +952,18 @@ func (a Adapter) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]pgd
 	return out, nil
 }
 
+func (a Adapter) ListQuestionAnswers(ctx context.Context, arg pgdb.ListQuestionAnswersParams) ([]pgdb.Answer, error) {
+	rows, err := a.q.ListQuestionAnswers(ctx, ListQuestionAnswersParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Answer, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Answer(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]pgdb.QuestionResult, error) {
 	rows, err := a.q.ListQuestionResults(ctx, runID)
 	if err != nil {
@@ -931,30 +972,6 @@ func (a Adapter) ListQuestionResults(ctx context.Context, runID uuid.UUID) ([]pg
 	out := make([]pgdb.QuestionResult, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.QuestionResult(r)
-	}
-	return out, nil
-}
-
-func (a Adapter) ListQuestions(ctx context.Context, versionID uuid.UUID) ([]pgdb.Question, error) {
-	rows, err := a.q.ListQuestions(ctx, versionID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.Question, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.Question(r)
-	}
-	return out, nil
-}
-
-func (a Adapter) ListQuestionsByInput(ctx context.Context, arg pgdb.ListQuestionsByInputParams) ([]pgdb.Question, error) {
-	rows, err := a.q.ListQuestionsByInput(ctx, ListQuestionsByInputParams(arg))
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.Question, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.Question(r)
 	}
 	return out, nil
 }
@@ -971,6 +988,18 @@ func (a Adapter) ListRunLinks(ctx context.Context, runID uuid.UUID) ([]pgdb.RunL
 	out := make([]pgdb.RunLink, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.RunLink(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListRunQuestions(ctx context.Context, runID uuid.UUID) ([]pgdb.Question, error) {
+	rows, err := a.q.ListRunQuestions(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Question, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Question(r)
 	}
 	return out, nil
 }
@@ -1233,8 +1262,21 @@ func (a Adapter) PeekResetLink(ctx context.Context, arg pgdb.PeekResetLinkParams
 	return pgdb.ResetLink(r), err
 }
 
+func (a Adapter) PreviousFullReview(ctx context.Context, arg pgdb.PreviousFullReviewParams) (pgdb.ReviewRun, error) {
+	r, err := a.q.PreviousFullReview(ctx, PreviousFullReviewParams(arg))
+	return pgdb.ReviewRun(r), err
+}
+
 func (a Adapter) PutCache(ctx context.Context, arg pgdb.PutCacheParams) error {
 	return a.q.PutCache(ctx, PutCacheParams(arg))
+}
+
+func (a Adapter) RetireQuestion(ctx context.Context, arg pgdb.RetireQuestionParams) error {
+	return a.q.RetireQuestion(ctx, RetireQuestionParams(arg))
+}
+
+func (a Adapter) RetireQuestions(ctx context.Context, arg pgdb.RetireQuestionsParams) error {
+	return a.q.RetireQuestions(ctx, RetireQuestionsParams(arg))
 }
 
 func (a Adapter) RevokeInvite(ctx context.Context, arg pgdb.RevokeInviteParams) (int64, error) {
@@ -1354,6 +1396,10 @@ func (a Adapter) UpdateBundle(ctx context.Context, arg pgdb.UpdateBundleParams) 
 
 func (a Adapter) UpdateMCPConnection(ctx context.Context, arg pgdb.UpdateMCPConnectionParams) error {
 	return a.q.UpdateMCPConnection(ctx, UpdateMCPConnectionParams(arg))
+}
+
+func (a Adapter) UpdateQuestionCites(ctx context.Context, arg pgdb.UpdateQuestionCitesParams) error {
+	return a.q.UpdateQuestionCites(ctx, UpdateQuestionCitesParams(arg))
 }
 
 func (a Adapter) UpdateRunProgress(ctx context.Context, arg pgdb.UpdateRunProgressParams) error {

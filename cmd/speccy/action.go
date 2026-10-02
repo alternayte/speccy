@@ -208,10 +208,7 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		}
 		if p, ok := profiles[r.Profile]; ok {
 			ab.Prefixes, ab.CoverPrefixes = p.Profile.Trace.Prefixes, p.Profile.Trace.Cover
-			ab.DocScope = map[string]bool{}
-			for _, c := range p.Profile.Checks {
-				ab.DocScope[c.Slug] = p.Profile.DocScope(c.Slug)
-			}
+			ab.Checks = p.Profile
 		}
 		if _, ok := reports[r.Path]; ok && runURL != "" {
 			ab.Report = runURL // the reports are artifacts of the run

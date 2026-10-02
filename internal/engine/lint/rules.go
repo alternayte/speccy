@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -163,12 +164,36 @@ func brokenLinks(d *doc, cfg Config, emit emitter) {
 		if strings.HasPrefix(target, "../") || target == ".." {
 			emit(BrokenLink, s, e, fmt.Sprintf("The link to %s points outside the bundle.", p),
 				"Move the file into the bundle and link to it there, or use a full URL.")
+		} else if c := sameName(cfg.Files, target); c != "" {
+			rel, err := filepath.Rel(filepath.FromSlash(base), filepath.FromSlash(c))
+			if err != nil {
+				rel = c
+			}
+			d.candidates[s] = filepath.ToSlash(rel)
+			emit(BrokenLink, s, e, fmt.Sprintf("The link points to %s, which is not in the bundle. The bundle has %s.", target, c),
+				fmt.Sprintf("Change the path to %s.", filepath.ToSlash(rel)))
 		} else {
 			emit(BrokenLink, s, e, fmt.Sprintf("The link points to %s, which is not in the bundle.", target),
 				"Fix the path, or add the file to the bundle.")
 		}
 		return ast.WalkSkipChildren, nil
 	})
+}
+
+// sameName returns the one file of files with the base name of target, or "" when none or
+// more than one has it.
+func sameName(files []string, target string) string {
+	found := ""
+	for _, f := range files {
+		if path.Base(f) != path.Base(target) {
+			continue
+		}
+		if found != "" {
+			return ""
+		}
+		found = f
+	}
+	return found
 }
 
 // nodeSpan returns the body range of an inline node's text, or of its block's first line.

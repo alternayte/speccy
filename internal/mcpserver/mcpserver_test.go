@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -67,4 +69,41 @@ func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.Header.Set("Authorization", "Bearer "+b.token)
 	return http.DefaultTransport.RoundTrip(r)
+}
+
+// save_file writes only to a bundle that Speccy stores. For a local bundle it says where the
+// file is, and sends no write to the API.
+func TestSaveFile_LocalBundleWritesNothing(t *testing.T) {
+	const id = "0190a0a0-0000-7000-8000-000000000001"
+	var writes int
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writes++
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + id + `","bundle_id":"` + id + `","slug":"pay","title":"Pay","profile_key":"sdd","source_kind":"local","path":"SPEC.md","local_dir":"/srv/specs/pay"}`))
+	}))
+	defer apiServer.Close()
+	server := New(func(context.Context, http.Header) (*api.ClientWithResponses, error) {
+		return api.NewClientWithResponses(apiServer.URL)
+	})
+	ctx := context.Background()
+	ct, st := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	s, err := mcp.NewClient(&mcp.Implementation{Name: "test"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = s.Close() }()
+	out, err := s.CallTool(ctx, &mcp.CallToolParams{Name: "save_file", Arguments: map[string]any{
+		"bundle": id, "path": "SPEC.md", "content": "# Pay\n", "base_version": id}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.Content[0].(*mcp.TextContent).Text
+	if !out.IsError || !strings.Contains(text, filepath.Join("/srv/specs/pay", "SPEC.md")) || writes != 0 {
+		t.Errorf("save_file on a local bundle: error %v, %d writes, text %q; want the path of the file and no write", out.IsError, writes, text)
+	}
 }

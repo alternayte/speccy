@@ -1,0 +1,126 @@
+---
+title: Fix the findings of a review
+description: Read the rail by what blocks Build Ready, fix a whole reword check at once, answer the findings that need a fact, and give the fix list to a coding agent.
+sidebar: { order: 3 }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide shows you how to fix the findings of a review in few steps, in the app and with a coding agent.
+
+## Before you start
+
+- The spec doc has a review. A save runs lint, and **Run review** adds the AI stages.
+- You can edit the bundle. In hosted mode, an author of the bundle or an admin can edit it.
+- The `writer` role has a model. [Add a model backend](/how-to/add-a-model-backend/) shows how to assign one.
+
+## Read the rail
+
+Open the **Findings** tab of the rail.
+
+- Each MUST finding shows as a card, in the order of the doc. A MUST finding makes the verdict Not Build Ready.
+- The SHOULD and INFO findings show as one row for each check, with a count. Click a row to open its cards.
+
+A doc with 10 MUST findings and 150 SHOULD findings shows 10 cards and a few rows. Fix the cards first.
+
+## Know the fix kind
+
+Each finding has a fix kind. The [Check catalog](/reference/checks/) names the fix kind of each check.
+
+| Fix kind | What the fix needs | Checks |
+|---|---|---|
+| Reword finding | A change to the words, and no fact. | `lint.passive-voice`, `lint.sentence-length`, `lint.slop-phrase`, `lint.rfc2119-case`, and `lint.broken-link` when one file of the bundle has the linked name. |
+| Answer finding | A fact that only the author has. | Every other check, and each check of your own profile. |
+
+Speccy or a coding agent can fix a reword finding alone, because lint proves the fix. An answer finding needs your answer first.
+
+## Fix all findings of a reword check
+
+<Steps>
+
+1. Find the row of a reword check, such as `lint.passive-voice`. The row has **Fix all**.
+
+2. Click **Fix all**. Speccy makes one model call for each section that has a finding of the check. The model returns that section with new words.
+
+3. Read the diff of each section. Speccy lints each rewrite, and drops a section that still fails the check. The dialog lists each dropped section with the cause.
+
+4. Tick **Accept** on the sections you want, and click **Save accepted**. To take every section, click **Accept all**.
+
+</Steps>
+
+The sections you accept save as one version. The doc does not change before that save. A rewrite never renames a heading, unless the finding is in the heading itself.
+
+## Fix one finding
+
+Each card has a fix control. The label says which fix kind the finding has.
+
+<Steps>
+
+1. On a reword finding, click **Suggest fix**. On an answer finding, click **Answer and fix**.
+
+2. For an answer finding, type the fact in **Your answer**, and click **Write the fix**. For example, for a gap about a rate limit, type `429, and no provider call`.
+
+3. Read the diff. Speccy picks the text to replace: the paragraph of the finding, or its section. For a missing section, Speccy picks the place for the new section.
+
+4. Click **Accept** to save the change as a new version, or **Reject** to drop it.
+
+</Steps>
+
+Speccy writes your answer into the doc in the style of the doc. It refuses a fix that adds a placeholder, because a placeholder is a new MUST finding.
+
+For a lint finding, the rail says at once if the check still fails. An AI finding needs the next review to check it.
+
+<Aside>
+A missing upstream link asks for a doc, not for text. Pick the doc, and Speccy writes the link. A coverage gap has its own answers. [Close a coverage gap](/how-to/close-a-coverage-gap/) lists them.
+</Aside>
+
+## When the model cuts its answer off
+
+A model that reasons can spend its token limit on its own thinking. The answer then stops in the middle. Speccy sees that, and tries one more time with a higher limit. When the second try also stops, the message says that the backend cut the answer off. Assign a model with a larger output limit to the `writer` role, or a model that reasons less.
+
+## Give the fix list to a coding agent
+
+A coding agent reads the same fix list over MCP. [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/#set-up-the-mcp-server) shows how to add the MCP server.
+
+<Steps>
+
+1. On the **Findings** tab, click **Copy for a coding agent**.
+
+2. Paste the prompt into the agent.
+
+</Steps>
+
+The prompt names the doc and tells the agent this loop. The instructions of the MCP server hold the same loop.
+
+1. The agent calls `get_findings`. Each finding has its file, its `line` and `end_line`, and its `fix_kind`.
+2. The agent rewrites each reword finding itself.
+3. The agent asks you every answer finding in one message.
+4. The agent writes your answers into the doc.
+5. The agent calls `review_bundle` one time, after all the edits.
+6. The agent reports the trend: fixed, still open and new.
+
+One review at the end costs model calls only for the sections that changed.
+
+### Where the agent edits
+
+- A local bundle: the agent edits the file on disk. `get_findings` gives the path. Speccy lints each save.
+- A GitHub bundle: the agent edits the file in its checkout of the repo.
+- A bundle that Speccy stores: the agent calls `save_file` with the version it read. Speccy saves a new version and lints it.
+
+`save_file` writes nothing for a local or a GitHub bundle. It answers with the place of the file.
+
+### What the agent knows about the review
+
+`get_findings` also gives the state of the review:
+
+- the version that the AI review read;
+- the count of sections that changed since that version;
+- the trend of the last full review.
+
+A section that changed has no AI result until the next review. The carried findings of the other sections still count in the verdict.
+
+## Related
+
+- [Check catalog](/reference/checks/) for the fix kind of each check.
+- [MCP tools](/reference/mcp-tools/) for the input of `get_findings` and `save_file`.
+- [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) for a check that does not apply.
