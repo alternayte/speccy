@@ -31,6 +31,7 @@ func answerQuestion(slug, message, quote, written string, evidence []byte) strin
 		Claim    string `json:"claim"`
 		ID       string `json:"id"`
 		Upstream string `json:"upstream"`
+		File     string `json:"file"`
 	}
 	_ = json.Unmarshal(evidence, &ev)
 	named := ""
@@ -77,6 +78,10 @@ func answerQuestion(slug, message, quote, written string, evidence []byte) strin
 	case GroundingContradicted:
 		if ev.Claim != "" {
 			return fmt.Sprintf("A source says otherwise. What is the correct fact for this claim: %q?", ev.Claim)
+		}
+	case GroundingFileContradicts:
+		if ev.Claim != "" && ev.File != "" {
+			return fmt.Sprintf("%s says otherwise. Which is right, the file or this claim: %q?", ev.File, ev.Claim)
 		}
 	case ContradictionSlug, ExternalConflictSlug:
 		return "Which statement is right: the one in this doc, or the one in the linked doc?"

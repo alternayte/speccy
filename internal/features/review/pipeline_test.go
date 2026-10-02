@@ -70,8 +70,10 @@ type reviewer struct {
 	// returned are the URLs that the backend's web search returns for a call with Search.
 	// With none set, it returns the sources that the fake reviewer names.
 	returned []string
-	// rubric holds each rubric prompt, in call order.
+	// rubric holds each rubric prompt, in call order. verify holds each prompt that labels
+	// claims with a search.
 	rubric []string
+	verify []string
 
 	mu      sync.Mutex
 	calls   map[string]int      // by prompt version
@@ -83,6 +85,7 @@ type fakeQuestion struct{ text, cite string }
 var numberedRe = regexp.MustCompile(`(?m)^\d+: `)
 var slugsRe = regexp.MustCompile(`slug: ([a-z0-9.-]+)`)
 var sentenceRe = regexp.MustCompile(`[A-Z][^.\n]*\d[^.\n]*\.`)
+var fileRe = regexp.MustCompile(`(?s)File (\S+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
 var claimRe = regexp.MustCompile(`(?s)Claim (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
 var questionRe = regexp.MustCompile(`(?s)Question (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
 var answerRe = regexp.MustCompile(`(?s)Answer ([A-Z]):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
@@ -117,6 +120,9 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 	r.calls[c.PromptVersion]++
 	if c.PromptVersion == review.PromptRubric {
 		r.rubric = append(r.rubric, c.Prompt)
+	}
+	if c.PromptVersion == review.PromptVerify {
+		r.verify = append(r.verify, c.Prompt)
 	}
 	if c.PromptVersion == review.PromptReader {
 		if r.prompts == nil {
@@ -161,6 +167,30 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			}
 		}
 		out = map[string]any{"groups": groups}
+	case review.PromptFiles:
+		// A file that holds the claim confirms it. A file with a sentence that starts with
+		// the same three words, and is not the claim, contradicts it.
+		files := fileRe.FindAllStringSubmatch(c.Prompt, -1)
+		var claims []map[string]any
+		for _, m := range claimRe.FindAllStringSubmatch(c.Prompt, -1) {
+			var n int
+			_, _ = fmt.Sscan(m[1], &n)
+			answer := map[string]any{"claim": n, "analysis": "No file states it.", "applies": false, "label": "silent", "file": "", "quote": ""}
+			start := strings.Join(strings.Fields(m[2])[:3], " ")
+			for _, f := range files {
+				if strings.Contains(f[2], m[2]) {
+					answer = map[string]any{"claim": n, "analysis": "The file states it.", "applies": true, "label": "confirmed", "file": f[1], "quote": m[2]}
+					break
+				}
+				for _, sentence := range sentenceRe.FindAllString(f[2], -1) {
+					if strings.HasPrefix(sentence, start) {
+						answer = map[string]any{"claim": n, "analysis": "The file gives another value.", "applies": true, "label": "contradicted", "file": f[1], "quote": sentence}
+					}
+				}
+			}
+			claims = append(claims, answer)
+		}
+		out = map[string]any{"claims": claims}
 	case review.PromptClaims:
 		// A sentence that names a team is about an internal system.
 		claims := []map[string]string{}
@@ -523,6 +553,97 @@ func TestGrounding_InternalClaimStaysOffTheWeb(t *testing.T) {
 	}
 	if internal, _, search = find(pe); search != "mcp:test-search" || internal.CheckSlug != review.GroundingContradicted {
 		t.Errorf("the internal claim with an MCP search connection: %s through %q; want the label of that search", internal.CheckSlug, search)
+	}
+}
+
+// groundingOf returns the grounding findings of a run by a word of their claim, and the
+// stored claims by the same word.
+func groundingOf(t *testing.T, pe *pipelineEnv, run pgdb.ReviewRun, fs []pgdb.Finding, word string) (pgdb.Finding, pgdb.Claim) {
+	t.Helper()
+	var finding pgdb.Finding
+	for _, f := range fs {
+		var ev struct{ Claim string }
+		_ = json.Unmarshal(f.Evidence, &ev)
+		if f.Stage == review.StageGrounding && strings.Contains(ev.Claim, word) {
+			finding = f
+		}
+	}
+	claims, err := pe.bundles.DB.Queries().ListClaims(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range claims {
+		if strings.Contains(c.Text, word) {
+			return finding, c
+		}
+	}
+	t.Fatalf("the run has no claim with %q", word)
+	return finding, pgdb.Claim{}
+}
+
+const limitsFile = "# Limits\n\nThe provider caps each request body at 500 kilobytes for every endpoint, and the service stays below it.\n\n" +
+	"Stripe allows 100 read requests per second in live mode, per account.\n"
+
+// A file of the bundle settles a claim before any search. A claim that the file states is
+// verified with the file as its source. A claim that the file contradicts is a SHOULD finding
+// that names the file, and the verdict does not change. A claim that no file states goes to
+// the search. A second review of the same text asks nothing about the files.
+func TestGrounding_FilesOfTheBundleComeFirst(t *testing.T) {
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": groundedSDD, "pay/limits.md": limitsFile}, "fake-1")
+	run, fs, _ := pe.run(t, "pay")
+	if f, c := groundingOf(t, pe, run, fs, "Stripe allows 100"); f.CheckSlug != "" || c.Label != "verified" || !strings.Contains(string(c.Sources), "limits.md") {
+		t.Errorf("the claim that the file states: finding %q, label %s, sources %s; want verified by limits.md", f.CheckSlug, c.Label, c.Sources)
+	}
+	f, c := groundingOf(t, pe, run, fs, "999 kilobytes")
+	if f.CheckSlug != review.GroundingFileContradicts || f.Level != "SHOULD" || !strings.Contains(f.Message, "limits.md") || !strings.Contains(f.Message, "500 kilobytes") || c.Label != "contradicted" {
+		t.Errorf("the claim that the file contradicts: %s at %s, %q, label %s; want a SHOULD that names the file and its quote", f.CheckSlug, f.Level, f.Message, c.Label)
+	}
+	if f, _ := groundingOf(t, pe, run, fs, "Postgres 17"); f.CheckSlug != review.GroundingUnverified {
+		t.Errorf("the claim that no file states: %q, want it unverified after the search", f.CheckSlug)
+	}
+	for _, p := range pe.fake.verify {
+		if strings.Contains(p, "Stripe allows 100") || strings.Contains(p, "999 kilobytes") {
+			t.Errorf("a claim that a file settles went to the search")
+		}
+	}
+	calls := pe.fake.count(review.PromptFiles)
+	pe.run(t, "pay")
+	if n := pe.fake.count(review.PromptFiles); n != calls || calls == 0 {
+		t.Errorf("%d calls about the files, then %d after a review of the same text", calls, n)
+	}
+}
+
+// The profile raises a claim that a file contradicts to a MUST. The source policy judges a
+// domain, so a file still confirms a claim under a policy that allows one host only.
+func TestGrounding_ProfileRaisesAFileContradiction(t *testing.T) {
+	files := convergeFiles()
+	files[".speccy/profiles/sdd.yaml"] = convergeProfile + "grounding:\n  file_contradiction: MUST\n  sources:\n    allow: [docs.example.com]\n"
+	files["pay/limits.md"] = limitsFile
+	pe := newPipeline(t, storetest.Engines()[0], files, "fake-1")
+	pe.fake.rubricPass = true
+	run, fs, v := pe.run(t, "pay")
+	f, _ := groundingOf(t, pe, run, fs, "999 kilobytes")
+	if f.CheckSlug != review.GroundingFileContradicts || f.Level != "MUST" || v.Result != "not_build_ready" {
+		t.Errorf("%s at %s, verdict %s; want a MUST that blocks", f.CheckSlug, f.Level, v.Result)
+	}
+	if _, c := groundingOf(t, pe, run, fs, "Stripe allows 100"); c.Label != "verified" {
+		t.Errorf("under a source policy the file gives the claim the label %s, want verified", c.Label)
+	}
+}
+
+// A linked spec doc confirms a claim. It does not contradict one in the grounding stage: the
+// coherence stage owns a conflict with a linked doc.
+func TestGrounding_LinkedDocConfirmsOnly(t *testing.T) {
+	prd := "---\ntype: prd\ntitle: Refunds\n---\n\n# Refunds\n\n## Requirements\n\nThe billing service stores each invoice for 400 days in the archive.\n\nThe refund job runs every 15 minutes on the worker host.\n"
+	sdd := "---\ntype: sdd\ntitle: Refunds design\nlinks:\n  - kind: implements\n    target: refunds-prd\n---\n\n# Refunds design\n\n## Context\n\n" +
+		"The billing service stores each invoice for 400 days in the archive. The refund job runs every 30 minutes on the worker host.\n"
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"refunds-prd/PRD.md": prd, "refunds-sdd/SPEC.md": sdd}, "fake-1")
+	run, fs, _ := pe.run(t, "refunds-sdd")
+	if f, c := groundingOf(t, pe, run, fs, "400 days"); f.CheckSlug != "" || c.Label != "verified" || !strings.Contains(string(c.Sources), "PRD.md") {
+		t.Errorf("the claim that the linked doc states: finding %q, label %s, sources %s; want verified by the linked doc", f.CheckSlug, c.Label, c.Sources)
+	}
+	if f, _ := groundingOf(t, pe, run, fs, "30 minutes"); f.CheckSlug != review.GroundingUnverified {
+		t.Errorf("the claim that the linked doc contradicts: %q in the grounding stage, want it unverified there", f.CheckSlug)
 	}
 }
 

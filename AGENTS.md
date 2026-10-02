@@ -89,3 +89,4 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Answer finding: a finding whose fix needs a fact from the author. Avoid: fact finding, manual finding.
 - Owner: the one local process that holds a state folder: its store, its review worker and its watch on the files. Avoid: leader, primary, master, daemon.
 - Client process: a local Speccy process that sends its API calls to the owner and opens no store. Avoid: follower, secondary, proxy.
+- Internal claim: a claim about a system, a team or a process of the author's own organisation, which no public web page describes. It never goes to the web search of the backend. Avoid: private claim, local claim, in-house claim.

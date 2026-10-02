@@ -402,7 +402,7 @@ func docAnchor(in input) anchor.Anchor {
 
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
 func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
-	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, DivergenceAmbiguous: true, DivergenceGap: true,
+	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, GroundingFileContradicts: true, DivergenceAmbiguous: true, DivergenceGap: true,
 		RestatementSlug: true, ContradictionSlug: true, ExternalTargetSlug: true, FrontmatterReadableSlug: true}
 	for _, r := range lint.Rules {
 		known[r.Slug] = true

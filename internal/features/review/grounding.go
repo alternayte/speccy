@@ -124,10 +124,24 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 		return nil
 	}
 
+	// The files of the bundle and the linked spec docs come first: the author chose them as
+	// evidence, and a claim that one of them settles needs no search.
+	sources, leftOut := claimSources(in)
+	if len(leftOut) > 0 {
+		rc.note(fmt.Sprintf("The grounding stage did not read %s: the files of the bundle and the linked docs hold more than %d characters.", strings.Join(leftOut, ", "), maxAssetText))
+	}
+	byFile, err := s.fileClaims(ctx, rc, claims, sources, fingerprint)
+	if err != nil {
+		return err
+	}
+
 	// REQ-034: the backend's own web search, then an MCP search connection, else unverified.
 	// A claim about an internal system goes to the MCP search connection only.
 	var external, internal []int
 	for i, c := range claims {
+		if _, ok := byFile[i]; ok {
+			continue
+		}
 		if c.internal {
 			internal = append(internal, i)
 		} else {
@@ -183,6 +197,10 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 	for i, c := range claims {
 		l := labels[i]
 		an := anchor.New(in.bundle.DocPath, in.main, in.doc, c.start, c.end)
+		if fl, ok := byFile[i]; ok {
+			s.fileFinding(in, ev, c, fl, an, pol)
+			continue
+		}
 		class, sources, policyReason := s.applyPolicy(ctx, rc, pol, resolverOn, l, an, now)
 		if policyReason != "" {
 			l.Label, l.Reason = "unverified", policyReason
@@ -211,10 +229,43 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 				msg += " It is about an internal system, so Speccy did not search the web for it."
 			}
 			ev.findings = append(ev.findings, pending{slug: GroundingUnverified, level: lvl, stage: StageGrounding, anchor: an,
-				message: msg, fix: "Add a source or mark it as an assumption.", evidence: evidence})
+				message: msg, fix: unverifiedFix, evidence: evidence})
 		}
 	}
 	return nil
+}
+
+// unverifiedFix is the fix of a claim with no source. A doc that the main doc references is a
+// carried file of the bundle, and the grounding stage reads it.
+const unverifiedFix = "Reference the doc that states this, or mark it as an assumption."
+
+// fileFinding records a claim that a file settles: a claim that the file confirms is
+// verified, and a claim that a file of the bundle contradicts is a finding with the file and
+// both quotes. The source policy judges a domain and a retrieval date, and a file has
+// neither, so it does not apply; the claim keeps its class.
+func (s *Service) fileFinding(in input, ev *evaluation, c claimFound, fl fileLabel, an anchor.Anchor, pol sourcepolicy.Policy) {
+	class := sourcepolicy.Unclassified
+	if len(pol.Classes) > 0 {
+		class = pol.ClassOf(strings.Join(an.HeadingPath, "/"))
+	}
+	label := "verified"
+	if fl.Label == "contradicted" {
+		label = "contradicted"
+	}
+	ev.claims = append(ev.claims, pendingClaim{text: c.text, label: label, reason: fl.Reason, class: class,
+		sources: []sourcepolicy.Source{{URL: fl.File}}, anchor: an})
+	if label == "verified" {
+		ev.items = append(ev.items, verdict.Item{Slug: GroundingUnverified, Category: verdict.Evidence, Level: kernel.Should, Passed: true, Applicable: true})
+		ev.items = append(ev.items, verdict.Item{Slug: GroundingFileContradicts, Category: verdict.Evidence, Level: fileLevel(in), Passed: true, Applicable: true})
+		return
+	}
+	lvl := fileLevel(in)
+	ev.items = append(ev.items, verdict.Item{Slug: GroundingFileContradicts, Category: verdict.Evidence, Level: lvl, Applicable: true})
+	ev.findings = append(ev.findings, pending{slug: GroundingFileContradicts, level: lvl, stage: StageGrounding, anchor: an,
+		message: fmt.Sprintf("%s says otherwise: %q", fl.File, fl.Quote),
+		fix:     fmt.Sprintf("Correct the claim, or correct %s where it lives.", fl.File),
+		evidence: map[string]any{"claim": c.text, "reason": fl.Reason, "sources": []string{fl.File}, "search": modeFiles, "class": class,
+			"file": fl.File, "file_quote": fl.Quote}})
 }
 
 // ResolverOffNote is the run report note when a profile has a source policy and the admin

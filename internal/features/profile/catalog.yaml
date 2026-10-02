@@ -111,8 +111,13 @@ checks:
     level: MUST
     what: No factual claim in the doc conflicts with a source that the profile's source policy accepts.
     fix: Correct the claim, or cite a source that supports it.
+  - slug: grounding.file-contradicts-claim
+    stage: grounding
+    level: SHOULD
+    what: No factual claim in the doc conflicts with a file of the bundle. The profile setting grounding.file_contradiction makes it a MUST.
+    fix: Correct the claim, or correct the file where it lives.
   - slug: grounding.unverified-claim
     stage: grounding
     level: SHOULD
-    what: Each factual claim in the doc has a source that the profile's source policy accepts.
-    fix: Cite a source for the claim, or state it as an assumption.
+    what: Each factual claim in the doc has a source. A file of the bundle or a linked doc that states the claim is one, and so is a source that the profile's source policy accepts.
+    fix: Reference the doc that states the claim, or state it as an assumption.

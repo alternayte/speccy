@@ -359,7 +359,7 @@ func Layer(slug, stage string, level kernel.Level) string {
 	switch {
 	case slug == DivergenceAmbiguous || slug == DivergenceGap:
 		return "ambiguous"
-	case slug == GroundingContradicted || slug == ContradictionSlug:
+	case slug == GroundingContradicted || slug == GroundingFileContradicts || slug == ContradictionSlug:
 		return "contradicted"
 	case slug == GroundingUnverified:
 		return "unverified"

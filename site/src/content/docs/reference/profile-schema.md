@@ -75,6 +75,7 @@ The settings of the grounding stage.
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
+| `file_contradiction` | one of `SHOULD`, `MUST` |  | The level of grounding.file-contradicts-claim: a claim that a file of the bundle contradicts. The default is SHOULD. |
 | `sources` | object |  | The source policy: which domains the grounding stage accepts, their tier, their freshness period, and the claim class of a section. |
 
 ## `grounding.sources`

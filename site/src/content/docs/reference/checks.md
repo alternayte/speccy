@@ -553,15 +553,25 @@ No factual claim in the doc conflicts with a source that the profile's source po
 
 To fix a finding: Correct the claim, or cite a source that supports it.
 
+<h3 id="grounding.file-contradicts-claim"><code>grounding.file-contradicts-claim</code></h3>
+
+- Level: SHOULD
+- Profiles: every profile
+- Fix kind: answer
+
+No factual claim in the doc conflicts with a file of the bundle. The profile setting grounding.file_contradiction makes it a MUST.
+
+To fix a finding: Correct the claim, or correct the file where it lives.
+
 <h3 id="grounding.unverified-claim"><code>grounding.unverified-claim</code></h3>
 
 - Level: SHOULD
 - Profiles: every profile
 - Fix kind: answer
 
-Each factual claim in the doc has a source that the profile's source policy accepts.
+Each factual claim in the doc has a source. A file of the bundle or a linked doc that states the claim is one, and so is a source that the profile's source policy accepts.
 
-To fix a finding: Cite a source for the claim, or state it as an assumption.
+To fix a finding: Reference the doc that states the claim, or state it as an assumption.
 
 ## Divergence
 

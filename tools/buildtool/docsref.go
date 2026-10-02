@@ -124,7 +124,7 @@ func engineSlugs() []string {
 	}
 	return append(out, review.FrontmatterReadableSlug, review.HasChildrenSlug, review.ContradictionSlug,
 		review.RestatementSlug, review.DivergenceAmbiguous, review.DivergenceGap,
-		review.GroundingContradicted, review.GroundingUnverified)
+		review.GroundingContradicted, review.GroundingFileContradicts, review.GroundingUnverified)
 }
 
 // stageOrder is the order the review pipeline runs its stages in, and the catalog's order.
