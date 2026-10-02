@@ -8,6 +8,8 @@
 /build/
 # `go build ./tools/buildtool` from the root writes the binary here.
 /buildtool
+# `go build ./cmd/speccy` from the root writes the binary here. `just build` writes bin/speccy.
+/speccy
 node_modules/
 web/dist/*
 !web/dist/.keep
