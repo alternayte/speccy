@@ -30,9 +30,9 @@ This guide sets up the Speccy GitHub Action for the full review, and shows how t
        runs-on: ubuntu-latest
        steps:
          - uses: actions/checkout@v4
-         - uses: alternayte/speccy@v0.20.0
+         - uses: alternayte/speccy@v0.21.0
            with:
-             version: v0.20.0
+             version: v0.21.0
              models: all=anthropic:<model>
              anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
              enforcement: blocking
