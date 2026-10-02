@@ -66,10 +66,15 @@ export function QuestionsPanel({
       {canEdit ? (
         <div className="border-t border-line px-3 py-3 text-xs text-ink-2">
           {fresh.isSuccess ? (
-            <p role="status">The next full review writes a new set of build questions.</p>
+            <p role="status">
+              The next full review writes a new set of build questions, and judges each rubric check from nothing.
+            </p>
           ) : (
             <>
-              <p>The doc keeps these questions from one review to the next.</p>
+              <p>
+                The doc keeps these questions from one review to the next, and a review judges the shortfalls of the
+                last review again. A fresh set gives both a clean start.
+              </p>
               <button
                 type="button"
                 disabled={fresh.isPending}
