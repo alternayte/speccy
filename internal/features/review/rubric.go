@@ -568,6 +568,10 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 			return nil, err
 		}
 		if ok && !u.outside(in, a) {
+			// An answer of an older Speccy can hold one shortfall two times.
+			if a, err = s.oneOfEach(ctx, rc, c, a, fingerprint); err != nil {
+				return nil, err
+			}
 			answers[c.Slug] = a
 			rc.hit()
 			progress(1)
@@ -623,7 +627,9 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 				a = rubricAnswer{Slug: c.Slug, Result: "not_applicable", Reason: "The reviewer gave no answer for this check."}
 				rc.note(fmt.Sprintf("The reviewer gave no answer for %s; it counts as not applicable.", c.Slug))
 			} else {
-				a = withPrior(a, c.Prior)
+				if a, err = s.oneOfEach(ctx, rc, c, withPrior(a, c.Prior), fingerprint); err != nil {
+					return nil, err
+				}
 				if err := s.putCache(ctx, key(c), a); err != nil {
 					return nil, err
 				}

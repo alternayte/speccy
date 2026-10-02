@@ -13,7 +13,7 @@ import (
 // Prompt versions. A change to a prompt's text changes its version, which changes the cache
 // key (SDD §8.10) and is recorded on the run (REQ-022).
 const (
-	PromptRubric = "rubric-v3"
+	PromptRubric = "rubric-v4"
 	PromptClaims = "claims-v2"
 	PromptVerify = "verify-v1"
 	// PromptQuestions, PromptReader, and PromptJudge are the divergence test (SDD §8.5).
@@ -81,7 +81,7 @@ func rubricPrompt(docType string, checks []rubricCheck, scopeNote string, bundle
 	if prior.Len() > 0 {
 		// The author works through the findings of the last review. A shortfall that this
 		// review does not judge again would leave, and return, through chance alone.
-		b.WriteString("The last review of this doc found the shortfalls in the data part below, each with the slug of its check and a number. Judge each one again against the text you read now, not from memory: in \"prior\" of its check, give its number and \"still_holds\" when the text still falls short in that way, or \"fixed\" when it no longer does. For one that still holds, also give its \"question\": the one question that the author can answer with the missing fact. Then list in \"shortfalls\" only the other shortfalls of the check. Do not repeat a shortfall from the list there. For a check with no shortfall in the list, give an empty \"prior\".\n\n")
+		b.WriteString("The last review of this doc found the shortfalls in the data part below, each with the slug of its check and a number. Judge each one again against the text you read now, not from memory: in \"prior\" of its check, give its number, in \"analysis\" one sentence that says what the text says about it now, and then \"still_holds\" when the text still falls short in that way, or \"fixed\" when it no longer does. For one that still holds, also give its \"question\": the one question that the author can answer with the missing fact. Then list in \"shortfalls\" only the other shortfalls of the check. Do not repeat a shortfall from the list there. For a check with no shortfall in the list, give an empty \"prior\".\n\n")
 		b.WriteString(data("Shortfalls of the last review", strings.TrimRight(prior.String(), "\n")))
 		b.WriteString("\n")
 	}
@@ -114,9 +114,13 @@ func rubricSchema(slugs []string) []byte {
 						"result": map[string]any{"type": "string", "enum": []string{"pass", "fail", "not_applicable"}},
 						"reason": map[string]any{"type": "string"},
 						"quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						// "analysis" sorts before "state", so the model reads the text before it
+						// decides. With no analysis it gives the state first, and calls a shortfall
+						// that stands fixed in about one answer of ten.
 						"prior": map[string]any{"type": "array", "items": map[string]any{
-							"type": "object", "additionalProperties": false, "required": []string{"n", "state"},
-							"properties": map[string]any{"n": map[string]any{"type": "integer"}, "state": map[string]any{"type": "string", "enum": []string{"still_holds", "fixed"}},
+							"type": "object", "additionalProperties": false, "required": []string{"analysis", "n", "state"},
+							"properties": map[string]any{"analysis": map[string]any{"type": "string"}, "n": map[string]any{"type": "integer"},
+								"state":    map[string]any{"type": "string", "enum": []string{"still_holds", "fixed"}},
 								"question": map[string]any{"type": "string"}},
 						}},
 						"shortfalls": map[string]any{"type": "array", "items": map[string]any{

@@ -64,6 +64,9 @@ type reviewer struct {
 	// fixed are the shortfalls of the last review that the reviewer says are fixed, by slug and
 	// by their number in the prompt. It says nothing about the others.
 	fixed map[string][]int
+	// same are the groups the reviewer gives when it groups the shortfalls of one check that
+	// say the same thing. With none, each shortfall is a group of its own.
+	same [][]int
 	// rubric holds each rubric prompt, in call order.
 	rubric []string
 
@@ -74,6 +77,7 @@ type reviewer struct {
 
 type fakeQuestion struct{ text, cite string }
 
+var numberedRe = regexp.MustCompile(`(?m)^\d+: `)
 var slugsRe = regexp.MustCompile(`slug: ([a-z0-9.-]+)`)
 var sentenceRe = regexp.MustCompile(`[A-Z][^.\n]*\d[^.\n]*\.`)
 var claimRe = regexp.MustCompile(`(?s)Claim (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
@@ -138,13 +142,22 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			if ns := r.fixed[m[1]]; len(ns) > 0 {
 				prior := []map[string]any{}
 				for _, n := range ns {
-					prior = append(prior, map[string]any{"n": n, "state": "fixed"})
+					prior = append(prior, map[string]any{"n": n, "analysis": "The text states it now.", "state": "fixed"})
 				}
 				answer["prior"] = prior
 			}
 			results = append(results, answer)
 		}
 		out = map[string]any{"results": results}
+	case review.PromptSame:
+		groups := r.same
+		if groups == nil {
+			groups = [][]int{}
+			for i := range numberedRe.FindAllString(insideData(c.Prompt), -1) {
+				groups = append(groups, []int{i + 1})
+			}
+		}
+		out = map[string]any{"groups": groups}
 	case review.PromptClaims:
 		out = map[string]any{"claims": nonNil(sentenceRe.FindAllString(insideData(c.Prompt), -1))}
 	case review.PromptVerify:

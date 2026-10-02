@@ -1,6 +1,8 @@
 package review
 
 import (
+	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/alternayte/speccy/internal/engine/section"
@@ -35,5 +37,54 @@ func TestRubric_AnswerOutsideItsSection(t *testing.T) {
 	}
 	if (scopeUnit{}).outside(in, answer("A worker sends a reminder each day.")) {
 		t.Error("a whole-doc answer counts as outside")
+	}
+}
+
+// #119: one shortfall stays for each group. It is the first one, with the quote of another
+// where it has none, so a finding of the last review with no quote leaves line 1. A number
+// that is not in the list, or in a second group, changes nothing.
+func TestSame_OneShortfallForEachGroup(t *testing.T) {
+	falls := []shortfall{
+		{Reason: "The audit-trail choice has no DEC trace ID."},
+		{Reason: "The transport choice has no DEC trace ID.", Quote: "Transport."},
+		{Reason: "The audit-trail choice is stated without a DEC trace ID.", Quote: "Audit trail.", Question: "Which DEC?"},
+		{Reason: "The cache choice has no DEC trace ID.", Quote: "The cache is local."},
+	}
+	got := merged(falls, [][]int{{3, 1}, {2, 3, 9}, {0}})
+	want := []shortfall{
+		{Reason: "The audit-trail choice has no DEC trace ID.", Quote: "Audit trail.", Question: "Which DEC?"},
+		falls[1], falls[3],
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("shortfalls %+v, want %+v", got, want)
+	}
+}
+
+// The model gives the keys of an answer in the order of the schema, which is the order of the
+// alphabet. Each shortfall of the last review needs its "analysis" in front of its "state":
+// with none, a real model gave the state first and called a standing shortfall fixed.
+func TestRubric_AnalysisBeforeTheStateOfAPriorShortfall(t *testing.T) {
+	var schema struct {
+		Properties struct {
+			Results struct {
+				Items struct {
+					Properties struct {
+						Prior struct {
+							Items struct {
+								Required   []string                   `json:"required"`
+								Properties map[string]json.RawMessage `json:"properties"`
+							} `json:"items"`
+						} `json:"prior"`
+					} `json:"properties"`
+				} `json:"items"`
+			} `json:"results"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(rubricSchema([]string{"a"}), &schema); err != nil {
+		t.Fatal(err)
+	}
+	item := schema.Properties.Results.Items.Properties.Prior.Items
+	if _, ok := item.Properties["analysis"]; !ok || !slices.Contains(item.Required, "analysis") {
+		t.Errorf("a prior shortfall requires %v of %d properties, want a required analysis in front of the state", item.Required, len(item.Properties))
 	}
 }
