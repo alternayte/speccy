@@ -31,7 +31,7 @@ type API struct {
 // and coherence (SDD §13.3).
 var decisionChecks = map[string]bool{
 	review.DivergenceAmbiguous: true, review.DivergenceGap: true, review.ContradictionSlug: true,
-	review.GroundingContradicted: true, review.CoverageSlug: true, review.HasUpstreamSlug: true,
+	review.GroundingContradicted: true, review.GroundingFileContradicts: true, review.CoverageSlug: true, review.HasUpstreamSlug: true,
 }
 
 // GetTour returns the tour of the bundle's current review, in the order of SDD §13.3: blocking
@@ -219,6 +219,8 @@ func findingAsk(f api.Finding, e map[string]any) (ask, why string) {
 		return fmt.Sprintf("Decide which is right: this doc or %s.", str("upstream")), str("explanation")
 	case review.GroundingContradicted:
 		return "Decide: correct this claim, or explain why the source does not apply.", f.Message
+	case review.GroundingFileContradicts:
+		return fmt.Sprintf("Decide which is right: this claim or %s.", str("file")), f.Message
 	case review.CoverageSlug:
 		return fmt.Sprintf("Decide: does this doc cover %s?", str("id")), str("text")
 	case review.HasUpstreamSlug:

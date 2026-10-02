@@ -80,6 +80,9 @@ type Upstream struct {
 // of a section.
 type Grounding struct {
 	Sources sourcepolicy.Policy `yaml:"sources" json:"sources"`
+	// FileContradiction is the level of a claim that a file of the bundle contradicts: SHOULD
+	// when empty, or MUST for a team that wants such a claim to block.
+	FileContradiction string `yaml:"file_contradiction,omitempty" json:"file_contradiction,omitempty"`
 }
 
 // Verify configures the post-build verification gate: which trace IDs it verifies, and the
@@ -308,6 +311,9 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 	}
 	if err := p.Grounding.Sources.Validate(); err != nil {
 		problems = append(problems, "/grounding/sources: "+err.Error())
+	}
+	if l := p.Grounding.FileContradiction; l != "" && l != "SHOULD" && l != "MUST" {
+		problems = append(problems, fmt.Sprintf("/grounding/file_contradiction: %q is not SHOULD or MUST", l))
 	}
 	tmpl, err := readTemplate(p.Template)
 	if err != nil {

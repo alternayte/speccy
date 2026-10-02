@@ -52,6 +52,7 @@ export const catalogSlugs: ReadonlySet<string> = new Set([
   "sdd.state",
   "sdd.testing",
   "grounding.contradicted-claim",
+  "grounding.file-contradicts-claim",
   "grounding.unverified-claim",
   "divergence.ambiguous",
   "divergence.gap",

@@ -514,6 +514,14 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 		tokens[role] = [2]int64{tokens[role][0] + in, tokens[role][1] + out}
 	}
 	add(model.RoleReviewer, labelCalls, int64(labelCalls)*4000, int64(labelCalls)*1500)
+	// One call reads the claims against the files of the bundle and the linked docs.
+	if sources, _ := claimSources(in); len(sources) > 0 && sections > 0 {
+		var chars int64
+		for _, src := range sources {
+			chars += int64(len(src.text))
+		}
+		add(model.RoleReviewer, 1, chars/4+1500, 1500)
+	}
 
 	// Divergence: the questions (unless pinned), one call per reader per batch of questions,
 	// and about one judge call per question. The reader and judge caches are not counted.

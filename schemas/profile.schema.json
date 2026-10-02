@@ -75,6 +75,7 @@
       "additionalProperties": false,
       "description": "The settings of the grounding stage.",
       "properties": {
+        "file_contradiction": { "enum": ["SHOULD", "MUST"], "description": "The level of grounding.file-contradicts-claim: a claim that a file of the bundle contradicts. The default is SHOULD." },
         "sources": {
           "type": "object",
           "additionalProperties": false,

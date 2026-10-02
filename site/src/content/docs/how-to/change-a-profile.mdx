@@ -117,6 +117,24 @@ checks: []
 
 `acronyms` names the acronyms that [`lint.undefined-acronym`](/reference/checks/#lint.undefined-acronym) accepts with no definition. Use it for the words that every doc of your team uses, such as the labels of your document kinds.
 
+### Make a file contradiction block
+
+The grounding stage reads the files of the bundle before it searches. When a file states the opposite of a claim in the doc, Speccy reports [`grounding.file-contradicts-claim`](/reference/checks/#grounding.file-contradicts-claim) at SHOULD. The doc can still be Build Ready.
+
+To make that finding a MUST, set `grounding.file_contradiction`:
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+grounding:
+  file_contradiction: MUST
+# The other keys and checks of the profile stay as they are.
+checks: []
+```
+
+The value is `SHOULD` or `MUST`. With `MUST`, a doc that a file of its bundle contradicts is Not Build Ready until you correct the claim or the file. Use it when your team keeps the reference docs of a bundle correct.
+
 <Aside>
 A check that fires on every doc of a repo you adopted does not need a new level. Relax it in `.speccy.yaml` with `adoption.relaxed` while the repo catches up. The check still reports, and it does not block. [Adopt a repo](/how-to/adopt-a-repo/) shows how.
 </Aside>
