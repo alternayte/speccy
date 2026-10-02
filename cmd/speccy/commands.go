@@ -42,6 +42,14 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	fmt.Fprintf(stdout, "%s is a valid profile: %s (%s), %d checks.\n", args[1], l.Profile.Key, l.Profile.Name, len(l.Profile.Checks))
+	// A check that is about one section and names none is valid, and it stops a review from
+	// converging, so the command says so (#108).
+	if hints := profile.SectionHints(l); len(hints) > 0 {
+		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(hints), pluralS(len(hints)))
+		for _, h := range hints {
+			fmt.Fprintf(stdout, "  %s\n", h)
+		}
+	}
 	return exitOK
 }
 

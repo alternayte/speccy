@@ -61,6 +61,8 @@ In local mode, you can also write the files yourself.
 
    A valid file prints its key, its name and the number of checks. A file that is not valid prints each error with its path, and the command exits with code 2.
 
+   A valid file can also print warnings. A rubric check that asks about one section, and has no `section` key, runs again on the whole doc after each edit. An edit to another section can then change its answer, and a review of the doc does not converge. The warning names the check and the `section` to add. A profile from a release before 0.20.0 has no `section` keys, so read the warnings after an upgrade. The run report of a review shows the same warning as a note.
+
 </Steps>
 
 A running Speccy watches `.speccy/profiles/`, and it loads a changed file at once. A file that does not load shows as an error on the **Profiles** page, and Speccy keeps the last profiles that loaded.

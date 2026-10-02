@@ -306,6 +306,9 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	if in.sizeNote != "" {
 		rc.note(in.sizeNote)
 	}
+	if note := sectionNote(p); note != "" {
+		rc.note(note)
+	}
 
 	ev, err := s.runStages(ctx, rc, in, stages, fingerprint, native, func(st string) {
 		stage = st
@@ -634,4 +637,20 @@ func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p prof
 			slog.Warn("add the upstream doc as a GitHub source", "url", l.external.URL, "err", err)
 		}
 	}
+}
+
+// sectionNote is the line a run adds when checks of the profile are about one section and
+// name none: each runs again on the whole doc after each edit, so the review of the doc does
+// not converge, and the author would not know why (#108).
+func sectionNote(p profile.Versioned) string {
+	hints := profile.SectionHints(p.Loaded)
+	if len(hints) == 0 {
+		return ""
+	}
+	slugs := make([]string, len(hints))
+	for i, h := range hints {
+		slugs[i] = h.Slug
+	}
+	return fmt.Sprintf("%d check%s of the %s profile name no section, so each one runs again on the whole doc after each edit: %s. Run \"speccy profile validate\" on the profile file: it names the section to add to each.",
+		len(hints), plural(len(hints)), p.Profile.Key, quoteList(slugs))
 }
