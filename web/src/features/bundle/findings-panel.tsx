@@ -189,7 +189,7 @@ export function FindingsPanel({
             ) : null}
             {f.relaxed ? <span className={clsx("text-2xs text-warn", !f.new && "ml-auto")}>relaxed</span> : null}
           </div>
-          <p className="mt-1.5 text-sm text-ink">{f.message}</p>
+          <p className="mt-1.5 text-sm [overflow-wrap:anywhere] text-ink">{f.message}</p>
           {/* A gap's anchor is the frontmatter, which says nothing about the gap. */}
           {f.anchor.quote.trim() && !f.trace_id ? (
             <p className="mt-2 line-clamp-2 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2 group-hover:border-accent">
