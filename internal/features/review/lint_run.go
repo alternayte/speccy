@@ -89,9 +89,10 @@ type Service struct {
 	// waivers of the whole-doc checks that the review passed.
 	AfterReview func(ctx context.Context, b pgdb.SpecDoc) error
 
-	mu     sync.Mutex // one lint pass at a time
-	wakeMu sync.Mutex
-	wake   chan struct{}
+	mu      sync.Mutex // one lint pass at a time
+	startMu sync.Mutex // one start of a run at a time
+	wakeMu  sync.Mutex
+	wake    chan struct{}
 }
 
 // categories maps each lint rule to its radar axis (SDD §8.7).

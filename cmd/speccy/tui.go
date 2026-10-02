@@ -4,18 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
-	"testing/fstest"
-	"time"
 
-	speccyhttp "github.com/alternayte/speccy/internal/http"
-	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/tui"
@@ -51,23 +46,12 @@ func runTUI(args []string, stderr io.Writer) int {
 		defer func() { _ = logFile.Close() }()
 		slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	}
-	a, db, err := openApp(ctx, root, state, filepath.Join(state, "key"))
+	st, err := openSeat(root, state, filepath.Join(state, "key"), nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy tui: %v.\n", err)
 		return exitRun
 	}
-	go func() {
-		_ = root.Watch(ctx, 300*time.Millisecond, func() {
-			if err := a.Profiles.Reload(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("reload of the profiles failed", "err", err)
-			}
-			if err := a.Bundles.Sync(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("sync after a change on disk failed", "err", err)
-			}
-		})
-	}()
-	h := localHandler(fs.FS(fstest.MapFS{}), a, db)
-	client, err := api.NewClientWithResponses("http://speccy.local/api/v1", api.WithHTTPClient(speccyhttp.InProcess{Handler: h}))
+	client, err := st.client()
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy tui: %v.\n", err)
 		return exitRun

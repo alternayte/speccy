@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	nethttp "net/http"
 	"os"
 	"os/exec"
@@ -16,7 +15,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"syscall"
-	"time"
 
 	"golang.org/x/term"
 
@@ -76,8 +74,14 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	// An owner of a local state finishes its queue and frees the lock when the command ends.
+	defer closeSeats(stderr)
+	processKind = "the app"
 	if len(args) == 0 || args[0] != "" && args[0][0] == '-' {
 		return runLocal(args, true, stdout, stderr)
+	}
+	if args[0] != "serve" {
+		processKind = "speccy " + args[0]
 	}
 	switch args[0] {
 	case "serve":
@@ -152,7 +156,13 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	handler, err := openLocal(ctx, *dir)
+	spa, err := fs.Sub(web.Dist, "dist")
+	if err != nil {
+		_ = ln.Close()
+		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
+		return exitRun
+	}
+	handler, err := openLocal(*dir, spa)
 	if err != nil {
 		_ = ln.Close()
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
@@ -161,10 +171,8 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 
 	url := "http://" + ln.Addr().String()
 	fmt.Fprintf(stdout, "Speccy is running at %s\nPress Ctrl+C to stop.\n", url)
-	spa, err := fs.Sub(web.Dist, "dist")
-	if err != nil {
-		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
-		return exitRun
+	if o, client := handler.ownerInfo(); client {
+		fmt.Fprintf(stdout, "%s (process %d) owns the state of this folder, so the app sends its calls to it.\n", o.Kind, o.PID)
 	}
 	if openBrowser && !*noOpen {
 		if err := openURL(url); err != nil {
@@ -172,36 +180,23 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 		}
 	}
 
-	if err := speccyhttp.Serve(ctx, ln, handler(spa)); err != nil {
+	if err := speccyhttp.Serve(ctx, ln, handler); err != nil {
 		fmt.Fprintf(stderr, "Speccy stopped: %v.\n", err)
 		return exitRun
 	}
 	return exitOK
 }
 
-// openLocal opens the local store in dir/.speccy/state, syncs the bundles on disk, and
-// watches the folder for changes (REQ-005). It returns the handler factory for the server.
-func openLocal(ctx context.Context, dir string) (func(fs.FS) nethttp.Handler, error) {
+// openLocal takes the seat of the app at dir/.speccy/state: the owner, which opens the local
+// store, syncs the bundles on disk and watches the folder for changes (REQ-005), or a client
+// process of the owner. The seat is the handler of the server, and it serves spa.
+func openLocal(dir string, spa fs.FS) (*seat, error) {
 	root, err := local.Open(dir)
 	if err != nil {
 		return nil, err
 	}
 	state := filepath.Join(root.Dir(), ".speccy", "state")
-	a, db, err := openApp(ctx, root, state, filepath.Join(state, "key"))
-	if err != nil {
-		return nil, err
-	}
-	go func() {
-		_ = root.Watch(ctx, 300*time.Millisecond, func() {
-			if err := a.Profiles.Reload(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("reload of the profiles failed", "err", err)
-			}
-			if err := a.Bundles.Sync(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("sync after a change on disk failed", "err", err)
-			}
-		})
-	}()
-	return func(spa fs.FS) nethttp.Handler { return localHandler(spa, a, db) }, nil
+	return openSeat(root, state, filepath.Join(state, "key"), spa)
 }
 
 // openApp opens the SQLite store in stateDir and builds the services over the folder of root,

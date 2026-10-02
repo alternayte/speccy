@@ -15,6 +15,11 @@ WHERE id = (
 )
 RETURNING *;
 
+-- name: ListActiveJobs :many
+-- The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
+-- that a process before it left, and an owner that wants to exit waits until there is none.
+SELECT * FROM job WHERE status IN ('queued', 'running') ORDER BY created_at;
+
 -- name: FinishJob :exec
 UPDATE job SET status = sqlc.arg(status), last_error = sqlc.arg(last_error), locked_until = NULL
 WHERE id = sqlc.arg(id);

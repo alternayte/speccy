@@ -263,3 +263,13 @@ func Serve(ctx context.Context, ln net.Listener, h nethttp.Handler) error {
 		return nil
 	}
 }
+
+// SPA serves the web app alone. A local app that is a client process serves its own pages with
+// it, and passes the API calls on to the owner.
+func SPA(spa fs.FS) nethttp.Handler { return spaHandler(spa) }
+
+// WriteProblem writes an RFC 9457 problem details response with a stable code, for a handler
+// outside the API that must answer in the API's form.
+func WriteProblem(w nethttp.ResponseWriter, status int, code, detail string) {
+	writeProblem(w, status, code, detail)
+}

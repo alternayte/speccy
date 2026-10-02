@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
@@ -46,9 +47,11 @@ type Tx struct {
 // OpenSQLite opens the SQLite database file at path, and creates it when it does not exist.
 func OpenSQLite(ctx context.Context, path string) (*DB, error) {
 	q := url.Values{}
+	// The wait for a lock comes first: the switch to WAL takes a lock on a new file, and
+	// processes that start together would fail there with "database is locked" (#86).
+	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "foreign_keys(1)")
 	q.Add("_pragma", "journal_mode(WAL)")
-	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "synchronous(NORMAL)")
 	q.Set("_time_format", "sqlite")
 	// A transaction takes the write lock when it starts. A deferred transaction reads first, and
@@ -62,9 +65,20 @@ func OpenSQLite(ctx context.Context, path string) (*DB, error) {
 	// SQLite allows one writer. One connection serialises writes in the process. A write of
 	// another process on the same file waits for busy_timeout.
 	sqldb.SetMaxOpenConns(1)
-	if err := sqldb.PingContext(ctx); err != nil {
-		_ = sqldb.Close()
-		return nil, fmt.Errorf("open sqlite %s: %w", path, err)
+	// The first connection switches a new file to WAL. SQLite refuses that switch at once when
+	// another process holds the file, and does not wait for busy_timeout, so the open tries
+	// again for as long as busy_timeout is.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		err := sqldb.PingContext(ctx)
+		if err == nil {
+			break
+		}
+		if !strings.Contains(err.Error(), "SQLITE_BUSY") || time.Now().After(deadline) || ctx.Err() != nil {
+			_ = sqldb.Close()
+			return nil, fmt.Errorf("open sqlite %s: %w", path, err)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 	return &DB{SQL: sqldb, Engine: SQLite, path: path}, nil
 }

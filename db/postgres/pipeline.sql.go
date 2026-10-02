@@ -510,6 +510,45 @@ func (q *Queries) LatestQuestionResult(ctx context.Context, questionID uuid.UUID
 	return i, err
 }
 
+const listActiveJobs = `-- name: ListActiveJobs :many
+SELECT id, workspace_id, kind, payload, status, attempts, locked_until, last_error, created_at FROM job WHERE status IN ('queued', 'running') ORDER BY created_at
+`
+
+// The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
+// that a process before it left, and an owner that wants to exit waits until there is none.
+func (q *Queries) ListActiveJobs(ctx context.Context) ([]Job, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Job
+	for rows.Next() {
+		var i Job
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Kind,
+			&i.Payload,
+			&i.Status,
+			&i.Attempts,
+			&i.LockedUntil,
+			&i.LastError,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAnswers = `-- name: ListAnswers :many
 SELECT question_id, run_id, reader_role, model_fingerprint, answer, quotes, quotes_found FROM answer WHERE run_id = $1 ORDER BY question_id, reader_role
 `

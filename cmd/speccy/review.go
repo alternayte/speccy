@@ -23,7 +23,6 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
-	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 )
@@ -403,7 +402,7 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 	// With no reviewer model, the default is lint only (decisions.md). An explicit model stage
 	// with no model is a configuration error.
 	if !fl.stagesSet {
-		if _, err := s.app.Reviews.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
+		if !roleAssigned(ctx, s.client, api.Reviewer) {
 			fmt.Fprintln(stderr, "No model is assigned, so only lint ran. Assign models in the app (Admin → Models), or pass --stages lint to say so.")
 			lintOnly = true
 		}
@@ -701,4 +700,18 @@ func sortedCounts(counts map[string]int) []string {
 		return strings.Compare(a, b)
 	})
 	return keys
+}
+
+// roleAssigned reports whether a role has a model.
+func roleAssigned(ctx context.Context, c *api.ClientWithResponses, role api.RoleName) bool {
+	res, err := c.ListRolesWithResponse(ctx)
+	if err != nil || res.JSON200 == nil {
+		return false
+	}
+	for _, r := range res.JSON200.Items {
+		if r.Role == role {
+			return r.BackendId != nil
+		}
+	}
+	return false
 }

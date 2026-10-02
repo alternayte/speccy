@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/fs"
 	"log/slog"
 	nethttp "net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"testing/fstest"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -43,24 +40,14 @@ func runMCP(args []string, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
 		return exitUsage
 	}
-	a, db, err := openApp(ctx, root, filepath.Join(root.Dir(), ".speccy", "state"), filepath.Join(root.Dir(), ".speccy", "state", "key"))
+	state := filepath.Join(root.Dir(), ".speccy", "state")
+	// An agent edits files on disk: the owner of the folder follows them (REQ-005).
+	st, err := openSeat(root, state, filepath.Join(state, "key"), nil)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
 		return exitRun
 	}
-	// An agent edits files on disk: follow them, as local mode does (REQ-005).
-	go func() {
-		_ = root.Watch(ctx, 300*time.Millisecond, func() {
-			if err := a.Profiles.Reload(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("reload of the profiles failed", "err", err)
-			}
-			if err := a.Bundles.Sync(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("sync after a change on disk failed", "err", err)
-			}
-		})
-	}()
-	h := localHandler(fs.FS(fstest.MapFS{}), a, db)
-	client, err := api.NewClientWithResponses("http://speccy.local/api/v1", api.WithHTTPClient(speccyhttp.InProcess{Handler: h}))
+	client, err := st.client()
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy mcp: %v.\n", err)
 		return exitRun

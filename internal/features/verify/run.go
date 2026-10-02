@@ -6,7 +6,9 @@ package verify
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -200,6 +202,25 @@ func (a *API) Execute(ctx context.Context, payload []byte) error {
 	}
 	a.Progress.Publish(j.RunID, review.Event{Type: "done", Stage: StatusDone, Message: string(run.Verdict)})
 	return nil
+}
+
+// EndOrphan ends the verification run of a job whose process stopped. A run that reached an
+// end stays as it is.
+func (a *API) EndOrphan(ctx context.Context, payload []byte) error {
+	var j job
+	if err := json.Unmarshal(payload, &j); err != nil {
+		return nil //nolint:nilerr // a payload that does not parse names no run to end
+	}
+	q := a.DB.Queries()
+	row, err := q.GetVerificationRun(ctx, pgdb.GetVerificationRunParams{WorkspaceID: a.Workspace, ID: j.RunID})
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && (row.Status == StatusDone || row.Status == StatusFailed)) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return q.FailVerificationRun(ctx, pgdb.FailVerificationRunParams{ID: j.RunID,
+		Error: "The process that ran this verification stopped before it ended. Run the verification again."})
 }
 
 // prepare checks that the bundle can be verified and that the request names code, and fills

@@ -93,6 +93,9 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 			return pgdb.ReviewRun{}, err
 		}
 	}
+	// One start at a time: two starts at the same instant must not both find no active run.
+	s.startMu.Lock()
+	defer s.startMu.Unlock()
 	q := s.DB.Queries()
 	if _, err := q.RunningRunFor(ctx, b.ID); err == nil {
 		return pgdb.ReviewRun{}, ErrRunActive
