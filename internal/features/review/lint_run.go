@@ -259,7 +259,11 @@ func lintStage(in input) evaluation {
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
 	for _, f := range res.Findings {
-		ev.findings = append(ev.findings, pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix})
+		p := pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix}
+		if f.Candidate != "" {
+			p.evidence = candidateEvidence{Candidate: f.Candidate}
+		}
+		ev.findings = append(ev.findings, p)
 		failed[f.Slug] = true
 	}
 	for slug, lvl := range res.Rules {

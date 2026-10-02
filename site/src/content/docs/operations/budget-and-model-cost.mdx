@@ -50,7 +50,7 @@ A full review starts from the next action **Check this doc**, or from **More →
 
 The estimate needs a model for the reviewer, the readers and the judge. When a role has none, the dialog says so and links to **Admin**.
 
-To get a cost in dollars, set the prices of each role in **Admin → Models → Roles**. The two fields, `$ in / M` and `$ out / M`, take the price per million input tokens and per million output tokens. Speccy uses them for the estimate and the run report only. It never reads prices from a provider.
+To get a cost in dollars, set the prices of each role in **Admin → Models → Roles**. The two fields, `$ in / M` and `$ out / M`, take the price per million input tokens and per million output tokens. Speccy uses them for the estimate and the run report only. For an OpenRouter model, Speccy fills in both fields from OpenRouter's model list when you pick the model. For each other backend, you type the prices.
 
 The estimate is a rough count. It counts every reader and judge call, although the cache can answer some of them. It leaves out rubric checks with section scope.
 

@@ -127,6 +127,10 @@ export type SpecDoc = {
      * The path of the spec doc in its bundle.
      */
     path: string;
+    /**
+     * For a local bundle, the folder on disk that holds the bundle's files. A coding agent edits the files there.
+     */
+    local_dir?: string;
     current_version: Version;
     updated_at: string;
     verdict?: BundleVerdict;
@@ -805,11 +809,27 @@ export type Trend = {
     new: number;
 };
 
+/**
+ * One failed check. The rail and the MCP tool get_findings read this one shape.
+ */
 export type Finding = {
     /**
      * The last full review found this, and the full review before it did not. See Trend.
      */
     new?: boolean;
+    /**
+     * An AI finding of the last full review, which read an older version. Its section has not changed since.
+     */
+    carried?: boolean;
+    /**
+     * The line of the file where the text of the finding starts, from 1, in the current version. 0 when the anchor is detached.
+     */
+    line: number;
+    /**
+     * The line where the text of the finding ends.
+     */
+    end_line: number;
+    fix_kind: FixKind;
     /**
      * The run the finding belongs to. A carried finding belongs to the last full review.
      */
@@ -914,13 +934,111 @@ export type CategoryCount = {
 };
 
 /**
- * A patch that replaces one exact text in one file (REQ-025).
+ * reword: the fix changes the words and no fact, so the bulk fix or an agent may fix the finding alone. answer: the fix needs a fact from the author.
+ *
+ */
+export type FixKind = 'reword' | 'answer';
+
+export type SuggestFixRequest = {
+    /**
+     * For an answer finding, the fact the author gives. Speccy writes it into the doc in the doc's style.
+     */
+    answer?: string;
+};
+
+export type SuggestFixesRequest = {
+    /**
+     * A reword check, such as lint.passive-voice.
+     */
+    check_slug: string;
+};
+
+/**
+ * One section rewritten for every reword finding of one check in it.
+ */
+export type SectionFix = {
+    /**
+     * The finding that holds the rewrite. Send it to accept the rewrite.
+     */
+    finding_id: string;
+    file: string;
+    heading_path: Array<string>;
+    old: string;
+    new: string;
+    line: number;
+    end_line: number;
+    /**
+     * How many findings of the check the rewrite fixes.
+     */
+    findings: number;
+};
+
+/**
+ * A section whose rewrite Speccy did not keep.
+ */
+export type DroppedFix = {
+    heading_path: Array<string>;
+    reason: string;
+};
+
+export type SectionFixes = {
+    check_slug: string;
+    /**
+     * The version the rewrites were written for.
+     */
+    version_id: string;
+    sections: Array<SectionFix>;
+    dropped: Array<DroppedFix>;
+    /**
+     * The model calls made, one for each section with a reword finding of the check.
+     */
+    calls: number;
+};
+
+export type AcceptFixesRequest = {
+    /**
+     * The finding_id of each section rewrite the author accepted.
+     */
+    finding_ids: Array<string>;
+};
+
+export type AcceptedFixes = {
+    version?: Version;
+    /**
+     * False when the rewrites left the doc unchanged, so no version was created.
+     */
+    changed: boolean;
+    /**
+     * How many section rewrites were applied.
+     */
+    sections: number;
+    /**
+     * How many reword findings of those checks lint still gives in those sections.
+     */
+    left: number;
+};
+
+export type FixPrompt = {
+    prompt: string;
+};
+
+/**
+ * A patch that replaces one text in one file (REQ-025). Speccy picks the text: the paragraph or the section of the finding, or no text when the fix adds a section. The model writes only the new text.
+ *
  */
 export type FixSuggestion = {
     finding_id: string;
     file: string;
+    /**
+     * The text the patch replaces. Empty when the patch adds text.
+     */
     old: string;
     new: string;
+    /**
+     * The line where the replaced text starts, or where the new text goes, from 1.
+     */
+    line: number;
+    end_line: number;
     explanation: string;
     /**
      * The version the patch was written for.
@@ -1714,6 +1832,26 @@ export type Backend = {
 
 export type BackendList = {
     items: Array<Backend>;
+};
+
+export type BackendModel = {
+    /**
+     * The name a role sends to the backend.
+     */
+    id: string;
+    /**
+     * The display name, when the backend gives one.
+     */
+    name?: string;
+    /**
+     * Dollars per million input tokens. Only OpenRouter gives prices.
+     */
+    price_in_per_mtok?: number;
+    price_out_per_mtok?: number;
+};
+
+export type BackendModelList = {
+    items: Array<BackendModel>;
 };
 
 export type BackendTest = {
@@ -3916,7 +4054,7 @@ export type GetRunReportResponses = {
 export type GetRunReportResponse = GetRunReportResponses[keyof GetRunReportResponses];
 
 export type SuggestFixData = {
-    body?: never;
+    body?: SuggestFixRequest;
     path: {
         runId: string;
         findingId: string;
@@ -3970,6 +4108,90 @@ export type AcceptFixResponses = {
 };
 
 export type AcceptFixResponse = AcceptFixResponses[keyof AcceptFixResponses];
+
+export type SuggestFixesData = {
+    body: SuggestFixesRequest;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/fixes';
+};
+
+export type SuggestFixesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SuggestFixesError = SuggestFixesErrors[keyof SuggestFixesErrors];
+
+export type SuggestFixesResponses = {
+    /**
+     * One rewrite for each section that passes the check after it, and the sections Speccy dropped.
+     */
+    200: SectionFixes;
+};
+
+export type SuggestFixesResponse = SuggestFixesResponses[keyof SuggestFixesResponses];
+
+export type AcceptFixesData = {
+    body: AcceptFixesRequest;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/fixes/accept';
+};
+
+export type AcceptFixesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AcceptFixesError = AcceptFixesErrors[keyof AcceptFixesErrors];
+
+export type AcceptFixesResponses = {
+    /**
+     * The new version, and what lint says about the check in those sections.
+     */
+    200: AcceptedFixes;
+};
+
+export type AcceptFixesResponse = AcceptFixesResponses[keyof AcceptFixesResponses];
+
+export type GetFixPromptData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/fix-prompt';
+};
+
+export type GetFixPromptErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetFixPromptError = GetFixPromptErrors[keyof GetFixPromptErrors];
+
+export type GetFixPromptResponses = {
+    /**
+     * The prompt.
+     */
+    200: FixPrompt;
+};
+
+export type GetFixPromptResponse = GetFixPromptResponses[keyof GetFixPromptResponses];
 
 export type ListFindingsData = {
     body?: never;
@@ -5144,6 +5366,33 @@ export type TestBackendResponses = {
 };
 
 export type TestBackendResponse = TestBackendResponses[keyof TestBackendResponses];
+
+export type ListBackendModelsData = {
+    body?: never;
+    path: {
+        backendId: string;
+    };
+    query?: never;
+    url: '/admin/backends/{backendId}/models';
+};
+
+export type ListBackendModelsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListBackendModelsError = ListBackendModelsErrors[keyof ListBackendModelsErrors];
+
+export type ListBackendModelsResponses = {
+    /**
+     * The models. An OpenRouter model has its prices.
+     */
+    200: BackendModelList;
+};
+
+export type ListBackendModelsResponse = ListBackendModelsResponses[keyof ListBackendModelsResponses];
 
 export type ListPresetsData = {
     body?: never;

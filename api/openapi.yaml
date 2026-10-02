@@ -1342,7 +1342,13 @@ paths:
       - $ref: "#/components/parameters/FindingId"
     post:
       operationId: suggestFix
-      summary: Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change.
+      summary: Ask the AI for a patch that fixes one finding (REQ-025). The doc does not change. An answer finding needs the author's answer.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestFixRequest"
       responses:
         "200":
           description: The suggested patch.
@@ -1373,6 +1379,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AcceptedFix"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/fixes:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    post:
+      operationId: suggestFixes
+      summary: Ask the AI to rewrite every reword finding of one check, with one call for each section. The doc does not change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SuggestFixesRequest"
+      responses:
+        "200":
+          description: One rewrite for each section that passes the check after it, and the sections Speccy dropped.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SectionFixes"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /runs/{runId}/fixes/accept:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    post:
+      operationId: acceptFixes
+      summary: Apply the section rewrites the author accepted, as one version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptFixesRequest"
+      responses:
+        "200":
+          description: The new version, and what lint says about the check in those sections.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedFixes"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/fix-prompt:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    get:
+      operationId: getFixPrompt
+      summary: The prompt that tells a coding agent how to fix the findings of this doc over MCP. The MCP server instructions hold the same loop.
+      responses:
+        "200":
+          description: The prompt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FixPrompt"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -2232,6 +2298,22 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /admin/backends/{backendId}/models:
+    parameters:
+      - $ref: "#/components/parameters/BackendId"
+    get:
+      operationId: listBackendModels
+      summary: The models of an API backend, read live from its models endpoint with the stored key. The key stays on the server.
+      responses:
+        "200":
+          description: The models. An OpenRouter model has its prices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackendModelList"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /admin/presets:
     get:
       operationId: listPresets
@@ -2996,6 +3078,9 @@ components:
         path:
           type: string
           description: The path of the spec doc in its bundle.
+        local_dir:
+          type: string
+          description: For a local bundle, the folder on disk that holds the bundle's files. A coding agent edits the files there.
         current_version:
           $ref: "#/components/schemas/Version"
         updated_at:
@@ -3975,11 +4060,23 @@ components:
 
     Finding:
       type: object
-      required: [id, run_id, check_slug, level, stage, relaxed, message, anchor, waived]
+      description: One failed check. The rail and the MCP tool get_findings read this one shape.
+      required: [id, run_id, check_slug, level, stage, relaxed, message, anchor, waived, line, end_line, fix_kind]
       properties:
         new:
           type: boolean
           description: The last full review found this, and the full review before it did not. See Trend.
+        carried:
+          type: boolean
+          description: An AI finding of the last full review, which read an older version. Its section has not changed since.
+        line:
+          type: integer
+          description: The line of the file where the text of the finding starts, from 1, in the current version. 0 when the anchor is detached.
+        end_line:
+          type: integer
+          description: The line where the text of the finding ends.
+        fix_kind:
+          $ref: "#/components/schemas/FixKind"
         run_id:
           type: string
           format: uuid
@@ -4125,10 +4222,131 @@ components:
         info:
           type: integer
 
+    FixKind:
+      type: string
+      enum: [reword, answer]
+      description: >
+        reword: the fix changes the words and no fact, so the bulk fix or an agent may fix the
+        finding alone. answer: the fix needs a fact from the author.
+
+    SuggestFixRequest:
+      type: object
+      properties:
+        answer:
+          type: string
+          description: For an answer finding, the fact the author gives. Speccy writes it into the doc in the doc's style.
+
+    SuggestFixesRequest:
+      type: object
+      required: [check_slug]
+      properties:
+        check_slug:
+          type: string
+          description: A reword check, such as lint.passive-voice.
+
+    SectionFix:
+      type: object
+      description: One section rewritten for every reword finding of one check in it.
+      required: [finding_id, file, heading_path, old, new, line, end_line, findings]
+      properties:
+        finding_id:
+          type: string
+          format: uuid
+          description: The finding that holds the rewrite. Send it to accept the rewrite.
+        file:
+          type: string
+        heading_path:
+          type: array
+          items:
+            type: string
+        old:
+          type: string
+        new:
+          type: string
+        line:
+          type: integer
+        end_line:
+          type: integer
+        findings:
+          type: integer
+          description: How many findings of the check the rewrite fixes.
+
+    DroppedFix:
+      type: object
+      description: A section whose rewrite Speccy did not keep.
+      required: [heading_path, reason]
+      properties:
+        heading_path:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+
+    SectionFixes:
+      type: object
+      required: [check_slug, version_id, sections, dropped, calls]
+      properties:
+        check_slug:
+          type: string
+        version_id:
+          type: string
+          format: uuid
+          description: The version the rewrites were written for.
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/SectionFix"
+        dropped:
+          type: array
+          items:
+            $ref: "#/components/schemas/DroppedFix"
+        calls:
+          type: integer
+          description: The model calls made, one for each section with a reword finding of the check.
+
+    AcceptFixesRequest:
+      type: object
+      required: [finding_ids]
+      properties:
+        finding_ids:
+          type: array
+          description: The finding_id of each section rewrite the author accepted.
+          minItems: 1
+          items:
+            type: string
+            format: uuid
+
+    AcceptedFixes:
+      type: object
+      required: [changed, sections, left]
+      properties:
+        version:
+          $ref: "#/components/schemas/Version"
+        changed:
+          type: boolean
+          description: False when the rewrites left the doc unchanged, so no version was created.
+        sections:
+          type: integer
+          description: How many section rewrites were applied.
+        left:
+          type: integer
+          description: How many reword findings of those checks lint still gives in those sections.
+
+    FixPrompt:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+
     FixSuggestion:
       type: object
-      description: A patch that replaces one exact text in one file (REQ-025).
-      required: [finding_id, file, old, new, explanation, version_id]
+      description: >
+        A patch that replaces one text in one file (REQ-025). Speccy picks the text: the
+        paragraph or the section of the finding, or no text when the fix adds a section. The
+        model writes only the new text.
+      required: [finding_id, file, old, new, explanation, version_id, line, end_line]
       properties:
         finding_id:
           type: string
@@ -4137,8 +4355,14 @@ components:
           type: string
         old:
           type: string
+          description: The text the patch replaces. Empty when the patch adds text.
         new:
           type: string
+        line:
+          type: integer
+          description: The line where the replaced text starts, or where the new text goes, from 1.
+        end_line:
+          type: integer
         explanation:
           type: string
         version_id:
@@ -5275,6 +5499,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Backend"
+
+    BackendModel:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: The name a role sends to the backend.
+        name:
+          type: string
+          description: The display name, when the backend gives one.
+        price_in_per_mtok:
+          type: number
+          description: Dollars per million input tokens. Only OpenRouter gives prices.
+        price_out_per_mtok:
+          type: number
+
+    BackendModelList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BackendModel"
 
     BackendTest:
       type: object

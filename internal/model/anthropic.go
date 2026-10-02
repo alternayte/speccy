@@ -78,6 +78,7 @@ func (b *anthropicBackend) Call(ctx context.Context, model string, c Call) (Raw,
 			}
 		}
 		raw.Text = text.String()
+		raw.Truncated = resp.StopReason == anthropic.StopReasonMaxTokens
 		return raw, nil
 	}
 	return Raw{}, errors.New("the model paused its turn too many times")

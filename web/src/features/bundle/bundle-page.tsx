@@ -475,7 +475,6 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
                   // One rail per doc: the list of the doc before never stands in for this one (#74).
                   key={docId}
                   runId={b.verdict?.run_id}
-                  orderKey={b.verdict?.ai_run_id}
                   trend={b.verdict?.trend}
                   aiVersion={b.verdict?.ai_version_number}
                   selected={selectedFinding}

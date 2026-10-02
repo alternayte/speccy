@@ -147,6 +147,7 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		c.Temperature = &zero
 	}
 	transientLeft, parseLeft := transientRetries, parseRetries
+	cutOff := false
 	var lastParse error
 	for attempt := 0; ; attempt++ {
 		if err := g.checkBudget(ctx); err != nil {
@@ -185,6 +186,16 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		if err := g.spend(ctx, raw.TokensIn+raw.TokensOut); err != nil {
 			return res, err
 		}
+		// A cut-off answer is not broken JSON: the model ran out of tokens, often on its own
+		// thinking. One more try with a higher limit, then the error says what happened.
+		if raw.Truncated {
+			if cutOff || c.MaxTokens == 0 {
+				return res, cutOffError(row.Name, c.MaxTokens)
+			}
+			cutOff = true
+			c.MaxTokens = max(c.MaxTokens*cutOffFactor, cutOffFloor)
+			continue
+		}
 		// DEC-014: the answer must be JSON that matches the schema. One retry on a parse error.
 		answer, perr := checkAnswer(raw.Text, schema)
 		if perr == nil {
@@ -197,6 +208,21 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		}
 		parseLeft--
 	}
+}
+
+// A cut-off answer gets one more try with the limit times cutOffFactor, and at least cutOffFloor.
+const (
+	cutOffFactor = 4
+	cutOffFloor  = 16000
+)
+
+// cutOffError says that the backend cut the answer off at the token limit, in words a person
+// can act on.
+func cutOffError(backend string, limit int64) error {
+	if limit == 0 {
+		return kernel.Invalid("answer_cut_off", "The %s backend cut the answer off at the model's own token limit. Use a model with a larger output limit, or one that reasons less.", backend)
+	}
+	return kernel.Invalid("answer_cut_off", "The %s backend cut the answer off at the limit of %d tokens, after one more try with a higher limit. Use a model with a larger output limit, or one that reasons less.", backend, limit)
 }
 
 // refusesTemperature reports whether a backend rejected the request because of its

@@ -158,6 +158,11 @@ var operations = map[string]access{
 	// REQ-025: the author asks for a fix and accepts it.
 	"suggestFix": bundleEdit,
 	"acceptFix":  bundleEdit,
+	// The bulk fix of a reword check is the same two steps for a whole check.
+	"suggestFixes": bundleEdit,
+	"acceptFixes":  bundleEdit,
+	// The prompt names the doc and holds no doc text.
+	"getFixPrompt": bundleRead,
 	// REQ-123: authors publish and discard drafts of GitHub bundles.
 	"publishBundle":   bundleEdit,
 	"discardDraft":    bundleEdit,
@@ -170,6 +175,7 @@ var operations = map[string]access{
 	"updateBackend":       adminOnly,
 	"deleteBackend":       adminOnly,
 	"testBackend":         adminOnly,
+	"listBackendModels":   adminOnly,
 	"listPresets":         adminOnly,
 	"listRoles":           adminOnly,
 	"assignRole":          adminOnly,

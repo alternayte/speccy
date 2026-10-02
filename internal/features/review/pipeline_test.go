@@ -221,12 +221,37 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		}
 		out = map[string]any{"analysis": "Grouped by text.", "groups": groups}
 	case review.PromptFix:
-		out = map[string]any{"old": "at 999 kilobytes for every endpoint", "new": "at 1 megabyte for every endpoint", "explanation": "Uses the provider's limit."}
+		// The writer gets the part to replace, and returns only its new text. With an answer
+		// from the author it states the answer; with none it rewords.
+		part := labelled(c.Prompt, "The part to replace")
+		if answer := labelled(c.Prompt, "The author's answer"); answer != "" {
+			out = map[string]any{"new": strings.Replace(part, "999 kilobytes", answer, 1), "explanation": "States the author's answer."}
+		} else {
+			out = map[string]any{"new": rewordings.Replace(part), "explanation": "Names the actor."}
+		}
+	case review.PromptFixAll:
+		out = map[string]any{"new": rewordings.Replace(labelled(c.Prompt, "The section to rewrite"))}
 	default:
 		return model.Raw{}, fmt.Errorf("unexpected prompt %s", c.PromptVersion)
 	}
 	js, _ := json.Marshal(out)
 	return model.Raw{Text: string(js), TokensIn: 100, TokensOut: 50}, nil
+}
+
+// rewordings are the passive sentences the fake writer can put in the active voice.
+var rewordings = strings.NewReplacer(
+	"The request is retried.", "The client retries the request.",
+	"The order is stored.", "The service stores the order.",
+	"The invoice is sent.", "The service sends the invoice.",
+)
+
+// labelled returns the content of the data block with the label in a prompt, or "".
+func labelled(prompt, label string) string {
+	m := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(label) + `:\n<<<DATA [0-9a-f]+\n(.*?)\nDATA [0-9a-f]+>>>`).FindStringSubmatch(prompt)
+	if m == nil {
+		return ""
+	}
+	return m[1]
 }
 
 func (r *reviewer) count(prompt string) int {

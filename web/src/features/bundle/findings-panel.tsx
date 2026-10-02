@@ -1,15 +1,17 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
-import { ExternalLink, Loader2, ShieldCheck, Unlink, Wand2, X } from "lucide-react";
+import { Check, ChevronRight, ClipboardCopy, ExternalLink, Loader2, ShieldCheck, Unlink, Wand2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { AcceptedFix, Finding, FixSuggestion, Trend, Waiver } from "@/lib/api";
+import type { AcceptedFix, AcceptedFixes, Finding, FixSuggestion, SectionFixes, Trend, Waiver } from "@/lib/api";
 import {
   acceptFixMutation,
+  acceptFixesMutation,
   approveWaiverMutation,
+  getFixPromptOptions,
   getSpecDocOptions,
   listBundleThreadsOptions,
   listFindingsOptions,
@@ -18,7 +20,9 @@ import {
   rejectWaiverMutation,
   requestWaiverMutation,
   suggestFixMutation,
+  suggestFixesMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
+import { TextDiff } from "./text-diff";
 import { checkDocsURL } from "@/lib/docs";
 import { problemMessage } from "@/lib/problem";
 import { levelStyle } from "./verdict";
@@ -27,13 +31,33 @@ import { MarkStandalone } from "@/features/trace/mark-standalone";
 
 const order = { MUST: 0, SHOULD: 1, INFO: 2 } as const;
 
+// CheckRow is the SHOULD or INFO findings of one check: one row in the rail, with a count.
+type CheckRow = { key: string; slug: string; level: "SHOULD" | "INFO"; items: Finding[] };
+
+// rowsOf groups the findings that do not block Build Ready by check, SHOULD before INFO, each
+// level in the order the doc gives its first finding. 150 cards would hide the MUST findings.
+function rowsOf(items: Finding[]): CheckRow[] {
+  const rows = new Map<string, CheckRow>();
+  for (const f of items) {
+    if (f.level === "MUST") continue;
+    const key = `${f.level}:${f.check_slug}`;
+    const row = rows.get(key) ?? { key, slug: f.check_slug, level: f.level, items: [] };
+    row.items.push(f);
+    rows.set(key, row);
+  }
+  return [...rows.values()].sort((a, b) => order[a.level] - order[b.level]);
+}
+
 // upstreamSlug is the check a standalone Acknowledgement answers (SDD §9.4).
 const upstreamSlug = "links.has-upstream";
 
-// FindingsPanel lists the findings of a run: MUST first, then in document order. A click
-// opens the text the finding points at. A member can discuss a finding or ask for a waiver
-// (REQ-072), and an author can ask for a fix (REQ-025); the waivers of the bundle follow the
-// findings, then the detached findings and threads (SDD §8.8).
+// FindingsPanel lists the findings of a run. The MUST findings, which block Build Ready, show
+// as cards in document order. The SHOULD and INFO findings show as one row for each check with
+// a count, and a click opens a row to its cards. A click on a card opens the text the finding
+// points at. A member can discuss a finding or ask for a waiver (REQ-072), and an author can
+// ask for a fix (REQ-025) or, on a row of a reword check, fix every finding of the check at
+// once; the waivers of the bundle follow the findings, then the detached findings and threads
+// (SDD §8.8).
 export function FindingsPanel({
   runId,
   docId,
@@ -44,7 +68,6 @@ export function FindingsPanel({
   onDiscuss,
   onOpenWaiver,
   onVerify,
-  orderKey,
   trend,
   aiVersion,
 }: {
@@ -58,8 +81,6 @@ export function FindingsPanel({
   onOpenWaiver: (w: Waiver) => void;
   // onVerify opens the verify field at a target, for a drifted code link.
   onVerify?: (target: string) => void;
-  // orderKey names the review whose order the rail keeps: the AI review, across lint runs.
-  orderKey?: string;
   // trend is what the last full review fixed, left open and found new against the one before.
   trend?: Trend;
   // aiVersion is the version the AI review read, when it is older than the current version.
@@ -71,11 +92,10 @@ export function FindingsPanel({
   const [notice, setNotice] = useState<{ slug: string; text: string; bad?: boolean }>();
   // answering is the coverage gap, or the missing upstream link, whose answer form is open.
   const [answering, setAnswering] = useState<string>();
-  const frozen = useRef<{ runId?: string; ranks: Map<string, number> }>({ ranks: new Map() });
+  // opened holds the rows a click opened, and fixingAll is the check whose Fix all is open.
+  const [opened, setOpened] = useState<string[]>([]);
+  const [fixingAll, setFixingAll] = useState<CheckRow>();
   const selectedRef = useRef<HTMLLIElement>(null);
-  useEffect(() => {
-    selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selected]);
   // A save makes a new lint run. The list it carries keeps the same findings, so the rail keeps
   // showing them while it loads, and no open suggestion unmounts (#53). The page mounts one
   // panel per doc, so the list kept is always this doc's (#74).
@@ -102,6 +122,16 @@ export function FindingsPanel({
   useEffect(() => {
     if (runId) refetch();
   }, [runId, refetch]);
+  // A finding picked in the overlay, or the finding of a waiver, opens its row and scrolls
+  // into view.
+  const selectedRow = (findings.data?.items ?? []).find((f) => f.id === selected && f.level !== "MUST");
+  const selectedKey = selectedRow ? `${selectedRow.level}:${selectedRow.check_slug}` : undefined;
+  useEffect(() => {
+    if (selectedKey) setOpened((o) => (o.includes(selectedKey) ? o : [...o, selectedKey]));
+  }, [selectedKey, selected]);
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [selected, opened]);
 
   if (!runId) return <Empty title="No review yet" />;
   const waivers = (
@@ -117,22 +147,11 @@ export function FindingsPanel({
         <ErrorState message={problemMessage(findings.error)} />
       </div>
     );
-  // A finding whose waiver waits for a decision goes to the top: the approver came for it, and
-  // the reason belongs beside the text it excuses (SDD §9.1). The order freezes on the first
-  // sort of a run, so a decision does not move the list under the reader.
-  const open = findings.data.items.filter((f) => !f.anchor.detached);
-  // The order freezes on the AI review, not on each lint run, so a save does not re-sort it.
-  const key = orderKey ?? runId;
-  if (frozen.current.runId !== key && !requests.isPending) {
-    const ranks = new Map(open.map((f) => [ident(f), rank(pending(f)) * 10 + order[f.level]]));
-    frozen.current = { runId: key, ranks };
-  }
-  const ranks = frozen.current.ranks;
-  const items = open.sort(
-    (a, b) =>
-      (ranks.get(ident(a)) ?? rank(pending(a)) * 10 + order[a.level]) -
-      (ranks.get(ident(b)) ?? rank(pending(b)) * 10 + order[b.level]),
-  );
+  // The API gives the findings in document order. The doc order does not move when a waiver
+  // is decided or a save makes a new lint run, so the rail does not move under the reader.
+  const items = findings.data.items.filter((f) => !f.anchor.detached);
+  const must = items.filter((f) => f.level === "MUST");
+  const rows = rowsOf(items);
   const noticeView = notice ? <Notice {...notice} onClose={() => setNotice(undefined)} /> : null;
   if (items.length === 0)
     return (
@@ -142,174 +161,404 @@ export function FindingsPanel({
         {waivers}
       </>
     );
+  const card = (f: Finding) => {
+    const { icon: Icon, tone, label } = levelStyle[f.level];
+    const docs = checkDocsURL(f.check_slug);
+    return (
+      <li
+        key={ident(f)}
+        ref={f.id === selected ? selectedRef : undefined}
+        className={clsx(f.id === selected && "bg-accent-soft/60")}
+      >
+        <button
+          type="button"
+          onClick={() => onOpen(f)}
+          className="group block w-full px-4 py-3.5 text-left transition-colors hover:bg-sunken"
+        >
+          <div className="flex items-center gap-1.5">
+            <Icon aria-hidden className={clsx("size-3.5 shrink-0", tone)} />
+            <span className={clsx("text-2xs font-semibold tracking-wide", tone)}>{label}</span>
+            <span className="min-w-0 truncate font-mono text-2xs text-ink-3">{f.check_slug}</span>
+            {f.new ? (
+              <span className="ml-auto rounded-sm bg-accent-soft px-1 text-2xs font-semibold text-accent">New</span>
+            ) : null}
+            {f.relaxed ? <span className={clsx("text-2xs text-warn", !f.new && "ml-auto")}>relaxed</span> : null}
+          </div>
+          <p className="mt-1.5 text-sm text-ink">{f.message}</p>
+          {/* A gap's anchor is the frontmatter, which says nothing about the gap. */}
+          {f.anchor.quote.trim() && !f.trace_id ? (
+            <p className="mt-2 line-clamp-2 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2 group-hover:border-accent">
+              {f.anchor.quote}
+            </p>
+          ) : null}
+          {f.anchor.heading_path.length ? (
+            <p className="mt-1 truncate text-2xs text-ink-3">{f.anchor.heading_path.join(" › ")}</p>
+          ) : null}
+          {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
+          {/* A carried finding: the review that found it read an older version. */}
+          {aiVersion && f.carried ? <p className="mt-1 text-2xs text-ink-3">From the review of v{aiVersion}</p> : null}
+        </button>
+        {f.verify_target && onVerify ? (
+          <div className="px-4 pb-2 text-xs">
+            <button
+              type="button"
+              onClick={() => onVerify(f.verify_target!)}
+              className="font-medium text-accent hover:underline"
+            >
+              Verify at {f.verify_target.split("/").pop()?.slice(0, 7)}
+            </button>
+          </div>
+        ) : null}
+        {(() => {
+          const w = onFinding(f);
+          if (!w) return null;
+          return (
+            <WaiverCard
+              waiver={w}
+              waivers={all}
+              viaPullRequest={viaPullRequest}
+              decide={decide}
+              onDecided={() => setDecided((d) => [...d, w.id])}
+              next={nextWaiting(all, items, decided, w)}
+              onNext={onOpenWaiver}
+            />
+          );
+        })()}
+        {f.waived || member || docs ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-3.5 text-xs">
+            {f.waived ? (
+              <span className="inline-flex items-center gap-1 font-medium text-ok">
+                <ShieldCheck aria-hidden className="size-3.5" /> Waived
+              </span>
+            ) : null}
+            {member ? (
+              <>
+                <button type="button" onClick={() => onDiscuss(f)} className="text-ink-2 hover:text-ink">
+                  Discuss
+                </button>
+                {f.trace_id && canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
+                    className="text-ink-2 hover:text-ink"
+                  >
+                    Answer the gap
+                  </button>
+                ) : !f.waived && f.level !== "INFO" && !f.trace_id && f.check_slug !== upstreamSlug ? (
+                  <button
+                    type="button"
+                    onClick={() => setWaiving({ finding: f })}
+                    className="text-ink-2 hover:text-ink"
+                  >
+                    Ask for a waiver
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+            {docs ? (
+              <a
+                href={docs}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-ink-2 hover:text-ink"
+              >
+                What this check means <ExternalLink aria-hidden className="size-3" />
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+        {f.trace_id && answering === f.id ? (
+          <GapAnswer
+            className="mx-4 mb-3"
+            docId={docId}
+            findingId={f.id}
+            traceId={f.trace_id}
+            onDone={(text) => {
+              setAnswering(undefined);
+              setNotice({ slug: f.check_slug, text });
+            }}
+          />
+        ) : null}
+        {canEdit && !f.waived && !f.trace_id ? (
+          <SuggestFix
+            runId={f.run_id}
+            docId={docId}
+            finding={f}
+            onAccepted={(result) => setNotice({ slug: f.check_slug, ...fixText(result) })}
+            aside={
+              // A missing upstream link has a second answer: the doc stands alone. A
+              // request that waits for approval sits on the finding above instead.
+              f.check_slug === upstreamSlug && f.level !== "INFO" && !pending(f) ? (
+                <button
+                  type="button"
+                  onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
+                  className="text-xs text-ink-2 hover:text-ink"
+                >
+                  Mark it standalone
+                </button>
+              ) : null
+            }
+          />
+        ) : null}
+        {f.check_slug === upstreamSlug && answering === f.id && !pending(f) ? (
+          <MarkStandalone
+            className="mx-4 mb-3"
+            docId={docId}
+            findingId={f.id}
+            onCancel={() => setAnswering(undefined)}
+            onDone={(text) => {
+              setAnswering(undefined);
+              setNotice({ slug: f.check_slug, text });
+            }}
+          />
+        ) : null}
+      </li>
+    );
+  };
   return (
     <>
       {noticeView}
-      {trend ? <TrendLine trend={trend} /> : null}
-      <ul className="divide-y divide-line">
-        {items.map((f) => {
-          const { icon: Icon, tone, label } = levelStyle[f.level];
-          const docs = checkDocsURL(f.check_slug);
-          return (
-            <li
-              key={ident(f)}
-              ref={f.id === selected ? selectedRef : undefined}
-              className={clsx(f.id === selected && "bg-accent-soft/60")}
-            >
-              <button
-                type="button"
-                onClick={() => onOpen(f)}
-                className="group block w-full px-4 py-3.5 text-left transition-colors hover:bg-sunken"
-              >
-                <div className="flex items-center gap-1.5">
-                  <Icon aria-hidden className={clsx("size-3.5 shrink-0", tone)} />
-                  <span className={clsx("text-2xs font-semibold tracking-wide", tone)}>{label}</span>
-                  <span className="min-w-0 truncate font-mono text-2xs text-ink-3">{f.check_slug}</span>
-                  {f.new ? (
-                    <span className="ml-auto rounded-sm bg-accent-soft px-1 text-2xs font-semibold text-accent">
-                      New
-                    </span>
-                  ) : null}
-                  {f.relaxed ? <span className={clsx("text-2xs text-warn", !f.new && "ml-auto")}>relaxed</span> : null}
-                </div>
-                <p className="mt-1.5 text-sm text-ink">{f.message}</p>
-                {/* A gap's anchor is the frontmatter, which says nothing about the gap. */}
-                {f.anchor.quote.trim() && !f.trace_id ? (
-                  <p className="mt-2 line-clamp-2 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2 group-hover:border-accent">
-                    {f.anchor.quote}
-                  </p>
-                ) : null}
-                {f.anchor.heading_path.length ? (
-                  <p className="mt-1 truncate text-2xs text-ink-3">{f.anchor.heading_path.join(" › ")}</p>
-                ) : null}
-                {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
-                {/* A carried finding: the review that found it read an older version. */}
-                {aiVersion && f.run_id !== runId ? (
-                  <p className="mt-1 text-2xs text-ink-3">From the review of v{aiVersion}</p>
-                ) : null}
-              </button>
-              {f.verify_target && onVerify ? (
-                <div className="px-4 pb-2 text-xs">
+      <div className="flex items-center gap-2 border-b border-line px-4 py-2">
+        {trend ? <TrendLine trend={trend} /> : <span className="flex-1" />}
+        {member ? <CopyForAgent docId={docId} /> : null}
+      </div>
+      {must.length ? (
+        <ul className="divide-y divide-line" aria-label="Findings that block Build Ready">
+          {must.map(card)}
+        </ul>
+      ) : null}
+      {rows.length ? (
+        <ul className={clsx("divide-y divide-line", must.length > 0 && "border-t border-line")}>
+          {rows.map((row) => {
+            const { icon: Icon, tone, label } = levelStyle[row.level];
+            const open = opened.includes(row.key);
+            const reword = row.items.filter((f) => f.fix_kind === "reword" && !f.waived).length;
+            const waiting = row.items.some((f) => pending(f));
+            const fresh = row.items.filter((f) => f.new).length;
+            return (
+              <li key={row.key}>
+                <div className="flex items-center gap-1.5 px-4 py-2 hover:bg-sunken">
                   <button
                     type="button"
-                    onClick={() => onVerify(f.verify_target!)}
-                    className="font-medium text-accent hover:underline"
+                    aria-expanded={open}
+                    onClick={() => setOpened((o) => (open ? o.filter((k) => k !== row.key) : [...o, row.key]))}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
                   >
-                    Verify at {f.verify_target.split("/").pop()?.slice(0, 7)}
+                    <ChevronRight
+                      aria-hidden
+                      className={clsx("size-3.5 shrink-0 text-ink-3 transition-transform", open && "rotate-90")}
+                    />
+                    <Icon aria-hidden className={clsx("size-3.5 shrink-0", tone)} />
+                    <span className={clsx("text-2xs font-semibold tracking-wide", tone)}>{label}</span>
+                    <span className="min-w-0 truncate font-mono text-2xs text-ink-2">{row.slug}</span>
+                    <span className="font-mono text-2xs text-ink-3">{row.items.length}</span>
+                    {fresh ? (
+                      <span className="rounded-sm bg-accent-soft px-1 text-2xs font-semibold text-accent">
+                        {fresh} new
+                      </span>
+                    ) : null}
+                    {waiting ? <span className="text-2xs font-medium text-warn">waiver asked</span> : null}
                   </button>
-                </div>
-              ) : null}
-              {(() => {
-                const w = onFinding(f);
-                if (!w) return null;
-                return (
-                  <WaiverCard
-                    waiver={w}
-                    waivers={all}
-                    viaPullRequest={viaPullRequest}
-                    decide={decide}
-                    onDecided={() => setDecided((d) => [...d, w.id])}
-                    next={nextWaiting(all, items, decided, w)}
-                    onNext={onOpenWaiver}
-                  />
-                );
-              })()}
-              {f.waived || member || docs ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pb-3.5 text-xs">
-                  {f.waived ? (
-                    <span className="inline-flex items-center gap-1 font-medium text-ok">
-                      <ShieldCheck aria-hidden className="size-3.5" /> Waived
-                    </span>
-                  ) : null}
-                  {member ? (
-                    <>
-                      <button type="button" onClick={() => onDiscuss(f)} className="text-ink-2 hover:text-ink">
-                        Discuss
-                      </button>
-                      {f.trace_id && canEdit ? (
-                        <button
-                          type="button"
-                          onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
-                          className="text-ink-2 hover:text-ink"
-                        >
-                          Answer the gap
-                        </button>
-                      ) : !f.waived && f.level !== "INFO" && !f.trace_id && f.check_slug !== upstreamSlug ? (
-                        <button
-                          type="button"
-                          onClick={() => setWaiving({ finding: f })}
-                          className="text-ink-2 hover:text-ink"
-                        >
-                          Ask for a waiver
-                        </button>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {docs ? (
-                    <a
-                      href={docs}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-ink-2 hover:text-ink"
+                  {canEdit && reword > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setFixingAll(row)}
+                      title={`Rewrite the ${reword} finding${reword === 1 ? "" : "s"} of this check, section by section`}
+                      className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent hover:underline"
                     >
-                      What this check means <ExternalLink aria-hidden className="size-3" />
-                    </a>
+                      <Wand2 aria-hidden className="size-3.5" /> Fix all
+                    </button>
                   ) : null}
                 </div>
-              ) : null}
-              {f.trace_id && answering === f.id ? (
-                <GapAnswer
-                  className="mx-4 mb-3"
-                  docId={docId}
-                  findingId={f.id}
-                  traceId={f.trace_id}
-                  onDone={(text) => {
-                    setAnswering(undefined);
-                    setNotice({ slug: f.check_slug, text });
-                  }}
-                />
-              ) : null}
-              {canEdit && !f.waived && !f.trace_id ? (
-                <SuggestFix
-                  runId={f.run_id}
-                  docId={docId}
-                  finding={f}
-                  onAccepted={(result) => setNotice({ slug: f.check_slug, ...fixText(result) })}
-                  aside={
-                    // A missing upstream link has a second answer: the doc stands alone. A
-                    // request that waits for approval sits on the finding above instead.
-                    f.check_slug === upstreamSlug && f.level !== "INFO" && !pending(f) ? (
-                      <button
-                        type="button"
-                        onClick={() => setAnswering(answering === f.id ? undefined : f.id)}
-                        className="text-xs text-ink-2 hover:text-ink"
-                      >
-                        Mark it standalone
-                      </button>
-                    ) : null
-                  }
-                />
-              ) : null}
-              {f.check_slug === upstreamSlug && answering === f.id && !pending(f) ? (
-                <MarkStandalone
-                  className="mx-4 mb-3"
-                  docId={docId}
-                  findingId={f.id}
-                  onCancel={() => setAnswering(undefined)}
-                  onDone={(text) => {
-                    setAnswering(undefined);
-                    setNotice({ slug: f.check_slug, text });
-                  }}
-                />
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+                {open ? <ul className="divide-y divide-line border-t border-line">{row.items.map(card)}</ul> : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
       {waivers}
       <WaiverDialog docId={docId} ask={waiving} onClose={() => setWaiving(undefined)} />
+      {fixingAll && runId ? (
+        <FixAllDialog
+          runId={runId}
+          docId={docId}
+          slug={fixingAll.slug}
+          onClose={() => setFixingAll(undefined)}
+          onSaved={(r) => {
+            setFixingAll(undefined);
+            setNotice({ slug: fixingAll.slug, ...fixAllText(r) });
+          }}
+        />
+      ) : null}
     </>
   );
+}
+
+// CopyForAgent copies the prompt that tells a coding agent how to fix the findings over MCP:
+// rewrite the reword findings, ask the person every answer in one message, run one review.
+function CopyForAgent({ docId }: { docId: string }) {
+  const qc = useQueryClient();
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  const copy = async () => {
+    try {
+      const { prompt } = await qc.fetchQuery(getFixPromptOptions({ path: { docId } }));
+      await navigator.clipboard.writeText(prompt);
+      setState("copied");
+    } catch {
+      setState("failed");
+    }
+    setTimeout(() => setState("idle"), 2500);
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title="Copy a prompt that tells a coding agent how to fix these findings with the Speccy MCP server"
+      className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-ink-2 hover:text-ink"
+    >
+      {state === "copied" ? (
+        <Check aria-hidden className="size-3.5 text-ok" />
+      ) : (
+        <ClipboardCopy aria-hidden className="size-3.5" />
+      )}
+      <span role="status">
+        {state === "copied" ? "Copied" : state === "failed" ? "Could not copy" : "Copy for a coding agent"}
+      </span>
+    </button>
+  );
+}
+
+// FixAllDialog rewrites every reword finding of one check, section by section, and shows each
+// section's diff. The author accepts sections one by one or all at once, and the accepted ones
+// save as one version. The doc changes only on that save.
+function FixAllDialog({
+  runId,
+  docId,
+  slug,
+  onClose,
+  onSaved,
+}: {
+  runId: string;
+  docId: string;
+  slug: string;
+  onClose: () => void;
+  onSaved: (r: AcceptedFixes) => void;
+}) {
+  const qc = useQueryClient();
+  const [fixes, setFixes] = useState<SectionFixes>();
+  const [accepted, setAccepted] = useState<string[]>([]);
+  const suggest = useMutation({ ...suggestFixesMutation(), onSuccess: setFixes });
+  const save = useMutation({
+    ...acceptFixesMutation(),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
+      onSaved(r);
+    },
+  });
+  // The dialog opens on one check of one run, and asks for the rewrites once.
+  const asked = useRef(false);
+  const { mutate } = suggest;
+  useEffect(() => {
+    if (asked.current) return;
+    asked.current = true;
+    mutate({ path: { runId }, body: { check_slug: slug } });
+  }, [mutate, runId, slug]);
+  const sections = fixes?.sections ?? [];
+  const accept = (ids: string[]) => save.mutate({ path: { runId }, body: { finding_ids: ids } });
+  return (
+    <Dialog
+      open
+      wide
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+      title={`Fix all: ${slug}`}
+      description="Speccy rewrites each section that has a finding of this check, and lints the result. The doc changes when you save the sections you accept."
+      footer={
+        fixes ? (
+          <>
+            <Button onClick={onClose}>Cancel</Button>
+            <Button disabled={accepted.length === 0 || save.isPending} onClick={() => accept(accepted)}>
+              Save {accepted.length} accepted
+            </Button>
+            <Button
+              variant="primary"
+              disabled={sections.length === 0 || save.isPending}
+              onClick={() => accept(sections.map((x) => x.finding_id))}
+            >
+              {save.isPending ? "Saving" : "Accept all"}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={onClose}>Cancel</Button>
+        )
+      }
+    >
+      {suggest.isPending ? <Loading label="Rewriting the sections" /> : null}
+      {suggest.isError ? <ErrorState message={problemMessage(suggest.error)} /> : null}
+      {fixes ? (
+        <div className="max-h-[56vh] space-y-4 overflow-y-auto pr-1 text-xs">
+          {sections.length === 0 ? (
+            <p className="text-sm text-ink-2">No rewrite passed the check. Fix these findings one by one.</p>
+          ) : null}
+          {sections.map((x) => {
+            const on = accepted.includes(x.finding_id);
+            return (
+              <section key={x.finding_id}>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="min-w-0 truncate text-sm font-medium text-ink">
+                    {x.heading_path.length ? x.heading_path.join(" › ") : "Before the first heading"}
+                  </h3>
+                  <span className="shrink-0 text-ink-3">
+                    {x.findings} finding{x.findings === 1 ? "" : "s"} · lines {x.line} to {x.end_line}
+                  </span>
+                  <label className="ml-auto inline-flex shrink-0 cursor-pointer items-center gap-1.5 text-ink">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() =>
+                        setAccepted((a) => (on ? a.filter((id) => id !== x.finding_id) : [...a, x.finding_id]))
+                      }
+                    />
+                    Accept
+                  </label>
+                </div>
+                <TextDiff before={x.old} after={x.new} className="mt-1.5 max-h-64" />
+              </section>
+            );
+          })}
+          {fixes.dropped.length ? (
+            <section>
+              <h3 className="text-sm font-medium text-ink">
+                Speccy dropped {fixes.dropped.length} section{fixes.dropped.length === 1 ? "" : "s"}
+              </h3>
+              <ul className="mt-1 space-y-1 text-ink-2">
+                {fixes.dropped.map((d) => (
+                  <li key={d.heading_path.join(" › ")}>
+                    <span className="text-ink">{d.heading_path.join(" › ") || "Before the first heading"}:</span>{" "}
+                    {d.reason}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {save.isError ? <ErrorState message={problemMessage(save.error)} /> : null}
+        </div>
+      ) : null}
+    </Dialog>
+  );
+}
+
+// fixAllText says what a saved Fix all did.
+function fixAllText(r: AcceptedFixes): { text: string; bad?: boolean } {
+  const where = r.version ? ` as version ${r.version.number}` : "";
+  const n = `${r.sections} section${r.sections === 1 ? "" : "s"}`;
+  if (r.left > 0)
+    return {
+      text: `Saved ${n}${where}. Lint still gives ${r.left} finding${r.left === 1 ? "" : "s"} there.`,
+      bad: true,
+    };
+  return { text: `Saved ${n}${where}. Lint gives no finding of this check there.` };
 }
 
 // WaiverDialog asks for a waiver of one finding, with a reason (REQ-072). An ended waiver
@@ -399,11 +648,6 @@ function useDecide(docId: string) {
 }
 
 type Decide = ReturnType<typeof useDecide>;
-
-// rank puts a finding with a waiver request first.
-function rank(waiver: unknown): number {
-  return waiver ? 0 : 1;
-}
 
 // waiverCovers reports whether w excuses f: the same check, and the whole doc, the same
 // section, or a section above it. A check that names a section reads its subsections too, so
@@ -665,10 +909,11 @@ function WaiversList({
   );
 }
 
-// SuggestFix asks the AI for a patch for one finding and shows it. The doc changes only when
-// the author accepts the patch (REQ-025, T-092). A missing upstream link gets a list of docs
-// instead, and Speccy writes the link (#75). After an accept of a lint finding's fix, the rail
-// says at once whether the check still fails.
+// SuggestFix asks the AI for a patch for one finding and shows its diff. The doc changes only
+// when the author accepts the patch (REQ-025, T-092). An answer finding needs a fact, so the
+// control asks the author for the answer first, and the AI writes that answer into the doc. A
+// missing upstream link gets a list of docs instead, and Speccy writes the link (#75). After an
+// accept of a lint finding's fix, the rail says at once whether the check still fails.
 function SuggestFix({
   runId,
   docId,
@@ -686,6 +931,10 @@ function SuggestFix({
   const qc = useQueryClient();
   const [patch, setPatch] = useState<FixSuggestion>();
   const [linkTo, setLinkTo] = useState<string>();
+  // An answer finding asks for the author's answer. A missing upstream link asks for a doc.
+  const needsAnswer = finding.fix_kind === "answer" && finding.check_slug !== upstreamSlug;
+  const [answering, setAnswering] = useState(false);
+  const [answer, setAnswer] = useState("");
   const path = { runId, findingId: finding.id };
   // asked is the finding the suggestion was written for. A save stores the same finding again
   // under a new ID, and the suggestion stays with the one it was asked for.
@@ -694,9 +943,14 @@ function SuggestFix({
     ...suggestFixMutation(),
     onSuccess: (p) => {
       setPatch(p);
+      setAnswering(false);
       setLinkTo(p.link_choices?.[0]?.doc_id);
     },
   });
+  const ask = () => {
+    setAsked(path);
+    suggest.mutate({ path, ...(needsAnswer ? { body: { answer: answer.trim() } } : {}) });
+  };
   const accept = useMutation({
     ...acceptFixMutation(),
     onSuccess: (r) => {
@@ -705,16 +959,58 @@ function SuggestFix({
       qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
     },
   });
+  if (!patch && answering)
+    return (
+      <form
+        className="mx-4 mb-3 rounded-md border border-line bg-sunken p-2 text-xs"
+        onSubmit={(e) => {
+          e.preventDefault();
+          ask();
+        }}
+      >
+        <label className="block text-ink-2">
+          Your answer
+          <Textarea
+            value={answer}
+            onChange={(e) => setAnswer(e.target.value)}
+            rows={3}
+            autoFocus
+            required
+            placeholder="The fact the doc needs, in your own words."
+            className="mt-1 font-sans text-xs"
+          />
+        </label>
+        <p className="mt-1 text-ink-3">
+          Speccy writes your answer into the doc, in the doc's style, and shows the diff.
+        </p>
+        {suggest.isError ? (
+          <div className="mt-1.5">
+            <ErrorState message={problemMessage(suggest.error)} />
+          </div>
+        ) : null}
+        <div className="mt-2 flex justify-end gap-1.5">
+          <Button
+            size="sm"
+            onClick={() => {
+              suggest.reset();
+              setAnswering(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button size="sm" type="submit" variant="primary" disabled={suggest.isPending || !answer.trim()}>
+            {suggest.isPending ? "Writing the fix" : "Write the fix"}
+          </Button>
+        </div>
+      </form>
+    );
   if (!patch)
     return (
       <div className="px-4 pb-3">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <button
             type="button"
-            onClick={() => {
-              setAsked(path);
-              suggest.mutate({ path });
-            }}
+            onClick={() => (needsAnswer ? setAnswering(true) : ask())}
             disabled={suggest.isPending}
             className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink disabled:text-ink-3"
           >
@@ -723,7 +1019,7 @@ function SuggestFix({
             ) : (
               <Wand2 aria-hidden className="size-3.5" />
             )}
-            {suggest.isPending ? "Writing a fix" : "Suggest fix"}
+            {suggest.isPending ? "Writing a fix" : needsAnswer ? "Answer and fix" : "Suggest fix"}
           </button>
           {aside}
         </div>
@@ -759,13 +1055,15 @@ function SuggestFix({
         </fieldset>
       ) : (
         <>
-          <p className="mt-1.5 font-mono text-2xs text-ink-3">{patch.file}</p>
-          <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-del)] px-1.5 py-1 font-mono whitespace-pre-wrap line-through decoration-ink-3">
-            {patch.old}
-          </pre>
-          <pre className="mt-1 max-h-40 overflow-auto rounded-sm bg-[var(--diff-add)] px-1.5 py-1 font-mono whitespace-pre-wrap">
-            {patch.new}
-          </pre>
+          <p className="mt-1.5 font-mono text-2xs text-ink-3">
+            {patch.file} ·{" "}
+            {patch.old
+              ? patch.line === patch.end_line
+                ? `line ${patch.line}`
+                : `lines ${patch.line} to ${patch.end_line}`
+              : `new text at line ${patch.line}`}
+          </p>
+          <TextDiff before={patch.old} after={patch.new} className="mt-1 max-h-64" />
         </>
       )}
       {accept.isError ? (
@@ -807,7 +1105,7 @@ function fixText(result: AcceptedFix): { text: string; bad?: boolean } {
 // or a build question, so a finding the model words another way is still open, not new.
 function TrendLine({ trend }: { trend: Trend }) {
   return (
-    <p role="status" className="border-b border-line px-4 py-2 text-xs text-ink-2">
+    <p role="status" className="min-w-0 flex-1 text-xs text-ink-2">
       Since the review of v{trend.since_version}:{" "}
       <span className={clsx(trend.fixed > 0 && "font-semibold text-ok")}>{trend.fixed} fixed</span>, {trend.open} still
       open, <span className={clsx(trend.new > 0 && "font-semibold text-ink")}>{trend.new} new</span>
@@ -819,7 +1117,11 @@ function Notice({ slug, text, bad, onClose }: { slug: string; text: string; bad?
   return (
     <div
       role="status"
-      className={clsx("flex items-start gap-2 border-b border-line px-4 py-2 text-xs", bad ? "text-bad" : "text-ok")}
+      // The notice stays in view: the rail is often scrolled far below the top when a fix lands.
+      className={clsx(
+        "sticky top-0 z-10 flex items-start gap-2 border-b border-line bg-surface px-4 py-2 text-xs",
+        bad ? "text-bad" : "text-ok",
+      )}
     >
       <p className="min-w-0 flex-1">
         <span className="font-mono text-2xs text-ink-3">{slug}</span> {text}

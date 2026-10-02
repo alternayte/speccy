@@ -258,12 +258,12 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		return nil, err
 	}
 	rows = append(rows, carried...)
-	var cur *version.Current
-	if b.CurrentVersionID.Valid && (b.CurrentVersionID.UUID != run.VersionID || len(carried) > 0) {
-		if cur, err = version.LoadCurrent(ctx, q, b); err != nil {
-			return nil, err
-		}
+	// The current version gives each finding its lines, and moves an anchor of an older version.
+	cur, err := version.LoadCurrent(ctx, q, b)
+	if err != nil {
+		return nil, err
 	}
+	moved := b.CurrentVersionID.Valid && (b.CurrentVersionID.UUID != run.VersionID || len(carried) > 0)
 	// The findings that the last full review found and the one before it did not (the trend).
 	isNew := map[string]bool{}
 	if vd, err := q.GetVerdict(ctx, run.ID); err == nil {
@@ -284,7 +284,7 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		var an anchor.Anchor
 		_ = json.Unmarshal(f.Anchor, &an)
 		detached := false
-		if cur != nil {
+		if moved {
 			var ok bool
 			an, ok = cur.Anchor(an)
 			detached = !ok
@@ -295,10 +295,16 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		_ = json.Unmarshal(f.Suggestion, &sugg)
 		af := api.Finding{
 			Id: f.ID, RunId: f.RunID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
-			Anchor: anchorAPI(an),
+			Anchor: anchorAPI(an), FixKind: fixKind(f.CheckSlug, f.Evidence),
 		}
 		if detached {
 			af.Anchor.Detached = &detached
+		} else {
+			af.Line, af.EndLine = lines(cur.File(an.File), an)
+		}
+		if f.RunID != run.ID {
+			yes := true
+			af.Carried = &yes
 		}
 		if isNew[f.ID.String()] {
 			yes := true
@@ -355,6 +361,15 @@ func Layer(slug, stage string, level kernel.Level) string {
 		return "slop"
 	}
 	return ""
+}
+
+// lines returns the first and the last line of an anchor in src, from 1.
+func lines(src []byte, an anchor.Anchor) (int, int) {
+	first := lineOf(src, an.Start)
+	if an.End <= an.Start {
+		return first, first
+	}
+	return first, lineOf(src, an.End-1)
 }
 
 func ptrInt(n int) *int { return &n }

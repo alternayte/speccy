@@ -111,6 +111,7 @@ type catalogEntry struct {
 	Level   string `yaml:"level"`
 	What    string `yaml:"what"`
 	Fix     string `yaml:"fix"`
+	FixKind string `yaml:"fix_kind"`
 	Removed string `yaml:"removed"`
 }
 
@@ -148,6 +149,7 @@ var stageIntro = map[string]string{
 // catalogCheck is one entry of the Check catalog.
 type catalogCheck struct {
 	slug, stage, level, what, passWhen, fix, removed string
+	reword                                           bool
 	profiles                                         []string
 	sizes                                            []string
 }
@@ -186,7 +188,10 @@ func loadCatalog() ([]catalogCheck, error) {
 		if l, ok := levels[e.Slug]; ok {
 			level = l
 		}
-		c := &catalogCheck{slug: e.Slug, stage: e.Stage, level: level, what: e.What, fix: e.Fix, removed: e.Removed}
+		if e.FixKind != "" && e.FixKind != "reword" {
+			return nil, fmt.Errorf("%s: %s has the fix kind %q. The only one to name is reword; every other finding is an answer finding", catalogSource, e.Slug, e.FixKind)
+		}
+		c := &catalogCheck{slug: e.Slug, stage: e.Stage, level: level, what: e.What, fix: e.Fix, removed: e.Removed, reword: e.FixKind == "reword"}
 		byslug[e.Slug] = c
 		out = append(out, c)
 	}
@@ -249,6 +254,7 @@ func checkCatalog() (string, error) {
 	fmt.Fprintf(&b, generated+"\n\n", "internal/features/profile/catalog.yaml and the built-in profiles")
 	b.WriteString("This page lists each check that Speccy runs with the built-in PRD and SDD profiles. A finding in Speccy links to the entry of its check.\n\n")
 	b.WriteString("A check has a slug, a level and a stage. A MUST finding makes the verdict Not Build Ready. A SHOULD finding counts in the score. An INFO finding is a hint. A profile can change the level of a check. [The review pipeline](/concepts/review-pipeline/) explains the stages.\n\n")
+	b.WriteString("A check also has a fix kind. A reword finding needs a change to the words and no fact, so **Fix all** or a coding agent can fix it alone. An answer finding needs a fact from the author. [Fix the findings of a review](/how-to/fix-findings/) shows both.\n\n")
 	stage := ""
 	for _, c := range checks {
 		if c.stage != stage {
@@ -271,6 +277,14 @@ func checkCatalog() (string, error) {
 		fmt.Fprintf(&b, "- Level: %s\n- Profiles: %s\n", level, strings.Join(c.profiles, ", "))
 		if len(c.sizes) > 0 {
 			fmt.Fprintf(&b, "- Sizes: %s\n", strings.Join(c.sizes, ", "))
+		}
+		switch {
+		case c.slug == lint.BrokenLink:
+			b.WriteString("- Fix kind: reword when one file of the bundle has the name the link names, and answer when none or more than one has it\n")
+		case c.reword:
+			b.WriteString("- Fix kind: reword\n")
+		default:
+			b.WriteString("- Fix kind: answer\n")
 		}
 		b.WriteString("\n")
 		if c.passWhen != "" {

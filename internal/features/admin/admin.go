@@ -285,6 +285,32 @@ func (a *API) TestBackend(ctx context.Context, req api.TestBackendRequestObject)
 	return out, nil
 }
 
+// ListBackendModels reads the models of an API backend from its models endpoint, so an admin
+// picks a model from a list that is never stale. Only OpenRouter gives prices.
+func (a *API) ListBackendModels(ctx context.Context, req api.ListBackendModelsRequestObject) (api.ListBackendModelsResponseObject, error) {
+	b, err := a.backend(ctx, req.BackendId)
+	if err != nil {
+		return nil, err
+	}
+	models, err := a.Gateway.Models(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	out := api.BackendModelList{Items: make([]api.BackendModel, 0, len(models))}
+	for _, m := range models {
+		item := api.BackendModel{Id: m.ID}
+		if m.Name != "" && m.Name != m.ID {
+			item.Name = &m.Name
+		}
+		if m.PriceIn != nil && m.PriceOut != nil {
+			priceIn, priceOut := float32(*m.PriceIn), float32(*m.PriceOut)
+			item.PriceInPerMtok, item.PriceOutPerMtok = &priceIn, &priceOut
+		}
+		out.Items = append(out.Items, item)
+	}
+	return api.ListBackendModels200JSONResponse(out), nil
+}
+
 // ListPresets lists the agent CLI presets and whether each is installed.
 func (a *API) ListPresets(context.Context, api.ListPresetsRequestObject) (api.ListPresetsResponseObject, error) {
 	out := api.PresetList{Items: []api.Preset{}}

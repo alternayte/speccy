@@ -4,7 +4,8 @@
 # check takes its text from the profile. `level` is the default where the Go code does not
 # declare one in lint.Rules; `question` means the finding takes its build question's level.
 # A removed check keeps an entry with `removed`, so a link from an older Speccy still lands
-# on text.
+# on text. `fix_kind: reword` names a check whose finding is a reword finding: its fix changes
+# the words and no fact, and lint proves the fix. Every other finding is an answer finding.
 checks:
   - slug: frontmatter.readable
     stage: lint
@@ -21,6 +22,7 @@ checks:
     fix: Add the missing heading and its text. A heading with a section number, such as "5. Decisions", counts.
   - slug: lint.broken-link
     stage: lint
+    fix_kind: reword
     what: Each relative link and image points at a file in the bundle.
     fix: Correct the path, or add the file to the bundle.
   - slug: lint.duplicate-id
@@ -33,10 +35,12 @@ checks:
     fix: Define the ID, correct the reference, or link the doc that defines it.
   - slug: lint.slop-phrase
     stage: lint
+    fix_kind: reword
     what: The prose has no filler phrase from Speccy's list, such as "it is important to note that".
     fix: Delete the phrase, and state the fact.
   - slug: lint.sentence-length
     stage: lint
+    fix_kind: reword
     what: No sentence is longer than the profile's sentence word limit. Headings and table cells do not count.
     fix: Split the sentence. Put one statement in each sentence.
   - slug: lint.weasel
@@ -49,6 +53,7 @@ checks:
     fix: Write the full name next to the first use of the acronym.
   - slug: lint.rfc2119-case
     stage: lint
+    fix_kind: reword
     what: A requirement item writes MUST, SHOULD and MAY in upper case.
     fix: Write the keyword in upper case, so that a reader sees the requirement level.
   - slug: lint.prose-limit
@@ -61,6 +66,7 @@ checks:
     fix: Move the code or the table into an asset in the bundle, and link to it.
   - slug: lint.passive-voice
     stage: lint
+    fix_kind: reword
     what: A sentence names who acts. Speccy marks passive voice, such as "the request is retried".
     fix: Name the actor, such as "the service retries the request".
   - slug: lint.requirement-grammar

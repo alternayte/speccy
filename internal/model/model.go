@@ -76,6 +76,9 @@ type Raw struct {
 	TokensOut int64
 	// Estimated is true when the backend reports no token counts (some agent CLIs).
 	Estimated bool
+	// Truncated is true when the backend stopped the answer at the token limit. A model that
+	// reasons spends the limit on its thinking, and the text that is left is not whole.
+	Truncated bool
 }
 
 // Backend calls one kind of model service.

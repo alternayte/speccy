@@ -17,7 +17,7 @@ Get one bundle: its files, its verdict, and the text of its spec doc.
 
 ## `get_findings`
 
-Get the findings of a bundle's current verdict, MUST first. Each has a message, a suggested fix, and the text it points at.
+Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person, so ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -115,6 +115,17 @@ Review markdown files that are not saved: a spec doc with a type in its frontmat
 | `profile` | string |  | the profile for a spec doc with no type, such as prd or sdd |
 | `slug` | string |  | the bundle's slug, so links to and from other bundles resolve |
 | `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
+
+## `save_file`
+
+Save one file of a bundle that Speccy stores, as a new version. Give the version your edit is based on. Speccy lints the save. For a local or a GitHub bundle this tool writes nothing and says where the file is: edit that file yourself.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `base_version` | string | yes | the ID of the version your edit is based on: current_version.id from get_bundle |
+| `bundle` | string | yes | the bundle's slug or ID |
+| `content` | string | yes | the whole new text of the file |
+| `path` | string | yes | the file in the bundle, such as SPEC.md |
 
 ## `verify_build`
 

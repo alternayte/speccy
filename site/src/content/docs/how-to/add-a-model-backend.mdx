@@ -25,7 +25,7 @@ A backend is one model service. Speccy has five kinds.
 | DeepSeek | An API key | DeepSeek models. Speccy asks for the JSON shape in the prompt, because DeepSeek has no schema mode. |
 | Agent CLI | A CLI on the machine that runs Speccy | `claude`, `cursor-agent`, `opencode`, `pi`, or your own command. It uses the plan you already pay for. |
 
-Speccy picks no default model. You type the model ID of your provider in each role.
+Speccy picks no default model. For an API backend, you pick the model of each role from the list that the backend gives. For an agent CLI, you type the model ID.
 
 ## Add an API backend
 
@@ -125,13 +125,23 @@ Each role does one kind of work. Under **Roles**, give each role a backend and a
 
 1. In the row of a role, choose the backend.
 
-2. Type the model ID in **Model**.
+2. Pick the model. For an API backend, select the model field, type in the search field to narrow the list, and select a model. For an agent CLI, type the model ID.
 
-3. Optional: type the prices in `$ in / M` and `$ out / M`, per million input and output tokens. Speccy uses them only for cost estimates.
+3. Optional: type the prices in `$ in / M` and `$ out / M`, per million input and output tokens. Speccy uses them only for cost estimates. For an OpenRouter model, Speccy fills in both prices when you pick the model.
 
 4. Select **Save**.
 
 </Steps>
+
+### Where the model list comes from
+
+Speccy reads the list live from the models endpoint of the backend, with the key that the backend stores. The key stays on the server, and the browser never gets it.
+
+- OpenRouter gives its prices with the list, in dollars per million tokens. OpenAI, Anthropic and DeepSeek give no price. Type their prices yourself.
+- You can change a price that Speccy filled in. A team can have its own rates.
+- When the list does not load, the row shows the cause and a field to type the model ID. A provider outage does not stop the setup.
+- A model that a role uses can leave the list of the backend. The role keeps the model, and the row says that the list no longer has it.
+- An agent CLI has no models endpoint, so its row always has the field to type the model ID.
 
 **Clear** removes the assignment of a role. Speccy refuses to delete a backend that a role uses. Assign the role to another backend first.
 
