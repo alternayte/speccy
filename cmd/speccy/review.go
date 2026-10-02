@@ -607,10 +607,16 @@ func reviewOne(ctx context.Context, c *api.ClientWithResponses, fl reviewFlags, 
 	// the next review needs no guess (REQ-135).
 	if fl.adopt && fl.server == "" && b.File != "" {
 		size := ""
+		file := filepath.Join(fl.root, filepath.FromSlash(path.Join(b.Dir, b.File)))
+		// A size that the team's own key or the map entry names needs no key in the doc (#93).
 		if v.Size != nil {
-			size = *v.Size
+			cfg, _ := source.LoadRepoConfig(fl.root)
+			content, _ := os.ReadFile(file)
+			if _, inferred, _ := review.DocSize(cfg, path.Join(b.Dir, b.File), content); inferred {
+				size = *v.Size
+			}
 		}
-		if err := adoptFile(filepath.Join(fl.root, filepath.FromSlash(path.Join(b.Dir, b.File))), b.Main.Frontmatter, v.ProfileKey, size); err != nil {
+		if err := adoptFile(file, b.Main.Frontmatter, v.ProfileKey, size); err != nil {
 			fmt.Fprintf(stderr, "speccy review: %s: %v.\n", b.Slug, err)
 			return r, exitRun
 		}

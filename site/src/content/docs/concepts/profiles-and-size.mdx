@@ -122,7 +122,9 @@ A check's `scope` field is a different thing from size. Scope says whether a che
 
 ### A doc with no size
 
-When the frontmatter names no size, Speccy infers one from the doc:
+A team's template can hold the size in a key of its own, and a doc can have no frontmatter. For both, `.speccy.yaml` can name the size. [The size of a doc](/reference/speccy-yaml/#the-size-of-a-doc) shows the two keys.
+
+When no place names a size, Speccy infers one from the doc:
 
 - `initiative` when the frontmatter has 3 links or more, or the doc has 4,000 words or more.
 - `app` when the doc has 1,200 words or more.

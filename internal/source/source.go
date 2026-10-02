@@ -261,6 +261,26 @@ func ReadFrontmatter(content []byte) (fm Frontmatter, ok bool, err error) {
 	return fm, true, nil
 }
 
+// FrontmatterValue returns the value of one key of a markdown file's frontmatter as text, or ""
+// when the file has no frontmatter, no such key, or a value that is a list or a map.
+func FrontmatterValue(content []byte, key string) string {
+	raw, _ := section.SplitFrontmatter(content)
+	if raw == nil {
+		return ""
+	}
+	var all map[string]any
+	if yaml.Unmarshal(raw, &all) != nil {
+		return ""
+	}
+	switch v := all[key].(type) {
+	case string:
+		return v
+	case int, int64, float64, bool:
+		return fmt.Sprint(v)
+	}
+	return ""
+}
+
 // FindMainDoc applies REQ-001 form (a): exactly one markdown file directly in the bundle
 // folder has a type field in its frontmatter. Files in subfolders are assets.
 func FindMainDoc(files []File) (MainDoc, error) {

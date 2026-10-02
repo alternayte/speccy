@@ -92,8 +92,8 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	if guessed {
 		rc.note(profile.GuessNote(key, profileKeys(s.Profiles())))
 	}
-	if in.sizeInferred {
-		rc.note(sizeNote(in.fm.Size, in.size))
+	if in.sizeNote != "" {
+		rc.note(in.sizeNote)
 	}
 	if rc.progress == nil {
 		rc.progress = NewBroker()

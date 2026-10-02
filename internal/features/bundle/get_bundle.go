@@ -45,7 +45,11 @@ func (a *API) GetSpecDoc(ctx context.Context, req api.GetSpecDocRequestObject) (
 	}
 	out.LocalDir = a.Service.localDir(b)
 	// Only one spec doc reads its text for this: the list must stay cheap.
-	out.Adopt = adoptOf(ctx, q, b, a.Profiles())
+	repo, err := a.Service.RepoConfig(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	out.Adopt = adoptOf(ctx, q, b, a.Profiles(), repo)
 	if err := a.full(ctx, q, b, &out); err != nil {
 		return nil, err
 	}

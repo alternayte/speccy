@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/bmatcuk/doublestar/v4"
 	"gopkg.in/yaml.v3"
 )
@@ -30,6 +31,11 @@ type RepoConfig struct {
 	// Map makes single-file bundles (REQ-130): a markdown file that matches a glob is a bundle
 	// with that profile. A frontmatter type wins over the mapping.
 	Map []Mapping `yaml:"map"`
+	// Frontmatter maps a key of Speccy to the key a team's template uses for it (#93). Only
+	// size has a mapping: "size: sdd_level" reads the size of a doc from its sdd_level key.
+	Frontmatter struct {
+		Keys map[string]string `yaml:"keys"`
+	} `yaml:"frontmatter"`
 	// LinkRules are link rules by path convention (REQ-132): "<from> <kind> <to>".
 	LinkRules []string `yaml:"link_rules"`
 	// LinkPatterns expand a short external target key to a URL, by scheme. A pattern holds
@@ -47,10 +53,12 @@ type RepoConfig struct {
 	} `yaml:"pr"`
 }
 
-// Mapping maps a glob of markdown files to a profile key.
+// Mapping maps a glob of markdown files to a profile key, and optionally to a size, for a doc
+// that names no size itself (#93).
 type Mapping struct {
 	Glob    string `yaml:"glob"`
 	Profile string `yaml:"profile"`
+	Size    string `yaml:"size"`
 }
 
 // LoadRepoConfig reads root/.speccy.yaml. A missing file is an empty config.
@@ -88,6 +96,16 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 		if m.Profile == "" {
 			problems = append(problems, fmt.Sprintf("map[%d] has no profile", i))
 		}
+		if _, ok := kernel.ParseSize(m.Size); m.Size != "" && !ok {
+			problems = append(problems, fmt.Sprintf("map[%d].size %q is not feature, app or initiative", i, m.Size))
+		}
+	}
+	for _, key := range slices.Sorted(maps.Keys(c.Frontmatter.Keys)) {
+		if key != "size" {
+			problems = append(problems, fmt.Sprintf("frontmatter.keys has %q, and only size has a mapping", key))
+		} else if strings.TrimSpace(c.Frontmatter.Keys[key]) == "" {
+			problems = append(problems, "frontmatter.keys.size names no key")
+		}
 	}
 	for i, r := range c.LinkRules {
 		if _, err := ParseLinkRule(r); err != nil {
@@ -123,6 +141,38 @@ func (c RepoConfig) MappedProfile(rel string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// NamedSize is one place that names the size of a doc, and the value it names there.
+type NamedSize struct {
+	Value string
+	// Where says the place in words, for a run note.
+	Where string
+}
+
+// NamedSizes returns each place that names the size of the doc at rel, in the order Speccy
+// reads them: the size key of the frontmatter, the key of the team's template that
+// frontmatter.keys maps to size, and the size of the map entry that covers the doc. A place
+// that names nothing is left out.
+func (c RepoConfig) NamedSizes(rel string, content []byte) []NamedSize {
+	var out []NamedSize
+	add := func(value, where string) {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, NamedSize{Value: value, Where: where})
+		}
+	}
+	fm, _, _ := ReadFrontmatter(content)
+	add(fm.Size, "the frontmatter key size")
+	if key := strings.TrimSpace(c.Frontmatter.Keys["size"]); key != "" && key != "size" {
+		add(FrontmatterValue(content, key), "the frontmatter key "+key)
+	}
+	for _, m := range c.Map {
+		if ok, _ := doublestar.Match(m.Glob, rel); ok {
+			add(m.Size, "the map entry for "+m.Glob+" in "+RepoConfigFile)
+			break
+		}
+	}
+	return out
 }
 
 // BundleFolderAllowed reports whether dir may hold a folder bundle.

@@ -177,9 +177,10 @@ type input struct {
 	fm      source.Frontmatter
 	// dec is the bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 	dec source.Decisions
-	// size is the doc's size, and sizeInferred says the frontmatter did not name it.
+	// size is the doc's size, and sizeNote is the line a run adds when no place named it, or
+	// when a place named a value that is not a size.
 	size         kernel.Size
-	sizeInferred bool
+	sizeNote     string
 	// links are the version's links; linked are the bundle targets, at their current version.
 	links  []link
 	linked []linked
@@ -212,7 +213,6 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 			return input{}, err
 		}
 	}
-	in.size, in.sizeInferred = docSize(in.fm, in.main)
 	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
 		return input{}, err
 	}
@@ -237,6 +237,7 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 	for _, slug := range repo.Adoption.Relaxed {
 		in.relaxed[slug] = true
 	}
+	in.size, _, in.sizeNote = DocSize(repo, mainDocPath(b, nil), in.main)
 	return in, nil
 }
 
@@ -692,8 +693,8 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, err
 	}
 	run.DecisionsHash = decisionsHash(in.dec)
-	if in.sizeInferred {
-		run.Notes, _ = json.Marshal([]string{sizeNote(in.fm.Size, in.size)})
+	if in.sizeNote != "" {
+		run.Notes, _ = json.Marshal([]string{in.sizeNote})
 	}
 	run.Status = "complete"
 	ev := lintStage(in)
