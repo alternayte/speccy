@@ -243,7 +243,7 @@ func traceIDs(d *doc, cfg Config, emit emitter) {
 			prefix := string(p.text[m[2]:m[3]])
 			s, e := p.span(m[0], m[1])
 			if !own[prefix] && !upstream[prefix] {
-				if i == 0 && defines(p, m[0], m[1]) {
+				if (i == 0 || afterSentence(p, m[0])) && defines(p, m[0], m[1]) {
 					if _, ok := unknown[prefix]; !ok {
 						unknownOrder = append(unknownOrder, prefix)
 					}
@@ -252,7 +252,7 @@ func traceIDs(d *doc, cfg Config, emit emitter) {
 				continue
 			}
 			id := string(p.text[m[0]:m[1]])
-			if i == 0 && defines(p, m[0], m[1]) {
+			if (i == 0 || afterSentence(p, m[0])) && defines(p, m[0], m[1]) {
 				defs[id] = append(defs[id], use{s, e})
 				continue
 			}
@@ -349,29 +349,48 @@ func SectionPrefix(path []string, prefixes []string) string {
 	return ""
 }
 
-// defines reports whether the ID at p.text[s:e] defines it (REQ-051): the ID starts the block.
-// A heading and the first cell of a table body row define an ID as their first word. A list
-// item or a paragraph defines it only with a colon, a dash or an em dash after it, so a
-// sentence that starts with an ID stays a reference: "REQ-012: …", "**REQ-012:** …" or
-// "REQ-012 — …".
+// defines reports whether the ID at p.text[s:e] defines it (REQ-051).
+//
+// At the start of a block: a heading and the first cell of a table body row define an ID as
+// their first word. A list item or a paragraph defines it only with a colon, a dash or an em
+// dash after it, so a sentence that starts with an ID stays a reference: "REQ-012: …",
+// "**REQ-012:** …" or "REQ-012 — …".
+//
+// Elsewhere (#105): an ID with that colon or dash after it also defines its item when it
+// starts another cell of a table row, as in "| 1 | DEC-001: Extend |", or starts a sentence
+// inside a paragraph, as in "Where it comes from. DEC-003: The projection reads …". Speccy
+// does not force one layout on a doc, and both read as a definition.
 func defines(p prose, s, e int) bool {
-	if strings.TrimSpace(string(p.text[:s])) != "" {
-		return false
+	rest := strings.TrimLeft(string(p.text[e:]), " ")
+	separated := false
+	for _, sep := range []string{":", "—", "–", "- "} {
+		if strings.HasPrefix(rest, sep) {
+			separated = true
+		}
+	}
+	before := strings.TrimSpace(string(p.text[:s]))
+	if before != "" {
+		// Inside a paragraph, only the start of a sentence.
+		return separated && p.kind == kindParagraph && strings.ContainsRune(".!?", rune(before[len(before)-1]))
 	}
 	switch p.kind {
 	case kindHeading:
 		return true
 	case kindCell:
 		parent := p.node.Parent()
-		return p.node.PreviousSibling() == nil && parent != nil && parent.Kind() == extast.KindTableRow
-	}
-	rest := strings.TrimLeft(string(p.text[e:]), " ")
-	for _, sep := range []string{":", "—", "–", "- "} {
-		if strings.HasPrefix(rest, sep) {
-			return true
+		if parent == nil || parent.Kind() != extast.KindTableRow {
+			return false
 		}
+		return p.node.PreviousSibling() == nil || separated
 	}
-	return false
+	return separated
+}
+
+// afterSentence reports whether the text of p before offset s ends a sentence: an ID there
+// can define an item of its own, after the first ID of the block.
+func afterSentence(p prose, s int) bool {
+	before := strings.TrimSpace(string(p.text[:s]))
+	return before != "" && strings.ContainsRune(".!?", rune(before[len(before)-1]))
 }
 
 func set(xs []string) map[string]bool {
