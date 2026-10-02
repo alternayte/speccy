@@ -86,6 +86,13 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 			Message struct {
 				Content string `json:"content"`
 				Refusal string `json:"refusal"`
+				// Annotations hold the pages that OpenRouter's web plugin gave the model.
+				Annotations []struct {
+					Type        string `json:"type"`
+					URLCitation struct {
+						URL string `json:"url"`
+					} `json:"url_citation"`
+				} `json:"annotations"`
 			} `json:"message"`
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
@@ -103,8 +110,14 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 	if r := out.Choices[0].Message.Refusal; r != "" {
 		return Raw{}, fmt.Errorf("the model declined the request: %s", r)
 	}
+	var sources []string
+	for _, a := range out.Choices[0].Message.Annotations {
+		if a.Type == "url_citation" && a.URLCitation.URL != "" {
+			sources = append(sources, a.URLCitation.URL)
+		}
+	}
 	return Raw{Text: out.Choices[0].Message.Content, TokensIn: out.Usage.PromptTokens, TokensOut: out.Usage.CompletionTokens,
-		Truncated: out.Choices[0].FinishReason == "length"}, nil
+		Truncated: out.Choices[0].FinishReason == "length", Sources: sources}, nil
 }
 
 // errorMessage returns the message of an API error body, or the start of the body.

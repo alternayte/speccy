@@ -138,9 +138,9 @@ func (a *agentCLI) Call(ctx context.Context, model string, c Call) (Raw, error) 
 		return Raw{}, err
 	}
 
-	command := a.preset.Command
+	command, parse := a.preset.Command, a.preset.parse
 	if c.Search && a.preset.Name == "claude" {
-		command = withClaudeSearch(command)
+		command, parse = withClaudeSearch(command), parseClaudeStream
 	}
 	args := make([]string, len(command))
 	for i, arg := range command {
@@ -169,7 +169,7 @@ func (a *agentCLI) Call(ctx context.Context, model string, c Call) (Raw, error) 
 		}
 		return Raw{}, fmt.Errorf("%s exited with an error: %v: %s", args[0], err, tail(stderr.String(), 400))
 	}
-	raw, err := a.preset.parse(stdout.Bytes())
+	raw, err := parse(stdout.Bytes())
 	if err != nil {
 		return Raw{}, fmt.Errorf("%s: %w", args[0], err)
 	}
@@ -179,16 +179,21 @@ func (a *agentCLI) Call(ctx context.Context, model string, c Call) (Raw, error) 
 	return raw, nil
 }
 
-// withClaudeSearch lets claude use its web tools and nothing else (REQ-034).
+// withClaudeSearch lets claude use its web tools and nothing else (REQ-034). The output is the
+// stream of events, which holds what each web tool returned; the one result object does not.
 func withClaudeSearch(command []string) []string {
-	out := make([]string, 0, len(command)+2)
+	out := make([]string, 0, len(command)+3)
 	for i := 0; i < len(command); i++ {
-		if command[i] == "--tools" && i+1 < len(command) {
+		switch {
+		case command[i] == "--tools" && i+1 < len(command):
 			out = append(out, "--tools", "WebSearch,WebFetch", "--allowedTools", "WebSearch,WebFetch")
 			i++
-			continue
+		case command[i] == "--output-format" && i+1 < len(command):
+			out = append(out, "--output-format", "stream-json", "--verbose")
+			i++
+		default:
+			out = append(out, command[i])
 		}
-		out = append(out, command[i])
 	}
 	return out
 }
@@ -226,6 +231,65 @@ func parseClaude(out []byte) (Raw, error) {
 		text = string(r.StructuredOutput)
 	}
 	return Raw{Text: text, TokensIn: r.Usage.InputTokens + r.Usage.CacheCreationInputTokens + r.Usage.CacheReadInputTokens, TokensOut: r.Usage.OutputTokens}, nil
+}
+
+// parseClaudeStream reads claude --output-format stream-json: one JSON event per line. The
+// result event is the object that parseClaude reads. A user event holds what a tool returned:
+// the links of a web search, or the URL of a page that a fetch read.
+func parseClaudeStream(out []byte) (Raw, error) {
+	var raw Raw
+	var sources []string
+	found := false
+	err := eachLine(out, func(line []byte) error {
+		var ev struct {
+			Type          string `json:"type"`
+			ToolUseResult struct {
+				Results []json.RawMessage `json:"results"`
+				URL     string            `json:"url"`
+				Code    int               `json:"code"`
+			} `json:"tool_use_result"`
+		}
+		if json.Unmarshal(line, &ev) != nil {
+			return nil //nolint:nilerr // a line that is not an event, or a tool result that is plain text, is skipped
+		}
+		switch ev.Type {
+		case "result":
+			r, err := parseClaude(line)
+			if err != nil {
+				return err
+			}
+			raw, found = r, true
+		case "user":
+			if ev.ToolUseResult.URL != "" && ev.ToolUseResult.Code/100 == 2 {
+				sources = append(sources, ev.ToolUseResult.URL)
+			}
+			for _, r := range ev.ToolUseResult.Results {
+				// A result is the links of one search, or a line of text from the model.
+				var links struct {
+					Content []struct {
+						URL string `json:"url"`
+					} `json:"content"`
+				}
+				if json.Unmarshal(r, &links) != nil {
+					continue
+				}
+				for _, l := range links.Content {
+					if l.URL != "" {
+						sources = append(sources, l.URL)
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return Raw{}, err
+	}
+	if !found {
+		return Raw{}, errors.New("the output has no result event")
+	}
+	raw.Sources = sources
+	return raw, nil
 }
 
 // parseCursor reads cursor-agent --output-format json: one result object. It reports no

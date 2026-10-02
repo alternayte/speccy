@@ -179,7 +179,9 @@ The grounding stage checks each factual claim against a source. It uses the firs
 No search source is configured, so every claim is unverified. Use a backend with web search, or add an MCP connection marked search.
 ```
 
-A profile's source policy then decides which of the returned sources count. [Change a profile](/how-to/change-a-profile/) covers the policy.
+A claim about an internal system, such as a team or a service of your organisation, uses only the MCP connection. Speccy does not send it to the web search of the backend.
+
+Speccy accepts a source only when the search returned it. A profile's source policy then decides which of the returned sources count. [Change a profile](/how-to/change-a-profile/) covers the policy.
 
 ## Add an MCP connection
 

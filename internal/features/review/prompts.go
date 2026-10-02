@@ -14,8 +14,8 @@ import (
 // key (SDD §8.10) and is recorded on the run (REQ-022).
 const (
 	PromptRubric = "rubric-v4"
-	PromptClaims = "claims-v2"
-	PromptVerify = "verify-v1"
+	PromptClaims = "claims-v3"
+	PromptVerify = "verify-v2"
 	// PromptQuestions, PromptReader, and PromptJudge are the divergence test (SDD §8.5).
 	PromptQuestions = "questions-v1"
 	PromptReader    = "reader-v1"
@@ -149,7 +149,8 @@ func claimsPrompt(headingPath []string, section string) string {
 	b.WriteString("- \"The billing service already stores invoices in S3.\" is a claim: it describes a system that exists.\n")
 	b.WriteString("- \"The service retries a timeout up to 3 times.\" is not a claim: it is this design.\n")
 	b.WriteString("- \"The checkout service waits for the result.\" is not a claim: it is this design.\n\n")
-	b.WriteString("Copy each claim word for word from the section, as one sentence or a clause of one. List at most 10. Most sections have none; then list none.\n\n")
+	b.WriteString("Copy each claim word for word from the section into \"text\", as one sentence or a clause of one. List at most 10. Most sections have none; then list none.\n")
+	b.WriteString("In \"about\", give \"internal\" for a claim about a system, a team, a feature, or a process of the author's own organisation, which no public web page describes. Give \"external\" for every other claim.\n\n")
 	if len(headingPath) > 0 {
 		fmt.Fprintf(&b, "Section: %s\n\n", strings.Join(headingPath, " > "))
 	}
@@ -157,17 +158,21 @@ func claimsPrompt(headingPath []string, section string) string {
 	return b.String()
 }
 
-var claimsSchema = []byte(`{"type":"object","additionalProperties":false,"required":["claims"],"properties":{"claims":{"type":"array","items":{"type":"string"}}}}`)
+var claimsSchema = []byte(`{"type":"object","additionalProperties":false,"required":["claims"],"properties":{"claims":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["about","text"],"properties":{"about":{"type":"string","enum":["external","internal"]},"text":{"type":"string"}}}}}}`)
 
 // verifyPrompt asks the reviewer to label claims (REQ-031). DEC-011: never from training data
 // alone.
 func verifyPrompt(claims []string, searchNote string, results []string) string {
 	var b strings.Builder
 	b.WriteString("Check each claim below against sources. Label each one:\n")
-	b.WriteString("- \"verified\" when a source you found supports it; give the source URL or reference;\n")
-	b.WriteString("- \"contradicted\" when a source you found says otherwise; give the source;\n")
+	b.WriteString("- \"verified\" when a source you found supports it;\n")
+	b.WriteString("- \"contradicted\" when a source you found states a different fact about the same thing;\n")
 	b.WriteString("- \"unverified\" when you found no source either way.\n")
-	b.WriteString("Do not answer from memory. A claim with no source is unverified, even when you believe it.\n\n")
+	b.WriteString("Do not answer from memory. A claim with no source is unverified, even when you believe it.\n")
+	// #121: a page about another product with the same name, and a page that is silent about
+	// the fact, made a claim contradicted.
+	b.WriteString("A source that does not mention the fact does not contradict the claim: that claim is unverified. A source about another product, system, or organisation with the same name is not a source for the claim.\n")
+	b.WriteString("In \"sources\", give each source as the search gave it: copy its URL. Speccy drops a source that the search did not return.\n\n")
 	b.WriteString(searchNote + "\n\n")
 	for i, c := range claims {
 		b.WriteString(data(fmt.Sprintf("Claim %d", i+1), c))

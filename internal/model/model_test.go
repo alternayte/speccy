@@ -344,3 +344,59 @@ func TestModels_OpenRouterPrices(t *testing.T) {
 		t.Errorf("an agent CLI: %v", err)
 	}
 }
+
+// #121: each backend with a web search reports the pages that the search returned, so the
+// review can drop a source that the model names and did not read.
+func TestBackends_ReportThePagesOfTheSearch(t *testing.T) {
+	serve := func(body string) string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		}))
+		t.Cleanup(srv.Close)
+		return srv.URL
+	}
+	search := call()
+	search.Search = true
+	want := []string{"https://docs.stripe.com/rate-limits"}
+
+	t.Run("openrouter", func(t *testing.T) {
+		url := serve(`{"choices":[{"finish_reason":"stop","message":{"content":"{\"answer\":\"Paris\"}","annotations":[
+			{"type":"url_citation","url_citation":{"url":"https://docs.stripe.com/rate-limits","title":"Rate limits"}},
+			{"type":"file","file":{"name":"a.pdf"}}]}}],"usage":{"prompt_tokens":3,"completion_tokens":2}}`)
+		raw, err := newOpenAICompatible(KindOpenRouter, "key", url).Call(context.Background(), "m", search)
+		if err != nil || !slices.Equal(raw.Sources, want) {
+			t.Errorf("sources %v (%v), want %v", raw.Sources, err, want)
+		}
+	})
+	t.Run("anthropic", func(t *testing.T) {
+		url := serve(`{"id":"msg_1","type":"message","role":"assistant","model":"claude-test","stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":2},"content":[
+			{"type":"server_tool_use","id":"srvtoolu_1","name":"web_search","input":{"query":"stripe rate limit"}},
+			{"type":"web_search_tool_result","tool_use_id":"srvtoolu_1","content":[{"type":"web_search_result","url":"https://docs.stripe.com/rate-limits","title":"Rate limits","encrypted_content":"x","page_age":null}]},
+			{"type":"text","text":"{\"answer\":\"Paris\"}"}]}`)
+		raw, err := newAnthropic("key", url).Call(context.Background(), "claude-test", search)
+		if err != nil || !slices.Equal(raw.Sources, want) || !strings.Contains(raw.Text, "Paris") {
+			t.Errorf("sources %v, text %q (%v), want %v", raw.Sources, raw.Text, err, want)
+		}
+	})
+	t.Run("claude", func(t *testing.T) {
+		out, err := os.ReadFile("testdata/claude-stream.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := parseClaudeStream(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The links of the search, then the page that the fetch read.
+		links := []string{"https://docs.stripe.com/rate-limits.md", "https://docs.stripe.com/docs/rate-limits", "https://docs.stripe.com/rate-limits?lang=java", "https://docs.stripe.com/rate-limits"}
+		if !slices.Equal(raw.Sources, links) || !strings.Contains(raw.Text, "Paris") || raw.TokensOut != 1365 {
+			t.Errorf("sources %v, text %q, %d tokens out", raw.Sources, raw.Text, raw.TokensOut)
+		}
+		// The search needs the stream of events: the one result object holds no tool result.
+		cmd := strings.Join(withClaudeSearch(Presets["claude"].Command), " ")
+		if !strings.Contains(cmd, "--output-format stream-json --verbose") || !strings.Contains(cmd, "--tools WebSearch,WebFetch") {
+			t.Errorf("the search command: %s", cmd)
+		}
+	})
+}

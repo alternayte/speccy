@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +27,12 @@ const (
 
 // NoSearchNote is the run report note when no search source exists (REQ-034).
 const NoSearchNote = "No search source is configured, so every claim is unverified. Use a backend with web search, or add an MCP connection marked search."
+
+// NoPageNote is the run report note when a call with web search came back with no page (#121).
+const NoPageNote = "The web search of the backend returned no page for some claims. Speccy accepts a source only when the search returned it, so those claims are unverified."
+
+// internalReason is why a claim about an internal system has no label from the web (#121).
+const internalReason = "The claim is about an internal system. A web search cannot confirm it, and can find another product with the same name."
 
 const (
 	minClaimWords = 12 // a shorter section is not worth a call
@@ -95,6 +103,9 @@ type claimFound struct {
 	text  string
 	start int
 	end   int
+	// internal says the claim is about a system of the author's own organisation. It goes to
+	// an MCP search connection only, and never to the web search of the backend (#121).
+	internal bool
 }
 
 type claimLabel struct {
@@ -114,26 +125,52 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 	}
 
 	// REQ-034: the backend's own web search, then an MCP search connection, else unverified.
-	mode := "none"
+	// A claim about an internal system goes to the MCP search connection only.
+	var external, internal []int
+	for i, c := range claims {
+		if c.internal {
+			internal = append(internal, i)
+		} else {
+			external = append(external, i)
+		}
+	}
 	var searcher Searcher
-	switch {
-	case native:
-		mode = "native"
-	case s.Search != nil:
+	if s.Search != nil && (!native || len(internal) > 0) {
 		if searcher, err = s.Search(ctx); err != nil {
 			return fmt.Errorf("the MCP search connection failed: %w", err)
 		}
-		if searcher != nil {
-			mode = "mcp:" + searcher.Name()
-		}
+	}
+	mcp := "none"
+	if searcher != nil {
+		mcp = "mcp:" + searcher.Name()
+	}
+	web := mcp
+	if native {
+		web = "native"
 	}
 	labels := make([]claimLabel, len(claims))
-	if mode == "none" {
-		rc.note(NoSearchNote)
-		for i := range labels {
-			labels[i] = claimLabel{Label: "unverified", Reason: "No search source is configured.", Sources: []string{}}
+	modes := make([]string, len(claims))
+	label := func(idx []int, mode, noSearch string) error {
+		for _, i := range idx {
+			modes[i] = mode
+			labels[i] = claimLabel{Label: "unverified", Reason: noSearch, Sources: []string{}}
 		}
-	} else if err := s.labelClaims(ctx, rc, claims, labels, mode, searcher, fingerprint); err != nil {
+		if mode == "none" || len(idx) == 0 {
+			return nil
+		}
+		var sr Searcher
+		if mode != "native" {
+			sr = searcher
+		}
+		return s.labelClaims(ctx, rc, claims, labels, idx, mode, sr, fingerprint)
+	}
+	if web == "none" && len(external) > 0 {
+		rc.note(NoSearchNote)
+	}
+	if err := label(external, web, "No search source is configured."); err != nil {
+		return err
+	}
+	if err := label(internal, mcp, internalReason); err != nil {
 		return err
 	}
 
@@ -151,20 +188,30 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 			l.Label, l.Reason = "unverified", policyReason
 		}
 		ev.claims = append(ev.claims, pendingClaim{text: c.text, label: l.Label, reason: l.Reason, class: class, sources: sources, anchor: an})
-		evidence := map[string]any{"claim": c.text, "reason": l.Reason, "sources": sourceURLs(sources), "search": mode, "class": class}
+		urls := sourceURLs(sources)
+		evidence := map[string]any{"claim": c.text, "reason": l.Reason, "sources": urls, "search": modes[i], "class": class}
 		switch l.Label {
 		case "verified":
 			ev.items = append(ev.items, verdict.Item{Slug: GroundingUnverified, Category: verdict.Evidence, Level: kernel.Should, Passed: true, Applicable: true})
 		case "contradicted":
 			lvl := in.level(GroundingContradicted, kernel.Must)
 			ev.items = append(ev.items, verdict.Item{Slug: GroundingContradicted, Category: verdict.Evidence, Level: lvl, Applicable: true})
+			// The message names the source, so the author can read it (#121).
+			msg := "A source contradicts this claim: " + sentence(l.Reason)
+			if len(urls) > 0 {
+				msg += " Source: " + strings.Join(urls, ", ")
+			}
 			ev.findings = append(ev.findings, pending{slug: GroundingContradicted, level: lvl, stage: StageGrounding, anchor: an,
-				message: "A source contradicts this claim: " + sentence(l.Reason), fix: "Correct the claim, or explain why the source does not apply.", evidence: evidence})
+				message: msg, fix: "Correct the claim, or explain why the source does not apply.", evidence: evidence})
 		default:
 			lvl := in.level(GroundingUnverified, kernel.Should)
 			ev.items = append(ev.items, verdict.Item{Slug: GroundingUnverified, Category: verdict.Evidence, Level: lvl, Applicable: true})
+			msg := "No source confirms this claim."
+			if c.internal && modes[i] == "none" {
+				msg += " It is about an internal system, so Speccy did not search the web for it."
+			}
 			ev.findings = append(ev.findings, pending{slug: GroundingUnverified, level: lvl, stage: StageGrounding, anchor: an,
-				message: "No source confirms this claim.", fix: "Add a source or mark it as an assumption.", evidence: evidence})
+				message: msg, fix: "Add a source or mark it as an assumption.", evidence: evidence})
 		}
 	}
 	return nil
@@ -258,7 +305,11 @@ func (s *Service) extractClaims(ctx context.Context, rc *runCtx, in input, finge
 			jobs = append(jobs, job{sec: sec})
 		}
 	}
-	results := make([][]string, len(jobs))
+	type claimOut struct {
+		Text  string `json:"text"`
+		About string `json:"about"`
+	}
+	results := make([][]claimOut, len(jobs))
 	errs := make([]error, len(jobs))
 	var wg sync.WaitGroup
 	var doneMu sync.Mutex
@@ -269,7 +320,7 @@ func (s *Service) extractClaims(ctx context.Context, rc *runCtx, in input, finge
 			defer wg.Done()
 			key := cacheKey{Step: "claims", InputHash: j.sec.Hash, ProfileVer: in.profile.Version, Fingerprint: fingerprint, PromptVersion: PromptClaims}
 			var out struct {
-				Claims []string `json:"claims"`
+				Claims []claimOut `json:"claims"`
 			}
 			ok, err := s.cached(ctx, key, &out)
 			if err != nil {
@@ -315,8 +366,8 @@ func (s *Service) extractClaims(ctx context.Context, rc *runCtx, in input, finge
 	for i, j := range jobs {
 		base := j.sec.BodyStart
 		own := in.main[base:j.sec.OwnEnd]
-		for _, text := range results[i] {
-			text = strings.TrimSpace(text)
+		for _, c := range results[i] {
+			text := strings.TrimSpace(c.Text)
 			if text == "" || seen[text] {
 				continue
 			}
@@ -330,22 +381,24 @@ func (s *Service) extractClaims(ctx context.Context, rc *runCtx, in input, finge
 				continue // REQ-033
 			}
 			seen[text] = true
-			out = append(out, claimFound{text: text, start: st, end: en})
+			out = append(out, claimFound{text: text, start: st, end: en, internal: c.About == "internal"})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].start < out[j].start })
 	return out, nil
 }
 
-// labelClaims labels each claim with the given search mode. A claim's label is cached by its
-// text, the search source, and the month, so a fact is checked again each month.
-func (s *Service) labelClaims(ctx context.Context, rc *runCtx, claims []claimFound, labels []claimLabel, mode string, searcher Searcher, fingerprint string) error {
+// labelClaims labels the claims with the numbers in idx, with the given search mode. A claim's
+// label is cached by its text, the search source, and the month, so a fact is checked again
+// each month.
+func (s *Service) labelClaims(ctx context.Context, rc *runCtx, claims []claimFound, labels []claimLabel, idx []int, mode string, searcher Searcher, fingerprint string) error {
 	month := time.Now().UTC().Format("2006-01")
 	key := func(c claimFound) cacheKey {
 		return cacheKey{Step: "verify", InputHash: hashOf(c.text), Fingerprint: fingerprint, PromptVersion: PromptVerify, Extra: mode + "|" + month}
 	}
 	var todo []int
-	for i, c := range claims {
+	for _, i := range idx {
+		c := claims[i]
 		ok, err := s.cached(ctx, key(c), &labels[i])
 		if err != nil {
 			return err
@@ -386,7 +439,7 @@ func (s *Service) labelClaims(ctx context.Context, rc *runCtx, claims []claimFou
 			}
 			note := "Use your web search tool to look for a source for each claim."
 			if searcher != nil {
-				note = "Search results from " + searcher.Name() + " follow each claim. Use only those results as sources."
+				note = "Search results from " + searcher.Name() + " follow each claim. Use only those results as sources. For a result with no URL, copy its title."
 			}
 			res, err := rc.call(ctx, s.Gateway, model.Call{
 				Role: model.RoleReviewer, PromptVersion: PromptVerify, System: systemPrompt,
@@ -411,14 +464,30 @@ func (s *Service) labelClaims(ctx context.Context, rc *runCtx, claims []claimFou
 			for _, l := range out.Labels {
 				got[l.Claim] = l.claimLabel
 			}
+			if searcher == nil && len(res.Sources) == 0 {
+				rc.note(NoPageNote)
+			}
 			for k, idx := range batch {
 				l, ok := got[k+1]
 				if !ok {
 					l = claimLabel{Label: "unverified", Reason: "The reviewer gave no label."}
 				}
-				// DEC-011: a label with no source is not verified or contradicted.
-				if l.Label != "unverified" && len(l.Sources) == 0 {
+				// DEC-011: a label with no source is not verified or contradicted. A source
+				// counts when the search returned it: the backend reports those pages, and
+				// the model can name a page that it did not read (#121).
+				named := len(l.Sources)
+				l.Sources = slices.DeleteFunc(l.Sources, func(src string) bool {
+					if searcher != nil {
+						return !inResults(results[k], src)
+					}
+					return !returned(res.Sources, src)
+				})
+				switch {
+				case l.Label == "unverified" || len(l.Sources) > 0:
+				case named == 0:
 					l = claimLabel{Label: "unverified", Reason: "The reviewer named no source. " + l.Reason}
+				default:
+					l = claimLabel{Label: "unverified", Reason: "The reviewer named a source that the search did not return. " + l.Reason}
 				}
 				if l.Sources == nil {
 					l.Sources = []string{}
@@ -435,7 +504,7 @@ func (s *Service) labelClaims(ctx context.Context, rc *runCtx, claims []claimFou
 			done += len(batch)
 			d := done
 			doneMu.Unlock()
-			rc.publish(Event{Type: "progress", Stage: StageGrounding, Message: "Checking claims", Done: d, Total: len(claims)})
+			rc.publish(Event{Type: "progress", Stage: StageGrounding, Message: "Checking claims", Done: d, Total: len(idx)})
 		}()
 	}
 	wg.Wait()
@@ -445,4 +514,40 @@ func (s *Service) labelClaims(ctx context.Context, rc *runCtx, claims []claimFou
 		}
 	}
 	return nil
+}
+
+// returned reports whether src is one of the pages that the backend's web search returned.
+// Two addresses are the same page when the host, the path, and the query are the same.
+func returned(pages []string, src string) bool {
+	want := pageKey(src)
+	if want == "" {
+		return false
+	}
+	for _, p := range pages {
+		if pageKey(p) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// pageKey names the page of a URL without the scheme, a leading "www.", the fragment, and a
+// last slash. It is empty for text that is not a URL.
+func pageKey(raw string) string {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || u.Host == "" || u.Scheme != "http" && u.Scheme != "https" {
+		return ""
+	}
+	key := strings.TrimPrefix(strings.ToLower(u.Host), "www.") + strings.TrimSuffix(u.EscapedPath(), "/")
+	if u.RawQuery != "" {
+		key += "?" + u.RawQuery
+	}
+	return key
+}
+
+// inResults reports whether src is in the text that an MCP search returned for the claim: a
+// URL of a result, or its title.
+func inResults(results, src string) bool {
+	src = strings.TrimSpace(src)
+	return len(src) >= 4 && strings.Contains(results, src)
 }
