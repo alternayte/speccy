@@ -38,7 +38,7 @@ func TestConflicts_PairsFromEachCheck(t *testing.T) {
 		"pairs":[
 		{"checks":["sdd.altitude","sdd.monitoring"],"analysis":"","both_can_hold":false,"reason":"The same pair again."},
 		{"checks":["sdd.limits","sdd.security"],"analysis":"","both_can_hold":true,"reason":"They overlap."},
-		{"checks":["sdd.limits","sdd.testing"],"analysis":"","both_can_hold":false,"reason":"One forbids what the other asks."}]}`
+		{"checks":["sdd.decisions.ids","sdd.decisions.alternatives"],"analysis":"","both_can_hold":false,"reason":"One forbids what the other asks."}]}`
 	found, err := conflictsOf([]byte(answer), fixtureChecks(t))
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,37 @@ func TestConflicts_PairsFromEachCheck(t *testing.T) {
 		got = append(got, strings.Join(c.Checks, "+"))
 	}
 	// sdd.security names the Security section, which no check with an "n/a" answer reads.
-	want := "sdd.solution sdd.migration+sdd.altitude sdd.monitoring+sdd.altitude sdd.limits+sdd.testing"
+	want := "sdd.solution sdd.migration+sdd.altitude sdd.monitoring+sdd.altitude sdd.decisions.ids+sdd.decisions.alternatives"
+	if strings.Join(got, " ") != want {
+		t.Errorf("conflicts %q, want %q", strings.Join(got, " "), want)
+	}
+}
+
+// #120: a check with no section key that asks about one section judges that section alone, so
+// an "n/a" in another section does not fail it. A check that accepts "n/a" does not also fail
+// a section with no content. A pair of the model about two different sections is no conflict.
+func TestConflicts_ChecksOfDifferentSections(t *testing.T) {
+	checks := []conflictCheck{
+		{Slug: "sdd.structure"}, {Slug: "sdd.introduction"}, {Slug: "sdd.monitoring"},
+		{Slug: "sdd.security", Section: "Security"}, {Slug: "sdd.altitude"},
+	}
+	answer := `{"checks":[
+		{"slug":"sdd.structure","demands":[],"all_can_hold":true,"reason":"","section":"","accepts_empty":true,"needs_content":false},
+		{"slug":"sdd.introduction","demands":[],"all_can_hold":true,"reason":"","section":"Introduction","accepts_empty":false,"needs_content":true},
+		{"slug":"sdd.monitoring","demands":[],"all_can_hold":true,"reason":"","section":"The Monitoring section","accepts_empty":true,"needs_content":true},
+		{"slug":"sdd.security","demands":[],"all_can_hold":true,"reason":"","section":"Security","accepts_empty":true,"needs_content":false},
+		{"slug":"sdd.altitude","demands":[],"all_can_hold":true,"reason":"","section":"","accepts_empty":false,"needs_content":true}],
+		"pairs":[
+		{"checks":["sdd.introduction","sdd.security"],"analysis":"","both_can_hold":false,"reason":"They read different sections."}]}`
+	found, err := conflictsOf([]byte(answer), checks)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, c := range found {
+		got = append(got, strings.Join(c.Checks, "+"))
+	}
+	want := "sdd.structure+sdd.altitude sdd.monitoring+sdd.altitude sdd.security+sdd.altitude"
 	if strings.Join(got, " ") != want {
 		t.Errorf("conflicts %q, want %q", strings.Join(got, " "), want)
 	}
