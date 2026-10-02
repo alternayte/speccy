@@ -64,6 +64,12 @@ type reviewer struct {
 	// fixed are the shortfalls of the last review that the reviewer says are fixed, by slug and
 	// by their number in the prompt. It says nothing about the others.
 	fixed map[string][]int
+	// same are the groups the reviewer gives when it groups the shortfalls of one check that
+	// say the same thing. With none, each shortfall is a group of its own.
+	same [][]int
+	// returned are the URLs that the backend's web search returns for a call with Search.
+	// With none set, it returns the sources that the fake reviewer names.
+	returned []string
 	// rubric holds each rubric prompt, in call order.
 	rubric []string
 
@@ -74,6 +80,7 @@ type reviewer struct {
 
 type fakeQuestion struct{ text, cite string }
 
+var numberedRe = regexp.MustCompile(`(?m)^\d+: `)
 var slugsRe = regexp.MustCompile(`slug: ([a-z0-9.-]+)`)
 var sentenceRe = regexp.MustCompile(`[A-Z][^.\n]*\d[^.\n]*\.`)
 var claimRe = regexp.MustCompile(`(?s)Claim (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
@@ -138,15 +145,33 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			if ns := r.fixed[m[1]]; len(ns) > 0 {
 				prior := []map[string]any{}
 				for _, n := range ns {
-					prior = append(prior, map[string]any{"n": n, "state": "fixed"})
+					prior = append(prior, map[string]any{"n": n, "analysis": "The text states it now.", "state": "fixed"})
 				}
 				answer["prior"] = prior
 			}
 			results = append(results, answer)
 		}
 		out = map[string]any{"results": results}
+	case review.PromptSame:
+		groups := r.same
+		if groups == nil {
+			groups = [][]int{}
+			for i := range numberedRe.FindAllString(insideData(c.Prompt), -1) {
+				groups = append(groups, []int{i + 1})
+			}
+		}
+		out = map[string]any{"groups": groups}
 	case review.PromptClaims:
-		out = map[string]any{"claims": nonNil(sentenceRe.FindAllString(insideData(c.Prompt), -1))}
+		// A sentence that names a team is about an internal system.
+		claims := []map[string]string{}
+		for _, text := range sentenceRe.FindAllString(insideData(c.Prompt), -1) {
+			about := "external"
+			if strings.Contains(strings.ToLower(text), "team ") {
+				about = "internal"
+			}
+			claims = append(claims, map[string]string{"text": text, "about": about})
+		}
+		out = map[string]any{"claims": claims}
 	case review.PromptVerify:
 		var labels []map[string]any
 		for _, m := range claimRe.FindAllStringSubmatch(c.Prompt, -1) {
@@ -246,7 +271,14 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		return model.Raw{}, fmt.Errorf("unexpected prompt %s", c.PromptVersion)
 	}
 	js, _ := json.Marshal(out)
-	return model.Raw{Text: string(js), TokensIn: 100, TokensOut: 50}, nil
+	raw := model.Raw{Text: string(js), TokensIn: 100, TokensOut: 50}
+	if c.Search {
+		raw.Sources = []string{"https://stripe.com/docs/rate-limits", "https://injected.example"}
+		if r.returned != nil {
+			raw.Sources = r.returned
+		}
+	}
+	return raw, nil
 }
 
 // rewordings are the passive sentences the fake writer can put in the active voice.
@@ -274,13 +306,6 @@ func (r *reviewer) count(prompt string) int {
 func nonNilMaps(xs []map[string]any) []map[string]any {
 	if xs == nil {
 		return []map[string]any{}
-	}
-	return xs
-}
-
-func nonNil(xs []string) []string {
-	if xs == nil {
-		return []string{}
 	}
 	return xs
 }
@@ -436,6 +461,68 @@ func TestGrounding_Labels(t *testing.T) {
 				t.Errorf("grounding findings: %d contradicted, %d unverified", contradicted, unverified)
 			}
 		})
+	}
+}
+
+// #121: a label counts only when the backend's search returned its source. The model names
+// a source for the claim with 999, and the search returned no such page: the claim is
+// unverified at SHOULD, and not a MUST.
+func TestGrounding_SourceTheSearchDidNotReturn(t *testing.T) {
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": groundedSDD}, "fake-1")
+	pe.fake.returned = []string{"https://example.com/another-page"}
+	run, fs, _ := pe.run(t, "pay")
+	for _, f := range fs {
+		if f.Stage == review.StageGrounding && (f.CheckSlug != review.GroundingUnverified || f.Level != "SHOULD") {
+			t.Errorf("finding %s at %s: %s; want every claim unverified at SHOULD", f.CheckSlug, f.Level, f.Message)
+		}
+	}
+	claims, err := pe.bundles.DB.Queries().ListClaims(context.Background(), run.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range claims {
+		if c.Label != "unverified" {
+			t.Errorf("claim %q is %s with a source that the search did not return", c.Text, c.Label)
+		}
+	}
+}
+
+// #121: a claim about an internal system does not go to the web search of the backend. With
+// no MCP search connection it is unverified at SHOULD, and with one it goes there. The finding
+// of a contradicted claim names its source.
+func TestGrounding_InternalClaimStaysOffTheWeb(t *testing.T) {
+	// The fake reviewer calls a claim with 999 contradicted when it gets it.
+	doc := groundedSDD + "\n## Ownership\n\nThe team synapse has owned the propagate operation of the Workflows feature for 999 days.\n"
+	find := func(pe *pipelineEnv) (internal, limit pgdb.Finding, search string) {
+		_, fs, _ := pe.run(t, "pay")
+		for _, f := range fs {
+			var ev struct{ Claim, Search string }
+			_ = json.Unmarshal(f.Evidence, &ev)
+			switch {
+			case f.Stage != review.StageGrounding:
+			case strings.Contains(ev.Claim, "team synapse"):
+				internal, search = f, ev.Search
+			case strings.Contains(ev.Claim, "999 kilobytes"):
+				limit = f
+			}
+		}
+		return internal, limit, search
+	}
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": doc}, "fake-1")
+	internal, limit, search := find(pe)
+	if internal.CheckSlug != review.GroundingUnverified || internal.Level != "SHOULD" || search != "none" || !strings.Contains(internal.Message, "internal system") {
+		t.Errorf("the internal claim: %s at %s through %q: %s; want unverified at SHOULD with no search", internal.CheckSlug, internal.Level, search, internal.Message)
+	}
+	if limit.CheckSlug != review.GroundingContradicted || !strings.HasSuffix(limit.Message, "Source: https://stripe.com/docs/rate-limits") {
+		t.Errorf("the contradicted claim: %s: %s; want the source in the message", limit.CheckSlug, limit.Message)
+	}
+
+	pe = newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": doc}, "fake-1")
+	pe.reviews.Search = func(context.Context) (review.Searcher, error) {
+		return searcher{result: "Ownership register: https://stripe.com/docs/rate-limits"}, nil
+	}
+	if internal, _, search = find(pe); search != "mcp:test-search" || internal.CheckSlug != review.GroundingContradicted {
+		t.Errorf("the internal claim with an MCP search connection: %s through %q; want the label of that search", internal.CheckSlug, search)
 	}
 }
 

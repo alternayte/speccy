@@ -65,7 +65,11 @@ Speccy then labels each claim with a search source:
 2. Else, an MCP connection that an admin marked as a search source.
 3. Else, no source. Each claim is then unverified, and the run report says why.
 
-A verified claim passes. An unverified claim is the SHOULD finding `grounding.unverified-claim`. A contradicted claim is the MUST finding `grounding.contradicted-claim`. Speccy keeps a label for one month, then checks the fact again.
+A label counts only when the search returned its source. The backend reports the pages of its search, and Speccy drops a source that is not one of them. When no source stays, Speccy labels the claim unverified. A source that does not mention the fact does not contradict the claim.
+
+The reviewer marks each claim about an internal system, such as a team or a service of your organisation. A web search cannot confirm such a claim, and it can find another product with the same name. Thus an internal claim goes only to the MCP connection. With no MCP connection, Speccy labels it unverified.
+
+A verified claim passes. An unverified claim is the SHOULD finding `grounding.unverified-claim`. A contradicted claim is the MUST finding `grounding.contradicted-claim`, and its message names the source. Speccy keeps a label for one month, then checks the fact again.
 
 ### Source policy and claim classes
 

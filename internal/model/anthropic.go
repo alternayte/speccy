@@ -67,15 +67,26 @@ func (b *anthropicBackend) Call(ctx context.Context, model string, c Call) (Raw,
 		if resp.StopReason == anthropic.StopReasonRefusal {
 			return Raw{}, fmt.Errorf("the model declined the request (%s)", resp.StopDetails.Category)
 		}
+		// The search results of a paused turn count too: the model read them for this answer.
+		var text strings.Builder
+		for _, block := range resp.Content {
+			switch b := block.AsAny().(type) {
+			case anthropic.TextBlock:
+				text.WriteString(b.Text)
+				for _, c := range b.Citations {
+					if c.URL != "" {
+						raw.Sources = append(raw.Sources, c.URL)
+					}
+				}
+			case anthropic.WebSearchToolResultBlock:
+				for _, r := range b.Content.OfWebSearchResultBlockArray {
+					raw.Sources = append(raw.Sources, r.URL)
+				}
+			}
+		}
 		if resp.StopReason == anthropic.StopReasonPauseTurn {
 			params.Messages = append(params.Messages, resp.ToParam())
 			continue
-		}
-		var text strings.Builder
-		for _, block := range resp.Content {
-			if t, ok := block.AsAny().(anthropic.TextBlock); ok {
-				text.WriteString(t.Text)
-			}
 		}
 		raw.Text = text.String()
 		raw.Truncated = resp.StopReason == anthropic.StopReasonMaxTokens

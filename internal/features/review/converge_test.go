@@ -418,3 +418,30 @@ func questionOf(t *testing.T, pe *pipelineEnv, message string) string {
 	}
 	return ""
 }
+
+// #119: the model gives a shortfall of the last review again, in other words. A second call
+// groups the shortfalls of the check that say the same thing, and the shortfall counts once,
+// in the words of the last review.
+func TestRubric_ShortfallInOtherWordsCountsOnce(t *testing.T) {
+	pe := newPipeline(t, storetest.Engines()[0], convergeFiles(), "fake-1")
+	pe.fake.passes = map[string]bool{"sdd.limits": true}
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {
+		{"reason": "The body limit has two values.", "quote": "at 999 kilobytes for every endpoint"},
+	}}
+	pe.run(t, "pay")
+
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {
+		{"reason": "The body limit is stated with two values.", "quote": "999 kilobytes"},
+	}}
+	pe.fake.same = [][]int{{1, 2}}
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "with the order ID", "with the order ID and the time", 1))
+	_, fs, _ := pe.run(t, "pay")
+	got := rubricFindings(fs, "sdd.consistency")
+	if len(got) != 1 || got[0].Message != "The body limit has two values." {
+		var msgs []string
+		for _, f := range got {
+			msgs = append(msgs, f.Message)
+		}
+		t.Errorf("findings %q, want the shortfall of the last review one time", msgs)
+	}
+}

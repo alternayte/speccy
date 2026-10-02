@@ -44,6 +44,8 @@ type Result struct {
 	Attempts    int
 	// Temperature is the temperature the call went out with, or nil when it went out with none.
 	Temperature *float64
+	// Sources are the URLs that the backend's web search returned for the answer (#121).
+	Sources []string
 }
 
 // Gateway sends calls for roles to the assigned backend.
@@ -200,6 +202,7 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		answer, perr := checkAnswer(raw.Text, schema)
 		if perr == nil {
 			res.JSON = answer
+			res.Sources = raw.Sources
 			return res, nil
 		}
 		lastParse = perr

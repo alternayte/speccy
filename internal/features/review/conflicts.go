@@ -14,12 +14,12 @@ import (
 
 // PromptConflicts is the prompt that finds checks whose pass conditions pull against each
 // other (#107).
-const PromptConflicts = "conflicts-v2"
+const PromptConflicts = "conflicts-v3"
 
 // conflictsSchema makes the model judge each check, and then each pair, one by one: a model that
 // answers with a list of conflicts alone finds one conflict and stops (#114).
 var conflictsSchema = []byte(`{"type":"object","additionalProperties":false,"required":["checks","pairs"],"properties":{` +
-	`"checks":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["slug","demands","all_can_hold","reason","accepts_empty","needs_content"],"properties":{"slug":{"type":"string"},"demands":{"type":"array","items":{"type":"string"}},"all_can_hold":{"type":"boolean"},"reason":{"type":"string"},"accepts_empty":{"type":"boolean"},"needs_content":{"type":"boolean"}}}},` +
+	`"checks":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["slug","demands","all_can_hold","reason","section","accepts_empty","needs_content"],"properties":{"slug":{"type":"string"},"demands":{"type":"array","items":{"type":"string"}},"all_can_hold":{"type":"boolean"},"reason":{"type":"string"},"section":{"type":"string"},"accepts_empty":{"type":"boolean"},"needs_content":{"type":"boolean"}}}},` +
 	`"pairs":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["checks","analysis","both_can_hold","reason"],"properties":{"checks":{"type":"array","items":{"type":"string"}},"analysis":{"type":"string"},"both_can_hold":{"type":"boolean"},"reason":{"type":"string"}}}}}}`)
 
 // FindCheckConflicts asks the reviewer model, in one call, for the rubric checks of a profile
@@ -80,12 +80,16 @@ type checkConflict struct {
 // all hold, then each pair that cannot both hold. The pairs of a check that accepts a section
 // with no content and a check that fails one are made here, from what the model says of each
 // check: a model that lists those pairs itself leaves some out (#114).
+//
+// Two checks conflict only on text that both judge (#120). The section of a check is its
+// section key, or, for a check with none, the one section that the model says it asks about.
 func conflictsOf(answer json.RawMessage, checks []conflictCheck) ([]checkConflict, error) {
 	var out struct {
 		Checks []struct {
 			Slug         string `json:"slug"`
 			AllCanHold   bool   `json:"all_can_hold"`
 			Reason       string `json:"reason"`
+			Section      string `json:"section"`
 			AcceptsEmpty bool   `json:"accepts_empty"`
 			NeedsContent bool   `json:"needs_content"`
 		} `json:"checks"`
@@ -101,6 +105,11 @@ func conflictsOf(answer json.RawMessage, checks []conflictCheck) ([]checkConflic
 	section := map[string]string{}
 	for _, c := range checks {
 		section[c.Slug] = normSection(c.Section)
+	}
+	for _, c := range out.Checks {
+		if s, ok := section[c.Slug]; ok && s == "" {
+			section[c.Slug] = normSection(c.Section)
+		}
 	}
 	var found []checkConflict
 	paired := map[[2]string]bool{}
@@ -128,26 +137,41 @@ func conflictsOf(answer json.RawMessage, checks []conflictCheck) ([]checkConflic
 		for _, b := range out.Checks {
 			sa, known := section[a.Slug]
 			sb, knownB := section[b.Slug]
-			if !a.AcceptsEmpty || !b.NeedsContent || a.Slug == b.Slug || !known || !knownB {
+			// A check that accepts a section with no content does not fail one.
+			if !a.AcceptsEmpty || !b.NeedsContent || b.AcceptsEmpty || a.Slug == b.Slug || !known || !knownB {
 				continue
 			}
-			// The two read the same text when they name the same section, or when the check
-			// that needs content reads every section.
+			// The two judge the same text when they have the same section, or when the check
+			// that needs content judges every section.
 			if sb == "" || sa == sb {
 				add([]string{a.Slug, b.Slug}, fmt.Sprintf("%s accepts a section that says only \"n/a\" or \"none\", and %s fails a section that gives no content, so an author of such a section cannot pass both.", a.Slug, b.Slug))
 			}
 		}
 	}
 	for _, p := range out.Pairs {
-		if !p.BothCanHold && len(p.Checks) > 1 {
+		if p.BothCanHold || len(p.Checks) < 2 {
+			continue
+		}
+		// Checks of two different sections judge no text in common.
+		named := map[string]bool{}
+		for _, slug := range p.Checks {
+			if s := section[slug]; s != "" {
+				named[s] = true
+			}
+		}
+		if len(named) < 2 {
 			add(p.Checks, p.Reason)
 		}
 	}
 	return found, nil
 }
 
-// normSection names a section of a check without the case and the outer spaces.
-func normSection(s string) string { return strings.ToLower(strings.TrimSpace(s)) }
+// normSection names a section of a check without the case, the outer spaces, and the words
+// "the" and "section" that a model puts around a title.
+func normSection(s string) string {
+	s = strings.ToLower(strings.Join(strings.Fields(s), " "))
+	return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(s, "the "), " section"))
+}
 
 // conflictsPrompt lists the rubric checks of the profile with the name, and asks for the ones
 // that pull against each other.
@@ -164,8 +188,9 @@ func conflictsPrompt(name string, checks []conflictCheck) string {
 	p.WriteString("- \"all_can_hold\": think of a large doc, with many components and flows. Give false when its author cannot meet every demand at once, and true in every other case. ")
 	p.WriteString("The usual conflict: one demand limits the text (short, high level, no detail) and another demand asks it to be complete (name each one, leave nothing out, no later section adds something it does not name). More names make the text longer and more detailed, so the two pull against each other.\n")
 	p.WriteString("- \"reason\": for false, name the two demands and say why both cannot hold. For true, give an empty text.\n")
+	p.WriteString("- \"section\": the one section that the check judges. For a check with a section in the list, give that section. For a check with none, give the title of the section that its question or its pass condition names, when the check asks about that one section only. Give an empty text when the check judges every section, or the doc as a whole.\n")
 	p.WriteString("- \"accepts_empty\": true when the pass condition says in words that the section may hold no content: it may say \"n/a\", \"not applicable\", \"none\", or \"nothing to add\". False when the pass condition does not say so.\n")
-	p.WriteString("- \"needs_content\": true only when the pass condition judges a section as a whole on whether it gives the reader something of use, such as content, a decision, a signal, or detail: it speaks of \"each section\" or \"every section\", or of the one section that the check names. A section that says only \"n/a\" fails such a check. False for a check about facts in the doc, such as each entity, each decision, each limit, or statements that contradict each other: a section with no such fact does not fail it.\n\n")
+	p.WriteString("- \"needs_content\": true only when the pass condition judges a section as a whole on whether it gives the reader something of use, such as content, a decision, a signal, or detail: it speaks of \"each section\" or \"every section\", or of the one section in \"section\". A section that says only \"n/a\" fails such a check. False when \"accepts_empty\" is true: a check that accepts \"n/a\" does not fail it. False for a check about facts in the doc, such as each entity, each decision, each limit, or statements that contradict each other: a section with no such fact does not fail it.\n\n")
 	p.WriteString("Step 2, in \"pairs\": give an entry for two checks that read the same section when no text of that section can pass both: what one check asks for is what the other forbids. Example: one check wants a section short or high level, and another wants the same section to hold every detail. ")
 	p.WriteString("Do not list a pair for \"n/a\" sections here: step 1 covers those. ")
 	p.WriteString("In \"analysis\", state what each check asks of the section. Set \"both_can_hold\" to true when an author can write one text that passes both checks, also when it takes more work, and also when a text can pass one and fail the other. Set it to false only when passing one check makes the other fail, and say why in one sentence in \"reason\". ")

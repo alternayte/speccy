@@ -79,6 +79,10 @@ type Raw struct {
 	// Truncated is true when the backend stopped the answer at the token limit. A model that
 	// reasons spends the limit on its thinking, and the text that is left is not whole.
 	Truncated bool
+	// Sources are the URLs that the backend's web search returned in a call with Search. The
+	// backend reports them, not the model, so a source that is not here is one the call did
+	// not read (#121).
+	Sources []string
 }
 
 // Backend calls one kind of model service.
