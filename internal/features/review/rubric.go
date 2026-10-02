@@ -220,9 +220,9 @@ func withPrior(a rubricAnswer, prior []shortfall) rubricAnswer {
 }
 
 // priorShortfalls returns the shortfalls of the last full review of the doc, by check and by
-// the section of a check that runs for each section. A shortfall whose quoted text is gone
-// from the doc is left out: the text it was about does not exist. A doc that a person asked a
-// fresh review for after that review has none.
+// the section that the check read. A shortfall whose quoted text is gone from the doc is left
+// out: the text it was about does not exist. A doc that a person asked a fresh review for
+// after that review has none.
 //
 // fresh marks the cache entries of the doc since the last request for a fresh review, or is
 // empty when nobody asked for one: a fresh review reads no answer of a review before it.
@@ -265,6 +265,7 @@ func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[stri
 			Reason  string          `json:"reason"`
 			Quotes  []quoteEvidence `json:"quotes"`
 			Section string          `json:"section"`
+			Named   string          `json:"named"`
 		}
 		_ = json.Unmarshal(f.Evidence, &ev)
 		if strings.TrimSpace(ev.Reason) == "" {
@@ -284,7 +285,7 @@ func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[stri
 				continue
 			}
 		}
-		key := priorKey(f.CheckSlug, ev.Section)
+		key := priorKey(f.CheckSlug, ev.Section, ev.Named)
 		out[key] = append(out[key], sf)
 	}
 	return out, fresh, nil
@@ -305,7 +306,7 @@ func (s *Service) unitsWithPrior(ctx context.Context, in input) ([]scopeUnit, er
 		u.inputHash += fresh
 		checks := make([]rubricCheck, len(u.checks))
 		for k, c := range u.checks {
-			c.Prior = prior[priorKey(c.Slug, u.sectionKey())]
+			c.Prior = prior[priorKey(c.Slug, u.sectionKey(), u.namedKey())]
 			checks[k] = c
 		}
 		u.checks = checks
@@ -313,8 +314,13 @@ func (s *Service) unitsWithPrior(ctx context.Context, in input) ([]scopeUnit, er
 	return units, nil
 }
 
-// priorKey names a check, and the section of a check that runs once for each section.
-func priorKey(slug, sectionPath string) string { return slug + "\x00" + sectionPath }
+// priorKey names a check with the text it read: the section of a check that runs once for each
+// section, and the section that a check names. A check whose section key changed reads other
+// text, so the shortfalls of its last review are not its own: the model cannot judge a
+// shortfall of text that it does not read, and one that it does not call fixed stays (#116).
+func priorKey(slug, sectionPath, named string) string {
+	return slug + "\x00" + sectionPath + "\x00" + named
+}
 
 // shortfall is one reason that a rubric check fails, with its quote. The quote is empty when
 // the content is missing.
@@ -348,6 +354,36 @@ func (u scopeUnit) sectionKey() string {
 		return ""
 	}
 	return strings.Join(u.sec.Path, " > ")
+}
+
+// namedKey names the section that the checks of a unit name, and is empty for the other units.
+func (u scopeUnit) namedKey() string {
+	if !u.named {
+		return ""
+	}
+	return strings.Join(u.sec.Path, " > ")
+}
+
+// outside reports whether an answer of the checks that name a section holds a shortfall on
+// text of another section. The model read the named section alone, so such a shortfall came
+// from a whole-doc review of the check through an older Speccy (#116), and the answer is not
+// one of this section.
+func (u scopeUnit) outside(in input, a rubricAnswer) bool {
+	if !u.named {
+		return false
+	}
+	for _, sf := range a.Shortfalls {
+		if strings.TrimSpace(sf.Quote) == "" {
+			continue
+		}
+		if _, _, ok := anchor.Find(in.main[u.sec.Start:u.sec.End], sf.Quote); ok {
+			continue
+		}
+		if _, _, ok := anchor.Find(in.main, sf.Quote); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // assets are the text files of the bundle other than the main doc, as model files.
@@ -510,7 +546,7 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 					slug: c.Slug, level: lvl, stage: StageRubric, anchor: an, message: sentence(msg),
 					fix:      "Change the doc so that this holds: " + c.PassWhen,
 					question: strings.TrimSpace(sf.Question),
-					evidence: map[string]any{"question": c.Question, "reason": sf.Reason, "quotes": quotes, "section": r.unit.sectionKey()},
+					evidence: map[string]any{"question": c.Question, "reason": sf.Reason, "quotes": quotes, "section": r.unit.sectionKey(), "named": r.unit.namedKey()},
 				})
 			}
 		}
@@ -531,7 +567,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		if err != nil {
 			return nil, err
 		}
-		if ok {
+		if ok && !u.outside(in, a) {
 			answers[c.Slug] = a
 			rc.hit()
 			progress(1)

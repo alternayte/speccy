@@ -465,7 +465,7 @@ func sentences(d *doc, cfg Config, emit emitter) {
 		start := 0
 		for start < len(p.text) {
 			end := len(p.text)
-			if loc := nextSentenceEnd(p.text, start); loc >= 0 {
+			if loc := nextSentenceEnd(p, start); loc >= 0 {
 				end = loc
 			}
 			sent := p.text[start:end]
@@ -494,14 +494,21 @@ func sentences(d *doc, cfg Config, emit emitter) {
 	}
 }
 
-// nextSentenceEnd returns the end of the sentence that starts at from, or -1. A full stop
+// nextSentenceEnd returns the end of the sentence of p that starts at from, or -1. A full stop
 // inside a number or an abbreviation such as "e.g." does not end a sentence.
-func nextSentenceEnd(text []byte, from int) int {
-	for _, m := range sentenceEnd.FindAllIndex(text[from:], -1) {
+func nextSentenceEnd(p prose, from int) int {
+	text := p.text
+	for _, m := range sentenceEnd.FindAllSubmatchIndex(text[from:], -1) {
 		end := from + m[1]
 		dot := from + m[0]
 		if end < len(text) && dot > 0 && isAbbrev(text[:dot]) {
 			continue
+		}
+		// A code span after the space starts the next sentence: its text is not in p.text, so
+		// the word after it, which starts in lower case, does not say so.
+		space := from + m[2]
+		if slices.ContainsFunc(p.code, func(at int) bool { return at > space && at <= end }) {
+			return end
 		}
 		if end < len(text) && !startsSentence(text[end:]) {
 			continue

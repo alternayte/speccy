@@ -3,11 +3,13 @@ package review_test
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
+	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/store/storetest"
@@ -329,6 +331,64 @@ func TestRubric_ShortfallsStayUntilFixed(t *testing.T) {
 	}
 	if strings.Contains(lastPrompt(), "Shortfalls of the last review") {
 		t.Error("a fresh review asked about the shortfalls of the review before it")
+	}
+}
+
+// #116: a whole-doc check gains a section key. The shortfalls of its last review quote text
+// outside that section, which the model no longer reads, so it cannot say that they are fixed.
+// They do not go to the model, and they do not come back as findings.
+func TestRubric_ACheckThatGainsASectionDropsItsWholeDocShortfalls(t *testing.T) {
+	pe := newPipeline(t, storetest.Engines()[0], convergeFiles(), "fake-1")
+	pe.fake.passes = map[string]bool{"sdd.limits": true}
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {
+		{"reason": "The read limit and the retry limit do not agree.", "quote": "Stripe allows 100 read requests per second in live mode"},
+		{"reason": "The doc names no owner.", "quote": ""},
+	}}
+	_, fs, _ := pe.run(t, "pay")
+	if got := rubricFindings(fs, "sdd.consistency"); len(got) != 2 {
+		t.Fatalf("the whole-doc review gave %d findings, want 2", len(got))
+	}
+
+	// The model reads the Limits section alone now, and finds one shortfall in it.
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {{"reason": "The body cap has two values.", "quote": "999 kilobytes"}}}
+	pe.write(t, ".speccy/profiles/sdd.yaml", strings.Replace(convergeProfile,
+		"    question: Do any two statements", "    section: Limits\n    question: Do any two statements", 1))
+	loaded, err := profile.LoadLocal(filepath.Join(pe.dir, ".speccy", "profiles"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	versions, err := profile.Record(context.Background(), pe.bundles.DB, pe.bundles.Workspace, loaded, "local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pe.reviews.Profiles = func() map[string]profile.Versioned { return versions }
+	_, fs, _ = pe.run(t, "pay")
+	var prompt string
+	for _, p := range pe.fake.rubric {
+		if strings.Contains(p, "slug: sdd.consistency") {
+			prompt = p
+		}
+	}
+	if labelled(prompt, "Main doc SPEC.md") != "" || !strings.Contains(prompt, "999 kilobytes") {
+		t.Fatalf("the check with the section key did not read the Limits section alone:\n%s", prompt)
+	}
+	if strings.Contains(prompt, "Shortfalls of the last review") {
+		t.Errorf("the model got shortfalls of the whole-doc review, which it cannot judge from one section:\n%s", prompt)
+	}
+	var got []string
+	for _, f := range rubricFindings(fs, "sdd.consistency") {
+		got = append(got, f.Message)
+	}
+	if strings.Join(got, " | ") != "The body cap has two values." {
+		t.Errorf("findings after the check gained a section key: %q; want the one shortfall of the section", got)
+	}
+
+	// The shortfall of the section is one of the check as it is now: the next review judges it again.
+	pe.fake.shortfalls = nil
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "Postgres 17", "Postgres 18", 1))
+	_, fs, _ = pe.run(t, "pay")
+	if got := rubricFindings(fs, "sdd.consistency"); len(got) != 1 || got[0].Message != "The body cap has two values." {
+		t.Errorf("a shortfall of the named section must stay while the model does not say that it is fixed: %d findings", len(got))
 	}
 }
 
