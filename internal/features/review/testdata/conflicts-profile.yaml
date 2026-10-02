@@ -1,0 +1,174 @@
+# The profile of #114: the built-in SDD rubric checks, with the two conflicts of #107. The
+# pass condition of sdd.solution pulls against itself, and sdd.altitude fails the "n/a" section
+# that sdd.monitoring accepts.
+key: sdd
+name: Software Design Document
+template: conflicts-profile.md
+checks:
+  - slug: sdd.non-goals
+    level: MUST
+    stage: rubric
+    scope: doc
+    section: Non-goals
+    question: Does the doc list what the system will not do?
+    pass_when: A section lists at least one thing the system will not do.
+  - slug: sdd.decisions.ids
+    level: MUST
+    stage: rubric
+    scope: doc
+    section: Decisions
+    question: Does every design decision have a trace ID?
+    pass_when: Every design decision has a trace ID.
+  - slug: sdd.decisions.alternatives
+    level: SHOULD
+    stage: rubric
+    scope: doc
+    section: Decisions
+    question: Does each decision list a rejected alternative?
+    pass_when: Each decision lists at least one rejected alternative with a reason.
+  - slug: sdd.components
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Components
+    question: Does each component have a stated responsibility?
+    pass_when: Each component has a stated responsibility.
+  - slug: sdd.data.model
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Data model
+    question: Is each stored entity described with fields, types, and constraints?
+    pass_when: Each stored entity has fields, types, and constraints, in the doc or a linked asset.
+  - slug: sdd.data.ownership
+    level: SHOULD
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    question: Does each entity have one owning component?
+    pass_when: Each entity has exactly one owning component.
+  - slug: sdd.interfaces
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Interfaces
+    question: Does each interface that this change adds or changes have inputs, outputs, and errors?
+    pass_when: >-
+      Each interface that this change adds or changes has inputs, outputs, and errors, in the
+      doc or a linked asset. An existing interface that the change only uses needs its name and
+      its owner, and the doc does not restate its contract.
+  - slug: sdd.failure-modes
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Failure modes
+    question: Does each external dependency have a stated failure behaviour?
+    pass_when: Each external dependency has a stated failure behaviour.
+  - slug: sdd.state
+    level: SHOULD
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    question: Does each stateful entity have its states and transitions?
+    pass_when: Each stateful entity has its states and transitions.
+  - slug: sdd.limits
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Limits
+    question: Do sizes, rates, and timeouts have numbers?
+    pass_when: Sizes, rates, and timeouts have numbers.
+  - slug: sdd.security
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Security
+    question: Are authentication, authorisation, secrets, and untrusted input addressed?
+    pass_when: Authentication, authorisation, secrets, and untrusted input are addressed.
+  - slug: sdd.observability
+    level: SHOULD
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Observability
+    question: Are logs, metrics, and alerts stated?
+    pass_when: Logs, metrics, and alerts are stated.
+  - slug: sdd.testing
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Testing
+    question: Does the test strategy name what proves each MUST requirement?
+    pass_when: The test strategy names what proves each MUST requirement.
+  - slug: sdd.migration
+    level: SHOULD
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Migration
+    question: Are data and rollout migration described?
+    pass_when: Data and rollout migration are described, or marked not applicable.
+  - slug: sdd.performance
+    level: SHOULD
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    question: Do performance targets have numbers?
+    pass_when: Performance targets have numbers.
+  - slug: sdd.delivery
+    level: SHOULD
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Delivery
+    question: Are milestones ordered with exit criteria?
+    pass_when: Milestones are ordered and each has exit criteria.
+  - slug: sdd.open-questions
+    level: MUST
+    stage: rubric
+    sizes: [app, initiative]
+    scope: doc
+    section: Open questions
+    question: Are open questions listed?
+    pass_when: Open questions are listed, or the doc says "none".
+  - slug: sdd.consistency
+    level: MUST
+    stage: rubric
+    scope: doc
+    question: Do any two statements in the doc contradict each other?
+    pass_when: No two statements in the doc contradict each other.
+  - slug: sdd.solution
+    level: MUST
+    stage: rubric
+    scope: doc
+    section: Solution
+    question: Is the Solution narrative short and high level, and does it cover the whole design?
+    pass_when: >-
+      The Solution narrative is short and high level. It states what the solution does, the main
+      parts, and how they fit. No later section adds a component, a flow, or a migration that the
+      narrative does not name. The narrative does not go into detail that belongs in a later
+      section.
+  - slug: sdd.altitude
+    level: MUST
+    stage: rubric
+    scope: section
+    question: Does each section give a reviewer something to act on?
+    pass_when: >-
+      Each section gives a reviewer a decision, a trade-off, an interface expectation, or a
+      measurable signal.
+  - slug: sdd.monitoring
+    level: MUST
+    stage: rubric
+    scope: doc
+    section: Non Functional Monitoring
+    question: Does Non Functional Monitoring add only what TF does not cover?
+    pass_when: >-
+      Non Functional Monitoring lists only the signals that the Technology Framework defaults do
+      not cover, or it says "n/a" when the defaults cover everything.

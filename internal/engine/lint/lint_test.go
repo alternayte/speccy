@@ -70,6 +70,13 @@ func TestRules(t *testing.T) {
 		{"sentence length", SentenceLength,
 			"# T\n\nShort one. Word " + strings.Repeat("word ", 30) + "end. Another short one, e.g. this one.\n", nil,
 			[]string{"Word " + strings.Repeat("word ", 30) + "end."}},
+		// #115: a code span is not prose, and it still starts a sentence.
+		{"sentence that starts with a code span", SentenceLength,
+			"# T\n\nTwo facts this needs do not exist yet: a full reviewer id list and an author id list. `corresponding_author_id` returns `AuthorId ?? UserId`, so it is not reliably a user id.\n",
+			nil, nil},
+		{"code span inside a long sentence", SentenceLength,
+			"# T\n\nThe service reads the config file. `x` and " + strings.Repeat("word ", 30) + "end, and it calls v1. `run` here.\n", nil,
+			[]string{"and " + strings.Repeat("word ", 30) + "end, and it calls v1."}},
 		{"acronyms", UndefinedAcronym,
 			"# T\n\nThe PSP sends a webhook. The API uses Payment Service Provider (PSP) terms. The RTO is low. The HTTP call uses REQ-001 and ticket PAY-231.\n",
 			nil, []string{"PSP", "RTO"}},

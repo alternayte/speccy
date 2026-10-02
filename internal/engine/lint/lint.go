@@ -135,6 +135,9 @@ type prose struct {
 	kind proseKind
 	text []byte
 	pos  []int // pos[i] is the offset in body of text[i]
+	// code holds, for each code span of the block, the offset in text where its text would
+	// be. A code span is not prose, and it can still start a sentence (#115).
+	code []int
 }
 
 type proseKind int
@@ -223,7 +226,12 @@ func collectProse(root ast.Node, src []byte) []prose {
 				cur = nil
 			}
 			return ast.WalkContinue, nil
-		case ast.KindCodeSpan, ast.KindRawHTML, ast.KindAutoLink, section.KindPlaceholder:
+		case ast.KindCodeSpan:
+			if entering && cur != nil {
+				cur.code = append(cur.code, len(cur.text))
+			}
+			return ast.WalkSkipChildren, nil
+		case ast.KindRawHTML, ast.KindAutoLink, section.KindPlaceholder:
 			return ast.WalkSkipChildren, nil
 		case ast.KindText:
 			if !entering || cur == nil {
