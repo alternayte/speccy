@@ -179,8 +179,8 @@ type input struct {
 	dec source.Decisions
 	// size is the doc's size, and sizeNote is the line a run adds when no place named it, or
 	// when a place named a value that is not a size.
-	size         kernel.Size
-	sizeNote     string
+	size     kernel.Size
+	sizeNote string
 	// links are the version's links; linked are the bundle targets, at their current version.
 	links  []link
 	linked []linked
