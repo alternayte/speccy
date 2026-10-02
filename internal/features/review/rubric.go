@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -177,6 +178,9 @@ type rubricAnswer struct {
 type priorState struct {
 	N     int    `json:"n"`
 	State string `json:"state"`
+	// Question is the question of a shortfall that still holds and had none: a review of an
+	// older Speccy wrote no question.
+	Question string `json:"question,omitempty"`
 }
 
 // withPrior returns the answer of a failed check with the shortfalls of the last review that
@@ -187,10 +191,13 @@ func withPrior(a rubricAnswer, prior []shortfall) rubricAnswer {
 	if a.Result != "fail" || len(prior) == 0 {
 		return a
 	}
+	prior = slices.Clone(prior)
 	fixed := map[int]bool{}
 	for _, p := range a.Prior {
 		if p.State == "fixed" {
 			fixed[p.N] = true
+		} else if p.N >= 1 && p.N <= len(prior) && prior[p.N-1].Question == "" {
+			prior[p.N-1].Question = strings.TrimSpace(p.Question)
 		}
 	}
 	var out []shortfall
