@@ -126,13 +126,13 @@ const ExternalTargetSlug = "links.external-target"
 // pending is a finding before it is stored.
 type pending struct {
 	// carried is the ID of a full run's finding that this run counts. Its row stays there.
-	carried  uuid.UUID
-	slug     string
-	level    kernel.Level
-	stage    string
-	anchor   anchor.Anchor
-	message  string
-	fix      string
+	carried uuid.UUID
+	slug    string
+	level   kernel.Level
+	stage   string
+	anchor  anchor.Anchor
+	message string
+	fix     string
 	// question is the question the reviewer wrote for a shortfall: what the author must answer.
 	question string
 	evidence any
