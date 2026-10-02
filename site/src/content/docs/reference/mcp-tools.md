@@ -116,6 +116,15 @@ Review markdown files that are not saved: a spec doc with a type in its frontmat
 | `slug` | string |  | the bundle's slug, so links to and from other bundles resolve |
 | `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
 
+## `review_url`
+
+Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
+| `url` | string | yes | the GitHub URL of a file, a folder, a branch, a commit or a pull request |
+
 ## `save_file`
 
 Save one file of a bundle that Speccy stores, as a new version. Give the version your edit is based on. Speccy lints the save. For a local or a GitHub bundle this tool writes nothing and says where the file is: edit that file yourself.

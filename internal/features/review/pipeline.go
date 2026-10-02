@@ -619,7 +619,7 @@ func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p prof
 			main = f.Content
 		}
 	}
-	links, err := s.resolveLinks(ctx, b, main)
+	links, err := s.resolveLinks(ctx, b, main, nil)
 	if err != nil {
 		return
 	}

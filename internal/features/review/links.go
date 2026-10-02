@@ -148,10 +148,14 @@ func (s *Service) places(ctx context.Context) (docPlace, error) {
 }
 
 // resolveLinks returns the links of b whose main doc is main.
-func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]link, error) {
+func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte, from *FromRepo) ([]link, error) {
 	all, err := s.allBundles(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if from != nil {
+		// The spec docs of the same commit come first, so a link finds them before a saved bundle.
+		all = append(append([]pgdb.SpecDoc{}, from.docs...), all...)
 	}
 	place, err := s.places(ctx)
 	if err != nil {
@@ -164,6 +168,9 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte)
 	repo, err := s.repoConfig(ctx, b)
 	if err != nil {
 		return nil, err
+	}
+	if from != nil {
+		repo = from.Config
 	}
 	held, err := s.githubDocs(ctx)
 	if err != nil {
@@ -399,15 +406,23 @@ func findTarget(all []pgdb.SpecDoc, place docPlace, from pgdb.SpecDoc, target st
 }
 
 // loadLinked loads the current version of each link target.
-func (s *Service) loadLinked(ctx context.Context, links []link) ([]linked, error) {
+func (s *Service) loadLinked(ctx context.Context, links []link, from *FromRepo) ([]linked, error) {
 	var out []linked
 	for _, l := range links {
-		if l.target == nil || !l.target.CurrentVersionID.Valid {
+		if l.target == nil {
 			continue
 		}
-		files, err := version.Files(ctx, s.DB.Queries(), l.target.CurrentVersionID.UUID)
-		if err != nil {
-			return nil, err
+		var files []source.File
+		if from != nil && from.files[l.target.ID] != nil {
+			// A spec doc of the same commit, which no version holds.
+			files = from.files[l.target.ID]
+		} else if !l.target.CurrentVersionID.Valid {
+			continue
+		} else {
+			var err error
+			if files, err = version.Files(ctx, s.DB.Queries(), l.target.CurrentVersionID.UUID); err != nil {
+				return nil, err
+			}
 		}
 		ld := linked{link: l, version: l.target.CurrentVersionID.UUID, files: files}
 		for _, f := range files {
@@ -452,7 +467,7 @@ type Linked struct {
 // LinkedBundles returns the bundles that b links to, in the order the links appear. It serves
 // the build packet, which carries the main doc of each linked bundle (REQ-136).
 func (s *Service) LinkedBundles(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]Linked, error) {
-	links, err := s.resolveLinks(ctx, b, main)
+	links, err := s.resolveLinks(ctx, b, main, nil)
 	if err != nil {
 		return nil, err
 	}

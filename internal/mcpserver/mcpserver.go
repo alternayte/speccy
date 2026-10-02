@@ -40,6 +40,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its spec doc.", t.getBundle)
 	add(s, t, "review_bundle", "Run a review of a saved bundle and wait for the verdict. The model stages can take minutes.", t.reviewBundle)
 	add(s, t, "review_content", "Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.", t.reviewContent)
+	add(s, t, "review_url", "Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line.", t.reviewURL)
 	add(s, t, "get_verdict", "Get the current verdict of a bundle.", t.getVerdict)
 	add(s, t, "get_findings", "Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person, so ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.", t.getFindings)
 	add(s, t, "save_file", "Save one file of a bundle that Speccy stores, as a new version. Give the version your edit is based on. Speccy lints the save. For a local or a GitHub bundle this tool writes nothing and says where the file is: edit that file yourself.", t.saveFile)
@@ -250,6 +251,31 @@ func (tools) reviewContent(ctx context.Context, c *api.ClientWithResponses, in c
 		body.Files = append(body.Files, cf)
 	}
 	res, err := c.ReviewContentWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type urlArg struct {
+	URL    string   `json:"url" jsonschema:"the GitHub URL of a file, a folder, a branch, a commit or a pull request"`
+	Stages []string `json:"stages,omitempty" jsonschema:"the model stages to run: rubric, grounding, divergence, coherence. Absent means all."`
+}
+
+// reviewURL reviews the spec docs of a GitHub URL with no saved bundle (#92).
+func (tools) reviewURL(ctx context.Context, c *api.ClientWithResponses, in urlArg) (any, error) {
+	body := api.ReviewUrlJSONRequestBody{Url: in.URL}
+	if in.Stages != nil {
+		st := make([]api.UrlReviewRequestStages, len(in.Stages))
+		for i, s := range in.Stages {
+			st[i] = api.UrlReviewRequestStages(s)
+		}
+		body.Stages = &st
+	}
+	res, err := c.ReviewUrlWithResponse(ctx, body)
 	if err != nil {
 		return nil, err
 	}

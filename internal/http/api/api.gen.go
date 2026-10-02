@@ -1229,6 +1229,30 @@ func (e TraceCellState) Valid() bool {
 	}
 }
 
+// Defines values for UrlReviewRequestStages.
+const (
+	UrlReviewRequestStagesCoherence  UrlReviewRequestStages = "coherence"
+	UrlReviewRequestStagesDivergence UrlReviewRequestStages = "divergence"
+	UrlReviewRequestStagesGrounding  UrlReviewRequestStages = "grounding"
+	UrlReviewRequestStagesRubric     UrlReviewRequestStages = "rubric"
+)
+
+// Valid indicates whether the value is a known member of the UrlReviewRequestStages enum.
+func (e UrlReviewRequestStages) Valid() bool {
+	switch e {
+	case UrlReviewRequestStagesCoherence:
+		return true
+	case UrlReviewRequestStagesDivergence:
+		return true
+	case UrlReviewRequestStagesGrounding:
+		return true
+	case UrlReviewRequestStagesRubric:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VerdictResult.
 const (
 	VerdictResultBuildReady    VerdictResult = "build_ready"
@@ -3362,6 +3386,42 @@ type Trend struct {
 	SinceVersion int64 `json:"since_version"`
 }
 
+// UrlReview defines model for UrlReview.
+type UrlReview struct {
+	// Commit The commit that Speccy read.
+	Commit string         `json:"commit"`
+	Docs   []UrlReviewDoc `json:"docs"`
+
+	// Pull The number of the pull request, for a pull request URL.
+	Pull *int `json:"pull,omitempty"`
+
+	// Repo The repo, as owner/name.
+	Repo string `json:"repo"`
+}
+
+// UrlReviewDoc One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
+type UrlReviewDoc struct {
+	// Dir The folder of the doc's bundle, relative to the repo root. The file of a finding's anchor is relative to it.
+	Dir   string  `json:"dir"`
+	Error *string `json:"error,omitempty"`
+
+	// Path The spec doc, relative to the repo root.
+	Path   string         `json:"path"`
+	Review *ContentReview `json:"review,omitempty"`
+	Slug   string         `json:"slug"`
+}
+
+// UrlReviewRequest defines model for UrlReviewRequest.
+type UrlReviewRequest struct {
+	Stages *[]UrlReviewRequestStages `json:"stages,omitempty"`
+
+	// Url The GitHub URL of a file, a folder, a branch, a commit or a pull request.
+	Url string `json:"url"`
+}
+
+// UrlReviewRequestStages defines model for UrlReviewRequest.Stages.
+type UrlReviewRequestStages string
+
 // VerdictResult defines model for VerdictResult.
 type VerdictResult string
 
@@ -4107,6 +4167,9 @@ type RenderMarkdownJSONRequestBody = RenderRequest
 // ReviewContentJSONRequestBody defines body for ReviewContent for application/json ContentType.
 type ReviewContentJSONRequestBody = ContentReviewRequest
 
+// ReviewUrlJSONRequestBody defines body for ReviewUrl for application/json ContentType.
+type ReviewUrlJSONRequestBody = UrlReviewRequest
+
 // SuggestFixJSONRequestBody defines body for SuggestFix for application/json ContentType.
 type SuggestFixJSONRequestBody = SuggestFixRequest
 
@@ -4475,6 +4538,9 @@ type ServerInterface interface {
 	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(w http.ResponseWriter, r *http.Request)
+	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// (POST /reviews/url)
+	ReviewUrl(w http.ResponseWriter, r *http.Request)
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	// (GET /reviews/{reviewId}/report)
 	GetContentReviewReport(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID)
@@ -7394,6 +7460,20 @@ func (siw *ServerInterfaceWrapper) ReviewContent(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ReviewUrl operation middleware
+func (siw *ServerInterfaceWrapper) ReviewUrl(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReviewUrl(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetContentReviewReport operation middleware
 func (siw *ServerInterfaceWrapper) GetContentReviewReport(w http.ResponseWriter, r *http.Request) {
 
@@ -8178,6 +8258,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews/url", wrapper.ReviewUrl)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}/report", wrapper.GetContentReviewReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs/estimate", wrapper.EstimateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/assumptions", wrapper.ListAssumptions)
@@ -12627,6 +12708,45 @@ func (response ReviewContentdefaultApplicationProblemPlusJSONResponse) VisitRevi
 	return err
 }
 
+type ReviewUrlRequestObject struct {
+	Body *ReviewUrlJSONRequestBody
+}
+
+type ReviewUrlResponseObject interface {
+	VisitReviewUrlResponse(w http.ResponseWriter) error
+}
+
+type ReviewUrl200JSONResponse UrlReview
+
+func (response ReviewUrl200JSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReviewUrldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ReviewUrldefaultApplicationProblemPlusJSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetContentReviewReportRequestObject struct {
 	ReviewId openapi_types.UUID `json:"reviewId"`
 }
@@ -13981,6 +14101,9 @@ type StrictServerInterface interface {
 	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(ctx context.Context, request ReviewContentRequestObject) (ReviewContentResponseObject, error)
+	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// (POST /reviews/url)
+	ReviewUrl(ctx context.Context, request ReviewUrlRequestObject) (ReviewUrlResponseObject, error)
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	// (GET /reviews/{reviewId}/report)
 	GetContentReviewReport(ctx context.Context, request GetContentReviewReportRequestObject) (GetContentReviewReportResponseObject, error)
@@ -17249,6 +17372,37 @@ func (sh *strictHandler) ReviewContent(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReviewContentResponseObject); ok {
 		if err := validResponse.VisitReviewContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReviewUrl operation middleware
+func (sh *strictHandler) ReviewUrl(w http.ResponseWriter, r *http.Request) {
+	var request ReviewUrlRequestObject
+
+	var body ReviewUrlJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReviewUrl(ctx, request.(ReviewUrlRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReviewUrl")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReviewUrlResponseObject); ok {
+		if err := validResponse.VisitReviewUrlResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

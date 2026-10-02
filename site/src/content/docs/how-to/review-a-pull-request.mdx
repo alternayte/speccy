@@ -1,0 +1,85 @@
+---
+title: Review a doc on GitHub
+description: Review the spec docs of a GitHub file, folder or pull request with no copy by hand, and post the findings of a pull request as a review that only you see.
+sidebar: { order: 9 }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide shows you how to review a spec doc on GitHub from your own machine. The doc can be on a branch or in a pull request.
+
+Speccy reads the files at the head commit, with the GitHub credential it already holds. It saves no bundle: the review is the same unsaved review that `speccy review --server` runs, and Speccy keeps its report for 90 days.
+
+## Before you start
+
+- Speccy can read the repo. In local mode it uses the login of `gh`, or the token under **Admin → GitHub**. In hosted mode it uses the workspace token.
+- For a full review, the roles have models. With no model on the `reviewer` role, the review runs lint only.
+
+## What a URL names
+
+| URL | Speccy reviews |
+|---|---|
+| A file, such as `.../blob/main/docs/SDD - Pay.md` | That spec doc. |
+| A folder, such as `.../tree/main/docs` | Each spec doc under the folder. |
+| A branch or a commit | Each spec doc of the repo at that commit. |
+| A pull request, such as `.../pull/42` | Each spec doc that the pull request changes. |
+
+One review takes 20 spec docs at most. For more, name a folder or a doc.
+
+The review uses the `.speccy.yaml` and the sidecars of the repo at that commit, and the profiles of your Speccy. A link from a doc in the review resolves to another spec doc of the same commit, and then to the bundles that Speccy holds. Thus an SDD and its PRD in one pull request read each other.
+
+## Review a URL with an agent
+
+The MCP tool `review_url` takes the URL:
+
+```text
+review_url { "url": "https://github.com/acme/specs/pull/42" }
+```
+
+The answer names the repo and the commit. It gives each doc with its verdict and its findings. Each finding has its file, relative to the `dir` of the doc, and its `line`. [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/#set-up-the-mcp-server) shows how to add the MCP server.
+
+## Post a pending review on a pull request
+
+A pending review shows only to you, until you submit it. Use it to check the findings before the author sees them.
+
+<Steps>
+
+1. Go to a folder where Speccy has its state and its models, such as the folder of your docs.
+
+2. Print the review first. This command posts nothing:
+
+   ```sh
+   speccy action --pr https://github.com/acme/specs/pull/42 --dry-run
+   ```
+
+   The JSON has the commit, the body of the review, and each comment with its path and line.
+
+3. Post the pending review:
+
+   ```sh
+   speccy action --pr https://github.com/acme/specs/pull/42 --pending
+   ```
+
+4. Open the pull request on GitHub. Edit or delete the comments, then submit the review, or discard it.
+
+</Steps>
+
+The command takes `GITHUB_TOKEN`, or the login of `gh`. Add `--stages lint` for a review with no model call.
+
+The comments follow the rules of the GitHub Action:
+
+- A MUST finding, or a finding with a sure fix, gets a comment when its line is in the diff.
+- Each doc gets `pr.inline_limit` comments at most.
+- A waived finding gets no comment.
+- A MUST finding on a line outside the diff goes into the body of the review. GitHub takes a comment only on a line of the diff.
+
+<Aside>
+`--pr` makes no check run and no summary comment, and it reads no reply command. Those belong to the Action in CI. [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) shows the Action.
+</Aside>
+
+GitHub lets a person have one pending review on a pull request at a time. When you have one, submit or discard it, then run the command again.
+
+## What such a review does not have
+
+- No fix loop and no carried findings. Those need a saved bundle. Add the branch as a GitHub source in the app to get them.
+- No thread and no waiver request. The sidecars of the repo still count.

@@ -1070,6 +1070,20 @@ type ClientInterface interface {
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContent(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ReviewUrlWithBody Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+	ReviewUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+	ReviewUrl(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	//
 	// Corresponds with GET /reviews/{reviewId}/report (the `GetContentReviewReport` operationId).
@@ -3809,6 +3823,40 @@ func (c *Client) ReviewContentWithBody(ctx context.Context, contentType string, 
 // Corresponds with POST /reviews (the `ReviewContent` operationId).
 func (c *Client) ReviewContent(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReviewContentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReviewUrlWithBody Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+func (c *Client) ReviewUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReviewUrlRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+func (c *Client) ReviewUrl(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReviewUrlRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8971,6 +9019,46 @@ func NewReviewContentRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewReviewUrlRequest calls the generic ReviewUrl builder with application/json body
+func NewReviewUrlRequest(server string, body ReviewUrlJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReviewUrlRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReviewUrlRequestWithBody constructs an http.Request for the ReviewUrl method, with any body, and a specified content type
+func NewReviewUrlRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/reviews/url")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetContentReviewReportRequest constructs an http.Request for the GetContentReviewReport method
 func NewGetContentReviewReportRequest(server string, reviewId openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -11080,6 +11168,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithResponse(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*ReviewContentResponse, error)
+
+	// ReviewUrlWithBodyWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+	ReviewUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReviewUrlResponse, error)
+
+	// ReviewUrlWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+	ReviewUrlWithResponse(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*ReviewUrlResponse, error)
 
 	// GetContentReviewReportWithResponse The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	//
@@ -16625,6 +16727,54 @@ func (r ReviewContentResponse) ContentType() string {
 	return ""
 }
 
+type ReviewUrlResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *UrlReview
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ReviewUrlResponse) GetJSON200() *UrlReview {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ReviewUrlResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ReviewUrlResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ReviewUrlResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReviewUrlResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ReviewUrlResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetContentReviewReportResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -19807,6 +19957,32 @@ func (c *ClientWithResponses) ReviewContentWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseReviewContentResponse(rsp)
+}
+
+// ReviewUrlWithBodyWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+func (c *ClientWithResponses) ReviewUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReviewUrlResponse, error) {
+	rsp, err := c.ReviewUrlWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReviewUrlResponse(rsp)
+}
+
+// ReviewUrlWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
+func (c *ClientWithResponses) ReviewUrlWithResponse(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*ReviewUrlResponse, error) {
+	rsp, err := c.ReviewUrl(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReviewUrlResponse(rsp)
 }
 
 // GetContentReviewReportWithResponse The self-contained HTML report of a review from POST /reviews (SDD §12.4).
@@ -23878,6 +24054,39 @@ func ParseReviewContentResponse(rsp *http.Response) (*ReviewContentResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ContentReview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReviewUrlResponse parses an HTTP response from a ReviewUrlWithResponse call
+func ParseReviewUrlResponse(rsp *http.Response) (*ReviewUrlResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReviewUrlResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UrlReview
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

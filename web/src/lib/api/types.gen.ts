@@ -1144,6 +1144,47 @@ export type ContentReviewRequest = {
     files: Array<ContentFile>;
 };
 
+export type UrlReviewRequest = {
+    /**
+     * The GitHub URL of a file, a folder, a branch, a commit or a pull request.
+     */
+    url: string;
+    stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
+};
+
+export type UrlReview = {
+    /**
+     * The repo, as owner/name.
+     */
+    repo: string;
+    /**
+     * The commit that Speccy read.
+     */
+    commit: string;
+    /**
+     * The number of the pull request, for a pull request URL.
+     */
+    pull?: number;
+    docs: Array<UrlReviewDoc>;
+};
+
+/**
+ * One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
+ */
+export type UrlReviewDoc = {
+    slug: string;
+    /**
+     * The folder of the doc's bundle, relative to the repo root. The file of a finding's anchor is relative to it.
+     */
+    dir: string;
+    /**
+     * The spec doc, relative to the repo root.
+     */
+    path: string;
+    review?: ContentReview;
+    error?: string;
+};
+
 export type ContentReview = {
     id: string;
     /**
@@ -3476,6 +3517,31 @@ export type ReviewContentResponses = {
 };
 
 export type ReviewContentResponse = ReviewContentResponses[keyof ReviewContentResponses];
+
+export type ReviewUrlData = {
+    body: UrlReviewRequest;
+    path?: never;
+    query?: never;
+    url: '/reviews/url';
+};
+
+export type ReviewUrlErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ReviewUrlError = ReviewUrlErrors[keyof ReviewUrlErrors];
+
+export type ReviewUrlResponses = {
+    /**
+     * The repo, the commit, and the review of each spec doc.
+     */
+    200: UrlReview;
+};
+
+export type ReviewUrlResponse = ReviewUrlResponses[keyof ReviewUrlResponses];
 
 export type GetContentReviewReportData = {
     body?: never;

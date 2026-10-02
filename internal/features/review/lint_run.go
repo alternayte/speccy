@@ -200,11 +200,12 @@ func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID,
 	if err != nil {
 		return input{}, err
 	}
-	return s.loadFiles(ctx, b, versionID, files, p)
+	return s.loadFiles(ctx, b, versionID, files, p, nil)
 }
 
 // loadFiles builds the input from files. versionID is uuid.Nil for content that is not saved.
-func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, files []source.File, p profile.Versioned) (input, error) {
+// from is set for content that Speccy read from a repo at a commit.
+func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, files []source.File, p profile.Versioned, from *FromRepo) (input, error) {
 	var err error
 	in := input{bundle: b, version: versionID, files: files, profile: p, relaxed: map[string]bool{}}
 	for _, f := range files {
@@ -214,12 +215,14 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 	}
 	in.doc = section.Parse(in.main)
 	in.fm, _, _ = source.ReadFrontmatter(in.main)
-	if s.Decisions != nil {
+	if from != nil {
+		in.dec = from.Decisions
+	} else if s.Decisions != nil {
 		if in.dec, err = s.Decisions(ctx, b); err != nil {
 			return input{}, err
 		}
 	}
-	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
+	if in.links, err = s.resolveLinks(ctx, b, in.main, from); err != nil {
 		return input{}, err
 	}
 	if up := p.Profile.Links.Upstream; up != nil && len(up.Types) > 0 {
@@ -233,12 +236,15 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 			}
 		}
 	}
-	if in.linked, err = s.loadLinked(ctx, in.links); err != nil {
+	if in.linked, err = s.loadLinked(ctx, in.links, from); err != nil {
 		return input{}, err
 	}
 	repo, err := s.repoConfig(ctx, b)
 	if err != nil {
 		return input{}, err
+	}
+	if from != nil {
+		repo = from.Config
 	}
 	for _, slug := range repo.Adoption.Relaxed {
 		in.relaxed[slug] = true

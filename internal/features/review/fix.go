@@ -580,7 +580,7 @@ func (s *Service) lintFiles(ctx context.Context, b pgdb.SpecDoc, files []source.
 	if !ok {
 		return nil, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
 	}
-	in, err := s.loadFiles(ctx, b, uuid.Nil, files, p)
+	in, err := s.loadFiles(ctx, b, uuid.Nil, files, p, nil)
 	if err != nil {
 		return nil, err
 	}

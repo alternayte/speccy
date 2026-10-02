@@ -937,6 +937,29 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /reviews/url:
+    post:
+      operationId: reviewUrl
+      summary: >
+        Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the
+        head commit. Speccy reads the files with the GitHub credential it holds, and saves no
+        bundle. For a pull request, it reviews the spec docs that the pull request changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UrlReviewRequest"
+      responses:
+        "200":
+          description: The repo, the commit, and the review of each spec doc.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UrlReview"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /reviews/{reviewId}/report:
     parameters:
       - name: reviewId
@@ -4503,6 +4526,55 @@ components:
           maxItems: 500
           items:
             $ref: "#/components/schemas/ContentFile"
+
+    UrlReviewRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: The GitHub URL of a file, a folder, a branch, a commit or a pull request.
+        stages:
+          type: array
+          items:
+            type: string
+            enum: [rubric, grounding, divergence, coherence]
+
+    UrlReview:
+      type: object
+      required: [repo, commit, docs]
+      properties:
+        repo:
+          type: string
+          description: The repo, as owner/name.
+        commit:
+          type: string
+          description: The commit that Speccy read.
+        pull:
+          type: integer
+          description: The number of the pull request, for a pull request URL.
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/UrlReviewDoc"
+
+    UrlReviewDoc:
+      type: object
+      description: One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
+      required: [slug, dir, path]
+      properties:
+        slug:
+          type: string
+        dir:
+          type: string
+          description: The folder of the doc's bundle, relative to the repo root. The file of a finding's anchor is relative to it.
+        path:
+          type: string
+          description: The spec doc, relative to the repo root.
+        review:
+          $ref: "#/components/schemas/ContentReview"
+        error:
+          type: string
 
     ContentReview:
       type: object

@@ -291,7 +291,7 @@ func selectBundles(scan *local.Scan, rootDir, cwd string, paths []string) ([]loc
 		}
 		found := false
 		for _, b := range scan.Bundles {
-			if !bundleMatches(b, p, info.IsDir()) {
+			if !b.Names(p, info.IsDir()) {
 				continue
 			}
 			found = true
@@ -364,26 +364,6 @@ func unnamedBundle(rootDir, p string) (local.Bundle, error) {
 		Slug: strings.TrimSuffix(p, path.Ext(p)), Dir: path.Dir(p), File: file, Main: main,
 		Files: []source.File{{Path: file, Content: content}}, Unnamed: true,
 	}, nil
-}
-
-// bundleMatches reports whether the path p (relative to the root) names bundle b: a folder
-// names the bundles in it and the bundle it is inside; a file names the bundle it belongs to.
-func bundleMatches(b local.Bundle, p string, dir bool) bool {
-	inside := func(prefix string) bool { return prefix != "." && strings.HasPrefix(p, prefix+"/") }
-	if dir {
-		if p == "." || b.Slug == p || strings.HasPrefix(b.Slug, p+"/") {
-			return true
-		}
-		return b.File == "" && inside(b.Dir)
-	}
-	if path.Join(b.Dir, b.Main.Path) == p {
-		return true
-	}
-	if b.File == "" {
-		return inside(b.Dir)
-	}
-	assets := path.Join(b.Dir, source.AssetsDir(b.File))
-	return p == assets || inside(assets)
 }
 
 // reviewLocal reviews the bundles in local mode, in this process.
