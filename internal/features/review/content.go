@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/features/profile"
@@ -27,6 +28,51 @@ type Content struct {
 	MainDoc string // set for a single-file bundle (REQ-001 form b)
 	Profile string // the profile when the main doc has no type (REQ-130)
 	Files   []source.File
+	// From is set for content that Speccy read from a repo at a commit: the repo's own
+	// .speccy.yaml, the sidecar of the doc, and the other spec docs of that commit.
+	From *FromRepo
+}
+
+// FromRepo is what a doc of a repo at one commit brings with it, in place of what a served
+// folder or a saved source gives a saved doc.
+type FromRepo struct {
+	// Dir is the folder of the doc, relative to the repo root: a relative link starts there.
+	Dir string
+	// Config is the repo's .speccy.yaml, and Decisions the sidecar of the doc.
+	Config    source.RepoConfig
+	Decisions source.Decisions
+	// Siblings are the other spec docs of the same commit. A link resolves to one of them
+	// before it resolves to a saved bundle.
+	Siblings []Sibling
+
+	// docs and files are the siblings as the link resolver reads them.
+	docs  []pgdb.SpecDoc
+	files map[uuid.UUID][]source.File
+}
+
+// Sibling is another spec doc of the same commit.
+type Sibling struct {
+	Slug    string
+	Dir     string
+	DocPath string
+	Profile string
+	Title   string
+	Files   []source.File
+}
+
+// prepare gives each sibling the row that the link resolver reads.
+func (f *FromRepo) prepare(workspace uuid.UUID) {
+	if f == nil || f.files != nil {
+		return
+	}
+	f.files = map[uuid.UUID][]source.File{}
+	for _, sib := range f.Siblings {
+		ref, _ := json.Marshal(bundleRef{Dir: sib.Dir})
+		doc := pgdb.SpecDoc{ID: kernel.NewID(), WorkspaceID: workspace, Slug: sib.Slug, Title: sib.Title, ProfileKey: sib.Profile,
+			DocPath: sib.DocPath, SourceRef: dbtype.JSON(ref)}
+		f.docs = append(f.docs, doc)
+		f.files[doc.ID] = sib.Files
+	}
 }
 
 // ContentResult is the review of Content. The API stores it for the report (SDD §12.4).
@@ -81,7 +127,12 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		slug = strings.TrimSuffix(path.Base(main.Path), path.Ext(main.Path))
 	}
 	b := pgdb.SpecDoc{WorkspaceID: s.Workspace, Slug: slug, Title: main.Title, ProfileKey: p.Profile.Key, DocPath: main.Path}
-	in, err := s.loadFiles(ctx, b, uuid.Nil, c.Files, p)
+	if c.From != nil {
+		ref, _ := json.Marshal(bundleRef{Dir: c.From.Dir})
+		b.SourceRef = dbtype.JSON(ref)
+		c.From.prepare(s.Workspace)
+	}
+	in, err := s.loadFiles(ctx, b, uuid.Nil, c.Files, p, c.From)
 	if err != nil {
 		return out, err
 	}
@@ -92,8 +143,8 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	if guessed {
 		rc.note(profile.GuessNote(key, profileKeys(s.Profiles())))
 	}
-	if in.sizeInferred {
-		rc.note(sizeNote(in.fm.Size, in.size))
+	if in.sizeNote != "" {
+		rc.note(in.sizeNote)
 	}
 	if rc.progress == nil {
 		rc.progress = NewBroker()
@@ -141,6 +192,10 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		if f.fix != "" {
 			fix := f.fix
 			af.Fix = &fix
+		}
+		evidence, _ := json.Marshal(f.evidence)
+		if question := answerQuestion(f.slug, f.message, f.anchor.Quote, f.question, evidence); question != "" {
+			af.Question = &question
 		}
 		if l := Layer(f.slug, f.stage, f.level); l != "" {
 			layer := api.FindingLayer(l)
@@ -233,6 +288,16 @@ func (a *API) ReviewContent(ctx context.Context, req api.ReviewContentRequestObj
 	if err != nil {
 		return nil, err
 	}
+	out, err := a.contentReview(ctx, res, c.Files)
+	if err != nil {
+		return nil, err
+	}
+	return api.ReviewContent200JSONResponse(out), nil
+}
+
+// contentReview is the result of an unsaved review as the API gives it. It stores the files
+// and the result, so the report of the review has a link.
+func (a *API) contentReview(ctx context.Context, res ContentResult, files []source.File) (api.ContentReview, error) {
 	out := api.ContentReview{ProfileKey: res.ProfileKey, ProfileVersion: res.ProfileVersion, MainDoc: res.MainDoc, Size: &res.Size,
 		Findings: res.Findings, Notes: res.Notes}
 	if out.Findings == nil {
@@ -246,10 +311,44 @@ func (a *API) ReviewContent(ctx context.Context, req api.ReviewContentRequestObj
 	out.TokensIn, out.TokensOut, out.CostEstimate, out.CacheHits = &res.TokensIn, &res.TokensOut, &cost, &res.CacheHits
 	out.Id = kernel.NewID()
 	out.ReportPath = "/reviews/" + out.Id.String()
-	if err := a.storeContentReview(ctx, res, c.Files, out); err != nil {
+	return out, a.storeContentReview(ctx, res, files, out)
+}
+
+// ReviewUrl is POST /reviews/url: the review of the spec docs of a GitHub URL (#92).
+func (a *API) ReviewUrl(ctx context.Context, req api.ReviewUrlRequestObject) (api.ReviewUrlResponseObject, error) {
+	var stages Stages
+	if req.Body.Stages != nil {
+		stages = Stages{}
+		for _, st := range *req.Body.Stages {
+			stages = append(stages, string(st))
+		}
+	}
+	res, err := a.Service.ReviewURL(ctx, req.Body.Url, stages)
+	if err != nil {
 		return nil, err
 	}
-	return api.ReviewContent200JSONResponse(out), nil
+	out := api.UrlReview{Repo: res.Repo, Commit: res.Commit, Docs: []api.UrlReviewDoc{}}
+	if res.Pull > 0 {
+		out.Pull = &res.Pull
+	}
+	for _, d := range res.Docs {
+		doc := api.UrlReviewDoc{Slug: d.Slug, Dir: d.Dir, Path: d.Path}
+		if d.Err != nil {
+			msg := d.Err.Error()
+			if ke, ok := kernel.AsError(d.Err); ok {
+				msg = ke.Detail
+			}
+			doc.Error = &msg
+		} else {
+			review, err := a.contentReview(ctx, d.Result, d.Files)
+			if err != nil {
+				return nil, err
+			}
+			doc.Review = &review
+		}
+		out.Docs = append(out.Docs, doc)
+	}
+	return api.ReviewUrl200JSONResponse(out), nil
 }
 
 // ContentReviewDays is how long the server keeps a content review for its report (SDD §15.3).

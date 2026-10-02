@@ -17,7 +17,7 @@ Get one bundle: its files, its verdict, and the text of its spec doc.
 
 ## `get_findings`
 
-Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person, so ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.
+Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person: the finding has the question to ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -115,6 +115,15 @@ Review markdown files that are not saved: a spec doc with a type in its frontmat
 | `profile` | string |  | the profile for a spec doc with no type, such as prd or sdd |
 | `slug` | string |  | the bundle's slug, so links to and from other bundles resolve |
 | `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
+
+## `review_url`
+
+Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
+| `url` | string | yes | the GitHub URL of a file, a folder, a branch, a commit or a pull request |
 
 ## `save_file`
 

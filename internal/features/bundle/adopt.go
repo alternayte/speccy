@@ -17,7 +17,7 @@ import (
 
 // adoptOf is the frontmatter keys the main doc does not name, with the values a review uses
 // for them (REQ-135). It is nil when the doc names both, so the UI offers nothing.
-func adoptOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc, profiles map[string]profile.Versioned) *api.Adopt {
+func adoptOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc, profiles map[string]profile.Versioned, repo source.RepoConfig) *api.Adopt {
 	main, err := mainDocContent(ctx, q, b)
 	if err != nil {
 		return nil
@@ -38,8 +38,11 @@ func adoptOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc, profiles map[
 			out.Type = &key
 		}
 	}
-	if _, ok := kernel.ParseSize(fm.Size); !ok {
-		size := string(review.InferSize(main, len(fm.Links)))
+	// A size that the team's own key or the map entry names needs no key in the doc (#93).
+	var ref localRef
+	_ = json.Unmarshal(b.SourceRef, &ref)
+	if sz, inferred, _ := review.DocSize(repo, path.Join(ref.Dir, b.DocPath), main); inferred {
+		size := string(sz)
 		out.Size = &size
 	}
 	if out.Type == nil && out.Size == nil {
@@ -74,7 +77,11 @@ func (a *API) AdoptFrontmatter(ctx context.Context, req api.AdoptFrontmatterRequ
 	if err != nil {
 		return nil, err
 	}
-	ad := adoptOf(ctx, q, b, a.Profiles())
+	repo, err := a.Service.RepoConfig(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+	ad := adoptOf(ctx, q, b, a.Profiles(), repo)
 	if ad == nil {
 		return nil, kernel.Invalid("nothing_to_adopt", "The main doc already names its type and its size.")
 	}

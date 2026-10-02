@@ -88,6 +88,21 @@ func (c *Client) CreateReview(ctx context.Context, repo string, number int, comm
 	}, nil)
 }
 
+// CreatePendingReview makes a review that stays pending: GitHub shows it to its author only,
+// until that person submits it. A review with no event is pending. A person has one pending
+// review on a pull request at a time, and GitHub refuses a second one.
+func (c *Client) CreatePendingReview(ctx context.Context, repo string, number int, commit, body string, comments []ReviewComment) (url string, err error) {
+	var out struct {
+		HTMLURL string `json:"html_url"`
+	}
+	in := map[string]any{"commit_id": commit, "body": body, "comments": comments}
+	if comments == nil {
+		in["comments"] = []ReviewComment{}
+	}
+	err = c.do(ctx, "POST", fmt.Sprintf("%s/pulls/%d/reviews", repoPath(repo), number), in, &out)
+	return out.HTMLURL, err
+}
+
 // CheckRun is the result of one check on a commit.
 type CheckRun struct {
 	Name       string

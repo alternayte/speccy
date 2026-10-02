@@ -23,7 +23,6 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
-	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 )
@@ -292,7 +291,7 @@ func selectBundles(scan *local.Scan, rootDir, cwd string, paths []string) ([]loc
 		}
 		found := false
 		for _, b := range scan.Bundles {
-			if !bundleMatches(b, p, info.IsDir()) {
+			if !b.Names(p, info.IsDir()) {
 				continue
 			}
 			found = true
@@ -367,26 +366,6 @@ func unnamedBundle(rootDir, p string) (local.Bundle, error) {
 	}, nil
 }
 
-// bundleMatches reports whether the path p (relative to the root) names bundle b: a folder
-// names the bundles in it and the bundle it is inside; a file names the bundle it belongs to.
-func bundleMatches(b local.Bundle, p string, dir bool) bool {
-	inside := func(prefix string) bool { return prefix != "." && strings.HasPrefix(p, prefix+"/") }
-	if dir {
-		if p == "." || b.Slug == p || strings.HasPrefix(b.Slug, p+"/") {
-			return true
-		}
-		return b.File == "" && inside(b.Dir)
-	}
-	if path.Join(b.Dir, b.Main.Path) == p {
-		return true
-	}
-	if b.File == "" {
-		return inside(b.Dir)
-	}
-	assets := path.Join(b.Dir, source.AssetsDir(b.File))
-	return p == assets || inside(assets)
-}
-
 // reviewLocal reviews the bundles in local mode, in this process.
 func reviewLocal(ctx context.Context, rootDir string, fl reviewFlags, stages review.Stages, lintOnly bool, selected []local.Bundle, stderr io.Writer) ([]reviewed, int) {
 	s, err := openSession(ctx, rootDir)
@@ -403,7 +382,7 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 	// With no reviewer model, the default is lint only (decisions.md). An explicit model stage
 	// with no model is a configuration error.
 	if !fl.stagesSet {
-		if _, err := s.app.Reviews.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
+		if !roleAssigned(ctx, s.client, api.Reviewer) {
 			fmt.Fprintln(stderr, "No model is assigned, so only lint ran. Assign models in the app (Admin → Models), or pass --stages lint to say so.")
 			lintOnly = true
 		}
@@ -608,10 +587,16 @@ func reviewOne(ctx context.Context, c *api.ClientWithResponses, fl reviewFlags, 
 	// the next review needs no guess (REQ-135).
 	if fl.adopt && fl.server == "" && b.File != "" {
 		size := ""
+		file := filepath.Join(fl.root, filepath.FromSlash(path.Join(b.Dir, b.File)))
+		// A size that the team's own key or the map entry names needs no key in the doc (#93).
 		if v.Size != nil {
-			size = *v.Size
+			cfg, _ := source.LoadRepoConfig(fl.root)
+			content, _ := os.ReadFile(file)
+			if _, inferred, _ := review.DocSize(cfg, path.Join(b.Dir, b.File), content); inferred {
+				size = *v.Size
+			}
 		}
-		if err := adoptFile(filepath.Join(fl.root, filepath.FromSlash(path.Join(b.Dir, b.File))), b.Main.Frontmatter, v.ProfileKey, size); err != nil {
+		if err := adoptFile(file, b.Main.Frontmatter, v.ProfileKey, size); err != nil {
 			fmt.Fprintf(stderr, "speccy review: %s: %v.\n", b.Slug, err)
 			return r, exitRun
 		}
@@ -701,4 +686,18 @@ func sortedCounts(counts map[string]int) []string {
 		return strings.Compare(a, b)
 	})
 	return keys
+}
+
+// roleAssigned reports whether a role has a model.
+func roleAssigned(ctx context.Context, c *api.ClientWithResponses, role api.RoleName) bool {
+	res, err := c.ListRolesWithResponse(ctx)
+	if err != nil || res.JSON200 == nil {
+		return false
+	}
+	for _, r := range res.JSON200.Items {
+		if r.Role == role {
+			return r.BackendId != nil
+		}
+	}
+	return false
 }

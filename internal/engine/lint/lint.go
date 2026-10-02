@@ -289,9 +289,13 @@ func traceUses(src []byte, prefixes []string) (defs, refs []Definition) {
 			}
 			s, e := p.span(m[0], m[1])
 			d := Definition{ID: string(p.text[m[0]:m[1]]), Start: s + sd.BodyStart, End: e + sd.BodyStart, Text: string(p.text)}
-			if i == 0 && defines(p, m[0], m[1]) {
-				if p.kind == kindCell {
+			if (i == 0 || afterSentence(p, m[0])) && defines(p, m[0], m[1]) {
+				switch {
+				case p.kind == kindCell:
 					d.Text = rowText(blocks, p)
+				case m[0] > 0:
+					// A definition inside a paragraph: its text starts at the ID.
+					d.Text = string(p.text[m[0]:])
 				}
 				defs = append(defs, d)
 			} else {

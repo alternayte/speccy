@@ -289,9 +289,7 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 			an, ok = cur.Anchor(an)
 			detached = !ok
 		}
-		var sugg struct {
-			Fix string `json:"fix"`
-		}
+		var sugg suggestion
 		_ = json.Unmarshal(f.Suggestion, &sugg)
 		af := api.Finding{
 			Id: f.ID, RunId: f.RunID, CheckSlug: f.CheckSlug, Level: api.FindingLevel(f.Level), Stage: f.Stage, Relaxed: f.Relaxed, Message: f.Message, Waived: f.Waived,
@@ -317,6 +315,9 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		if sugg.Fix != "" {
 			af.Fix = &sugg.Fix
 		}
+		if question := answerQuestion(f.CheckSlug, f.Message, an.Quote, sugg.Question, f.Evidence); question != "" {
+			af.Question = &question
+		}
 		if f.CheckSlug == CoverageSlug {
 			var ev struct {
 				ID string `json:"id"`
@@ -324,6 +325,13 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 			_ = json.Unmarshal(f.Evidence, &ev)
 			if ev.ID != "" {
 				af.TraceId = &ev.ID
+			}
+		}
+		if f.CheckSlug == HasUpstreamSlug {
+			var ev sourceEvidence
+			_ = json.Unmarshal(f.Evidence, &ev)
+			if ev.SourceURL != "" {
+				af.SourceUrl = &ev.SourceURL
 			}
 		}
 		if f.CheckSlug == CodeDriftSlug {

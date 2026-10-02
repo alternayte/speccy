@@ -831,6 +831,11 @@ export type Finding = {
     end_line: number;
     fix_kind: FixKind;
     /**
+     * For an answer finding, the question that the author must answer to fix it. It names the subject and asks only for the missing fact. A finding of the divergence stage has its build question here, and one of the grounding stage has its claim.
+     *
+     */
+    question?: string;
+    /**
      * The run the finding belongs to. A carried finding belongs to the last full review.
      */
     run_id: string;
@@ -860,6 +865,10 @@ export type Finding = {
      * For a coverage gap, the upstream trace ID it is about.
      */
     trace_id?: string;
+    /**
+     * For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
+     */
+    source_url?: string;
     /**
      * The anchor in the bundle's current version, re-anchored when the run read an older version.
      */
@@ -1138,6 +1147,70 @@ export type ContentReviewRequest = {
     profile?: string;
     stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
     files: Array<ContentFile>;
+};
+
+export type CheckConflictsRequest = {
+    /**
+     * The name of the doc type, such as Software Design Document.
+     */
+    name?: string;
+    checks: Array<{
+        slug: string;
+        question: string;
+        pass_when: string;
+        section?: string;
+    }>;
+};
+
+export type CheckConflicts = {
+    conflicts: Array<{
+        /**
+         * One slug for a check that pulls against itself, or two or more for checks that pull against each other.
+         */
+        checks: Array<string>;
+        reason: string;
+    }>;
+};
+
+export type UrlReviewRequest = {
+    /**
+     * The GitHub URL of a file, a folder, a branch, a commit or a pull request.
+     */
+    url: string;
+    stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
+};
+
+export type UrlReview = {
+    /**
+     * The repo, as owner/name.
+     */
+    repo: string;
+    /**
+     * The commit that Speccy read.
+     */
+    commit: string;
+    /**
+     * The number of the pull request, for a pull request URL.
+     */
+    pull?: number;
+    docs: Array<UrlReviewDoc>;
+};
+
+/**
+ * One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
+ */
+export type UrlReviewDoc = {
+    slug: string;
+    /**
+     * The folder of the doc's bundle, relative to the repo root. The file of a finding's anchor is relative to it.
+     */
+    dir: string;
+    /**
+     * The spec doc, relative to the repo root.
+     */
+    path: string;
+    review?: ContentReview;
+    error?: string;
 };
 
 export type ContentReview = {
@@ -3472,6 +3545,56 @@ export type ReviewContentResponses = {
 };
 
 export type ReviewContentResponse = ReviewContentResponses[keyof ReviewContentResponses];
+
+export type FindCheckConflictsData = {
+    body: CheckConflictsRequest;
+    path?: never;
+    query?: never;
+    url: '/profiles/conflicts';
+};
+
+export type FindCheckConflictsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type FindCheckConflictsError = FindCheckConflictsErrors[keyof FindCheckConflictsErrors];
+
+export type FindCheckConflictsResponses = {
+    /**
+     * The conflicts. An empty list means the model found none.
+     */
+    200: CheckConflicts;
+};
+
+export type FindCheckConflictsResponse = FindCheckConflictsResponses[keyof FindCheckConflictsResponses];
+
+export type ReviewUrlData = {
+    body: UrlReviewRequest;
+    path?: never;
+    query?: never;
+    url: '/reviews/url';
+};
+
+export type ReviewUrlErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ReviewUrlError = ReviewUrlErrors[keyof ReviewUrlErrors];
+
+export type ReviewUrlResponses = {
+    /**
+     * The repo, the commit, and the review of each spec doc.
+     */
+    200: UrlReview;
+};
+
+export type ReviewUrlResponse = ReviewUrlResponses[keyof ReviewUrlResponses];
 
 export type GetContentReviewReportData = {
     body?: never;

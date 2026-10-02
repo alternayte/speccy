@@ -479,17 +479,23 @@ func (s *Service) agreed(ctx context.Context, in input, q buildQuestion, roles [
 		was.doc = section.Parse(was.main)
 		then[run.VersionID] = was
 	}
-	for _, c := range q.cites {
-		if citedText(in, c) != citedText(was, c) {
-			return questionOutcome{}, false, nil
-		}
-	}
 	rows, err := db.ListQuestionAnswers(ctx, pgdb.ListQuestionAnswersParams{RunID: res.RunID, QuestionID: q.id})
 	if err != nil {
 		return questionOutcome{}, false, err
 	}
 	if len(rows) != len(roles) {
 		return questionOutcome{}, false, nil
+	}
+	// The quotes that the readers gave are the evidence for the agreement. While each one is in
+	// the doc, an edit elsewhere in the cited section does not send the question back to the
+	// readers, so it cannot return through the variance of a model alone (#107). A question
+	// whose readers gave no quote keeps the rule of the cited text.
+	if !quotesStand(in, rows) {
+		for _, c := range q.cites {
+			if citedText(in, c) != citedText(was, c) {
+				return questionOutcome{}, false, nil
+			}
+		}
 	}
 	o := questionOutcome{q: q, result: divergence.Agree}
 	for i, role := range roles {
@@ -505,6 +511,30 @@ func (s *Service) agreed(ctx context.Context, in input, q buildQuestion, roles [
 	}
 	_ = json.Unmarshal(res.Groups, &o.groups)
 	return o, true, nil
+}
+
+// quotesStand reports whether the readers of an agreed question gave quotes, and every quote
+// that was in the doc then is in the doc now.
+func quotesStand(in input, rows []pgdb.Answer) bool {
+	texts := [][]byte{in.main}
+	for _, a := range textAssets(in) {
+		texts = append(texts, []byte(a.text))
+	}
+	n := 0
+	for _, a := range rows {
+		var quotes []quoteEvidence
+		_ = json.Unmarshal(a.Quotes, &quotes)
+		for _, quote := range quotes {
+			if !quote.Found {
+				continue
+			}
+			n++
+			if _, found := checkQuotes(texts, []string{quote.Text}); !found {
+				return false
+			}
+		}
+	}
+	return n > 0
 }
 
 // citedText is the text a cite points at in a doc: the section's own text, or the definition

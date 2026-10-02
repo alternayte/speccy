@@ -612,6 +612,18 @@ func (a Adapter) LatestVerificationSHA(ctx context.Context, arg pgdb.LatestVerif
 	return a.q.LatestVerificationSHA(ctx, LatestVerificationSHAParams(arg))
 }
 
+func (a Adapter) ListActiveJobs(ctx context.Context) ([]pgdb.Job, error) {
+	rows, err := a.q.ListActiveJobs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.Job, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.Job(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]pgdb.AdoptedLink, error) {
 	rows, err := a.q.ListAdoptedLinks(ctx, sourceID)
 	if err != nil {
@@ -1346,6 +1358,10 @@ func (a Adapter) SetSpecDocArchived(ctx context.Context, arg pgdb.SetSpecDocArch
 
 func (a Adapter) SetSpecDocBundle(ctx context.Context, arg pgdb.SetSpecDocBundleParams) error {
 	return a.q.SetSpecDocBundle(ctx, SetSpecDocBundleParams(arg))
+}
+
+func (a Adapter) SetSpecDocFresh(ctx context.Context, arg pgdb.SetSpecDocFreshParams) error {
+	return a.q.SetSpecDocFresh(ctx, SetSpecDocFreshParams(arg))
 }
 
 func (a Adapter) SetSpecDocSourceRef(ctx context.Context, arg pgdb.SetSpecDocSourceRefParams) error {

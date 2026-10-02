@@ -290,12 +290,13 @@ func TestDivergence_QuestionsPinned(t *testing.T) {
 	if n := pe.fake.count(review.PromptReader); n != readerCalls {
 		t.Errorf("the readers answered an agreed question on unchanged text again (%d calls more)", n-readerCalls)
 	}
-	// An edit to the text the question cites: the readers answer it again.
+	// An edit to the text the question cites, away from the text the readers quoted: the quotes
+	// are the evidence for the agreement, so the answers stay and no reader is called (#107).
 	edited := strings.Replace(divergenceSDD, "logs each attempt with", "logs each attempt and each retry with", 1)
 	pe.write(t, "pay/SPEC.md", edited)
 	pe.run(t, "pay")
-	if n := pe.fake.count(review.PromptReader); n == readerCalls {
-		t.Error("the readers did not answer a question again after its cited text changed")
+	if n := pe.fake.count(review.PromptReader); n != readerCalls {
+		t.Errorf("the readers answered an agreed question again although the text they quoted is in the doc (%d calls more)", n-readerCalls)
 	}
 	// A new section gets questions of its own, and the old question stays.
 	pe.fake.questions = []fakeQuestion{{"What is the unknown rollout order?", "Rollout"}}
@@ -327,5 +328,21 @@ func TestDivergence_QuestionsPinned(t *testing.T) {
 	r7, _ := q.ListQuestionResults(ctx, run7.ID)
 	if n := pe.fake.count(review.PromptQuestions); n != 3 || len(r7) != 1 || r7[0].QuestionID == r1[0].QuestionID {
 		t.Errorf("after a fresh set: questions written %d times in all, results %+v, want a new question", n, r7)
+	}
+}
+
+// #107: an agreed question goes back to the readers when the text they quoted leaves the doc.
+func TestDivergence_QuotedTextGone(t *testing.T) {
+	pe := newDivergence(t, storetest.Engines()[0], fakeQuestion{"What does the service log?", "REQ-002"})
+	pe.run(t, "pay")
+	readerCalls := pe.fake.count(review.PromptReader)
+	// The fake readers quote the title line. A new title and a new REQ-002 take the quote and
+	// the cited text away.
+	edited := strings.Replace(divergenceSDD, "# Payments", "# Billing", 1)
+	edited = strings.Replace(edited, "logs each attempt with", "logs each attempt and each retry with", 1)
+	pe.write(t, "pay/SPEC.md", edited)
+	pe.run(t, "pay")
+	if n := pe.fake.count(review.PromptReader); n == readerCalls {
+		t.Error("the readers did not answer a question again after the text they quoted left the doc")
 	}
 }

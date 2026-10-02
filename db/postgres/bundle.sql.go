@@ -126,7 +126,7 @@ func (q *Queries) GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff
 }
 
 const getSpecDoc = `-- name: GetSpecDoc :one
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc WHERE workspace_id = $1 AND id = $2
 `
 
 type GetSpecDocParams struct {
@@ -151,12 +151,13 @@ func (q *Queries) GetSpecDoc(ctx context.Context, arg GetSpecDocParams) (SpecDoc
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BundleID,
+		&i.FreshAt,
 	)
 	return i, err
 }
 
 const getSpecDocByPath = `-- name: GetSpecDocByPath :one
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE bundle_id = $1 AND doc_path = $2
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc WHERE bundle_id = $1 AND doc_path = $2
 `
 
 type GetSpecDocByPathParams struct {
@@ -181,12 +182,13 @@ func (q *Queries) GetSpecDocByPath(ctx context.Context, arg GetSpecDocByPathPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BundleID,
+		&i.FreshAt,
 	)
 	return i, err
 }
 
 const getSpecDocBySlug = `-- name: GetSpecDocBySlug :one
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE workspace_id = $1 AND slug = $2
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc WHERE workspace_id = $1 AND slug = $2
 `
 
 type GetSpecDocBySlugParams struct {
@@ -211,6 +213,7 @@ func (q *Queries) GetSpecDocBySlug(ctx context.Context, arg GetSpecDocBySlugPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.BundleID,
+		&i.FreshAt,
 	)
 	return i, err
 }
@@ -586,7 +589,7 @@ func (q *Queries) ListHandoffs(ctx context.Context, specDocID uuid.UUID) ([]Hand
 }
 
 const listSpecDocs = `-- name: ListSpecDocs :many
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc
 WHERE workspace_id = $1 AND archived_at IS NULL AND slug > $2
 ORDER BY slug
 LIMIT $3::bigint
@@ -621,6 +624,7 @@ func (q *Queries) ListSpecDocs(ctx context.Context, arg ListSpecDocsParams) ([]S
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BundleID,
+			&i.FreshAt,
 		); err != nil {
 			return nil, err
 		}
@@ -636,7 +640,7 @@ func (q *Queries) ListSpecDocs(ctx context.Context, arg ListSpecDocsParams) ([]S
 }
 
 const listSpecDocsBySource = `-- name: ListSpecDocsBySource :many
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc
 WHERE workspace_id = $1 AND source_kind = $2
 ORDER BY slug
 `
@@ -669,6 +673,7 @@ func (q *Queries) ListSpecDocsBySource(ctx context.Context, arg ListSpecDocsBySo
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BundleID,
+			&i.FreshAt,
 		); err != nil {
 			return nil, err
 		}
@@ -684,7 +689,7 @@ func (q *Queries) ListSpecDocsBySource(ctx context.Context, arg ListSpecDocsBySo
 }
 
 const listSpecDocsOfBundle = `-- name: ListSpecDocsOfBundle :many
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc WHERE bundle_id = $1 AND archived_at IS NULL ORDER BY doc_path
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc WHERE bundle_id = $1 AND archived_at IS NULL ORDER BY doc_path
 `
 
 func (q *Queries) ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]SpecDoc, error) {
@@ -710,6 +715,7 @@ func (q *Queries) ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BundleID,
+			&i.FreshAt,
 		); err != nil {
 			return nil, err
 		}
@@ -725,7 +731,7 @@ func (q *Queries) ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) 
 }
 
 const listSpecDocsOfBundles = `-- name: ListSpecDocsOfBundles :many
-SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id FROM spec_doc
+SELECT id, workspace_id, slug, title, profile_key, doc_path, source_kind, source_ref, current_version_id, archived_at, created_at, updated_at, bundle_id, fresh_at FROM spec_doc
 WHERE workspace_id = $1 AND archived_at IS NULL
 ORDER BY bundle_id, doc_path
 `
@@ -753,6 +759,7 @@ func (q *Queries) ListSpecDocsOfBundles(ctx context.Context, workspaceID uuid.UU
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.BundleID,
+			&i.FreshAt,
 		); err != nil {
 			return nil, err
 		}

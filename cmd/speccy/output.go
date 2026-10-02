@@ -98,6 +98,9 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 			fmt.Fprint(w, "| Level | Check | Where | Finding |\n|---|---|---|---|\n")
 			for _, f := range fs {
 				msg := strings.ReplaceAll(f.Message, "|", `\|`)
+				if f.Question != nil {
+					msg += " Question: " + strings.ReplaceAll(*f.Question, "|", `\|`)
+				}
 				if f.Fix != nil {
 					msg += " Fix: " + strings.ReplaceAll(*f.Fix, "|", `\|`)
 				}
@@ -131,6 +134,9 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 			}
 			for _, f := range open(r) {
 				fmt.Fprintf(w, "  %-6s %s  %s\n         %s\n", f.Level, location(r, f), f.CheckSlug, f.Message)
+				if f.Question != nil {
+					fmt.Fprintf(w, "         Question: %s\n", *f.Question)
+				}
 				if f.Fix != nil {
 					fmt.Fprintf(w, "         Fix: %s\n", *f.Fix)
 				}

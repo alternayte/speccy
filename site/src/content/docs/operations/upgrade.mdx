@@ -39,6 +39,21 @@ You run no migration command. Speccy has no command that reverts a migration.
 
 </Steps>
 
+## More than one Speccy process in a folder
+
+In local mode, the app, `speccy mcp`, `speccy tui` and a CLI command can run in one folder at the same time. One of them owns `.speccy/state/`.
+
+- The first process to start is the owner. It opens the store, runs each review, and watches the files.
+- Each later process is a client process. It opens no store, and it sends its calls to the owner.
+- The owner writes `.speccy/state/owner.lock`. The file names the kind of the owner, its process ID, its version, and the address and the token that a client process uses.
+- When the owner stops, a client process takes the state over on its next call.
+- An owner that exits first finishes each review in its queue. A CLI command can thus stay for a short time after its own work. Ctrl+C stops the wait.
+- A review that ran in a process that stopped ends with the message "The process that ran this review stopped before the review ended." Run the review again.
+
+All the processes in one folder must have the same Speccy version. A process with another version stops, and its message names both versions, the kind of the owner and its process ID. Stop the owner, then start the process again. During an upgrade, stop every Speccy process in the folder first.
+
+The address in `owner.lock` is on `127.0.0.1`, and a call needs the token in the file. Do not copy the file to another machine, and do not commit it. Speccy empties it when the owner stops.
+
 ## Upgrade the GitHub Action
 
 The Action downloads the release whose tag its `version` input names. The default is `latest`, so an unpinned workflow moves to each release on its next run. Pin the version to upgrade on your own schedule:

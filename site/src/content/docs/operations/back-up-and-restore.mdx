@@ -29,7 +29,7 @@ The key decrypts the API keys, the GitHub token and the MCP secrets in the datab
 
 <Steps>
 
-1. Stop every Speccy process on the folder: the app, `speccy tui` and `speccy mcp`. Each one holds the SQLite database open.
+1. Stop every Speccy process on the folder: the app, `speccy tui` and `speccy mcp`. One of them owns the state and holds the SQLite database open, and another one takes the state over when that one stops.
 
 2. Copy the state folder:
 

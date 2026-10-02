@@ -236,7 +236,13 @@ func (a *API) FreshQuestions(ctx context.Context, req api.FreshQuestionsRequestO
 	if err != nil {
 		return nil, err
 	}
-	if err := q.RetireQuestions(ctx, pgdb.RetireQuestionsParams{SpecDocID: b.ID, RetiredAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}}); err != nil {
+	now := sql.NullTime{Time: time.Now().UTC(), Valid: true}
+	if err := q.RetireQuestions(ctx, pgdb.RetireQuestionsParams{SpecDocID: b.ID, RetiredAt: now}); err != nil {
+		return nil, err
+	}
+	// The next full review also judges each rubric check from nothing: it does not ask about
+	// the shortfalls of the review before it (#107).
+	if err := q.SetSpecDocFresh(ctx, pgdb.SetSpecDocFreshParams{ID: b.ID, FreshAt: now}); err != nil {
 		return nil, err
 	}
 	return api.FreshQuestions204Response{}, nil

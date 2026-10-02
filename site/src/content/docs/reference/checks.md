@@ -437,9 +437,9 @@ It passes when: Each external dependency has a stated failure behaviour.
 - Sizes: app, initiative
 - Fix kind: answer
 
-The check asks: Does each interface have inputs, outputs, and errors?
+The check asks: Does each interface that this change adds or changes have inputs, outputs, and errors?
 
-It passes when: Each interface has inputs, outputs, and errors, in the doc or a linked asset.
+It passes when: Each interface that this change adds or changes has inputs, outputs, and errors, in the doc or a linked asset. An existing interface that the change only uses needs its name and its owner, and the doc does not restate its contract.
 
 <h3 id="sdd.limits"><code>sdd.limits</code></h3>
 

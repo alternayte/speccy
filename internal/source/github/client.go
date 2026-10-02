@@ -136,6 +136,23 @@ func (c *Client) Head(ctx context.Context, repo, branch string) (commit, tree st
 	return ref.Object.SHA, cm.Tree.SHA, nil
 }
 
+// CommitTree returns the commit and the tree that a ref names: a branch, a tag, or a full or
+// abbreviated commit SHA.
+func (c *Client) CommitTree(ctx context.Context, repo, ref string) (commit, tree string, err error) {
+	var cm struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Tree struct {
+				SHA string `json:"sha"`
+			} `json:"tree"`
+		} `json:"commit"`
+	}
+	if err := c.do(ctx, "GET", repoPath(repo)+"/commits/"+escapeRef(ref), nil, &cm); err != nil {
+		return "", "", err
+	}
+	return cm.SHA, cm.Commit.Tree.SHA, nil
+}
+
 func escapeRef(ref string) string {
 	parts := strings.Split(ref, "/")
 	for i, p := range parts {

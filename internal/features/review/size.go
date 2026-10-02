@@ -15,13 +15,33 @@ const (
 	initiativeLinks = 3
 )
 
-// docSize is the size of the main doc: the frontmatter size when it names one, else the size
-// inferred from the doc's length and its links. inferred reports which of the two it is.
-func docSize(fm source.Frontmatter, main []byte) (sz kernel.Size, inferred bool) {
-	if s, ok := kernel.ParseSize(fm.Size); ok {
-		return s, false
+// DocSize is the size of the main doc at rel, a path relative to the root. The first place
+// that names a size decides: the size key of the frontmatter, the key of the team's template
+// that frontmatter.keys maps to size, then the size of the map entry (#93). With none, the
+// size comes from the doc's length and its links, and inferred is true. note is the line a
+// run adds when the size is inferred, or when a place names a value that is not a size.
+func DocSize(repo source.RepoConfig, rel string, main []byte) (sz kernel.Size, inferred bool, note string) {
+	var bad *source.NamedSize
+	for _, named := range repo.NamedSizes(rel, main) {
+		if s, ok := kernel.ParseSize(named.Value); ok {
+			if bad != nil {
+				note = "The doc names the size \"" + bad.Value + "\" in " + bad.Where + ", which is not one of feature, app, initiative, so the review used size " +
+					string(s) + " from " + named.Where + "."
+			}
+			return s, false, note
+		}
+		if bad == nil {
+			bad = &named
+		}
 	}
-	return InferSize(main, len(fm.Links)), true
+	fm, _, _ := source.ReadFrontmatter(main)
+	sz = InferSize(main, len(fm.Links))
+	if bad != nil {
+		return sz, true, "The doc names the size \"" + bad.Value + "\" in " + bad.Where + ", which is not one of feature, app, initiative, so the review used size " +
+			string(sz) + ". Change it to " + string(sz) + " to fix it."
+	}
+	return sz, true, "The doc names no size, so the review used size " + string(sz) +
+		". Add \"size: " + string(sz) + "\" to the frontmatter to fix it."
 }
 
 // InferSize reads the size from the doc's word count and its link count.
@@ -34,16 +54,4 @@ func InferSize(main []byte, links int) kernel.Size {
 		return kernel.App
 	}
 	return kernel.Feature
-}
-
-// sizeNote is the line a run adds when it inferred the size, so the author reads which size
-// the checks ran at and can set it. named is the size the frontmatter names: empty, or a value
-// that is not a size.
-func sizeNote(named string, sz kernel.Size) string {
-	if named = strings.TrimSpace(named); named != "" {
-		return "The doc names the size \"" + named + "\", which is not one of feature, app, initiative, so the review used size " +
-			string(sz) + ". Change it to \"size: " + string(sz) + "\" in the frontmatter to fix it."
-	}
-	return "The doc names no size, so the review used size " + string(sz) +
-		". Add \"size: " + string(sz) + "\" to the frontmatter to fix it."
 }

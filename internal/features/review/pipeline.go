@@ -17,6 +17,7 @@ import (
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/store"
@@ -88,11 +89,17 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 	if !ok {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
 	}
+	// A link to an upstream doc on GitHub that no source holds: add the source first, so this
+	// review reads the doc (#97).
+	s.addUpstreamSources(ctx, b, p.Profile)
 	for _, role := range stages.roles(p.Profile) {
 		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
 			return pgdb.ReviewRun{}, err
 		}
 	}
+	// One start at a time: two starts at the same instant must not both find no active run.
+	s.startMu.Lock()
+	defer s.startMu.Unlock()
 	q := s.DB.Queries()
 	if _, err := q.RunningRunFor(ctx, b.ID); err == nil {
 		return pgdb.ReviewRun{}, ErrRunActive
@@ -296,8 +303,11 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	if err != nil {
 		return fail(err)
 	}
-	if in.sizeInferred {
-		rc.note(sizeNote(in.fm.Size, in.size))
+	if in.sizeNote != "" {
+		rc.note(in.sizeNote)
+	}
+	if note := sectionNote(p); note != "" {
+		rc.note(note)
 	}
 
 	ev, err := s.runStages(ctx, rc, in, stages, fingerprint, native, func(st string) {
@@ -444,10 +454,10 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 	var scratch struct{}
 	// Rubric: a call per batch of uncached doc checks, and for each section with text, a call
 	// per batch of its uncached section checks.
-	rubricUnit := func(inputHash string, slugs []string, extraTokens int64) {
+	rubricUnit := func(inputHash string, checks []rubricCheck, extraTokens int64) {
 		uncached := 0
-		for _, slug := range slugs {
-			k := cacheKey{Step: "rubric:" + slug, InputHash: inputHash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
+		for _, c := range checks {
+			k := cacheKey{Step: "rubric:" + c.Slug, InputHash: inputHash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptRubric}
 			if hit, _ := s.cached(ctx, k, &scratch); hit {
 				est.CachedHits++
 			} else {
@@ -459,11 +469,11 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 		est.TokensIn += int64(calls) * (bundleTokens + extraTokens + 1500)
 		est.TokensOut += int64(calls) * 1500
 	}
-	for _, u := range rubricUnits(in) {
-		slugs := make([]string, len(u.checks))
-		for i, c := range u.checks {
-			slugs[i] = c.Slug
-		}
+	units, err := s.unitsWithPrior(ctx, in)
+	if err != nil {
+		return est, err
+	}
+	for _, u := range units {
 		switch {
 		case u.named:
 			// The call holds the section and the assets, not the bundle.
@@ -471,11 +481,11 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 			for _, f := range textAssets(in) {
 				assetTokens += int64(len(f.text)) / 4
 			}
-			rubricUnit(u.inputHash, slugs, int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
+			rubricUnit(u.inputHash, u.checks, int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
 		case u.sec != nil:
-			rubricUnit(u.inputHash, slugs, int64(len(u.sec.Own(in.main)))/4)
+			rubricUnit(u.inputHash, u.checks, int64(len(u.sec.Own(in.main)))/4)
 		default:
-			rubricUnit(u.inputHash, slugs, 0)
+			rubricUnit(u.inputHash, u.checks, 0)
 		}
 	}
 	// Grounding: a claims call per uncached section, and about one label call per two sections.
@@ -593,4 +603,54 @@ func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages St
 		}
 	}
 	return ev, nil
+}
+
+// addUpstreamSources adds a GitHub source for each link of an upstream kind whose target is a
+// doc on a GitHub branch that no source holds. A source that does not add leaves the finding
+// of links.has-upstream, which says what to do.
+func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p profile.Profile) {
+	if s.AddSource == nil || p.Links.Upstream == nil || !b.CurrentVersionID.Valid {
+		return
+	}
+	files, err := version.Files(ctx, s.DB.Queries(), b.CurrentVersionID.UUID)
+	if err != nil {
+		return
+	}
+	var main []byte
+	for _, f := range files {
+		if f.Path == b.DocPath {
+			main = f.Content
+		}
+	}
+	links, err := s.resolveLinks(ctx, b, main, nil)
+	if err != nil {
+		return
+	}
+	for _, l := range links {
+		if l.target != nil || l.external == nil || !slices.Contains(p.Links.Upstream.Kinds, l.kind) {
+			continue
+		}
+		if _, _, _, pinned, ok := l.external.GitHubDoc(); !ok || pinned {
+			continue
+		}
+		if err := s.AddSource(ctx, l.external.URL); err != nil {
+			slog.Warn("add the upstream doc as a GitHub source", "url", l.external.URL, "err", err)
+		}
+	}
+}
+
+// sectionNote is the line a run adds when checks of the profile are about one section and
+// name none: each runs again on the whole doc after each edit, so the review of the doc does
+// not converge, and the author would not know why (#108).
+func sectionNote(p profile.Versioned) string {
+	hints := profile.SectionHints(p.Loaded)
+	if len(hints) == 0 {
+		return ""
+	}
+	slugs := make([]string, len(hints))
+	for i, h := range hints {
+		slugs[i] = h.Slug
+	}
+	return fmt.Sprintf("%d check%s of the %s profile name no section, so each one runs again on the whole doc after each edit: %s. Run \"speccy profile validate\" on the profile file: it names the section to add to each.",
+		len(hints), plural(len(hints)), p.Profile.Key, quoteList(slugs))
 }

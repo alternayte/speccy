@@ -34,6 +34,8 @@ Each finding has a fix kind. The [Check catalog](/reference/checks/) names the f
 
 Speccy or a coding agent can fix a reword finding alone, because lint proves the fix. An answer finding needs your answer first.
 
+Each answer finding states its question: the one fact that you must give. The card shows it under the message, and `get_findings`, `speccy review` and the comment of the GitHub Action have the same question. For a rubric check, the reviewer model writes the question for that shortfall. For a build question, it is the build question. For a claim with no source, it names the claim.
+
 ## Fix all findings of a reword check
 
 <Steps>
@@ -58,7 +60,7 @@ Each card has a fix control. The label says which fix kind the finding has.
 
 1. On a reword finding, click **Suggest fix**. On an answer finding, click **Answer and fix**.
 
-2. For an answer finding, type the fact in **Your answer**, and click **Write the fix**. For example, for a gap about a rate limit, type `429, and no provider call`.
+2. For an answer finding, read the question above the field, type the fact in **Your answer**, and click **Write the fix**. For example, for a gap about a rate limit, type `429, and no provider call`.
 
 3. Read the diff. Speccy picks the text to replace: the paragraph of the finding, or its section. For a missing section, Speccy picks the place for the new section.
 
@@ -92,9 +94,9 @@ A coding agent reads the same fix list over MCP. [Hand a spec to a coding agent]
 
 The prompt names the doc and tells the agent this loop. The instructions of the MCP server hold the same loop.
 
-1. The agent calls `get_findings`. Each finding has its file, its `line` and `end_line`, and its `fix_kind`.
+1. The agent calls `get_findings`. Each finding has its file, its `line` and `end_line`, and its `fix_kind`. An answer finding has its `question`.
 2. The agent rewrites each reword finding itself.
-3. The agent asks you every answer finding in one message.
+3. The agent asks you the question of each answer finding, all in one message.
 4. The agent writes your answers into the doc.
 5. The agent calls `review_bundle` one time, after all the edits.
 6. The agent reports the trend: fixed, still open and new.

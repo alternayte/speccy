@@ -148,10 +148,14 @@ func (s *Service) places(ctx context.Context) (docPlace, error) {
 }
 
 // resolveLinks returns the links of b whose main doc is main.
-func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]link, error) {
+func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte, from *FromRepo) ([]link, error) {
 	all, err := s.allBundles(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if from != nil {
+		// The spec docs of the same commit come first, so a link finds them before a saved bundle.
+		all = append(append([]pgdb.SpecDoc{}, from.docs...), all...)
 	}
 	place, err := s.places(ctx)
 	if err != nil {
@@ -165,7 +169,63 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte)
 	if err != nil {
 		return nil, err
 	}
-	return resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b)), nil
+	if from != nil {
+		repo = from.Config
+	}
+	held, err := s.githubDocs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b), held), nil
+}
+
+// githubDocs is the GitHub sources of the workspace, by ID: where each one reads its docs. A
+// link whose target is a file on GitHub resolves through it to the spec doc of a source that
+// holds that file on that branch (#97).
+type githubDocs map[uuid.UUID]pgdb.GithubSource
+
+func (s *Service) githubDocs(ctx context.Context) (githubDocs, error) {
+	rows, err := s.DB.Queries().ListGithubSources(ctx, s.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	out := githubDocs{}
+	for _, r := range rows {
+		out[r.ID] = r
+	}
+	return out, nil
+}
+
+// find returns the live spec doc that holds the file a target names, or nil.
+func (g githubDocs) find(all []pgdb.SpecDoc, place docPlace, t source.ExternalTarget) *pgdb.SpecDoc {
+	host, repo, refPath, pinned, ok := t.GitHubDoc()
+	if !ok || pinned || len(g) == 0 {
+		return nil
+	}
+	for i := range all {
+		var r bundleRef
+		if all[i].ArchivedAt.Valid || json.Unmarshal(all[i].SourceRef, &r) != nil || r.Source == uuid.Nil {
+			continue
+		}
+		src, ok := g[r.Source]
+		if !ok || !strings.EqualFold(src.Repo, repo) || sourceHost(src.ApiUrl) != strings.TrimPrefix(strings.ToLower(host), "www.") {
+			continue
+		}
+		if refPath == src.Branch+"/"+mainDocPath(all[i], place) {
+			return &all[i]
+		}
+	}
+	return nil
+}
+
+// sourceHost is the web host of a source's API address: github.com for the public API, and
+// the host itself for GitHub Enterprise Server.
+func sourceHost(apiURL string) string {
+	u, err := url.Parse(apiURL)
+	if err != nil || apiURL == "" || strings.EqualFold(u.Host, "api.github.com") {
+		return "github.com"
+	}
+	return strings.ToLower(u.Host)
 }
 
 // accepts returns which spec docs a link of b may resolve to when its target names a bundle:
@@ -212,7 +272,7 @@ func linkRules(repo source.RepoConfig) []source.LinkRule {
 // link to the same spec doc with the same kind appears once. accepts says which spec docs a
 // target that names a bundle may resolve to; nil accepts any.
 func resolveLinksIn(all []pgdb.SpecDoc, place docPlace, b pgdb.SpecDoc, main []byte, adopted []adoptedLink,
-	rules []source.LinkRule, patterns map[string]string, accepts func(kind, profileKey string) bool) []link {
+	rules []source.LinkRule, patterns map[string]string, accepts func(kind, profileKey string) bool, held githubDocs) []link {
 	if accepts == nil {
 		accepts = func(string, string) bool { return true }
 	}
@@ -244,6 +304,9 @@ func resolveLinksIn(all []pgdb.SpecDoc, place docPlace, b pgdb.SpecDoc, main []b
 			t, err := source.ParseExternalTarget(target, patterns)
 			if err != nil {
 				l.problem = err.Error()
+			} else if doc := held.find(all, place, t); doc != nil && accepts(fl.Kind, doc.ProfileKey) {
+				// The file is a doc of a GitHub source, so the link names a spec doc (#97).
+				l.targetKind, l.target = "bundle", doc
 			} else {
 				l.external = &t
 			}
@@ -343,15 +406,23 @@ func findTarget(all []pgdb.SpecDoc, place docPlace, from pgdb.SpecDoc, target st
 }
 
 // loadLinked loads the current version of each link target.
-func (s *Service) loadLinked(ctx context.Context, links []link) ([]linked, error) {
+func (s *Service) loadLinked(ctx context.Context, links []link, from *FromRepo) ([]linked, error) {
 	var out []linked
 	for _, l := range links {
-		if l.target == nil || !l.target.CurrentVersionID.Valid {
+		if l.target == nil {
 			continue
 		}
-		files, err := version.Files(ctx, s.DB.Queries(), l.target.CurrentVersionID.UUID)
-		if err != nil {
-			return nil, err
+		var files []source.File
+		if from != nil && from.files[l.target.ID] != nil {
+			// A spec doc of the same commit, which no version holds.
+			files = from.files[l.target.ID]
+		} else if !l.target.CurrentVersionID.Valid {
+			continue
+		} else {
+			var err error
+			if files, err = version.Files(ctx, s.DB.Queries(), l.target.CurrentVersionID.UUID); err != nil {
+				return nil, err
+			}
 		}
 		ld := linked{link: l, version: l.target.CurrentVersionID.UUID, files: files}
 		for _, f := range files {
@@ -396,7 +467,7 @@ type Linked struct {
 // LinkedBundles returns the bundles that b links to, in the order the links appear. It serves
 // the build packet, which carries the main doc of each linked bundle (REQ-136).
 func (s *Service) LinkedBundles(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]Linked, error) {
-	links, err := s.resolveLinks(ctx, b, main)
+	links, err := s.resolveLinks(ctx, b, main, nil)
 	if err != nil {
 		return nil, err
 	}

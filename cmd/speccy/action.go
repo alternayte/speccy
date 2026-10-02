@@ -53,21 +53,39 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	// --verify runs the post-build verification gate instead of the review (the spec contract
 	// gate). It reads the same Actions environment.
 	verifyMode := false
+	// --pr reviews a pull request from a laptop, and --pending or --dry-run says what to do with
+	// the findings (#91).
+	prURL, pending, dryRun, prMode := "", false, false, false
 	var kept []string
-	for _, a := range args {
-		if a == "--verify" {
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; {
+		case a == "--verify":
 			verifyMode = true
-			continue
+		case a == "--pending":
+			pending = true
+		case a == "--dry-run":
+			dryRun = true
+		case a == "--pr" && i+1 < len(args):
+			i++
+			prURL, prMode = args[i], true
+		case a == "--pr":
+			prMode = true
+		case strings.HasPrefix(a, "--pr="):
+			prURL, prMode = strings.TrimPrefix(a, "--pr="), true
+		default:
+			kept = append(kept, a)
 		}
-		kept = append(kept, a)
 	}
 	args = kept
 	fl, err := parseReviewFlags(append(args, "."))
 	if err != nil {
-		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]\n", err)
+		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]\n       speccy action --pr <pull request URL> --pending | --dry-run [--stages …]\n", err)
 		return exitUsage
 	}
 	fl.paths = nil
+	if prMode || pending || dryRun {
+		return runActionPR(prURL, pending, dryRun, fl, stdout, stderr)
+	}
 	getenv := os.Getenv
 	token, repo := getenv("GITHUB_TOKEN"), getenv("GITHUB_REPOSITORY")
 	if token == "" || repo == "" || getenv("GITHUB_EVENT_PATH") == "" {
@@ -133,7 +151,7 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		seen := map[string]bool{}
 		for _, f := range files {
 			for _, b := range scan.Bundles {
-				if !seen[b.Slug] && bundleMatches(b, f.Filename, false) {
+				if !seen[b.Slug] && b.Names(f.Filename, false) {
 					seen[b.Slug] = true
 					selected = append(selected, b)
 				}

@@ -3,22 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	nethttp "net/http"
 	"os"
 	"path/filepath"
-	"testing/fstest"
 
-	"github.com/alternayte/speccy/internal/app"
-	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source/local"
 )
 
-// session is an open workspace for a headless command: local mode over a folder, in process.
+// session is an open workspace for a headless command: local mode over a folder. The API runs
+// in this process when it owns the state folder, and in the owner otherwise.
 type session struct {
 	root   *local.Root
-	app    *app.App
 	client *api.ClientWithResponses
 	// temp is true when the store is a temporary one: the folder has no .speccy/state.
 	temp bool
@@ -80,13 +76,13 @@ func openSessionIn(ctx context.Context, dir string, keep bool) (*session, error)
 	if key == "" {
 		key = filepath.Join(state, "key")
 	}
-	a, db, err := openApp(ctx, root, state, key)
+	// The command is the owner of the state folder, or a client process of the owner: the app,
+	// speccy mcp, or another command that runs in this folder now (#87).
+	st, err := openSeat(root, state, key, nil)
 	if err != nil {
 		return nil, err
 	}
-	s.app = a
-	h := localHandler(fs.FS(fstest.MapFS{}), a, db)
-	if s.client, err = api.NewClientWithResponses("http://speccy.local/api/v1", api.WithHTTPClient(speccyhttp.InProcess{Handler: h})); err != nil {
+	if s.client, err = st.client(); err != nil {
 		return nil, err
 	}
 	// CI sets the models in the environment (SPECCY_MODELS).

@@ -87,3 +87,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Whole-doc check: a rubric check with no section, which reads the whole doc and is judged again after any edit. Avoid: doc-scope check, global check.
 - Reword finding: a finding whose fix changes the words and no fact. The bulk fix or an agent may fix it without the author. Avoid: wording finding, auto-fixable finding, mechanical finding.
 - Answer finding: a finding whose fix needs a fact from the author. Avoid: fact finding, manual finding.
+- Owner: the one local process that holds a state folder: its store, its review worker and its watch on the files. Avoid: leader, primary, master, daemon.
+- Client process: a local Speccy process that sends its API calls to the owner and opens no store. Avoid: follower, secondary, proxy.

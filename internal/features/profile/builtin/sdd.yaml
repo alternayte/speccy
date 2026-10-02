@@ -100,8 +100,11 @@ checks:
     sizes: [app, initiative]
     scope: doc
     section: Interfaces
-    question: Does each interface have inputs, outputs, and errors?
-    pass_when: Each interface has inputs, outputs, and errors, in the doc or a linked asset.
+    question: Does each interface that this change adds or changes have inputs, outputs, and errors?
+    pass_when: >-
+      Each interface that this change adds or changes has inputs, outputs, and errors, in the
+      doc or a linked asset. An existing interface that the change only uses needs its name and
+      its owner, and the doc does not restate its contract.
   - slug: sdd.failure-modes
     level: MUST
     stage: rubric

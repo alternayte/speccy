@@ -299,6 +299,9 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 		}
 		k := keys[i]
 		body := fmt.Sprintf("**%s** `%s`: %s", f.Level, f.CheckSlug, f.Message)
+		if f.Question != nil {
+			body += "\n\nQuestion: " + *f.Question
+		}
 		if f.Fix != nil {
 			body += "\n\nFix: " + *f.Fix
 		}

@@ -47,6 +47,14 @@ The built-in PRD and SDD profiles name a section on each check that is about one
 
 A failed check reports every shortfall. A shortfall is one thing that a failed check found wrong. Each shortfall is one finding at the level of the check, with its own message and quote. Speccy sets no limit on their number.
 
+A later full review does not find the shortfalls of a check afresh. It gives the model each shortfall of the last review, and the model answers "still holds" or "fixed" for each one. Then the model lists any other shortfall. A shortfall of the last review leaves in three cases only:
+
+- The model answers "fixed" for it.
+- The check passes.
+- The text it quoted is gone from the doc.
+
+A shortfall that the model does not mention stays. Thus a finding on text that you did not change does not leave and return by chance. The list gets shorter as you fix it.
+
 ## Grounding
 
 The [grounding stage](/reference/checks/#grounding) checks the facts that the doc states. The reviewer lists the claims of each section with 12 words or more. A sentence that starts with "Assumption:" is not a claim, so the stage passes over it.
@@ -92,9 +100,9 @@ Each question gets one result:
 
 A finding of this stage is a MUST when its question cites a trace ID whose definition says MUST, or a section the template requires. Otherwise it is a SHOULD.
 
-In a later full review, the readers do not answer every question again. They answer a question whose cited text changed, and a question that was a gap or a divergence. A question that the readers agreed on, with the same cited text, keeps its answers.
+In a later full review, the readers do not answer every question again. They answer a question that was a gap or a divergence. A question that the readers agreed on keeps its answers while each quote that the readers gave is still in the doc. An edit elsewhere in the cited section does not send the question back to the readers. When a quote is gone, the readers answer the question again.
 
-To replace the whole set, open the **Evidence** tab and click **Write a fresh set at the next review** under the build questions. The next full review then writes a new set. Speccy never uses the number of a question again.
+To replace the whole set, open the **Evidence** tab and click **Write a fresh set at the next review** under the build questions. The next full review then writes a new set. Speccy never uses the number of a question again. The same control gives the rubric checks a clean start: the next full review asks about no shortfall of a review before it.
 
 When fewer than two different models answer as readers, the run report says "Low reader diversity". One model finds less ambiguity than several. The note never blocks the verdict.
 

@@ -73,6 +73,26 @@ type Bundle struct {
 	Unnamed bool
 }
 
+// Names reports whether the path p (relative to the root) names the bundle: a folder names
+// the bundles in it and the bundle it is inside; a file names the bundle it belongs to.
+func (b Bundle) Names(p string, dir bool) bool {
+	inside := func(prefix string) bool { return prefix != "." && strings.HasPrefix(p, prefix+"/") }
+	if dir {
+		if p == "." || b.Slug == p || strings.HasPrefix(b.Slug, p+"/") {
+			return true
+		}
+		return b.File == "" && inside(b.Dir)
+	}
+	if path.Join(b.Dir, b.Main.Path) == p {
+		return true
+	}
+	if b.File == "" {
+		return inside(b.Dir)
+	}
+	assets := path.Join(b.Dir, source.AssetsDir(b.File))
+	return p == assets || inside(assets)
+}
+
 // Problem is a folder or file that the scan could not use.
 type Problem struct {
 	Path    string

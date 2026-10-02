@@ -85,13 +85,17 @@ type Service struct {
 	// Jobs runs the queued jobs of other features, by job kind. The one worker runs them in
 	// turn with the reviews, so model calls stay within one queue.
 	Jobs map[string]func(ctx context.Context, payload []byte) error
+	// AddSource adds a GitHub URL as a source, for the upstream doc of a link (#97). It is set in
+	// local mode only: in hosted mode an admin adds a source.
+	AddSource func(ctx context.Context, url string) error
 	// AfterReview runs after a full review of a doc ends with a verdict. The app ends the
 	// waivers of the whole-doc checks that the review passed.
 	AfterReview func(ctx context.Context, b pgdb.SpecDoc) error
 
-	mu     sync.Mutex // one lint pass at a time
-	wakeMu sync.Mutex
-	wake   chan struct{}
+	mu      sync.Mutex // one lint pass at a time
+	startMu sync.Mutex // one start of a run at a time
+	wakeMu  sync.Mutex
+	wake    chan struct{}
 }
 
 // categories maps each lint rule to its radar axis (SDD §8.7).
@@ -122,13 +126,15 @@ const ExternalTargetSlug = "links.external-target"
 // pending is a finding before it is stored.
 type pending struct {
 	// carried is the ID of a full run's finding that this run counts. Its row stays there.
-	carried  uuid.UUID
-	slug     string
-	level    kernel.Level
-	stage    string
-	anchor   anchor.Anchor
-	message  string
-	fix      string
+	carried uuid.UUID
+	slug    string
+	level   kernel.Level
+	stage   string
+	anchor  anchor.Anchor
+	message string
+	fix     string
+	// question is the question the reviewer wrote for a shortfall: what the author must answer.
+	question string
 	evidence any
 }
 
@@ -176,15 +182,19 @@ type input struct {
 	fm      source.Frontmatter
 	// dec is the bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 	dec source.Decisions
-	// size is the doc's size, and sizeInferred says the frontmatter did not name it.
-	size         kernel.Size
-	sizeInferred bool
+	// size is the doc's size, and sizeNote is the line a run adds when no place named it, or
+	// when a place named a value that is not a size.
+	size     kernel.Size
+	sizeNote string
 	// links are the version's links; linked are the bundle targets, at their current version.
 	links  []link
 	linked []linked
 	// upstreams are the slugs of the bundles whose profile this doc may link up to, so a link
 	// that does not resolve can name what would.
 	upstreams []string
+	// addsSources says that a review adds a linked doc on GitHub as a source by itself: local
+	// mode does, and hosted mode leaves it to an admin.
+	addsSources bool
 }
 
 func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, p profile.Versioned) (input, error) {
@@ -192,11 +202,12 @@ func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID,
 	if err != nil {
 		return input{}, err
 	}
-	return s.loadFiles(ctx, b, versionID, files, p)
+	return s.loadFiles(ctx, b, versionID, files, p, nil)
 }
 
 // loadFiles builds the input from files. versionID is uuid.Nil for content that is not saved.
-func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, files []source.File, p profile.Versioned) (input, error) {
+// from is set for content that Speccy read from a repo at a commit.
+func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, files []source.File, p profile.Versioned, from *FromRepo) (input, error) {
 	var err error
 	in := input{bundle: b, version: versionID, files: files, profile: p, relaxed: map[string]bool{}}
 	for _, f := range files {
@@ -206,13 +217,14 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 	}
 	in.doc = section.Parse(in.main)
 	in.fm, _, _ = source.ReadFrontmatter(in.main)
-	if s.Decisions != nil {
+	if from != nil {
+		in.dec = from.Decisions
+	} else if s.Decisions != nil {
 		if in.dec, err = s.Decisions(ctx, b); err != nil {
 			return input{}, err
 		}
 	}
-	in.size, in.sizeInferred = docSize(in.fm, in.main)
-	if in.links, err = s.resolveLinks(ctx, b, in.main); err != nil {
+	if in.links, err = s.resolveLinks(ctx, b, in.main, from); err != nil {
 		return input{}, err
 	}
 	if up := p.Profile.Links.Upstream; up != nil && len(up.Types) > 0 {
@@ -226,16 +238,21 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 			}
 		}
 	}
-	if in.linked, err = s.loadLinked(ctx, in.links); err != nil {
+	if in.linked, err = s.loadLinked(ctx, in.links, from); err != nil {
 		return input{}, err
 	}
 	repo, err := s.repoConfig(ctx, b)
 	if err != nil {
 		return input{}, err
 	}
+	if from != nil {
+		repo = from.Config
+	}
 	for _, slug := range repo.Adoption.Relaxed {
 		in.relaxed[slug] = true
 	}
+	in.size, _, in.sizeNote = DocSize(repo, mainDocPath(b, nil), in.main)
+	in.addsSources = s.AddSource != nil
 	return in, nil
 }
 
@@ -317,11 +334,25 @@ func lintStage(in input) evaluation {
 				if len(in.upstreams) > 0 {
 					f.message += fmt.Sprintf(" The %s bundles are: %s.", strings.ToUpper(strings.Join(up.Types, " or ")), quoteList(in.upstreams))
 				}
-			} else if outside != "" {
+			} else if outside != nil {
 				// The doc has a link, so "has no link" would be false (#97).
 				f := &ev.findings[len(ev.findings)-1]
-				f.message = fmt.Sprintf("The link target %q is outside Speccy, so Speccy cannot read it as the upstream doc of this %s.", outside, strings.ToUpper(in.profile.Profile.Key))
+				kind := strings.ToUpper(in.profile.Profile.Key)
+				f.message = fmt.Sprintf("The link target %q is outside Speccy, so Speccy cannot read it as the upstream doc of this %s.", outside.ref, kind)
 				f.fix = "Add that doc to Speccy as a source, then use its slug as the target. Or add a standalone: entry with the reason."
+				if outside.external != nil {
+					if _, _, _, pinned, ok := outside.external.GitHubDoc(); ok && pinned {
+						f.message = fmt.Sprintf("The link target %q names a commit. An upstream link needs a branch, because Speccy follows the upstream doc as it changes.", outside.ref)
+						f.fix = "Use the URL of the doc on its branch. Or add a standalone: entry with the reason."
+					} else if ok {
+						f.message = fmt.Sprintf("The link target %q is a doc on GitHub that Speccy does not hold yet, so Speccy cannot read it as the upstream doc of this %s.", outside.ref, kind)
+						f.fix = "An admin adds the URL as a GitHub source. Or add a standalone: entry with the reason."
+						if in.addsSources {
+							f.fix = "Run the review: Speccy then adds the doc as a GitHub source and reads it. Or add a standalone: entry with the reason."
+						}
+						f.evidence = sourceEvidence{SourceURL: outside.external.URL}
+					}
+				}
 			}
 		}
 	}
@@ -423,8 +454,8 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			units[id.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 		}
 		sugg := dbtype.JSON(`{}`)
-		if f.fix != "" {
-			sugg, _ = json.Marshal(map[string]string{"fix": f.fix})
+		if f.fix != "" || f.question != "" {
+			sugg, _ = json.Marshal(suggestion{Fix: f.fix, Question: f.question})
 		}
 		rows = append(rows, pgdb.InsertFindingParams{
 			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
@@ -590,7 +621,11 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.S
 	if err != nil {
 		return err
 	}
-	links := resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b))
+	held, err := s.githubDocs(ctx)
+	if err != nil {
+		return err
+	}
+	links := resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b), held)
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
 		return err
@@ -691,8 +726,8 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, err
 	}
 	run.DecisionsHash = decisionsHash(in.dec)
-	if in.sizeInferred {
-		run.Notes, _ = json.Marshal([]string{sizeNote(in.fm.Size, in.size)})
+	if in.sizeNote != "" {
+		run.Notes, _ = json.Marshal([]string{in.sizeNote})
 	}
 	run.Status = "complete"
 	ev := lintStage(in)
@@ -818,27 +853,33 @@ func plural(n int) string {
 // hasUpstream reports whether the doc links an upstream doc or stands alone. When it does not,
 // missing is the first link target that names no bundle, and outside is the first one that
 // points outside Speccy, such as a URL.
-func hasUpstream(in input, kinds, types []string) (has bool, missing, outside string) {
+func hasUpstream(in input, kinds, types []string) (has bool, missing string, outside *link) {
 	if standalone(in.dec) {
-		return true, "", ""
+		return true, "", nil
 	}
-	for _, l := range in.links {
+	for i, l := range in.links {
 		if !slices.Contains(kinds, l.kind) {
 			continue
 		}
 		if l.target == nil {
 			if l.targetKind == "bundle" && missing == "" {
 				missing = l.ref
-			} else if l.targetKind == "external" && outside == "" {
-				outside = l.ref
+			} else if l.targetKind == "external" && outside == nil {
+				outside = &in.links[i]
 			}
 			continue
 		}
 		if len(types) == 0 || slices.Contains(types, l.target.ProfileKey) {
-			return true, "", ""
+			return true, "", nil
 		}
 	}
 	return false, missing, outside
+}
+
+// sourceEvidence is the evidence of a missing upstream link whose target is a doc on GitHub
+// that no source holds: the URL to add as a source.
+type sourceEvidence struct {
+	SourceURL string `json:"source_url"`
 }
 
 func profileKeys(ps map[string]profile.Versioned) []string {

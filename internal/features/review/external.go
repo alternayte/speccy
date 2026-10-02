@@ -124,7 +124,7 @@ func (s *Service) codeState(ctx context.Context, ref string, t source.ExternalTa
 	if err != nil {
 		return externalState{ref: ref, state: stateUnchecked, reason: sentence(err.Error())}
 	}
-	sha, at, ok, err := client.LastCommit(ctx, t.Repo, "", t.Path)
+	sha, at, ok, err := client.LastCommit(ctx, t.Repo, t.Branch, t.Path)
 	switch {
 	case err != nil:
 		return externalState{ref: ref, state: stateUnchecked, reason: sentence(err.Error())}

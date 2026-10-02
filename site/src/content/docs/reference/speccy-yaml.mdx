@@ -38,6 +38,8 @@ pr:
 | `map` | list of `glob` and `profile` entries | empty | Makes each markdown file that matches a glob a spec doc with that profile. |
 | `map[].glob` | glob | none; required | A file path, relative to the root. |
 | `map[].profile` | profile key | none; required | The profile of each file that matches. |
+| `map[].size` | `feature`, `app` or `initiative` | none | The size of each file that matches, when the file names no size itself. |
+| `frontmatter.keys.size` | a frontmatter key | none | The key of your template that holds the size of a doc, such as `sdd_level`. |
 | `link_rules` | list of text | empty | Links spec docs by path: `"<from> <kind> <to>"`. |
 | `link_patterns` | map of scheme to URL pattern | empty | Turns a short external link target, such as `jira:PAY-412`, into a URL. |
 | `adoption.relaxed` | list of check slugs | empty | Each check in the list reports at level INFO. |
@@ -61,6 +63,27 @@ A `map` entry makes a markdown file a spec doc without a change to the file. Thi
 - Speccy does not check the profile key when it loads the file. A review of a doc with an unknown key stops, and the message lists the profiles.
 
 On a GitHub source in the app, **Write the mapping to the repo** opens a pull request. It adds a `map` entry for each adopted type. Speccy edits the file in place, so its comments and other keys stay.
+
+### The size of a doc
+
+A doc names its size with `size` in its frontmatter. Two keys of `.speccy.yaml` give the size of a doc that cannot hold that key.
+
+```yaml speccy-config
+frontmatter:
+  keys:
+    size: sdd_level
+map:
+  - glob: "**/SDD - *.md"
+    profile: sdd
+    size: feature
+```
+
+- `frontmatter.keys.size` names the key that your template uses for the size. Speccy reads the size of each doc from that key of its frontmatter. The value must be `feature`, `app` or `initiative`.
+- `map[].size` gives one size to each file that the glob matches. Use it for a doc with no frontmatter.
+
+Speccy takes the first of these that names a size: `size` in the frontmatter, the key of your template, the `map` entry. With none, it infers the size from the doc. [Profiles and size](/concepts/profiles-and-size/#a-doc-with-no-size) explains the inferred size.
+
+A value that is not a size does not stop the review. Speccy uses the next of the three, and the run adds a note that names the value and the key.
 
 ### link_rules
 
@@ -149,6 +172,8 @@ Speccy checks every entry, and it joins the problems with `;` after `.speccy.yam
 | A bad `bundles` glob | `bundles[0].path "[" is not a valid glob` |
 | A bad or empty `map` glob | `map[0].glob "docs/[" is not a valid glob` |
 | A `map` entry with no profile | `map[0] has no profile` |
+| A `map` size that is not a size | `map[0].size "huge" is not feature, app or initiative` |
+| A key other than `size` in `frontmatter.keys` | `frontmatter.keys has "type", and only size has a mapping` |
 | A rule without three words | `link_rules[0]: "…" is not "<from> <kind> <to>"` |
 | A rule with another kind | `link_rules[0]: "…": the kind "implemented-by" is not one of implements, refines, references, supersedes` |
 | A variable twice in the first path | `link_rules[0]: "…": {name} appears twice in the first path` |

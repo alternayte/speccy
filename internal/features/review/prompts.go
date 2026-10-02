@@ -13,7 +13,7 @@ import (
 // Prompt versions. A change to a prompt's text changes its version, which changes the cache
 // key (SDD §8.10) and is recorded on the run (REQ-022).
 const (
-	PromptRubric = "rubric-v2"
+	PromptRubric = "rubric-v3"
 	PromptClaims = "claims-v2"
 	PromptVerify = "verify-v1"
 	// PromptQuestions, PromptReader, and PromptJudge are the divergence test (SDD §8.5).
@@ -61,15 +61,30 @@ func rubricPrompt(docType string, checks []rubricCheck, scopeNote string, bundle
 	fmt.Fprintf(&b, "Review this %s against each check below. For each check, answer:\n", docType)
 	b.WriteString("- \"pass\" when the doc meets the pass condition,\n- \"fail\" when it does not,\n- \"not_applicable\" only when the check cannot apply to this doc.\n")
 	b.WriteString("Give a short reason, and up to 3 quotes from the data that support the answer.\n")
-	b.WriteString("For a fail, also list every shortfall: each place where the doc falls short of the pass condition. Do not stop at the first one, and do not list one shortfall twice. Give each shortfall its own short reason and one quote of the text that falls short, or an empty quote when the content is missing. For a pass or not_applicable, list no shortfall.\n\n")
+	b.WriteString("For a fail, also list every shortfall: each place where the doc falls short of the pass condition. Do not stop at the first one, and do not list one shortfall twice. Give each shortfall its own short reason and one quote of the text that falls short, or an empty quote when the content is missing. Give each shortfall a question too: one question that the author can answer with the fact that is missing. Name the subject of the quoted text in it, and ask only for what is missing. For a pass or not_applicable, list no shortfall.\n\n")
 	if scopeNote != "" {
 		b.WriteString(scopeNote + "\n\n")
 	}
 	b.WriteString("Checks:\n")
+	var prior strings.Builder
 	for _, c := range checks {
 		fmt.Fprintf(&b, "- slug: %s\n  question: %s\n  pass when: %s\n", c.Slug, c.Question, c.PassWhen)
+		for i, sf := range c.Prior {
+			fmt.Fprintf(&prior, "%s %d: %s", c.Slug, i+1, sf.Reason)
+			if sf.Quote != "" {
+				fmt.Fprintf(&prior, " Quote: %q", sf.Quote)
+			}
+			prior.WriteString("\n")
+		}
 	}
 	b.WriteString("\n")
+	if prior.Len() > 0 {
+		// The author works through the findings of the last review. A shortfall that this
+		// review does not judge again would leave, and return, through chance alone.
+		b.WriteString("The last review of this doc found the shortfalls in the data part below, each with the slug of its check and a number. Judge each one again against the text you read now, not from memory: in \"prior\" of its check, give its number and \"still_holds\" when the text still falls short in that way, or \"fixed\" when it no longer does. For one that still holds, also give its \"question\": the one question that the author can answer with the missing fact. Then list in \"shortfalls\" only the other shortfalls of the check. Do not repeat a shortfall from the list there. For a check with no shortfall in the list, give an empty \"prior\".\n\n")
+		b.WriteString(data("Shortfalls of the last review", strings.TrimRight(prior.String(), "\n")))
+		b.WriteString("\n")
+	}
 	b.WriteString(bundle)
 	return b.String()
 }
@@ -78,6 +93,9 @@ type rubricCheck struct {
 	Slug     string
 	Question string
 	PassWhen string
+	// Prior are the shortfalls of the last full review of this check whose quoted text is
+	// still in the doc. The model judges each one again.
+	Prior []shortfall
 }
 
 func rubricSchema(slugs []string) []byte {
@@ -88,15 +106,22 @@ func rubricSchema(slugs []string) []byte {
 				"type": "array",
 				"items": map[string]any{
 					"type": "object", "additionalProperties": false,
+					// "prior" is not required: an answer with none says nothing about the shortfalls
+					// of the last review, and they stay.
 					"required": []string{"slug", "result", "reason", "quotes", "shortfalls"},
 					"properties": map[string]any{
 						"slug":   map[string]any{"type": "string", "enum": slugs},
 						"result": map[string]any{"type": "string", "enum": []string{"pass", "fail", "not_applicable"}},
 						"reason": map[string]any{"type": "string"},
 						"quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"prior": map[string]any{"type": "array", "items": map[string]any{
+							"type": "object", "additionalProperties": false, "required": []string{"n", "state"},
+							"properties": map[string]any{"n": map[string]any{"type": "integer"}, "state": map[string]any{"type": "string", "enum": []string{"still_holds", "fixed"}},
+								"question": map[string]any{"type": "string"}},
+						}},
 						"shortfalls": map[string]any{"type": "array", "items": map[string]any{
 							"type": "object", "additionalProperties": false, "required": []string{"reason", "quote"},
-							"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}},
+							"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}, "question": map[string]any{"type": "string"}},
 						}},
 					},
 				},

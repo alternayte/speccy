@@ -55,6 +55,11 @@ var operations = map[string]access{
 	"suggestLinks": member,
 	// A content review calls the models; guests do not ask the AI (REQ-086).
 	"reviewContent": member,
+	// A review of a GitHub URL reads the repo with the workspace credential, as a verification
+	// run does, and calls the models.
+	"reviewUrl": member,
+	// The conflicts of a profile's checks: one model call, and no doc text.
+	"findCheckConflicts": member,
 	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.
 	"getContentReviewReport": member,
 

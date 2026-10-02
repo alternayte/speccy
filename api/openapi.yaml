@@ -937,6 +937,52 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /profiles/conflicts:
+    post:
+      operationId: findCheckConflicts
+      summary: >
+        Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot
+        both hold. A fix for a finding of one such check causes a finding of the other, so a
+        review of a doc does not converge. It changes no profile.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckConflictsRequest"
+      responses:
+        "200":
+          description: The conflicts. An empty list means the model found none.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckConflicts"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /reviews/url:
+    post:
+      operationId: reviewUrl
+      summary: >
+        Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the
+        head commit. Speccy reads the files with the GitHub credential it holds, and saves no
+        bundle. For a pull request, it reviews the spec docs that the pull request changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UrlReviewRequest"
+      responses:
+        "200":
+          description: The repo, the commit, and the review of each spec doc.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UrlReview"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /reviews/{reviewId}/report:
     parameters:
       - name: reviewId
@@ -4077,6 +4123,12 @@ components:
           description: The line where the text of the finding ends.
         fix_kind:
           $ref: "#/components/schemas/FixKind"
+        question:
+          type: string
+          description: >
+            For an answer finding, the question that the author must answer to fix it. It names
+            the subject and asks only for the missing fact. A finding of the divergence stage
+            has its build question here, and one of the grounding stage has its claim.
         run_id:
           type: string
           format: uuid
@@ -4111,6 +4163,9 @@ components:
         trace_id:
           type: string
           description: For a coverage gap, the upstream trace ID it is about.
+        source_url:
+          type: string
+          description: For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
         anchor:
           $ref: "#/components/schemas/Anchor"
           description: The anchor in the bundle's current version, re-anchored when the run read an older version.
@@ -4500,6 +4555,97 @@ components:
           maxItems: 500
           items:
             $ref: "#/components/schemas/ContentFile"
+
+    CheckConflictsRequest:
+      type: object
+      required: [checks]
+      properties:
+        name:
+          type: string
+          description: The name of the doc type, such as Software Design Document.
+        checks:
+          type: array
+          minItems: 1
+          maxItems: 200
+          items:
+            type: object
+            required: [slug, question, pass_when]
+            properties:
+              slug:
+                type: string
+              question:
+                type: string
+              pass_when:
+                type: string
+              section:
+                type: string
+
+    CheckConflicts:
+      type: object
+      required: [conflicts]
+      properties:
+        conflicts:
+          type: array
+          items:
+            type: object
+            required: [checks, reason]
+            properties:
+              checks:
+                type: array
+                description: One slug for a check that pulls against itself, or two or more for checks that pull against each other.
+                items:
+                  type: string
+              reason:
+                type: string
+
+    UrlReviewRequest:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: The GitHub URL of a file, a folder, a branch, a commit or a pull request.
+        stages:
+          type: array
+          items:
+            type: string
+            enum: [rubric, grounding, divergence, coherence]
+
+    UrlReview:
+      type: object
+      required: [repo, commit, docs]
+      properties:
+        repo:
+          type: string
+          description: The repo, as owner/name.
+        commit:
+          type: string
+          description: The commit that Speccy read.
+        pull:
+          type: integer
+          description: The number of the pull request, for a pull request URL.
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/UrlReviewDoc"
+
+    UrlReviewDoc:
+      type: object
+      description: One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
+      required: [slug, dir, path]
+      properties:
+        slug:
+          type: string
+        dir:
+          type: string
+          description: The folder of the doc's bundle, relative to the repo root. The file of a finding's anchor is relative to it.
+        path:
+          type: string
+          description: The spec doc, relative to the repo root.
+        review:
+          $ref: "#/components/schemas/ContentReview"
+        error:
+          type: string
 
     ContentReview:
       type: object

@@ -162,6 +162,9 @@ type Querier interface {
 	LatestRun(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)
+	// The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
+	// that a process before it left, and an owner that wants to exit waits until there is none.
+	ListActiveJobs(ctx context.Context) ([]Job, error)
 	ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]AdoptedLink, error)
 	ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error)
 	// For insights: every finished run of the workspace, oldest first.
@@ -254,6 +257,8 @@ type Querier interface {
 	// A scan keeps a spec doc in the bundle of its folder, with its slug: a second spec doc in the
 	// folder changes the slug of the first.
 	SetSpecDocBundle(ctx context.Context, arg SetSpecDocBundleParams) error
+	// The next full review of the doc judges each rubric check from nothing.
+	SetSpecDocFresh(ctx context.Context, arg SetSpecDocFreshParams) error
 	SetSpecDocSourceRef(ctx context.Context, arg SetSpecDocSourceRefParams) error
 	SetWorkspaceSettings(ctx context.Context, arg SetWorkspaceSettingsParams) error
 	// One conditional update spends an invite, so two parallel acceptances use it once.

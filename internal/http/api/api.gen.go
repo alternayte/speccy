@@ -1229,6 +1229,30 @@ func (e TraceCellState) Valid() bool {
 	}
 }
 
+// Defines values for UrlReviewRequestStages.
+const (
+	UrlReviewRequestStagesCoherence  UrlReviewRequestStages = "coherence"
+	UrlReviewRequestStagesDivergence UrlReviewRequestStages = "divergence"
+	UrlReviewRequestStagesGrounding  UrlReviewRequestStages = "grounding"
+	UrlReviewRequestStagesRubric     UrlReviewRequestStages = "rubric"
+)
+
+// Valid indicates whether the value is a known member of the UrlReviewRequestStages enum.
+func (e UrlReviewRequestStages) Valid() bool {
+	switch e {
+	case UrlReviewRequestStagesCoherence:
+		return true
+	case UrlReviewRequestStagesDivergence:
+		return true
+	case UrlReviewRequestStagesGrounding:
+		return true
+	case UrlReviewRequestStagesRubric:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for VerdictResult.
 const (
 	VerdictResultBuildReady    VerdictResult = "build_ready"
@@ -1996,6 +2020,28 @@ type CategoryCount struct {
 // ChangeStatus defines model for ChangeStatus.
 type ChangeStatus string
 
+// CheckConflicts defines model for CheckConflicts.
+type CheckConflicts struct {
+	Conflicts []struct {
+		// Checks One slug for a check that pulls against itself, or two or more for checks that pull against each other.
+		Checks []string `json:"checks"`
+		Reason string   `json:"reason"`
+	} `json:"conflicts"`
+}
+
+// CheckConflictsRequest defines model for CheckConflictsRequest.
+type CheckConflictsRequest struct {
+	Checks []struct {
+		PassWhen string  `json:"pass_when"`
+		Question string  `json:"question"`
+		Section  *string `json:"section,omitempty"`
+		Slug     string  `json:"slug"`
+	} `json:"checks"`
+
+	// Name The name of the doc type, such as Software Design Document.
+	Name *string `json:"name,omitempty"`
+}
+
 // Cite defines model for Cite.
 type Cite struct {
 	Id   *string   `json:"id,omitempty"`
@@ -2236,12 +2282,18 @@ type Finding struct {
 	// New The last full review found this, and the full review before it did not. See Trend.
 	New *bool `json:"new,omitempty"`
 
+	// Question For an answer finding, the question that the author must answer to fix it. It names the subject and asks only for the missing fact. A finding of the divergence stage has its build question here, and one of the grounding stage has its claim.
+	Question *string `json:"question,omitempty"`
+
 	// Relaxed The check is in adoption mode, so it reports at INFO (REQ-133).
 	Relaxed bool `json:"relaxed"`
 
 	// RunId The run the finding belongs to. A carried finding belongs to the last full review.
 	RunId openapi_types.UUID `json:"run_id"`
-	Stage string             `json:"stage"`
+
+	// SourceUrl For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
+	SourceUrl *string `json:"source_url,omitempty"`
+	Stage     string  `json:"stage"`
 
 	// TraceId For a coverage gap, the upstream trace ID it is about.
 	TraceId *string `json:"trace_id,omitempty"`
@@ -3359,6 +3411,42 @@ type Trend struct {
 	SinceVersion int64 `json:"since_version"`
 }
 
+// UrlReview defines model for UrlReview.
+type UrlReview struct {
+	// Commit The commit that Speccy read.
+	Commit string         `json:"commit"`
+	Docs   []UrlReviewDoc `json:"docs"`
+
+	// Pull The number of the pull request, for a pull request URL.
+	Pull *int `json:"pull,omitempty"`
+
+	// Repo The repo, as owner/name.
+	Repo string `json:"repo"`
+}
+
+// UrlReviewDoc One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
+type UrlReviewDoc struct {
+	// Dir The folder of the doc's bundle, relative to the repo root. The file of a finding's anchor is relative to it.
+	Dir   string  `json:"dir"`
+	Error *string `json:"error,omitempty"`
+
+	// Path The spec doc, relative to the repo root.
+	Path   string         `json:"path"`
+	Review *ContentReview `json:"review,omitempty"`
+	Slug   string         `json:"slug"`
+}
+
+// UrlReviewRequest defines model for UrlReviewRequest.
+type UrlReviewRequest struct {
+	Stages *[]UrlReviewRequestStages `json:"stages,omitempty"`
+
+	// Url The GitHub URL of a file, a folder, a branch, a commit or a pull request.
+	Url string `json:"url"`
+}
+
+// UrlReviewRequestStages defines model for UrlReviewRequest.Stages.
+type UrlReviewRequestStages string
+
 // VerdictResult defines model for VerdictResult.
 type VerdictResult string
 
@@ -4083,6 +4171,9 @@ type SuggestLinksJSONRequestBody = LinkSuggestRequest
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
 
+// FindCheckConflictsJSONRequestBody defines body for FindCheckConflicts for application/json ContentType.
+type FindCheckConflictsJSONRequestBody = CheckConflictsRequest
+
 // GuessProfileJSONRequestBody defines body for GuessProfile for application/json ContentType.
 type GuessProfileJSONRequestBody GuessProfileJSONBody
 
@@ -4103,6 +4194,9 @@ type RenderMarkdownJSONRequestBody = RenderRequest
 
 // ReviewContentJSONRequestBody defines body for ReviewContent for application/json ContentType.
 type ReviewContentJSONRequestBody = ContentReviewRequest
+
+// ReviewUrlJSONRequestBody defines body for ReviewUrl for application/json ContentType.
+type ReviewUrlJSONRequestBody = UrlReviewRequest
 
 // SuggestFixJSONRequestBody defines body for SuggestFix for application/json ContentType.
 type SuggestFixJSONRequestBody = SuggestFixRequest
@@ -4439,6 +4533,9 @@ type ServerInterface interface {
 	// CreateProfile Create a profile for a new doc type. Admins only.
 	// (POST /profiles)
 	CreateProfile(w http.ResponseWriter, r *http.Request)
+	// FindCheckConflicts Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	// (POST /profiles/conflicts)
+	FindCheckConflicts(w http.ResponseWriter, r *http.Request)
 	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
 	// (POST /profiles/guess)
 	GuessProfile(w http.ResponseWriter, r *http.Request)
@@ -4472,6 +4569,9 @@ type ServerInterface interface {
 	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(w http.ResponseWriter, r *http.Request)
+	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// (POST /reviews/url)
+	ReviewUrl(w http.ResponseWriter, r *http.Request)
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	// (GET /reviews/{reviewId}/report)
 	GetContentReviewReport(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID)
@@ -7112,6 +7212,20 @@ func (siw *ServerInterfaceWrapper) CreateProfile(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// FindCheckConflicts operation middleware
+func (siw *ServerInterfaceWrapper) FindCheckConflicts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.FindCheckConflicts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GuessProfile operation middleware
 func (siw *ServerInterfaceWrapper) GuessProfile(w http.ResponseWriter, r *http.Request) {
 
@@ -7382,6 +7496,20 @@ func (siw *ServerInterfaceWrapper) ReviewContent(w http.ResponseWriter, r *http.
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ReviewContent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReviewUrl operation middleware
+func (siw *ServerInterfaceWrapper) ReviewUrl(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReviewUrl(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8175,6 +8303,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/conflicts", wrapper.FindCheckConflicts)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews/url", wrapper.ReviewUrl)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}/report", wrapper.GetContentReviewReport)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs/estimate", wrapper.EstimateRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/assumptions", wrapper.ListAssumptions)
@@ -12192,6 +12322,45 @@ func (response CreateProfiledefaultApplicationProblemPlusJSONResponse) VisitCrea
 	return err
 }
 
+type FindCheckConflictsRequestObject struct {
+	Body *FindCheckConflictsJSONRequestBody
+}
+
+type FindCheckConflictsResponseObject interface {
+	VisitFindCheckConflictsResponse(w http.ResponseWriter) error
+}
+
+type FindCheckConflicts200JSONResponse CheckConflicts
+
+func (response FindCheckConflicts200JSONResponse) VisitFindCheckConflictsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type FindCheckConflictsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response FindCheckConflictsdefaultApplicationProblemPlusJSONResponse) VisitFindCheckConflictsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GuessProfileRequestObject struct {
 	Body *GuessProfileJSONRequestBody
 }
@@ -12613,6 +12782,45 @@ type ReviewContentdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ReviewContentdefaultApplicationProblemPlusJSONResponse) VisitReviewContentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReviewUrlRequestObject struct {
+	Body *ReviewUrlJSONRequestBody
+}
+
+type ReviewUrlResponseObject interface {
+	VisitReviewUrlResponse(w http.ResponseWriter) error
+}
+
+type ReviewUrl200JSONResponse UrlReview
+
+func (response ReviewUrl200JSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReviewUrldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ReviewUrldefaultApplicationProblemPlusJSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -13945,6 +14153,9 @@ type StrictServerInterface interface {
 	// CreateProfile Create a profile for a new doc type. Admins only.
 	// (POST /profiles)
 	CreateProfile(ctx context.Context, request CreateProfileRequestObject) (CreateProfileResponseObject, error)
+	// FindCheckConflicts Ask the reviewer model for the rubric checks of a profile whose pass conditions cannot both hold. A fix for a finding of one such check causes a finding of the other, so a review of a doc does not converge. It changes no profile.
+	// (POST /profiles/conflicts)
+	FindCheckConflicts(ctx context.Context, request FindCheckConflictsRequestObject) (FindCheckConflictsResponseObject, error)
 	// GuessProfile The profile that fits a markdown doc, from its headings (REQ-008).
 	// (POST /profiles/guess)
 	GuessProfile(ctx context.Context, request GuessProfileRequestObject) (GuessProfileResponseObject, error)
@@ -13978,6 +14189,9 @@ type StrictServerInterface interface {
 	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(ctx context.Context, request ReviewContentRequestObject) (ReviewContentResponseObject, error)
+	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// (POST /reviews/url)
+	ReviewUrl(ctx context.Context, request ReviewUrlRequestObject) (ReviewUrlResponseObject, error)
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	// (GET /reviews/{reviewId}/report)
 	GetContentReviewReport(ctx context.Context, request GetContentReviewReportRequestObject) (GetContentReviewReportResponseObject, error)
@@ -16923,6 +17137,37 @@ func (sh *strictHandler) CreateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// FindCheckConflicts operation middleware
+func (sh *strictHandler) FindCheckConflicts(w http.ResponseWriter, r *http.Request) {
+	var request FindCheckConflictsRequestObject
+
+	var body FindCheckConflictsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.FindCheckConflicts(ctx, request.(FindCheckConflictsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "FindCheckConflicts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(FindCheckConflictsResponseObject); ok {
+		if err := validResponse.VisitFindCheckConflictsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GuessProfile operation middleware
 func (sh *strictHandler) GuessProfile(w http.ResponseWriter, r *http.Request) {
 	var request GuessProfileRequestObject
@@ -17246,6 +17491,37 @@ func (sh *strictHandler) ReviewContent(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReviewContentResponseObject); ok {
 		if err := validResponse.VisitReviewContentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReviewUrl operation middleware
+func (sh *strictHandler) ReviewUrl(w http.ResponseWriter, r *http.Request) {
+	var request ReviewUrlRequestObject
+
+	var body ReviewUrlJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReviewUrl(ctx, request.(ReviewUrlRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReviewUrl")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReviewUrlResponseObject); ok {
+		if err := validResponse.VisitReviewUrlResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

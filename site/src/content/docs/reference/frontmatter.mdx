@@ -96,8 +96,26 @@ A target that matches nothing is not a link. For an upstream link, `links.has-up
 | `github:owner/repo#path` | A path in the repo, at `HEAD`. |
 | `github:owner/repo@commit` | A commit, with 7 to 40 hex characters. |
 | `github:owner/repo@commit#path` | A path at a commit. |
+| `github:owner/repo@branch#path` | A path on a branch. |
 | `https://…` or `http://…` | A page at that URL. |
 | `<scheme>:<key>` | The URL that the scheme's pattern in [`link_patterns`](/reference/speccy-yaml/#link_patterns) makes from the key. |
+
+### A doc on GitHub as the upstream doc
+
+An upstream doc can live on another branch or in another repo. Link it with the URL of the file on its branch, or with the `github:` form:
+
+```yaml frontmatter
+links:
+  - kind: implements
+    target: https://github.com/acme/specs/blob/feature/pay/docs/PRD - Payments.md
+```
+
+Speccy resolves the link to the spec doc of a GitHub source that holds that file on that branch. The linked doc then counts as the upstream doc: `links.has-upstream` passes, `trace.coverage` reads its trace IDs, and a new commit on the branch makes the verdict stale.
+
+- When no source holds the file, local mode adds a GitHub source for it when a review starts. The doc then shows in the bundle list.
+- In hosted mode, only an admin adds a source. The finding of `links.has-upstream` says so, and an admin gets **Add it as a source** on the finding.
+- The link must name a branch. A link at a commit stays an external link, and the finding says that an upstream link needs a branch.
+- Only a link of an upstream kind of the profile adds a source. For the built-in SDD, that is `implements`.
 
 A target that does not parse fails [`links.external-target`](/reference/checks/#links.external-target), a MUST check. The finding says what to change, for example `the scheme "jira" has no pattern: add link_patterns.jira to .speccy.yaml`. An `implemented-by` target with no scheme fails the same check.
 

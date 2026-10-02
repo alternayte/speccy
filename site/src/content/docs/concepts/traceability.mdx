@@ -63,6 +63,8 @@ Speccy reads an ID as a definition only at the start of an item:
 | The start of a heading | `### REQ-001 Refund a paid order` |
 | The first cell of a table row | `\| REQ-001 \| Refund a paid order. \|` |
 | The start of a list item or a paragraph, with a colon or a dash after it | `- **REQ-001:** Refund a paid order.` |
+| The start of another cell of a table row, with a colon or a dash after it | `\| 1 \| DEC-001: Extend the service. \|` |
+| The start of a sentence in a paragraph, with a colon or a dash after it | `Where the data comes from. DEC-003: The job reads the table.` |
 
 Any other place is a reference. A sentence that starts with an ID and no colon or dash stays a reference.
 

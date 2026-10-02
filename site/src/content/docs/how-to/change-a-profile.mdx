@@ -61,6 +61,16 @@ In local mode, you can also write the files yourself.
 
    A valid file prints its key, its name and the number of checks. A file that is not valid prints each error with its path, and the command exits with code 2.
 
+   A valid file can also print warnings. A rubric check that asks about one section, and has no `section` key, runs again on the whole doc after each edit. An edit to another section can then change its answer, and a review of the doc does not converge. The warning names the check and the `section` to add. A profile from a release before 0.20.0 has no `section` keys, so read the warnings after an upgrade. The run report of a review shows the same warning as a note.
+
+4. Optional: look for checks that pull against each other:
+
+   ```sh
+   speccy profile validate .speccy/profiles/sdd.yaml --conflicts
+   ```
+
+   The command sends the rubric checks to the model of the `reviewer` role, in one call. It prints each check, or pair of checks, whose pass conditions cannot both hold, with the reason. For example, one check allows a section to say "n/a", and another check fails a section with no content. An author who fixes a finding of one such check gets a finding of the other, so a review of the doc does not converge. Change the pass condition of one of the two checks. The command changes nothing in the profile. Run it in a folder where Speccy has its models.
+
 </Steps>
 
 A running Speccy watches `.speccy/profiles/`, and it loads a changed file at once. A file that does not load shows as an error on the **Profiles** page, and Speccy keeps the last profiles that loaded.

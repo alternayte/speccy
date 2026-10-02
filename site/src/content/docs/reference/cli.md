@@ -26,9 +26,14 @@ Usage:
                                                          The GitHub Action: review the bundles a pull request
                                                          changes, and comment on it. --verify runs the
                                                          verification gate instead of the review.
+  speccy action --pr <pull request URL> --pending | --dry-run [--stages …]
+                                                         Review a pull request from this machine. --pending
+                                                         posts one review that only you see; --dry-run prints
+                                                         it and posts nothing.
   speccy tui                                             Open the terminal UI.
-  speccy mcp                                             Run the MCP server over stdio.
-  speccy profile validate <file>                         Check a profile file.
+  speccy mcp [--root folder]                             Run the MCP server over stdio.
+  speccy profile validate <file> [--conflicts]           Check a profile file. --conflicts asks the reviewer
+                                                         model for checks that pull against each other.
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
                 [--label <name>] [--acknowledged]

@@ -16,6 +16,7 @@ import (
 	"syscall"
 
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
@@ -24,8 +25,20 @@ import (
 // runProfile is speccy profile validate <file> (REQ-014). It prints each schema error with its
 // path and exits 2 when the profile is not valid.
 func runProfile(args []string, stdout, stderr io.Writer) int {
+	// --conflicts asks the reviewer model for checks that pull against each other (#107). The
+	// plain command stays static, with no state and no model.
+	conflicts := false
+	var rest []string
+	for _, a := range args {
+		if a == "--conflicts" {
+			conflicts = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	args = rest
 	if len(args) != 2 || args[0] != "validate" {
-		fmt.Fprint(stderr, "Usage: speccy profile validate <file>\n")
+		fmt.Fprint(stderr, "Usage: speccy profile validate <file> [--conflicts]\n")
 		return exitUsage
 	}
 	l, err := profile.ParseFile(args[1])
@@ -42,6 +55,17 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 		return exitUsage
 	}
 	fmt.Fprintf(stdout, "%s is a valid profile: %s (%s), %d checks.\n", args[1], l.Profile.Key, l.Profile.Name, len(l.Profile.Checks))
+	// A check that is about one section and names none is valid, and it stops a review from
+	// converging, so the command says so (#108).
+	if hints := profile.SectionHints(l); len(hints) > 0 {
+		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(hints), pluralS(len(hints)))
+		for _, h := range hints {
+			fmt.Fprintf(stdout, "  %s\n", h)
+		}
+	}
+	if conflicts {
+		return profileConflicts(l, stdout, stderr)
+	}
 	return exitOK
 }
 
@@ -342,4 +366,56 @@ func addType(p, key string) error {
 		return err
 	}
 	return os.WriteFile(p, source.AddTypeLine(src, key), 0o644)
+}
+
+// profileConflicts sends the rubric checks of a profile to the reviewer model of the state in
+// this folder, and prints each check, or group of checks, whose pass conditions cannot both
+// hold. It changes nothing in the profile.
+func profileConflicts(l profile.Loaded, stdout, stderr io.Writer) int {
+	body := api.FindCheckConflictsJSONRequestBody{Name: &l.Profile.Name}
+	for _, c := range l.Profile.Checks {
+		if c.Stage != review.StageRubric {
+			continue
+		}
+		check := struct {
+			PassWhen string  `json:"pass_when"`
+			Question string  `json:"question"`
+			Section  *string `json:"section,omitempty"`
+			Slug     string  `json:"slug"`
+		}{PassWhen: c.PassWhen, Question: c.Question, Slug: c.Slug}
+		if c.Section != "" {
+			check.Section = &c.Section
+		}
+		body.Checks = append(body.Checks, check)
+	}
+	if len(body.Checks) == 0 {
+		fmt.Fprintln(stdout, "\nThe profile has no rubric check, so no two checks can conflict.")
+		return exitOK
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	cwd, _ := os.Getwd()
+	s, err := openSession(ctx, findRoot(cwd))
+	if err != nil {
+		fmt.Fprintf(stderr, "speccy profile validate: %v.\n", problemText(err))
+		return exitRun
+	}
+	res, err := s.client.FindCheckConflictsWithResponse(ctx, body)
+	if err != nil {
+		fmt.Fprintf(stderr, "speccy profile validate: %v.\n", err)
+		return exitRun
+	}
+	if res.JSON200 == nil {
+		return problemExit(stderr, "--conflicts", res.ApplicationproblemJSONDefault)
+	}
+	found := res.JSON200.Conflicts
+	if len(found) == 0 {
+		fmt.Fprintf(stdout, "\nThe reviewer model found no conflict between the %d rubric checks.\n", len(body.Checks))
+		return exitOK
+	}
+	fmt.Fprintf(stdout, "\n%d conflict%s between checks. A fix for a finding of one causes a finding of the other, so a review does not converge:\n", len(found), pluralS(len(found)))
+	for _, c := range found {
+		fmt.Fprintf(stdout, "  %s: %s\n", strings.Join(c.Checks, " and "), c.Reason)
+	}
+	return exitOK
 }

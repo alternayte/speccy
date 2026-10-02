@@ -247,3 +247,114 @@ func TestTrend_AgainstTheLastFullReview(t *testing.T) {
 		t.Errorf("trend %+v, want since v2: 1 fixed and none new", v.Trend)
 	}
 }
+
+// #107: a full review judges the shortfalls of the last review again, one by one. A shortfall
+// on text that did not change stays when the model does not mention it, and leaves when the
+// model says it is fixed or when its quoted text is gone. A fresh review asks about none.
+func TestRubric_ShortfallsStayUntilFixed(t *testing.T) {
+	ctx := context.Background()
+	pe := newPipeline(t, storetest.Engines()[0], convergeFiles(), "fake-1")
+	pe.fake.passes = map[string]bool{"sdd.limits": true}
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.consistency": {
+		{"reason": "The read limit and the retry limit do not agree.", "quote": "Stripe allows 100 read requests per second in live mode",
+			"question": "Which limit holds for reads: 100 a second, or the retry limit?"},
+		{"reason": "The body limit has two values.", "quote": "at 999 kilobytes for every endpoint"},
+	}}
+	messages := func(fs []pgdb.Finding) string {
+		var out []string
+		for _, f := range rubricFindings(fs, "sdd.consistency") {
+			out = append(out, f.Message)
+		}
+		return strings.Join(out, " | ")
+	}
+	lastPrompt := func() string {
+		for i := len(pe.fake.rubric) - 1; i >= 0; i-- {
+			if strings.Contains(pe.fake.rubric[i], "slug: sdd.consistency") {
+				return pe.fake.rubric[i]
+			}
+		}
+		return ""
+	}
+	_, fs, _ := pe.run(t, "pay")
+	if got := messages(fs); got != "The read limit and the retry limit do not agree. | The body limit has two values." {
+		t.Fatalf("the first review: %s", got)
+	}
+	if strings.Contains(lastPrompt(), "Shortfalls of the last review") {
+		t.Error("the first review asked about shortfalls of a review before it")
+	}
+
+	// The author fixes the second shortfall: its quoted text is gone. The model now lists no
+	// shortfall at all, and says nothing about the first one. The first one stays.
+	pe.fake.shortfalls = nil
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "at 999 kilobytes for every endpoint", "at 900 kilobytes for every endpoint", 1))
+	_, fs, _ = pe.run(t, "pay")
+	if got := messages(fs); got != "The read limit and the retry limit do not agree." {
+		t.Errorf("after a fix of one shortfall and a silent model: %q; want the other shortfall alone, with its message", got)
+	}
+	prompt := lastPrompt()
+	if !strings.Contains(prompt, "sdd.consistency 1: The read limit and the retry limit do not agree.") || strings.Contains(prompt, "The body limit has two values") {
+		t.Errorf("the second review must ask about the shortfall whose text stands, and not about the one whose text is gone:\n%s", prompt)
+	}
+
+	if q := questionOf(t, pe, "The read limit and the retry limit do not agree."); q != "Which limit holds for reads: 100 a second, or the retry limit?" {
+		t.Errorf("the question of the shortfall that stayed: %q", q)
+	}
+
+	// The model says that the first shortfall is fixed: it leaves.
+	pe.fake.fixed = map[string][]int{"sdd.consistency": {1}}
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "at 999 kilobytes for every endpoint", "at 800 kilobytes for every endpoint", 1))
+	_, fs, _ = pe.run(t, "pay")
+	if got := messages(fs); strings.Contains(got, "The read limit and the retry limit do not agree") {
+		t.Errorf("after the model said fixed: %q; the shortfall must leave", got)
+	}
+
+	// #110: the question that the reviewer wrote for the shortfall stays with the finding, also
+	// in the review where the model did not mention the shortfall again.
+	if q := questionOf(t, pe, "The read limit and the retry limit do not agree."); q != "" {
+		t.Errorf("the finding left, and its question %q is still listed", q)
+	}
+
+	// A person asks for a fresh review: the next one asks about no shortfall of a review before it.
+	pe.fake.fixed = nil
+	q := pe.bundles.DB.Queries()
+	b, _ := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews}
+	if _, err := a.FreshQuestions(ctx, api.FreshQuestionsRequestObject{DocId: b.ID}); err != nil {
+		t.Fatal(err)
+	}
+	before := len(pe.fake.rubric)
+	pe.run(t, "pay")
+	if len(pe.fake.rubric) == before {
+		t.Fatal("a fresh review read the cached answers of the review before it")
+	}
+	if strings.Contains(lastPrompt(), "Shortfalls of the last review") {
+		t.Error("a fresh review asked about the shortfalls of the review before it")
+	}
+}
+
+// questionOf returns the question of the finding with a message in the current verdict of the
+// pay doc, or "" when the verdict has no such finding.
+func questionOf(t *testing.T, pe *pipelineEnv, message string) string {
+	t.Helper()
+	ctx := context.Background()
+	q := pe.bundles.DB.Queries()
+	b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := q.LatestRun(ctx, b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews}
+	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: run.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range res.(api.ListFindings200JSONResponse).Items {
+		if f.Message == message && f.Question != nil {
+			return *f.Question
+		}
+	}
+	return ""
+}
