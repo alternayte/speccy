@@ -44,6 +44,8 @@ type FromRepo struct {
 	// Siblings are the other spec docs of the same commit. A link resolves to one of them
 	// before it resolves to a saved bundle.
 	Siblings []Sibling
+	// Refs are the links of the doc outside its folder, as the scan of the commit found them.
+	Refs []source.Ref
 
 	// docs and files are the siblings as the link resolver reads them.
 	docs  []pgdb.SpecDoc

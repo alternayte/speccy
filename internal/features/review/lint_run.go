@@ -195,6 +195,8 @@ type input struct {
 	// addsSources says that a review adds a linked doc on GitHub as a source by itself: local
 	// mode does, and hosted mode leaves it to an admin.
 	addsSources bool
+	// refs are the links of the version outside its bundle folder, as the scan found them.
+	refs []source.Ref
 }
 
 func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, p profile.Versioned) (input, error) {
@@ -217,6 +219,9 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 	}
 	in.doc = section.Parse(in.main)
 	in.fm, _, _ = source.ReadFrontmatter(in.main)
+	if in.refs, err = s.refsOf(ctx, b, versionID, from); err != nil {
+		return input{}, err
+	}
 	if from != nil {
 		in.dec = from.Decisions
 	} else if s.Decisions != nil {
@@ -256,6 +261,29 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 	return in, nil
 }
 
+// refsOf returns the refs of the content under review: the scan of the commit for content read
+// from a repo, else the version, else the current version of the bundle for content that is
+// not saved.
+func (s *Service) refsOf(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, from *FromRepo) ([]source.Ref, error) {
+	if from != nil {
+		return from.Refs, nil
+	}
+	if versionID == uuid.Nil && b.CurrentVersionID.Valid {
+		versionID = b.CurrentVersionID.UUID
+	}
+	if versionID == uuid.Nil || b.ID == uuid.Nil {
+		return nil, nil
+	}
+	v, err := s.DB.Queries().GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: versionID})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return version.Refs(v), nil
+}
+
 // level returns a check's level after adoption mode (REQ-133).
 func (in input) level(slug string, l kernel.Level) kernel.Level {
 	if in.relaxed[slug] {
@@ -272,6 +300,10 @@ func lintStage(in input) evaluation {
 		paths[i] = f.Path
 	}
 	cfg := lintConfig(in.profile.Profile, in.profile.TemplateText, in.bundle.DocPath, paths, in.relaxed, in.size)
+	cfg.Refs = map[string]lint.Ref{}
+	for _, r := range in.refs {
+		cfg.Refs[r.Target] = lint.Ref{State: r.State, Path: r.Path}
+	}
 	cfg.UpstreamIDs = upstreamIDs(in)
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}

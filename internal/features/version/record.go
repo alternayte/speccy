@@ -7,11 +7,13 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -32,6 +34,9 @@ type Change struct {
 	MainDoc   string
 	CreatedBy string
 	Message   string
+	// Refs are the links of the bundle's markdown outside its folder, as a scan found them. Nil
+	// keeps the refs of the current version: an edit in the app does not scan.
+	Refs []source.Ref
 }
 
 // Record creates a version for c.Files when they differ from the bundle's current version,
@@ -40,6 +45,22 @@ type Change struct {
 func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, error) {
 	q := tx.Queries()
 	b := c.Bundle
+	var curRefs dbtype.JSON
+	if b.CurrentVersionID.Valid {
+		cur, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID})
+		if err != nil {
+			return pgdb.Version{}, false, err
+		}
+		curRefs = cur.Refs
+	}
+	refs := curRefs
+	if c.Refs != nil || len(refs) == 0 {
+		raw, err := json.Marshal(nonNilRefs(c.Refs))
+		if err != nil {
+			return pgdb.Version{}, false, err
+		}
+		refs = dbtype.JSON(raw)
+	}
 	hashes := make(map[string]string, len(c.Files))
 	for _, f := range c.Files {
 		hashes[f.Path] = Hash(f.Content)
@@ -56,7 +77,7 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 				break
 			}
 		}
-		if same && b.Title == c.Title && b.ProfileKey == c.Profile && b.DocPath == c.MainDoc {
+		if same && b.Title == c.Title && b.ProfileKey == c.Profile && b.DocPath == c.MainDoc && sameRefs(curRefs, refs) {
 			v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID})
 			return v, false, err
 		}
@@ -77,7 +98,7 @@ func Record(ctx context.Context, tx store.Tx, c Change) (pgdb.Version, bool, err
 	}
 	v := pgdb.Version{
 		ID: kernel.NewID(), WorkspaceID: b.WorkspaceID, SpecDocID: b.ID, Number: number,
-		CreatedBy: c.CreatedBy, Message: c.Message, CreatedAt: now,
+		CreatedBy: c.CreatedBy, Message: c.Message, CreatedAt: now, Refs: refs,
 	}
 	if err := q.InsertVersion(ctx, pgdb.InsertVersionParams(v)); err != nil {
 		return pgdb.Version{}, false, err
@@ -152,4 +173,47 @@ func Get(ctx context.Context, q store.Querier, b pgdb.SpecDoc, id *uuid.UUID) (p
 // ToAPI returns the API form of a version.
 func ToAPI(v pgdb.Version) api.Version {
 	return api.Version{Id: v.ID, Number: v.Number, CreatedBy: v.CreatedBy, Message: v.Message, CreatedAt: v.CreatedAt.UTC()}
+}
+
+// CarriedPaths maps each link target that the version's bundle carries to the bundle path of
+// its file.
+func CarriedPaths(v pgdb.Version) map[string]string {
+	out := map[string]string{}
+	for _, r := range Refs(v) {
+		if r.State == source.RefCarried {
+			out[r.Target] = r.Path
+		}
+	}
+	return out
+}
+
+// Refs returns the refs of a version: the links of its markdown outside its bundle folder.
+func Refs(v pgdb.Version) []source.Ref {
+	var out []source.Ref
+	_ = json.Unmarshal(v.Refs, &out)
+	return out
+}
+
+func nonNilRefs(refs []source.Ref) []source.Ref {
+	if refs == nil {
+		return []source.Ref{}
+	}
+	return refs
+}
+
+// sameRefs compares two stored ref lists by what they hold, not by their bytes: an engine can
+// store JSON with other spacing.
+func sameRefs(a, b dbtype.JSON) bool {
+	var x, y []source.Ref
+	_ = json.Unmarshal(a, &x)
+	_ = json.Unmarshal(b, &y)
+	if len(x) != len(y) {
+		return false
+	}
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }

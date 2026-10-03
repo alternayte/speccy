@@ -180,6 +180,16 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			Core: speccyhttp.Core{Maintainer: func(ctx context.Context, userID string) bool {
 				ok, _ := db.Queries().IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: ws, UserID: userID})
 				return ok
+			}, CarriedPaths: func(ctx context.Context, docID uuid.UUID) map[string]string {
+				d, err := db.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: ws, ID: docID})
+				if err != nil || !d.CurrentVersionID.Valid {
+					return nil
+				}
+				v, err := db.Queries().GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: d.ID, ID: d.CurrentVersionID.UUID})
+				if err != nil {
+					return nil
+				}
+				return version.CarriedPaths(v)
 			}},
 			BundleAPI:   bundleAPI,
 			VersionAPI:  &version.API{DB: db, Workspace: ws},

@@ -85,6 +85,9 @@ type Core struct {
 	Providers []string
 	// Maintainer reports whether a user maintains any profile.
 	Maintainer func(ctx context.Context, userID string) bool
+	// CarriedPaths maps each link of a spec doc above its folder to the file its bundle carries,
+	// so the preview shows a carried image and opens a carried file.
+	CarriedPaths func(ctx context.Context, docID uuid.UUID) map[string]string
 }
 
 // Options are the parts of the handler that differ between local and hosted mode.

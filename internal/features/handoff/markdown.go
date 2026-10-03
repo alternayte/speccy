@@ -45,6 +45,14 @@ func HandoffMarkdown(p api.BuildPacket) string {
 		fmt.Fprintf(&b, "- %s — the artifact this design %s.\n", e.Url, e.Kind)
 	}
 	b.WriteString("\n")
+	if len(p.RepoLinks) > 0 {
+		b.WriteString("The design links to repo files above its folder. This folder holds them at another path. Open the file in the right column when the design links the left one:\n\n")
+		b.WriteString("| Link in the design | File in this folder |\n|---|---|\n")
+		for _, l := range p.RepoLinks {
+			fmt.Fprintf(&b, "| `%s` | `%s` |\n", l.Link, l.Path)
+		}
+		b.WriteString("\n")
+	}
 
 	if len(p.Questions) > 0 {
 		b.WriteString("## Answers\n\n")

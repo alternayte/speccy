@@ -161,6 +161,16 @@ func brokenLinks(d *doc, cfg Config, emit emitter) {
 			return ast.WalkContinue, nil
 		}
 		s, e := nodeSpan(n, d.body)
+		// A file above the bundle folder that the bundle carries, and a spec doc of another
+		// bundle, are not broken links (docs/specs/carry-repo-files.md).
+		switch r := cfg.Refs[target]; {
+		case r.State == "carried" && files[r.Path], r.State == "doc":
+			return ast.WalkContinue, nil
+		case r.State == "ignored":
+			emit(BrokenLink, s, e, fmt.Sprintf("The link to %s points to a file that git ignores, so Speccy does not take it into the bundle.", p),
+				"Link to a file that git tracks, or use a full URL.")
+			return ast.WalkSkipChildren, nil
+		}
 		if strings.HasPrefix(target, "../") || target == ".." {
 			emit(BrokenLink, s, e, fmt.Sprintf("The link to %s points outside the bundle.", p),
 				"Move the file into the bundle and link to it there, or use a full URL.")

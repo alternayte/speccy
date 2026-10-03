@@ -26,7 +26,7 @@ func (a *API) GetFileContent(ctx context.Context, req api.GetFileContentRequestO
 	if err != nil {
 		return nil, err
 	}
-	p, err := source.CleanPath(req.Params.Path)
+	p, err := source.CleanReadPath(req.Params.Path)
 	if err != nil {
 		return nil, kernel.Invalid("bad_path", "%s.", err.Error())
 	}

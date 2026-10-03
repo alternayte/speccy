@@ -51,9 +51,50 @@ var ErrNotFound = errors.New("file not found in the bundle")
 // ErrExists means the rename target already exists.
 var ErrExists = errors.New("a file with that path already exists in the bundle")
 
-// CleanPath checks that p is a relative path inside a bundle and returns its clean form.
-// It refuses absolute paths, .. segments, empty names, and backslashes.
+// RepoDir is the reserved folder of a bundle that holds the files its spec doc references
+// above the bundle folder, at their path from the source root (docs/specs/carry-repo-files.md).
+// A bundle path may hold no ".." segment, so such a file needs a place of its own.
+const RepoDir = "@repo"
+
+// RepoPath is the bundle path of a carried file at rootRel, a path from the source root.
+func RepoPath(rootRel string) string { return RepoDir + "/" + rootRel }
+
+// Ref is a link of a bundle's markdown to a file outside the bundle folder, or to a spec doc
+// of another bundle, with what the scan did with it. Lint, the preview and the build packet
+// read it, because the doc's link is never rewritten.
+type Ref struct {
+	// Target is the link target relative to the bundle folder, cleaned: "../shared/bus.md".
+	Target string `json:"target"`
+	// State is RefCarried, RefDoc or RefIgnored.
+	State string `json:"state"`
+	// Path is the bundle path of a carried file.
+	Path string `json:"path,omitempty"`
+}
+
+// The states of a Ref.
+const (
+	RefCarried = "carried"
+	RefDoc     = "doc"
+	RefIgnored = "ignored"
+)
+
+// CleanPath checks that p is a relative path inside a bundle that a person may write, and
+// returns its clean form. It refuses absolute paths, .. segments, empty names, backslashes, and
+// the reserved folder RepoDir, which only the scan fills.
 func CleanPath(p string) (string, error) {
+	c, err := CleanReadPath(p)
+	if err != nil {
+		return "", err
+	}
+	if c == RepoDir || strings.HasPrefix(c, RepoDir+"/") {
+		return "", fmt.Errorf("the path %q is in %s, the folder where Speccy keeps the repo files a doc references; use another folder", p, RepoDir)
+	}
+	return c, nil
+}
+
+// CleanReadPath checks that p is a relative path inside a bundle and returns its clean form.
+// It accepts a carried file in RepoDir, so a reader can open it.
+func CleanReadPath(p string) (string, error) {
 	if p == "" {
 		return "", errors.New("the path is empty")
 	}

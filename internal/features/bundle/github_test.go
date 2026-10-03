@@ -642,3 +642,47 @@ func TestGitHubSource_RepoConfigOfSpecDoc(t *testing.T) {
 		})
 	}
 }
+
+// docs/specs/carry-repo-files.md: a GitHub source on one folder carries the repo files its doc
+// links above that folder, read from the repo at the same commit, and refuses a file that the
+// repo's .gitignore names.
+func TestGitHubSource_CarriesRepoFiles(t *testing.T) {
+	ctx := as(context.Background(), "user-1")
+	s := services()[0].open(t)
+	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+	gh.refs["main"] = gh.commit(map[string]string{
+		".gitignore":            "config/prod-*.yaml\n",
+		"docs/pay/SPEC.md":      mainDoc + "\nSee the [bus](../../shared/bus.md) and the [keys](../../config/prod-keys.yaml).\n",
+		"shared/bus.md":         "# Bus\n\nThe bus keeps each event for 7 days.\n",
+		"config/prod-keys.yaml": "key: tracked by mistake\n",
+	})
+	srv := httptest.NewServer(gh)
+	defer srv.Close()
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return &github.Client{API: srv.URL, Token: "t"}, nil
+	}
+	if _, err := sourceAPI(t, s).AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{
+		Url: srv.URL + "/acme/specs/tree/main/docs/pay"}}); err != nil {
+		t.Fatal(err)
+	}
+	q := s.DB.Queries()
+	d, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: "docs/pay"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := version.Files(ctx, q, d.CurrentVersionID.UUID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range files {
+		got = append(got, f.Path+"<"+f.CarriedBy)
+	}
+	if want := "@repo/shared/bus.md<SPEC.md SPEC.md<"; strings.Join(got, " ") != want {
+		t.Errorf("files %q, want %q", strings.Join(got, " "), want)
+	}
+	v, _ := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: d.ID, ID: d.CurrentVersionID.UUID})
+	if !strings.Contains(string(v.Refs), `"../../config/prod-keys.yaml","state":"ignored"`) {
+		t.Errorf("refs %s, want the keys file refused as ignored", v.Refs)
+	}
+}

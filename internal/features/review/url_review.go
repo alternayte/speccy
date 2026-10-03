@@ -138,7 +138,8 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 	// The first scan finds the docs that the URL names. A doc can link to a doc in another
 	// folder of the repo, so a second scan also reads the folders that those links name.
 	for pass := 0; pass < 2; pass++ {
-		root = local.FromFS(github.NewTreeFS(entries, keep, load))
+		// A bundle carries the files its doc references above its folder, from the whole repo.
+		root = local.FromFS(github.NewTreeFS(entries, keep, load)).WithRepo(github.NewTreeFS(entries, func(string) bool { return true }, load))
 		if scan, err = root.Scan(cfg); err != nil {
 			return out, err
 		}
@@ -197,7 +198,7 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 			out.Docs = append(out.Docs, doc)
 			continue
 		}
-		from := &FromRepo{Dir: b.Dir, Config: cfg}
+		from := &FromRepo{Dir: b.Dir, Config: cfg, Refs: b.Refs}
 		if rawDec, err := fs.ReadFile(tfs, source.SidecarPath(doc.Path)); err == nil {
 			if from.Decisions, err = source.ParseDecisions(rawDec); err != nil {
 				doc.Err = kernel.Invalid("bad_sidecar", "The sidecar of %s is not valid: %s.", doc.Path, err.Error())

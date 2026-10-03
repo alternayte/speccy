@@ -149,7 +149,7 @@ func (a *API) packet(ctx context.Context, b pgdb.SpecDoc) (api.BuildPacket, erro
 	}
 	out := api.BuildPacket{
 		Bundle: b.Slug, Title: b.Title, VersionNumber: ver.Number, MainDoc: b.DocPath,
-		Files: []api.ContentFile{}, Links: []api.PacketLink{}, ExternalLinks: []api.PacketExternalLink{},
+		Files: []api.ContentFile{}, RepoLinks: []api.PacketRepoLink{}, Links: []api.PacketLink{}, ExternalLinks: []api.PacketExternalLink{},
 		TraceIds:  []api.PacketTraceId{},
 		Questions: []api.PacketQuestion{},
 	}
@@ -167,6 +167,13 @@ func (a *API) packet(ctx context.Context, b pgdb.SpecDoc) (api.BuildPacket, erro
 	}
 	if main == nil {
 		return api.BuildPacket{}, kernel.NotFound("no_main_doc", "The bundle's current version has no main doc.")
+	}
+	// The doc keeps its links as reviewed, so the builder needs the path of each repo file that
+	// a link above its folder names (docs/specs/carry-repo-files.md).
+	for _, r := range version.Refs(ver) {
+		if r.State == source.RefCarried {
+			out.RepoLinks = append(out.RepoLinks, api.PacketRepoLink{Link: r.Target, Path: r.Path})
+		}
 	}
 	if out.Links, err = a.links(ctx, b, main); err != nil {
 		return api.BuildPacket{}, err

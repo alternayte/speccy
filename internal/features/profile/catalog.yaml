@@ -23,8 +23,8 @@ checks:
   - slug: lint.broken-link
     stage: lint
     fix_kind: reword
-    what: Each relative link and image points at a file in the bundle.
-    fix: Correct the path, or add the file to the bundle.
+    what: Each relative link and image points at a file in the bundle, a repo file that the bundle carries, or a spec doc of another bundle. A link to a file that git ignores stays broken.
+    fix: Correct the path, link to a file that git tracks, or use a full URL.
   - slug: lint.duplicate-id
     stage: lint
     what: No trace ID has two definitions in the doc.

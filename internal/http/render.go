@@ -11,7 +11,7 @@ import (
 
 // RenderMarkdown renders markdown to HTML on the server (DEC-017), with the parser that the
 // review engine uses. Each block carries its source position for overlays and scroll sync.
-func (Core) RenderMarkdown(_ context.Context, req api.RenderMarkdownRequestObject) (api.RenderMarkdownResponseObject, error) {
+func (c Core) RenderMarkdown(ctx context.Context, req api.RenderMarkdownRequestObject) (api.RenderMarkdownResponseObject, error) {
 	var dir string
 	if req.Body.Path != nil {
 		dir = path.Dir(*req.Body.Path)
@@ -21,6 +21,9 @@ func (Core) RenderMarkdown(_ context.Context, req api.RenderMarkdownRequestObjec
 		links.MarkFiles = true
 		links.Image = func(p string) string {
 			return "/api/v1/docs/" + d.String() + "/files/content?path=" + url.QueryEscape(p)
+		}
+		if c.CarriedPaths != nil {
+			links.Refs = c.CarriedPaths(ctx, *d)
 		}
 	}
 	out, err := render.HTML([]byte(req.Body.Markdown), links)

@@ -41,9 +41,9 @@ To fix a finding: Move the code or the table into an asset in the bundle, and li
 - Profiles: every profile
 - Fix kind: reword when one file of the bundle has the name the link names, and answer when none or more than one has it
 
-Each relative link and image points at a file in the bundle.
+Each relative link and image points at a file in the bundle, a repo file that the bundle carries, or a spec doc of another bundle. A link to a file that git ignores stays broken.
 
-To fix a finding: Correct the path, or add the file to the bundle.
+To fix a finding: Correct the path, link to a file that git tracks, or use a full URL.
 
 <h3 id="lint.dangling-ref"><code>lint.dangling-ref</code></h3>
 

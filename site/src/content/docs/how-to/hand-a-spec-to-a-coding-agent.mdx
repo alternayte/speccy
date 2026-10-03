@@ -13,6 +13,7 @@ A handoff is one record that a builder took the build packet of one version of a
 ## What the build packet holds
 
 - The spec doc and every asset of the bundle, at the current version.
+- Each repo file that the spec doc links to above its folder, under `@repo/`. The spec doc keeps its links as reviewed, and `HANDOFF.md` has a table from each link to its file.
 - The spec doc of each bundle that this one links to, such as the PRD that an SDD implements.
 - Each external link, with its kind and its URL. A code target also carries the commit that the last run read.
 - The trace IDs that the doc defines, in document order.
