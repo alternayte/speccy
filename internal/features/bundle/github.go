@@ -207,7 +207,19 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 		}
 		cfg.Map = append(cfg.Map, source.Mapping{Glob: a.Path, Profile: a.Profile})
 	}
-	scan, err := local.FromFS(tfs).Scan(cfg)
+	// A bundle carries the files its doc references above its folder, from anywhere in the
+	// repo. The full tree reads a file only when the carry asks for it.
+	full := github.NewTreeFS(entries, func(string) bool { return true }, func(e github.Entry) ([]byte, error) {
+		if b, ok := s.blobs.get(e.SHA); ok {
+			return b, nil
+		}
+		b, err := c.Blob(ctx, src.Repo, e.SHA)
+		if err == nil {
+			s.blobs.put(e.SHA, b)
+		}
+		return b, err
+	})
+	scan, err := local.FromFS(tfs).WithRepo(full).Scan(cfg)
 	if err != nil {
 		return fail(err)
 	}
@@ -313,7 +325,7 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 			}
 			draft := b.CurrentVersionID.Valid && b.CurrentVersionID.UUID != ref.Published
 			if !draft {
-				v, _, err := version.Record(ctx, tx, version.Change{Bundle: b, Files: fb.Files, Title: s.title(fb.Main, fb.Slug),
+				v, _, err := version.Record(ctx, tx, version.Change{Bundle: b, Files: fb.Files, Refs: scanRefs(fb), Title: s.title(fb.Main, fb.Slug),
 					Profile: fb.Main.Frontmatter.Type, MainDoc: fb.Main.Path, CreatedBy: GitHubUser, Message: message})
 				if err != nil {
 					return err

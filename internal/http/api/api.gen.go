@@ -1759,7 +1759,7 @@ type BuildPacket struct {
 	// ExternalLinks The issues, pages, and code this doc links to (DEC-021). Speccy fetches no content for them.
 	ExternalLinks []PacketExternalLink `json:"external_links"`
 
-	// Files The main doc and its assets.
+	// Files The main doc and its assets, with the repo files it references above its folder under @repo/.
 	Files     []ContentFile      `json:"files"`
 	HandoffId openapi_types.UUID `json:"handoff_id"`
 
@@ -1770,8 +1770,11 @@ type BuildPacket struct {
 	Links []PacketLink `json:"links"`
 
 	// MainDoc The path of the main doc inside files.
-	MainDoc       string           `json:"main_doc"`
-	Questions     []PacketQuestion `json:"questions"`
+	MainDoc   string           `json:"main_doc"`
+	Questions []PacketQuestion `json:"questions"`
+
+	// RepoLinks Each link of the main doc to a file above its folder, and the path of that file in files. The doc keeps its link as reviewed.
+	RepoLinks     []PacketRepoLink `json:"repo_links"`
 	Title         string           `json:"title"`
 	TraceIds      []PacketTraceId  `json:"trace_ids"`
 	VersionNumber int64            `json:"version_number"`
@@ -2731,6 +2734,15 @@ type PacketQuestion struct {
 
 // PacketQuestionResult defines model for PacketQuestion.Result.
 type PacketQuestionResult string
+
+// PacketRepoLink defines model for PacketRepoLink.
+type PacketRepoLink struct {
+	// Link The link target as the doc writes it, relative to the folder of the doc, such as ../shared/bus.md.
+	Link string `json:"link"`
+
+	// Path The path of the file in the packet, such as @repo/shared/bus.md.
+	Path string `json:"path"`
+}
 
 // PacketTraceId defines model for PacketTraceId.
 type PacketTraceId struct {

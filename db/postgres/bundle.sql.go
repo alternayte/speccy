@@ -219,7 +219,7 @@ func (q *Queries) GetSpecDocBySlug(ctx context.Context, arg GetSpecDocBySlugPara
 }
 
 const getVersion = `-- name: GetVersion :one
-SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at FROM version WHERE spec_doc_id = $1 AND id = $2
+SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at, refs FROM version WHERE spec_doc_id = $1 AND id = $2
 `
 
 type GetVersionParams struct {
@@ -238,12 +238,13 @@ func (q *Queries) GetVersion(ctx context.Context, arg GetVersionParams) (Version
 		&i.CreatedBy,
 		&i.Message,
 		&i.CreatedAt,
+		&i.Refs,
 	)
 	return i, err
 }
 
 const getVersionByNumber = `-- name: GetVersionByNumber :one
-SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at FROM version WHERE spec_doc_id = $1 AND number = $2
+SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at, refs FROM version WHERE spec_doc_id = $1 AND number = $2
 `
 
 type GetVersionByNumberParams struct {
@@ -262,6 +263,7 @@ func (q *Queries) GetVersionByNumber(ctx context.Context, arg GetVersionByNumber
 		&i.CreatedBy,
 		&i.Message,
 		&i.CreatedAt,
+		&i.Refs,
 	)
 	return i, err
 }
@@ -384,9 +386,9 @@ func (q *Queries) InsertSpecDoc(ctx context.Context, arg InsertSpecDocParams) er
 }
 
 const insertVersion = `-- name: InsertVersion :exec
-INSERT INTO version (id, workspace_id, spec_doc_id, number, created_by, message, created_at)
+INSERT INTO version (id, workspace_id, spec_doc_id, number, created_by, message, created_at, refs)
 VALUES ($1, $2, $3, $4, $5,
-        $6, $7)
+        $6, $7, $8)
 `
 
 type InsertVersionParams struct {
@@ -397,6 +399,7 @@ type InsertVersionParams struct {
 	CreatedBy   string
 	Message     string
 	CreatedAt   time.Time
+	Refs        dbtype.JSON
 }
 
 func (q *Queries) InsertVersion(ctx context.Context, arg InsertVersionParams) error {
@@ -408,6 +411,7 @@ func (q *Queries) InsertVersion(ctx context.Context, arg InsertVersionParams) er
 		arg.CreatedBy,
 		arg.Message,
 		arg.CreatedAt,
+		arg.Refs,
 	)
 	return err
 }
@@ -817,7 +821,7 @@ func (q *Queries) ListVersionFiles(ctx context.Context, versionID uuid.UUID) ([]
 }
 
 const listVersions = `-- name: ListVersions :many
-SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at FROM version
+SELECT id, workspace_id, spec_doc_id, number, created_by, message, created_at, refs FROM version
 WHERE spec_doc_id = $1 AND number < $2
 ORDER BY number DESC
 LIMIT $3::bigint
@@ -846,6 +850,7 @@ func (q *Queries) ListVersions(ctx context.Context, arg ListVersionsParams) ([]V
 			&i.CreatedBy,
 			&i.Message,
 			&i.CreatedAt,
+			&i.Refs,
 		); err != nil {
 			return nil, err
 		}

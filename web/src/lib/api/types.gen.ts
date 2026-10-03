@@ -1631,9 +1631,13 @@ export type BuildPacket = {
      */
     main_doc: string;
     /**
-     * The main doc and its assets.
+     * The main doc and its assets, with the repo files it references above its folder under @repo/.
      */
     files: Array<ContentFile>;
+    /**
+     * Each link of the main doc to a file above its folder, and the path of that file in files. The doc keeps its link as reviewed.
+     */
+    repo_links: Array<PacketRepoLink>;
     /**
      * The issues, pages, and code this doc links to (DEC-021). Speccy fetches no content for them.
      */
@@ -1648,6 +1652,17 @@ export type BuildPacket = {
      * The re-entry prompt, as markdown. The agent owns it after the handoff.
      */
     handoff_md: string;
+};
+
+export type PacketRepoLink = {
+    /**
+     * The link target as the doc writes it, relative to the folder of the doc, such as ../shared/bus.md.
+     */
+    link: string;
+    /**
+     * The path of the file in the packet, such as @repo/shared/bus.md.
+     */
+    path: string;
 };
 
 export type PacketLink = {

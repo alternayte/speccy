@@ -44,9 +44,9 @@ WHERE id = sqlc.arg(id) AND current_version_id IS NOT DISTINCT FROM sqlc.narg(ex
 UPDATE spec_doc SET archived_at = sqlc.narg(archived_at), updated_at = sqlc.arg(updated_at) WHERE id = sqlc.arg(id);
 
 -- name: InsertVersion :exec
-INSERT INTO version (id, workspace_id, spec_doc_id, number, created_by, message, created_at)
+INSERT INTO version (id, workspace_id, spec_doc_id, number, created_by, message, created_at, refs)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), sqlc.arg(number), sqlc.arg(created_by),
-        sqlc.arg(message), sqlc.arg(created_at));
+        sqlc.arg(message), sqlc.arg(created_at), sqlc.arg(refs));
 
 -- name: InsertVersionFile :exec
 INSERT INTO version_file (version_id, path, sha256, carried_by)

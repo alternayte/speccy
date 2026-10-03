@@ -164,6 +164,15 @@ Speccy reads each source when it starts and every 5 minutes after that. **Sync**
 
 An edit you make in Speccy to a doc from GitHub is a draft. The GitHub control on the doc shows **Unpublished**. **Open a pull request** puts the changed files on a new branch, `speccy/<bundle>-v<version>-<time>`, and opens a pull request into the source branch. **Discard the changes** takes the text from GitHub again.
 
+## Links to other files of the repo
+
+A spec doc often links to a doc in another folder, such as `../shared/bus.md`. Speccy takes such a file into the bundle, under `@repo/` and its path from the root. Speccy does not change the link in the doc. The review, the preview, the export and the build packet then read the file. In local mode and in a GitHub source, the rule is the same.
+
+- A link to a spec doc of another bundle is not a broken link. Speccy does not take that doc into the bundle.
+- Speccy never takes a file that git ignores. The link stays a broken link, and the finding says that git ignores the file.
+- Speccy never takes a file whose path has a part that starts with a dot, such as `.env`. It never takes a file above the folder that Speccy serves.
+- The bundle does not hold a copy that you can edit. Change the file where it lives. A change to it makes a new version of the bundle.
+
 ## What each surface does
 
 | Surface | What it does for docs you already have |

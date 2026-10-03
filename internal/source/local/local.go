@@ -26,6 +26,24 @@ const MaxFileBytes = source.MaxFileBytes
 type Root struct {
 	dir  string // absolute, symlinks resolved; "" for a tree that is not on disk
 	fsys fs.FS
+	// repo is the tree that carried files come from, when it is wider than fsys: the whole
+	// repo of a GitHub source, whose scan tree holds the source's own paths only.
+	repo fs.FS
+}
+
+// WithRepo returns the root with repo as the tree that a bundle carries files from.
+func (r *Root) WithRepo(repo fs.FS) *Root {
+	c := *r
+	c.repo = repo
+	return &c
+}
+
+// repoFS is the tree that a bundle carries files from.
+func (r *Root) repoFS() fs.FS {
+	if r.repo != nil {
+		return r.repo
+	}
+	return r.fsys
 }
 
 // FromFS returns a read-only root over fsys, for scans only.
@@ -68,6 +86,9 @@ type Bundle struct {
 	File  string
 	Main  source.MainDoc
 	Files []source.File
+	// Refs are the links of the bundle's markdown outside its folder, and to other spec docs,
+	// with what the scan did with each one.
+	Refs []source.Ref
 	// Unnamed is a bundle that only exists because the user pointed Speccy at the file: it
 	// names no type, and no map entry selects it (REQ-135). It is reviewed, never saved.
 	Unnamed bool
@@ -199,6 +220,15 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 			s.Bundles = append(s.Bundles, b)
 		}
 	}
+	// Each bundle carries the files that its markdown references above its folder. The walk
+	// runs after every bundle exists, so a link to another spec doc is known.
+	ignore := source.NewIgnore(r.repoFS())
+	for i := range s.Bundles {
+		b := &s.Bundles[i]
+		var problems []Problem
+		b.Files, b.Refs, problems = s.carry(r, b.Dir, b.Files, ignore)
+		s.Problems = append(s.Problems, problems...)
+	}
 	sort.Slice(s.Bundles, func(i, j int) bool { return s.Bundles[i].Slug < s.Bundles[j].Slug })
 	for i, b := range s.Bundles {
 		s.bySlug[b.Slug] = i
@@ -213,7 +243,7 @@ func (r *Root) Scan(cfg source.RepoConfig) (*Scan, error) {
 		taken[path.Join(b.Dir, b.Main.Path)] = true
 		for _, f := range b.Files {
 			if f.Carried() {
-				taken[path.Join(b.Dir, f.Path)] = true
+				taken[rootPath(b.Dir, f.Path)] = true
 			}
 		}
 	}
@@ -330,7 +360,11 @@ func (r *Root) Load(s *Scan, slug string) ([]source.File, error) {
 		return nil, fmt.Errorf("no bundle %q on disk", slug)
 	}
 	files, _, err := r.load(b.Dir, s.skipFor(b.Dir, path.Join(b.Dir, b.File)))
-	return files, err
+	if err != nil {
+		return nil, err
+	}
+	files, _, _ = s.carry(r, b.Dir, files, source.NewIgnore(r.repoFS()))
+	return files, nil
 }
 
 // load reads the files under dir. skip names folders and files (relative to the root) to leave out.
@@ -362,6 +396,10 @@ func (r *Root) load(dir string, skip func(rel string) bool) ([]source.File, []Pr
 		inBundle := rel
 		if dir != "." {
 			inBundle = strings.TrimPrefix(rel, dir+"/")
+		}
+		if strings.HasPrefix(inBundle, source.RepoDir+"/") {
+			problems = append(problems, Problem{Path: rel, Message: fmt.Sprintf("Speccy keeps the repo files that a doc references in %s, so it does not read this file. Rename the folder.", source.RepoDir)})
+			return nil
 		}
 		files = append(files, source.File{Path: inBundle, Content: content})
 		return nil
@@ -612,4 +650,124 @@ func repoFilePath(rel string) (string, error) {
 		return "", fmt.Errorf("%q is outside the served folder", rel)
 	}
 	return clean, nil
+}
+
+// rootPath returns the path from the source root of the file p of the bundle in dir: a
+// carried file in source.RepoDir names it already.
+func rootPath(dir, p string) string {
+	if rest, ok := strings.CutPrefix(p, source.RepoDir+"/"); ok {
+		return rest
+	}
+	return path.Join(dir, p)
+}
+
+// under reports whether p, a path from the source root, is in the folder dir or below it.
+func under(dir, p string) bool {
+	return dir == "." || p == dir || strings.HasPrefix(p, dir+"/")
+}
+
+// carry adds to the files of the bundle in dir the files that its markdown references above
+// the bundle folder, at source.RepoPath, to closure through each carried markdown file. It
+// returns the refs of the bundle's own markdown: each link above the folder, and each link to
+// a spec doc of another bundle, with what the scan did (docs/specs/carry-repo-files.md).
+//
+// A link to a spec doc is never carried: two bundles must not hold one text. A link above the
+// source root, to a hidden file, or to nothing stays a broken link. A file that git ignores is
+// never carried. The bundle size limit bounds the walk.
+func (s *Scan) carry(r *Root, dir string, files []source.File, ignore *source.Ignore) ([]source.File, []source.Ref, []Problem) {
+	var problems []Problem
+	held := map[string]bool{}
+	var total int64
+	for _, f := range files {
+		held[f.Path] = true
+		total += int64(len(f.Content))
+	}
+	refs := map[string]source.Ref{}
+	var queue []string
+	for _, f := range files {
+		if source.IsMarkdown(f.Path) {
+			queue = append(queue, f.Path)
+		}
+	}
+	content := map[string][]byte{}
+	for _, f := range files {
+		content[f.Path] = f.Content
+	}
+	for len(queue) > 0 {
+		from := queue[0]
+		queue = queue[1:]
+		own := !strings.HasPrefix(from, source.RepoDir+"/")
+		fromRoot := rootPath(dir, from)
+		for _, ref := range source.References(content[from]) {
+			target := path.Clean(path.Join(path.Dir(from), ref))
+			rel := path.Clean(path.Join(path.Dir(fromRoot), ref))
+			if rel == ".." || strings.HasPrefix(rel, "../") {
+				continue // above the source root: a broken link
+			}
+			note := func(state, p string) {
+				if own {
+					refs[target] = source.Ref{Target: target, State: state, Path: p}
+				}
+			}
+			if s.docs[rel] {
+				if rel != fromRoot {
+					note(source.RefDoc, "")
+				}
+				continue
+			}
+			if under(dir, rel) {
+				continue // in the folder: an asset of the bundle, or a broken link
+			}
+			carried := source.RepoPath(rel)
+			if held[carried] {
+				note(source.RefCarried, carried)
+				continue
+			}
+			if hidden(rel) {
+				continue
+			}
+			if ignore.Ignored(rel) {
+				note(source.RefIgnored, "")
+				continue
+			}
+			info, err := fs.Stat(r.repoFS(), rel)
+			if err != nil || !info.Mode().IsRegular() {
+				continue
+			}
+			if info.Size() > MaxFileBytes || total+info.Size() > source.DefaultLimits.BundleBytes {
+				problems = append(problems, Problem{Path: rel,
+					Message: fmt.Sprintf("%s references this file, and the bundle limit stops Speccy from taking it.", rootPath(dir, from))})
+				continue
+			}
+			body, err := fs.ReadFile(r.repoFS(), rel)
+			if err != nil {
+				continue
+			}
+			held[carried] = true
+			total += int64(len(body))
+			content[carried] = body
+			files = append(files, source.File{Path: carried, Content: body, CarriedBy: from})
+			note(source.RefCarried, carried)
+			if source.IsMarkdown(carried) {
+				queue = append(queue, carried)
+			}
+		}
+	}
+	source.Sort(files)
+	out := make([]source.Ref, 0, len(refs))
+	for _, r := range refs {
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Target < out[j].Target })
+	return files, out, problems
+}
+
+// hidden reports whether a path has a hidden segment or a folder that the scan skips.
+func hidden(p string) bool {
+	for _, seg := range strings.Split(p, "/") {
+		if strings.HasPrefix(seg, ".") || seg == "node_modules" {
+			return true
+		}
+	}
+	return false
 }

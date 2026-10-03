@@ -10,6 +10,7 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
+	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/store/storetest"
@@ -98,4 +99,46 @@ func (pe *pipelineEnv) current(t *testing.T, slug string) ([]string, api.BundleV
 		ids = append(ids, f.Id.String())
 	}
 	return ids, *v
+}
+
+// docs/specs/carry-repo-files.md: a spec doc that links to a repo file above its folder gets
+// that file into its bundle, and the link is not broken. A link to a spec doc of another bundle
+// is not broken. A link to a file that git ignores stays a broken-link MUST that says so, and a
+// link above the root stays a broken link. Grounding reads the carried file, and a change to
+// it makes a new version.
+func TestCarry_RepoFilesAboveTheFolder(t *testing.T) {
+	sdd := groundedSDD + "\n## References\n\nSee the [limits](../shared/limits.md), the [PRD](../prd/PRD.md), the [keys](../config/prod-keys.yaml) and the [notes](../../outside.md).\n"
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{
+		".gitignore":            "config/prod-*.yaml\n",
+		"pay/SPEC.md":           sdd,
+		"shared/limits.md":      limitsFile,
+		"prd/PRD.md":            "---\ntype: prd\ntitle: Pay\n---\n# Pay\n\n## Goals\n\nPeople pay.\n",
+		"config/prod-keys.yaml": "key: secret\n",
+	}, "fake-1")
+	run, fs, _ := pe.run(t, "pay")
+	var broken []string
+	for _, f := range fs {
+		if f.CheckSlug == lint.BrokenLink {
+			broken = append(broken, f.Level+": "+f.Message)
+		}
+	}
+	want := []string{
+		"MUST: The link to ../config/prod-keys.yaml points to a file that git ignores, so Speccy does not take it into the bundle.",
+		"MUST: The link to ../../outside.md points outside the bundle.",
+	}
+	if strings.Join(broken, " | ") != strings.Join(want, " | ") {
+		t.Errorf("broken links:\n%s\nwant:\n%s", strings.Join(broken, "\n"), strings.Join(want, "\n"))
+	}
+	if _, c := groundingOf(t, pe, run, fs, "Stripe allows 100"); c.Label != "verified" || !strings.Contains(string(c.Sources), "@repo/shared/limits.md") {
+		t.Errorf("the claim that the repo file states: %s from %s, want verified by @repo/shared/limits.md", c.Label, c.Sources)
+	}
+	ctx := context.Background()
+	q := pe.bundles.DB.Queries()
+	b, _ := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	before := b.CurrentVersionID.UUID
+	pe.write(t, "shared/limits.md", limitsFile+"\nThe provider keeps each log line for 30 days.\n")
+	b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
+	if b.CurrentVersionID.UUID == before {
+		t.Error("a change to the carried file made no new version")
+	}
 }

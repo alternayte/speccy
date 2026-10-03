@@ -38,6 +38,8 @@ type reportFinding struct {
 }
 
 type reportData struct {
+	// refs maps a link above the bundle folder to the file the bundle carries for it.
+	refs                  map[string]string
 	Title, Slug, Profile  string
 	Version               int64
 	Generated             string
@@ -76,7 +78,7 @@ func (a *API) report(ctx context.Context, b pgdb.SpecDoc) (api.ExportBundleRespo
 		return nil, err
 	}
 	d := reportData{Title: b.Title, Slug: b.Slug, Profile: strings.ToUpper(b.ProfileKey), Version: v.Number,
-		Generated: time.Now().UTC().Format("2 January 2006, 15:04 UTC"), MainDoc: b.DocPath}
+		Generated: time.Now().UTC().Format("2 January 2006, 15:04 UTC"), MainDoc: b.DocPath, refs: version.CarriedPaths(v)}
 	byPath := map[string][]byte{}
 	for _, f := range files {
 		byPath[f.Path] = f.Content
@@ -168,7 +170,7 @@ func (d *reportData) setRadar(radar map[string]int) {
 // render writes the report with the main doc. Images become data URIs, so the report opens
 // anywhere.
 func (d *reportData) render(byPath map[string][]byte) ([]byte, error) {
-	doc, err := render.HTML(byPath[d.MainDoc], render.Links{Dir: path.Dir(d.MainDoc), Image: func(p string) string {
+	doc, err := render.HTML(byPath[d.MainDoc], render.Links{Dir: path.Dir(d.MainDoc), Refs: d.refs, Image: func(p string) string {
 		content, ok := byPath[p]
 		if !ok {
 			return p

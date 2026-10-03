@@ -96,6 +96,16 @@ type Config struct {
 	Acronyms []string
 	// Levels overrides a rule's default level. "off" turns the rule off (REQ-062).
 	Levels map[string]string
+	// Refs are the links outside the bundle folder, and to other spec docs, by their target
+	// relative to the bundle folder, with what the scan did with each one.
+	Refs map[string]Ref
+}
+
+// Ref is what the scan did with a link target: it carried the file to Path, found a spec doc
+// of another bundle, or refused a file that git ignores.
+type Ref struct {
+	State string // carried, doc or ignored
+	Path  string
 }
 
 // Finding is one failed check with its anchor (REQ-023).

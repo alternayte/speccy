@@ -135,7 +135,7 @@ func (s *Service) syncLocked(ctx context.Context) error {
 			found[d.ID] = true
 			_, _, err = version.Record(ctx, tx, version.Change{
 				Bundle: d, Files: fb.Files, Title: s.title(fb.Main, fb.Slug), Profile: fb.Main.Frontmatter.Type,
-				MainDoc: fb.Main.Path, CreatedBy: LocalUser, Message: message,
+				MainDoc: fb.Main.Path, CreatedBy: LocalUser, Message: message, Refs: scanRefs(fb),
 			})
 			return err
 		})
@@ -619,4 +619,13 @@ func (s *Service) limits(ctx context.Context) source.Limits {
 		return source.DefaultLimits
 	}
 	return s.Limits(ctx)
+}
+
+// scanRefs are the refs that a scan found for a bundle. A scan always gives a list, so an empty
+// one replaces the refs of the version before it.
+func scanRefs(b local.Bundle) []source.Ref {
+	if b.Refs == nil {
+		return []source.Ref{}
+	}
+	return b.Refs
 }

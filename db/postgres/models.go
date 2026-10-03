@@ -482,6 +482,7 @@ type Version struct {
 	CreatedBy   string
 	Message     string
 	CreatedAt   time.Time
+	Refs        dbtype.JSON
 }
 
 type VersionFile struct {

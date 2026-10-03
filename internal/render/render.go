@@ -36,6 +36,9 @@ type Links struct {
 	MarkFiles bool
 	// Dir is the folder of the doc in the bundle.
 	Dir string
+	// Refs maps a link target above the bundle folder, relative to the bundle folder, to the
+	// bundle path of the file the bundle carries for it (docs/specs/carry-repo-files.md).
+	Refs map[string]string
 }
 
 // HTML returns the HTML for src. Raw HTML in the doc is not rendered (SDD §14.3).
@@ -182,7 +185,10 @@ func rewriteLinks(doc ast.Node, links Links) {
 		if err != nil {
 			return "", false
 		}
-		clean, err := source.CleanPath(path.Join(dir, p))
+		if carried, ok := links.Refs[path.Clean(path.Join(dir, p))]; ok {
+			return carried, true
+		}
+		clean, err := source.CleanReadPath(path.Join(dir, p))
 		if err != nil {
 			return "", false
 		}
