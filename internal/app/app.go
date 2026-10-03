@@ -18,6 +18,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/inbox"
 	"github.com/alternayte/speccy/internal/features/insights"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/prreview"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
@@ -43,6 +44,7 @@ type App struct {
 	Reviews   *review.Service
 	Admin     *admin.API
 	Share     *share.API
+	PRs       *prreview.API
 	API       speccyhttp.API
 }
 
@@ -145,6 +147,14 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	go svc.WatchGitHub(ctx, 5*time.Minute)
 	shareAPI := &share.API{DB: db, Workspace: ws}
 	reviewAPI := &review.API{DB: db, Workspace: ws, Service: reviews, Change: svc.Change}
+	prs := &prreview.API{DB: db, Workspace: ws, Reviews: reviews, ReviewAPI: reviewAPI, Gateway: gateway, Profiles: profiles.Current,
+		GitHub: reviews.GitHub, LocalMode: root != nil, Life: ctx}
+	if root != nil {
+		// A batch that a stopped process left runs nowhere (docs/specs/pr-review-batch.md).
+		if err := prs.EndOrphans(ctx); err != nil {
+			return nil, err
+		}
+	}
 	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}
 	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change,
 		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions}
@@ -175,7 +185,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		return err
 	}
 	return &App{
-		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI,
+		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI, PRs: prs,
 		API: speccyhttp.API{
 			Core: speccyhttp.Core{Maintainer: func(ctx context.Context, userID string) bool {
 				ok, _ := db.Queries().IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: ws, UserID: userID})
@@ -206,8 +216,18 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			TourAPI:     tourAPI,
 			HandoffAPI:  handoffAPI,
 			VerifyAPI:   verifyAPI,
+			PrReviewAPI: prs,
 		},
 	}, nil
+}
+
+// Idle reports whether no review job and no pull request batch runs. An owner that wants to
+// exit waits for it.
+func (a *App) Idle(ctx context.Context) (bool, error) {
+	if !a.PRs.Idle() {
+		return false, nil
+	}
+	return a.Reviews.Idle(ctx)
 }
 
 // invalidateWaivers ends the approved waivers of every bundle whose section changed (REQ-074),

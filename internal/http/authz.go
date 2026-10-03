@@ -58,6 +58,17 @@ var operations = map[string]access{
 	// A review of a GitHub URL reads the repo with the workspace credential, as a verification
 	// run does, and calls the models.
 	"reviewUrl": member,
+	// Pull request batches, questions to authors and pending reviews post as the local user
+	// with the GitHub credential of local mode (docs/specs/pr-review-batch.md). Hosted mode
+	// answers each one with local_only.
+	"createPrBatch":  member,
+	"getPrBatch":     member,
+	"startPrBatch":   member,
+	"cancelPrBatch":  member,
+	"askAuthor":      member,
+	"listPending":    member,
+	"deletePending":  member,
+	"discardPending": member,
 	// The conflicts of a profile's checks: one model call, and no doc text.
 	"findCheckConflicts": member,
 	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.

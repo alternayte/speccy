@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"path"
 	"strings"
+	"sync"
 
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
@@ -42,19 +43,97 @@ type URLDoc struct {
 // reads the files at the head commit with the GitHub credential that Speccy holds. For a pull
 // request it takes the spec docs that the pull request changes; for a folder, the spec docs
 // under it. The review uses the repo's own .speccy.yaml and sidecars at that commit, and a
-// link from one doc resolves to another spec doc of the same commit.
+// link from one doc resolves to another spec doc of the same commit. The docs review in
+// parallel, URLParallel at a time.
 func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URLReview, error) {
-	var out URLReview
+	plan, err := s.PlanURL(ctx, raw)
+	if err != nil {
+		return plan.Review, err
+	}
+	return s.ReviewPlan(ctx, plan, stages, make(chan struct{}, URLParallel)), nil
+}
+
+// URLParallel is how many spec docs of one URL review at the same time.
+const URLParallel = 3
+
+// URLPlan is the spec docs of a URL, read from the repo, before any model call.
+type URLPlan struct {
+	// Review holds the repo, the commit and the pull request, and no doc yet.
+	Review URLReview
+	Items  []URLItem
+}
+
+// URLItem is one spec doc of a plan: its place and files, and the content to review, or the
+// reason it does not load.
+type URLItem struct {
+	Doc     URLDoc
+	Content Content
+}
+
+// ReviewPlan reviews each doc of the plan. A doc takes a slot of slots for its review, so one
+// set of slots limits the reviews of many plans together. The docs keep their order.
+func (s *Service) ReviewPlan(ctx context.Context, plan URLPlan, stages Stages, slots chan struct{}) URLReview {
+	out := plan.Review
+	out.Docs = make([]URLDoc, len(plan.Items))
+	var wg sync.WaitGroup
+	for i, it := range plan.Items {
+		out.Docs[i] = it.Doc
+		if it.Doc.Err != nil {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case slots <- struct{}{}:
+			case <-ctx.Done():
+				out.Docs[i].Err = ctx.Err()
+				return
+			}
+			defer func() { <-slots }()
+			out.Docs[i].Result, out.Docs[i].Err = s.ReviewContent(ctx, it.Content, stages)
+		}()
+	}
+	wg.Wait()
+	return out
+}
+
+// EstimatePlan estimates the chosen stages on each doc of the plan that loads.
+func (s *Service) EstimatePlan(ctx context.Context, plan URLPlan, stages Stages) (Estimate, error) {
+	var sum Estimate
+	for _, it := range plan.Items {
+		if it.Doc.Err != nil {
+			continue
+		}
+		est, err := s.EstimateContent(ctx, it.Content, stages)
+		if err != nil {
+			return sum, err
+		}
+		sum.Calls += est.Calls
+		sum.CachedHits += est.CachedHits
+		sum.TokensIn += est.TokensIn
+		sum.TokensOut += est.TokensOut
+		sum.CostUSD += est.CostUSD
+		sum.Priced = sum.Priced || est.Priced
+	}
+	return sum, nil
+}
+
+// PlanURL reads the spec docs of a GitHub URL and what each one needs for its review, with no
+// model call.
+func (s *Service) PlanURL(ctx context.Context, raw string) (URLPlan, error) {
+	var plan URLPlan
+	out := &plan.Review
 	build, err := github.ParseBuildURL(raw)
 	if err != nil {
-		return out, kernel.Invalid("bad_url", "%s.", err.Error())
+		return plan, kernel.Invalid("bad_url", "%s.", err.Error())
 	}
 	if s.GitHub == nil {
-		return out, kernel.Invalid("no_github", "This Speccy has no GitHub credential, so it cannot read %s.", raw)
+		return plan, kernel.Invalid("no_github", "This Speccy has no GitHub credential, so it cannot read %s.", raw)
 	}
 	c, err := s.GitHub(ctx, build.APIURL())
 	if err != nil {
-		return out, err
+		return plan, err
 	}
 	out.Repo, out.Pull = build.Repo, build.Pull
 	ref := build.SHA
@@ -63,11 +142,11 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 	case build.Pull > 0:
 		pr, err := c.PullRequest(ctx, build.Repo, build.Pull)
 		if err != nil {
-			return out, github.UnreadableRepo(build.Repo, err)
+			return plan, github.UnreadableRepo(build.Repo, err)
 		}
 		files, err := c.PRFiles(ctx, build.Repo, build.Pull)
 		if err != nil {
-			return out, github.UnreadableRepo(build.Repo, err)
+			return plan, github.UnreadableRepo(build.Repo, err)
 		}
 		ref = pr.HeadSHA
 		for _, f := range files {
@@ -78,26 +157,26 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 	case ref == "":
 		resolved, err := c.ResolveBranch(ctx, build.Ref)
 		if err != nil {
-			return out, github.UnreadableRepo(build.Repo, err)
+			return plan, github.UnreadableRepo(build.Repo, err)
 		}
 		build.Ref = resolved
 		if ref = build.Branch; ref == "" {
 			if ref, err = c.Repo(ctx, build.Repo); err != nil {
-				return out, github.UnreadableRepo(build.Repo, err)
+				return plan, github.UnreadableRepo(build.Repo, err)
 			}
 		}
 	}
 	commit, tree, err := c.CommitTree(ctx, build.Repo, ref)
 	if err != nil {
-		return out, github.UnreadableRepo(build.Repo, err)
+		return plan, github.UnreadableRepo(build.Repo, err)
 	}
 	out.Commit = commit
 	entries, truncated, err := c.Tree(ctx, build.Repo, tree)
 	if err != nil {
-		return out, github.UnreadableRepo(build.Repo, err)
+		return plan, github.UnreadableRepo(build.Repo, err)
 	}
 	if truncated {
-		return out, kernel.Invalid("tree_too_large", "The tree of %s is too large for the GitHub API.", build.Repo)
+		return plan, kernel.Invalid("tree_too_large", "The tree of %s is too large for the GitHub API.", build.Repo)
 	}
 	// Speccy reads a blob only when the scan or a review opens the file, and only near the
 	// docs that the URL names. A blob is read once.
@@ -129,7 +208,7 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 	cfg := source.RepoConfig{}
 	if rawCfg, err := fs.ReadFile(tfs, source.RepoConfigFile); err == nil {
 		if cfg, err = source.ParseRepoConfig(rawCfg); err != nil {
-			return out, kernel.Invalid("bad_repo_config", "%s in the repo is not valid: %s.", source.RepoConfigFile, err.Error())
+			return plan, kernel.Invalid("bad_repo_config", "%s in the repo is not valid: %s.", source.RepoConfigFile, err.Error())
 		}
 	}
 	var root *local.Root
@@ -141,7 +220,7 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 		// A bundle carries the files its doc references above its folder, from the whole repo.
 		root = local.FromFS(github.NewTreeFS(entries, keep, load)).WithRepo(github.NewTreeFS(entries, func(string) bool { return true }, load))
 		if scan, err = root.Scan(cfg); err != nil {
-			return out, err
+			return plan, err
 		}
 		selected = selected[:0]
 		for _, b := range scan.Bundles {
@@ -162,22 +241,22 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 	if len(selected) == 0 && build.Pull == 0 && build.File {
 		content, err := fs.ReadFile(tfs, build.Path)
 		if err != nil {
-			return out, kernel.NotFound("no_such_file", "%s has no file %s at %s.", build.Repo, build.Path, short(commit))
+			return plan, kernel.NotFound("no_such_file", "%s has no file %s at %s.", build.Repo, build.Path, short(commit))
 		}
 		file := path.Base(build.Path)
 		main, err := source.SingleFileMainDoc(file, content, "")
 		if err != nil {
-			return out, kernel.Invalid("bad_main_doc", "%s has %s.", build.Path, err.Error())
+			return plan, kernel.Invalid("bad_main_doc", "%s has %s.", build.Path, err.Error())
 		}
 		selected = []local.Bundle{{Slug: strings.TrimSuffix(build.Path, path.Ext(build.Path)), Dir: path.Dir(build.Path), File: file,
 			Main: main, Files: []source.File{{Path: file, Content: content}}, Unnamed: true}}
 	}
 	if len(selected) == 0 {
-		return out, kernel.Invalid("no_spec_doc", "%s names no spec doc at %s. A spec doc is a markdown file with a type in its frontmatter, or a file that a map entry in %s selects.",
+		return plan, kernel.Invalid("no_spec_doc", "%s names no spec doc at %s. A spec doc is a markdown file with a type in its frontmatter, or a file that a map entry in %s selects.",
 			raw, short(commit), source.RepoConfigFile)
 	}
 	if len(selected) > MaxURLDocs {
-		return out, kernel.Invalid("too_many_docs", "%s names %d spec docs, and one review takes %d at most. Name a folder or a doc.", raw, len(selected), MaxURLDocs)
+		return plan, kernel.Invalid("too_many_docs", "%s names %d spec docs, and one review takes %d at most. Name a folder or a doc.", raw, len(selected), MaxURLDocs)
 	}
 	// Every spec doc of the scan can be the target of a link, so each one loads its files once.
 	loaded := map[string][]source.File{}
@@ -195,14 +274,14 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 	for _, b := range selected {
 		doc := URLDoc{Slug: b.Slug, Dir: b.Dir, Path: path.Join(b.Dir, b.Main.Path)}
 		if doc.Files, doc.Err = filesOf(b); doc.Err != nil {
-			out.Docs = append(out.Docs, doc)
+			plan.Items = append(plan.Items, URLItem{Doc: doc})
 			continue
 		}
 		from := &FromRepo{Dir: b.Dir, Config: cfg, Refs: b.Refs}
 		if rawDec, err := fs.ReadFile(tfs, source.SidecarPath(doc.Path)); err == nil {
 			if from.Decisions, err = source.ParseDecisions(rawDec); err != nil {
 				doc.Err = kernel.Invalid("bad_sidecar", "The sidecar of %s is not valid: %s.", doc.Path, err.Error())
-				out.Docs = append(out.Docs, doc)
+				plan.Items = append(plan.Items, URLItem{Doc: doc})
 				continue
 			}
 		}
@@ -221,10 +300,9 @@ func (s *Service) ReviewURL(ctx context.Context, raw string, stages Stages) (URL
 		if b.File != "" {
 			content.MainDoc, content.Profile = b.File, b.Main.Frontmatter.Type
 		}
-		doc.Result, doc.Err = s.ReviewContent(ctx, content, stages)
-		out.Docs = append(out.Docs, doc)
+		plan.Items = append(plan.Items, URLItem{Doc: doc, Content: content})
 	}
-	return out, nil
+	return plan, nil
 }
 
 // linkedFolders returns the folders where the docs that b links to can be: the folder of each

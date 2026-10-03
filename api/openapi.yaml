@@ -2810,8 +2810,213 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /pr-batches:
+    post:
+      operationId: createPrBatch
+      summary: >
+        Plan a batch of pull request reviews, and start it unless start is false. Local mode only:
+        the pending reviews post with the local user's GitHub credential.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrBatchRequest"
+      responses:
+        "200":
+          description: The batch, with its pull requests and the cost estimate.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrBatch"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pr-batches/{batchId}:
+    parameters:
+      - $ref: "#/components/parameters/BatchId"
+    get:
+      operationId: getPrBatch
+      summary: Get a batch and the state of each of its pull requests.
+      responses:
+        "200":
+          description: The batch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrBatch"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pr-batches/{batchId}/start:
+    parameters:
+      - $ref: "#/components/parameters/BatchId"
+    post:
+      operationId: startPrBatch
+      summary: Start a planned batch.
+      responses:
+        "200":
+          description: The batch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrBatch"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pr-batches/{batchId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/BatchId"
+    post:
+      operationId: cancelPrBatch
+      summary: Start no new pull request of the batch. The reviews that run now finish.
+      responses:
+        "200":
+          description: The batch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrBatch"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pr-asks:
+    post:
+      operationId: askAuthor
+      summary: >
+        Turn a reviewer's concern into one question for the author, on the section of the pull
+        request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AskRequest"
+      responses:
+        "200":
+          description: What Speccy did with the concern.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AskResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pending-reviews:
+    get:
+      operationId: listPending
+      summary: List the comments of the local user's pending review on a pull request. Local mode only.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The URL of the pull request.
+      responses:
+        "200":
+          description: The pending review, or none.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PendingReview"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pending-reviews/delete:
+    post:
+      operationId: deletePending
+      summary: Delete comments of the local user's pending review on a pull request. Local mode only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, ids]
+              properties:
+                url:
+                  type: string
+                  description: The URL of the pull request.
+                ids:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+      responses:
+        "200":
+          description: The comments deleted, and the IDs that are not in the pending review.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, missing]
+                properties:
+                  deleted:
+                    type: array
+                    items:
+                      type: integer
+                      format: int64
+                  missing:
+                    type: array
+                    items:
+                      type: integer
+                      format: int64
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /pending-reviews/discard:
+    post:
+      operationId: discardPending
+      summary: >
+        Discard the local user's pending reviews: on the named pull requests, on each open pull
+        request of a repo, or on each pull request of a batch. Local mode only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                urls:
+                  type: array
+                  items:
+                    type: string
+                repo:
+                  type: string
+                  description: A repo as owner/name.
+                batch:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: The pull requests whose pending review Speccy discarded, and the ones that had none.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [discarded, none]
+                properties:
+                  discarded:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PrRef"
+                  none:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PrRef"
+        default:
+          $ref: "#/components/responses/Problem"
+
 components:
   parameters:
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
     ConnectionId:
       name: connectionId
       in: path
@@ -6040,3 +6245,258 @@ components:
             HTML. Each block element has data-src-start and data-src-end (byte offsets into the
             markdown) and data-line (the 1-based first line). Mermaid blocks are
             <pre class="mermaid">.
+
+    PrRef:
+      type: object
+      required: [repo, pull, url]
+      properties:
+        repo:
+          type: string
+        pull:
+          type: integer
+        url:
+          type: string
+
+    PrBatchRequest:
+      type: object
+      properties:
+        urls:
+          type: array
+          description: Pull request URLs. Give these or repo.
+          items:
+            type: string
+        repo:
+          type: string
+          description: A repo as owner/name. The batch takes each open pull request that is not a draft and changes a spec doc.
+        requested:
+          type: boolean
+          description: With repo, only the pull requests where someone asked for your review.
+        parallel:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: How many pull requests run at the same time. The default is 3.
+        again:
+          type: boolean
+          description: Review a pull request again although it was reviewed at its head commit.
+        stages:
+          type: array
+          description: The model stages to run. Absent means all; empty means lint only.
+          items:
+            type: string
+            enum: [rubric, grounding, divergence, coherence]
+        start:
+          type: boolean
+          description: False plans the batch and waits for startPrBatch. The default is true.
+
+    PrBatch:
+      type: object
+      required: [id, status, parallel, source, created_at, estimate, items]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [planned, running, done, cancelled, stopped]
+        parallel:
+          type: integer
+        source:
+          type: string
+          description: What the batch took, such as a repo or a count of URLs.
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        estimate:
+          $ref: "#/components/schemas/PrBatchEstimate"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrBatchItem"
+
+    PrBatchEstimate:
+      type: object
+      required: [pulls, docs, calls, tokens_in, tokens_out, cost_usd, priced, lint_only]
+      properties:
+        pulls:
+          type: integer
+          description: The pull requests the batch will review. A skipped one is not counted.
+        docs:
+          type: integer
+        calls:
+          type: integer
+          description: The model calls the cache cannot answer.
+        tokens_in:
+          type: integer
+          format: int64
+        tokens_out:
+          type: integer
+          format: int64
+        cost_usd:
+          type: number
+        priced:
+          type: boolean
+          description: False when a role has no price, so cost_usd is not complete.
+        lint_only:
+          type: boolean
+          description: True when no reviewer model is assigned, or the stages are empty.
+
+    PrBatchItem:
+      type: object
+      required: [repo, pull, url, state, reason, head_sha, comments, removed, review_url, docs]
+      properties:
+        repo:
+          type: string
+        pull:
+          type: integer
+        url:
+          type: string
+        state:
+          type: string
+          enum: [waiting, reviewing, posted, skipped, failed]
+        reason:
+          type: string
+          description: Why a pull request is skipped, or why it failed.
+        head_sha:
+          type: string
+        comments:
+          type: integer
+          description: The comments Speccy added to the pending review.
+        removed:
+          type: integer
+          description: Speccy's comments that it removed from the pending review, because their finding is gone.
+        review_url:
+          type: string
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrBatchDoc"
+
+    PrBatchDoc:
+      type: object
+      required: [path, verdict, must, should]
+      properties:
+        path:
+          type: string
+          description: The spec doc, relative to the repo root.
+        verdict:
+          type: string
+          description: build_ready or not_build_ready, or empty when the review of the doc failed.
+        must:
+          type: integer
+        should:
+          type: integer
+        error:
+          type: string
+
+    AskRequest:
+      type: object
+      required: [url, concern]
+      properties:
+        url:
+          type: string
+          description: The URL of the pull request.
+        concern:
+          type: string
+          description: The reviewer's concern, in their own words.
+        section:
+          type: array
+          description: The heading path of the section, when the concern fits more than one.
+          items:
+            type: string
+        force:
+          type: boolean
+          description: Post the question although the doc already answers the concern.
+
+    AskResult:
+      type: object
+      required: [status, question]
+      properties:
+        status:
+          type: string
+          enum: [posted, answered, unclear]
+          description: >
+            posted: the question is in the pending review. answered: the doc answers the concern,
+            and Speccy posted nothing. unclear: the concern fits two sections equally, and Speccy
+            posted nothing.
+        question:
+          type: string
+        doc:
+          type: string
+          description: The spec doc of the section, relative to the repo root.
+        heading_path:
+          type: array
+          items:
+            type: string
+        line:
+          type: integer
+          description: With place line, the line of the comment.
+        place:
+          type: string
+          enum: [line, body, file]
+          description: >
+            With posted, where the question is. line: on its line. body: in the body of the review,
+            because the line is not in the diff. file: on the whole file, because the line is not
+            in the diff and GitHub does not let anyone edit a review body that started empty.
+        answer_quote:
+          type: string
+          description: With answered, the text of the doc that answers the concern.
+        candidates:
+          type: array
+          description: With unclear, the sections that fit.
+          items:
+            $ref: "#/components/schemas/AskSection"
+        review_url:
+          type: string
+
+    AskSection:
+      type: object
+      required: [doc, heading_path]
+      properties:
+        doc:
+          type: string
+        heading_path:
+          type: array
+          items:
+            type: string
+
+    PendingReview:
+      type: object
+      required: [repo, pull, exists, comments]
+      properties:
+        repo:
+          type: string
+        pull:
+          type: integer
+        exists:
+          type: boolean
+          description: False when you have no pending review on the pull request.
+        review_url:
+          type: string
+        body:
+          type: string
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PendingComment"
+
+    PendingComment:
+      type: object
+      required: [id, path, excerpt, speccy]
+      properties:
+        id:
+          type: integer
+          format: int64
+        path:
+          type: string
+        line:
+          type: integer
+        excerpt:
+          type: string
+          description: The first words of the comment.
+        speccy:
+          type: boolean
+          description: True when Speccy wrote the comment.

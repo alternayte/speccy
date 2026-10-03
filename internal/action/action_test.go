@@ -596,3 +596,90 @@ func TestVerify_BreachCommentOnce(t *testing.T) {
 		t.Errorf("after the fix: resolved %d, thread resolved %v", res.Resolved, f.threads[0].resolved)
 	}
 }
+
+// A batch adds to the reviewer's pending review: a finding that already has a comment there
+// gets no second one, the reviewer's own comments and text stay, and Speccy's part of the body
+// replaces the part it wrote before.
+func TestMerge_KeepsTheReviewersDraft(t *testing.T) {
+	old := Pending(Options{Repo: "acme/specs", PR: 1, HeadSHA: "aaaaaaa"}, nil, nil)
+	existing := &github.PendingReview{
+		Body: "My own note.\n\n" + old.Body,
+		Comments: []github.PendingComment{
+			{Body: "Why a queue here?"},
+			{Body: "Earlier finding\n\n" + keyMarker + "k1 -->"},
+		},
+	}
+	next := PendingReview{Body: bodyStart + "\nSpeccy reviewed 1 spec doc at bbbbbbb.\n" + bodyEnd, Comments: []github.ReviewComment{
+		{Path: "SPEC.md", Line: 3, Body: "Same finding\n\n" + keyMarker + "k1 -->"},
+		{Path: "SPEC.md", Line: 9, Body: "New finding\n\n" + keyMarker + "k2 -->"},
+	}}
+	add, body, _ := Merge(existing, next)
+	if len(add) != 1 || add[0].Line != 9 {
+		t.Errorf("added %+v, want only the comment of the new finding", add)
+	}
+	if !strings.HasPrefix(body, "My own note.") {
+		t.Errorf("the reviewer's text is gone: %q", body)
+	}
+	if strings.Count(body, bodyStart) != 1 || !strings.Contains(body, "bbbbbbb") || strings.Contains(body, "aaaaaaa") {
+		t.Errorf("Speccy's part was not replaced: %q", body)
+	}
+}
+
+// A comment leads with what the author must do: the question of an answer finding, or the
+// fix of a reword finding. The level and the check go last, with a link to the Check catalog.
+func TestCommentBody_LeadsWithTheAsk(t *testing.T) {
+	q, fix := "What happens to a payment when the third retry fails?", "Write must in capitals."
+	answer := commentBody(api.Finding{CheckSlug: "divergence.gap", Level: api.FindingLevelMUST, Message: "No reader found an answer.",
+		Question: &q, FixKind: api.Answer}, "", false)
+	if !strings.HasPrefix(answer, q) {
+		t.Errorf("the answer finding does not lead with its question: %q", answer)
+	}
+	if !strings.HasSuffix(answer, "<sub>MUST · [`divergence.gap`](https://speccy-docs.pages.dev/reference/checks/#divergence.gap)</sub>") {
+		t.Errorf("the last line is not the level and the linked check: %q", answer)
+	}
+	reword := commentBody(api.Finding{CheckSlug: "lint.rfc2119-case", Level: api.FindingLevelSHOULD, Message: "Lower-case must.",
+		Fix: &fix, FixKind: api.Reword}, "The service MUST retry.", true)
+	if !strings.HasPrefix(reword, fix+"\n\n```suggestion\nThe service MUST retry.\n```") {
+		t.Errorf("the reword finding does not lead with its fix: %q", reword)
+	}
+	custom := commentBody(api.Finding{CheckSlug: "acme.owner", Level: api.FindingLevelMUST, Message: "No owner."}, "", false)
+	if !strings.HasSuffix(custom, "<sub>MUST · `acme.owner`</sub>") {
+		t.Errorf("a check with no catalog entry has a link: %q", custom)
+	}
+}
+
+// A batch that ran every stage removes Speccy's comments whose finding is gone. It keeps the
+// reviewer's questions and comments, the comments of a bundle whose review failed, and every
+// comment after a review that left a stage out.
+func TestMerge_RemovesCommentsOfGoneFindings(t *testing.T) {
+	b := Bundle{Slug: "docs/pay", Dir: "docs", MainDoc: "pay.md", Kind: "full", Verdict: "not_build_ready",
+		Findings: []api.Finding{{CheckSlug: "sdd.non-goals", Level: api.FindingLevelMUST, Message: "No non-goals."}},
+		Files:    map[string][]byte{"pay.md": []byte("# Pay\n")}}
+	live := findingKeys(b)[0]
+	existing := &github.PendingReview{Comments: []github.PendingComment{
+		{ID: "live", Path: "docs/pay.md", Body: "x\n\n" + keyMarker + live + " -->"},
+		{ID: "gone", Path: "docs/pay.md", Body: "y\n\n" + keyMarker + "0000000000000000 -->"},
+		{ID: "other", Path: "specs/other.md", Body: "z\n\n" + keyMarker + "1111111111111111 -->"},
+		{ID: "ask", Path: "docs/pay.md", Body: AskComment("Who owns retries?", "abc")},
+		{ID: "mine", Path: "docs/pay.md", Body: "My own note."},
+	}}
+	stale := func(o Options, bundles ...Bundle) []string {
+		_, _, out := Merge(existing, Pending(o, bundles, nil))
+		var ids []string
+		for _, c := range out {
+			ids = append(ids, c.ID)
+		}
+		return ids
+	}
+	if got := stale(Options{Prune: true}, b); !slices.Equal(got, []string{"gone"}) {
+		t.Errorf("removed %v, want only the comment of the gone finding", got)
+	}
+	if got := stale(Options{}, b); len(got) != 0 {
+		t.Errorf("a review that left a stage out removed %v", got)
+	}
+	failed := b
+	failed.Error, failed.Findings = "The review failed.", nil
+	if got := stale(Options{Prune: true}, failed); len(got) != 0 {
+		t.Errorf("a failed review removed %v", got)
+	}
+}

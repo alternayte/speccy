@@ -57,6 +57,23 @@ const usage = `Usage:
                                                          Review a pull request from this machine. --pending
                                                          posts one review that only you see; --dry-run prints
                                                          it and posts nothing.
+  speccy review-prs <pull request URL>... | --repo <owner/name> [--requested]
+                [--parallel N] [--again] [--yes] [--stages …]
+                                                         Review many pull requests. Each one gets a pending
+                                                         review that only you see. --repo takes each open
+                                                         pull request that is not a draft and changes a spec
+                                                         doc; --requested keeps the ones that ask for your
+                                                         review. A pull request reviewed at its head commit
+                                                         is skipped, unless --again.
+  speccy review-prs --batch <ID> | --cancel <ID>         Show a batch until it ends, or start no new pull
+                                                         request of it.
+  speccy ask <pull request URL> "<concern>" [--section "A › B"] [--force]
+                                                         Turn your concern into one question for the author,
+                                                         on its section, in your pending review.
+  speccy pending list <pull request URL>                 List the comments of your pending review.
+  speccy pending delete <pull request URL> <ID>...       Delete comments of your pending review.
+  speccy pending discard <pull request URL>... | --repo <owner/name> | --batch <ID>
+                                                         Discard your pending reviews.
   speccy tui                                             Open the terminal UI.
   speccy mcp [--root folder]                             Run the MCP server over stdio.
   speccy profile validate <file> [--conflicts]           Check a profile file. --conflicts asks the reviewer
@@ -126,6 +143,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runTUI(args[1:], stderr)
 	case "action":
 		return runAction(args[1:], stdout, stderr)
+	case "review-prs":
+		return runReviewPRs(args[1:], os.Stdin, isTerminal(os.Stdin), stdout, stderr)
+	case "ask":
+		return runAsk(args[1:], stdout, stderr)
+	case "pending":
+		return runPending(args[1:], stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, kernel.Version)
 		return exitOK

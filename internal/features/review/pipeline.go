@@ -431,21 +431,41 @@ type Estimate struct {
 
 // EstimateRun estimates a full run of b's current version.
 func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, error) {
-	var est Estimate
 	p, ok := s.Profiles()[b.ProfileKey]
 	if !ok {
-		return est, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
+		return Estimate{}, kernel.Invalid("no_profile", "%s", s.noProfile(b.ProfileKey))
 	}
-	assigned, err := s.Gateway.Assigned(ctx, model.RoleReviewer)
+	if err := s.estimateRoles(ctx, p, nil); err != nil {
+		return Estimate{}, err
+	}
+	in, err := s.load(ctx, b, b.CurrentVersionID.UUID, p)
 	if err != nil {
-		return est, err
+		return Estimate{}, err
+	}
+	return s.estimate(ctx, in, p, b.ID, nil)
+}
+
+// estimateRoles checks that each role the chosen stages call has a model.
+func (s *Service) estimateRoles(ctx context.Context, p profile.Versioned, stages Stages) error {
+	if _, err := s.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
+		return err
+	}
+	if !stages.has(StageDivergence) {
+		return nil
 	}
 	for _, role := range divergenceRoles(p.Profile) {
 		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
-			return est, err
+			return err
 		}
 	}
-	in, err := s.load(ctx, b, b.CurrentVersionID.UUID, p)
+	return nil
+}
+
+// estimate counts the model calls of the chosen stages on in that the cache cannot answer.
+// docID is the saved doc, whose pinned build questions need no call, or uuid.Nil.
+func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, docID uuid.UUID, stages Stages) (Estimate, error) {
+	var est Estimate
+	assigned, err := s.Gateway.Assigned(ctx, model.RoleReviewer)
 	if err != nil {
 		return est, err
 	}
@@ -469,9 +489,11 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 		est.TokensIn += int64(calls) * (bundleTokens + extraTokens + 1500)
 		est.TokensOut += int64(calls) * 1500
 	}
-	units, err := s.unitsWithPrior(ctx, in)
-	if err != nil {
-		return est, err
+	var units []scopeUnit
+	if stages.has(StageRubric) {
+		if units, err = s.unitsWithPrior(ctx, in); err != nil {
+			return est, err
+		}
 	}
 	for _, u := range units {
 		switch {
@@ -492,7 +514,7 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 	sections := 0
 	for i := range in.doc.Sections {
 		sec := in.doc.Sections[i]
-		if len(strings.Fields(section.Normalize(sec.Own(in.main)))) < minClaimWords {
+		if !stages.has(StageGrounding) || len(strings.Fields(section.Normalize(sec.Own(in.main)))) < minClaimWords {
 			continue
 		}
 		k := cacheKey{Step: "claims", InputHash: sec.Hash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptClaims}
@@ -525,28 +547,30 @@ func (s *Service) EstimateRun(ctx context.Context, b pgdb.SpecDoc) (Estimate, er
 
 	// Divergence: the questions (unless pinned), one call per reader per batch of questions,
 	// and about one judge call per question. The reader and judge caches are not counted.
-	pinned, err := s.DB.Queries().ListLiveQuestions(ctx, b.ID)
-	if err != nil {
-		return est, err
-	}
-	nq := len(pinned)
-	if nq == 0 {
-		nq = p.Profile.Divergence.Questions.Max
-		add(model.RoleReviewer, 1, bundleTokens+1500, 3000)
-	} else {
-		est.CachedHits++
-	}
-	readers := readerRoles(p.Profile.Divergence.Readers)
-	batches := (nq + readerBatch - 1) / readerBatch
-	for _, r := range readers {
-		add(r, batches, int64(batches)*(bundleTokens+1000), int64(nq)*150)
-	}
-	if len(readers) > 1 {
-		add(model.RoleJudge, nq, int64(nq)*800, int64(nq)*150)
+	if stages.has(StageDivergence) {
+		pinned, err := s.DB.Queries().ListLiveQuestions(ctx, docID)
+		if err != nil {
+			return est, err
+		}
+		nq := len(pinned)
+		if nq == 0 {
+			nq = p.Profile.Divergence.Questions.Max
+			add(model.RoleReviewer, 1, bundleTokens+1500, 3000)
+		} else {
+			est.CachedHits++
+		}
+		readers := readerRoles(p.Profile.Divergence.Readers)
+		batches := (nq + readerBatch - 1) / readerBatch
+		for _, r := range readers {
+			add(r, batches, int64(batches)*(bundleTokens+1000), int64(nq)*150)
+		}
+		if len(readers) > 1 {
+			add(model.RoleJudge, nq, int64(nq)*800, int64(nq)*150)
+		}
 	}
 
 	// Coherence: one call per linked doc that the contradiction check reads.
-	if !standalone(in.dec) {
+	if stages.has(StageCoherence) && !standalone(in.dec) {
 		for _, l := range in.linked {
 			if !slices.Contains(contradictionKinds, l.kind) {
 				continue

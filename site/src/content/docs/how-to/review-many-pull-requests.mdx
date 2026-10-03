@@ -1,0 +1,113 @@
+---
+title: Review many pull requests
+description: Review each open spec pull request of a repo in one batch, add your own questions for the authors, and clear your pending reviews, from the CLI or from an agent.
+sidebar: { order: 10 }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide shows you how to review many spec pull requests at once from your own machine. Speccy puts the result of each pull request in a pending review. Only you see a pending review until you submit it on GitHub.
+
+## Before you start
+
+- Run the commands in a folder where Speccy has its state and its models. Speccy records each review there.
+- Speccy posts with the GitHub login of local mode: the login of `gh`, or the token under **Admin → GitHub**.
+- For a full review, the roles have models. With no model on the `reviewer` role, the batch runs lint only.
+
+<Aside>
+These commands and MCP tools run in local mode only. A pending review belongs to the person whose credential posts it, and hosted mode holds one workspace token.
+</Aside>
+
+## Review the open pull requests of a repo
+
+<Steps>
+
+1. Start the batch:
+
+   ```sh
+   speccy review-prs --repo acme/specs
+   ```
+
+   Speccy takes each open pull request that is not a draft and changes a spec doc. Add `--requested` to keep only the pull requests that ask for your review. To name the pull requests yourself, give their URLs in place of `--repo`.
+
+2. Read the plan. Speccy prints the count of pull requests and spec docs, each pull request it skips with the reason, and the cost estimate. Type `y` to start. `--yes` starts the batch with no question.
+
+3. Read each line as its pull request finishes. A posted line gives the verdict of each spec doc, the count of comments, and the link to your pending review.
+
+4. Open each pending review on GitHub. Edit or delete the comments, then submit the review.
+
+</Steps>
+
+`--parallel N` sets how many pull requests run at the same time. The default is 3. The spec docs of one pull request also review in parallel, under the same limit.
+
+### What a second batch does
+
+Speccy records each pull request it reviews, with its head commit. A later batch skips a pull request that has no new commit since, and says so. Add `--again` to review it again.
+
+When you already have a pending review on a pull request, the batch adds its comments to that review. It does not change your own comments or your questions. It adds no second comment for a finding that already has one, and it replaces the part of the body that it wrote before.
+
+The batch also removes each comment that Speccy wrote for a finding that is now gone, for example after the author fixed the doc. It does this only after a review of every stage. A batch with `--stages` removes nothing, because a finding of a stage that did not run is not gone.
+
+### Stop or watch a batch
+
+The batch runs in the Speccy process that holds the state of the folder. When you press Ctrl+C, the command stops showing the batch, and the batch goes on.
+
+```sh
+speccy review-prs --batch <ID>    # show the batch until it ends
+speccy review-prs --cancel <ID>   # start no new pull request
+```
+
+After a cancel, the reviews that run at that moment finish and post.
+
+The batch obeys the monthly token budget. With no budget, it has no limit. When the budget is spent, the batch starts no new pull request, and it marks the rest as skipped.
+
+## What a comment says
+
+Each comment leads with what the author must do:
+
+- A finding that needs a fact from the author starts with its question.
+- A finding that changes only the words starts with its fix, and with a suggested change when Speccy can make one.
+- Any other finding starts with its message.
+
+The last line gives the level and the check. The check links to its entry in the [Check catalog](/reference/checks/). The GitHub Action in CI writes its comments in the same form.
+
+## Ask the author a question
+
+Write your concern in your own words. Speccy finds the section it is about and writes one question for the author:
+
+```sh
+speccy ask https://github.com/acme/specs/pull/42 "retries unclear when the provider times out"
+```
+
+Speccy puts the question on the line it is about, in your pending review. When you have no pending review on the pull request, Speccy starts one. When the line is not in the diff, the question goes into the body of the review.
+
+Speccy posts nothing in two cases:
+
+- **The doc already answers the concern.** Speccy prints the text that answers it, and the question it did not post. Add `--force` to post the question.
+- **The concern fits more than one section.** Speccy prints each section. Run the command again with `--section "Payment retries › Failure handling"`.
+
+## Clear your pending reviews
+
+```sh
+speccy pending list https://github.com/acme/specs/pull/42
+speccy pending delete https://github.com/acme/specs/pull/42 2716152349 2716152350
+speccy pending discard --batch <ID>
+```
+
+`list` gives each comment with its ID, its line, its first words, and who wrote it: you or Speccy. `delete` removes the comments you name. `discard` removes whole pending reviews. It takes the pull requests you name, a repo with `--repo`, or a batch with `--batch`. Nothing that the author can see changes.
+
+## Do it from an agent
+
+The MCP server has the same operations. [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/#set-up-the-mcp-server) shows how to add it. Then ask your agent in your own words, such as "review the open spec pull requests in acme/specs".
+
+| Tool | What it does |
+|---|---|
+| `review_prs` | Starts a batch, and returns its ID and the cost estimate at once. |
+| `get_batch` | Gives the state of each pull request of a batch. |
+| `cancel_batch` | Starts no new pull request of a batch. |
+| `ask_author` | Turns a concern into a question for the author. |
+| `list_pending` | Lists the comments of your pending review. |
+| `delete_pending` | Deletes the comments you name. |
+| `discard_pending` | Discards whole pending reviews. |
+
+The batch runs in Speccy, not in the agent. When the agent session ends, the batch goes on, and the Speccy process stops when the batch ends. [MCP tools](/reference/mcp-tools/) lists each input.

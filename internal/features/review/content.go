@@ -77,6 +77,68 @@ func (f *FromRepo) prepare(workspace uuid.UUID) {
 	}
 }
 
+// contentProfile picks the profile of content: the type of its main doc, or, for a doc that
+// names no type, the profile whose headings it fits. The run says which one it used (REQ-135).
+func (s *Service) contentProfile(c Content) (p profile.Versioned, key string, guessed bool, err error) {
+	main, err := contentMainDoc(c)
+	if err != nil {
+		return p, "", false, err
+	}
+	key = main.Frontmatter.Type
+	if key == "" {
+		k, ok := profile.Guess(s.Profiles(), mainContent(c, main.Path))
+		if !ok {
+			return p, "", false, kernel.Invalid("no_profile", "This doc names no type, and its headings match no profile. Add \"type:\" to the frontmatter. The types are: %s.",
+				strings.Join(profileKeys(s.Profiles()), ", "))
+		}
+		key, guessed = k, true
+	}
+	p, ok := s.Profiles()[key]
+	if !ok {
+		return p, "", false, kernel.Invalid("no_profile", "%s", s.noProfile(key))
+	}
+	return p, key, guessed, nil
+}
+
+// contentInput loads content as the stages read it, with the profile p.
+func (s *Service) contentInput(ctx context.Context, c Content, p profile.Versioned) (input, error) {
+	main, err := contentMainDoc(c)
+	if err != nil {
+		return input{}, err
+	}
+	slug := c.Slug
+	if slug == "" {
+		slug = strings.TrimSuffix(path.Base(main.Path), path.Ext(main.Path))
+	}
+	b := pgdb.SpecDoc{WorkspaceID: s.Workspace, Slug: slug, Title: main.Title, ProfileKey: p.Profile.Key, DocPath: main.Path}
+	if c.From != nil {
+		ref, _ := json.Marshal(bundleRef{Dir: c.From.Dir})
+		b.SourceRef = dbtype.JSON(ref)
+		c.From.prepare(s.Workspace)
+	}
+	return s.loadFiles(ctx, b, uuid.Nil, c.Files, p, c.From)
+}
+
+// EstimateContent estimates the chosen stages on content that is not saved. Lint calls no
+// model, so content with no model stage costs nothing.
+func (s *Service) EstimateContent(ctx context.Context, c Content, stages Stages) (Estimate, error) {
+	p, _, _, err := s.contentProfile(c)
+	if err != nil {
+		return Estimate{}, err
+	}
+	if len(stages.roles(p.Profile)) == 0 {
+		return Estimate{}, nil
+	}
+	if err := s.estimateRoles(ctx, p, stages); err != nil {
+		return Estimate{}, err
+	}
+	in, err := s.contentInput(ctx, c, p)
+	if err != nil {
+		return Estimate{}, err
+	}
+	return s.estimate(ctx, in, p, uuid.Nil, stages)
+}
+
 // ContentResult is the review of Content. The API stores it for the report (SDD §12.4).
 type ContentResult struct {
 	Title          string
@@ -100,41 +162,16 @@ type ContentResult struct {
 // links resolve against the saved bundles, so coherence checks the server's upstream docs.
 func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (ContentResult, error) {
 	var out ContentResult
-	main, err := contentMainDoc(c)
+	p, key, guessed, err := s.contentProfile(c)
 	if err != nil {
 		return out, err
-	}
-	// A doc that names no type is still reviewable: the profile comes from its headings, and
-	// the run says which one it used (REQ-135).
-	key, guessed := main.Frontmatter.Type, false
-	if key == "" {
-		k, ok := profile.Guess(s.Profiles(), mainContent(c, main.Path))
-		if !ok {
-			return out, kernel.Invalid("no_profile", "This doc names no type, and its headings match no profile. Add \"type:\" to the frontmatter. The types are: %s.",
-				strings.Join(profileKeys(s.Profiles()), ", "))
-		}
-		key, guessed = k, true
-	}
-	p, ok := s.Profiles()[key]
-	if !ok {
-		return out, kernel.Invalid("no_profile", "%s", s.noProfile(key))
 	}
 	for _, role := range stages.roles(p.Profile) {
 		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
 			return out, err
 		}
 	}
-	slug := c.Slug
-	if slug == "" {
-		slug = strings.TrimSuffix(path.Base(main.Path), path.Ext(main.Path))
-	}
-	b := pgdb.SpecDoc{WorkspaceID: s.Workspace, Slug: slug, Title: main.Title, ProfileKey: p.Profile.Key, DocPath: main.Path}
-	if c.From != nil {
-		ref, _ := json.Marshal(bundleRef{Dir: c.From.Dir})
-		b.SourceRef = dbtype.JSON(ref)
-		c.From.prepare(s.Workspace)
-	}
-	in, err := s.loadFiles(ctx, b, uuid.Nil, c.Files, p, c.From)
+	in, err := s.contentInput(ctx, c, p)
 	if err != nil {
 		return out, err
 	}
@@ -206,8 +243,8 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		out.Findings = append(out.Findings, af)
 	}
 	out.Verdict = verdict.Decide(vin)
-	out.ProfileKey, out.ProfileVersion, out.MainDoc = p.Profile.Key, p.Version, main.Path
-	out.Title, out.Slug = main.Title, slug
+	out.ProfileKey, out.ProfileVersion, out.MainDoc = p.Profile.Key, p.Version, in.bundle.DocPath
+	out.Title, out.Slug = in.bundle.Title, in.bundle.Slug
 	out.RelaxedCount = relaxedCount(p.Profile, ev.relaxed)
 	rc.mu.Lock()
 	out.Size = string(in.size)
@@ -329,6 +366,16 @@ func (a *API) ReviewUrl(ctx context.Context, req api.ReviewUrlRequestObject) (ap
 	if err != nil {
 		return nil, err
 	}
+	out, err := a.URLReviewOut(ctx, res)
+	if err != nil {
+		return nil, err
+	}
+	return api.ReviewUrl200JSONResponse(out), nil
+}
+
+// URLReviewOut is the review of a URL as the API gives it. It stores the review of each doc,
+// so its report has a link.
+func (a *API) URLReviewOut(ctx context.Context, res URLReview) (api.UrlReview, error) {
 	out := api.UrlReview{Repo: res.Repo, Commit: res.Commit, Docs: []api.UrlReviewDoc{}}
 	if res.Pull > 0 {
 		out.Pull = &res.Pull
@@ -344,13 +391,13 @@ func (a *API) ReviewUrl(ctx context.Context, req api.ReviewUrlRequestObject) (ap
 		} else {
 			review, err := a.contentReview(ctx, d.Result, d.Files)
 			if err != nil {
-				return nil, err
+				return out, err
 			}
 			doc.Review = &review
 		}
 		out.Docs = append(out.Docs, doc)
 	}
-	return api.ReviewUrl200JSONResponse(out), nil
+	return out, nil
 }
 
 // ContentReviewDays is how long the server keeps a content review for its report (SDD §15.3).

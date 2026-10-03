@@ -254,6 +254,44 @@ type ModelBackend struct {
 	CreatedAt       time.Time
 }
 
+type PrBatch struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Status      string
+	Parallel    int64
+	Stages      dbtype.JSON
+	Again       bool
+	Source      string
+	Estimate    dbtype.JSON
+	CreatedAt   time.Time
+	FinishedAt  sql.NullTime
+}
+
+type PrBatchItem struct {
+	BatchID   uuid.UUID
+	Position  int64
+	Repo      string
+	Pull      int64
+	Url       string
+	State     string
+	Reason    string
+	HeadSha   string
+	Result    dbtype.JSON
+	Comments  int64
+	ReviewUrl string
+	UpdatedAt time.Time
+	Removed   int64
+}
+
+type PrReview struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+	HeadSha     string
+	BatchID     uuid.NullUUID
+	ReviewedAt  time.Time
+}
+
 type Profile struct {
 	ID             uuid.UUID
 	WorkspaceID    uuid.UUID

@@ -2158,6 +2158,200 @@ export type RenderResult = {
     html: string;
 };
 
+export type PrRef = {
+    repo: string;
+    pull: number;
+    url: string;
+};
+
+export type PrBatchRequest = {
+    /**
+     * Pull request URLs. Give these or repo.
+     */
+    urls?: Array<string>;
+    /**
+     * A repo as owner/name. The batch takes each open pull request that is not a draft and changes a spec doc.
+     */
+    repo?: string;
+    /**
+     * With repo, only the pull requests where someone asked for your review.
+     */
+    requested?: boolean;
+    /**
+     * How many pull requests run at the same time. The default is 3.
+     */
+    parallel?: number;
+    /**
+     * Review a pull request again although it was reviewed at its head commit.
+     */
+    again?: boolean;
+    /**
+     * The model stages to run. Absent means all; empty means lint only.
+     */
+    stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
+    /**
+     * False plans the batch and waits for startPrBatch. The default is true.
+     */
+    start?: boolean;
+};
+
+export type PrBatch = {
+    id: string;
+    status: 'planned' | 'running' | 'done' | 'cancelled' | 'stopped';
+    parallel: number;
+    /**
+     * What the batch took, such as a repo or a count of URLs.
+     */
+    source: string;
+    created_at: string;
+    finished_at?: string;
+    estimate: PrBatchEstimate;
+    items: Array<PrBatchItem>;
+};
+
+export type PrBatchEstimate = {
+    /**
+     * The pull requests the batch will review. A skipped one is not counted.
+     */
+    pulls: number;
+    docs: number;
+    /**
+     * The model calls the cache cannot answer.
+     */
+    calls: number;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+    /**
+     * False when a role has no price, so cost_usd is not complete.
+     */
+    priced: boolean;
+    /**
+     * True when no reviewer model is assigned, or the stages are empty.
+     */
+    lint_only: boolean;
+};
+
+export type PrBatchItem = {
+    repo: string;
+    pull: number;
+    url: string;
+    state: 'waiting' | 'reviewing' | 'posted' | 'skipped' | 'failed';
+    /**
+     * Why a pull request is skipped, or why it failed.
+     */
+    reason: string;
+    head_sha: string;
+    /**
+     * The comments Speccy added to the pending review.
+     */
+    comments: number;
+    /**
+     * Speccy's comments that it removed from the pending review, because their finding is gone.
+     */
+    removed: number;
+    review_url: string;
+    docs: Array<PrBatchDoc>;
+};
+
+export type PrBatchDoc = {
+    /**
+     * The spec doc, relative to the repo root.
+     */
+    path: string;
+    /**
+     * build_ready or not_build_ready, or empty when the review of the doc failed.
+     */
+    verdict: string;
+    must: number;
+    should: number;
+    error?: string;
+};
+
+export type AskRequest = {
+    /**
+     * The URL of the pull request.
+     */
+    url: string;
+    /**
+     * The reviewer's concern, in their own words.
+     */
+    concern: string;
+    /**
+     * The heading path of the section, when the concern fits more than one.
+     */
+    section?: Array<string>;
+    /**
+     * Post the question although the doc already answers the concern.
+     */
+    force?: boolean;
+};
+
+export type AskResult = {
+    /**
+     * posted: the question is in the pending review. answered: the doc answers the concern, and Speccy posted nothing. unclear: the concern fits two sections equally, and Speccy posted nothing.
+     *
+     */
+    status: 'posted' | 'answered' | 'unclear';
+    question: string;
+    /**
+     * The spec doc of the section, relative to the repo root.
+     */
+    doc?: string;
+    heading_path?: Array<string>;
+    /**
+     * With place line, the line of the comment.
+     */
+    line?: number;
+    /**
+     * With posted, where the question is. line: on its line. body: in the body of the review, because the line is not in the diff. file: on the whole file, because the line is not in the diff and GitHub does not let anyone edit a review body that started empty.
+     *
+     */
+    place?: 'line' | 'body' | 'file';
+    /**
+     * With answered, the text of the doc that answers the concern.
+     */
+    answer_quote?: string;
+    /**
+     * With unclear, the sections that fit.
+     */
+    candidates?: Array<AskSection>;
+    review_url?: string;
+};
+
+export type AskSection = {
+    doc: string;
+    heading_path: Array<string>;
+};
+
+export type PendingReview = {
+    repo: string;
+    pull: number;
+    /**
+     * False when you have no pending review on the pull request.
+     */
+    exists: boolean;
+    review_url?: string;
+    body?: string;
+    comments: Array<PendingComment>;
+};
+
+export type PendingComment = {
+    id: number;
+    path: string;
+    line?: number;
+    /**
+     * The first words of the comment.
+     */
+    excerpt: string;
+    /**
+     * True when Speccy wrote the comment.
+     */
+    speccy: boolean;
+};
+
+export type BatchId = string;
+
 export type ConnectionId = string;
 
 export type BackendId = string;
@@ -6184,3 +6378,233 @@ export type RenderMarkdownResponses = {
 };
 
 export type RenderMarkdownResponse = RenderMarkdownResponses[keyof RenderMarkdownResponses];
+
+export type CreatePrBatchData = {
+    body: PrBatchRequest;
+    path?: never;
+    query?: never;
+    url: '/pr-batches';
+};
+
+export type CreatePrBatchErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreatePrBatchError = CreatePrBatchErrors[keyof CreatePrBatchErrors];
+
+export type CreatePrBatchResponses = {
+    /**
+     * The batch, with its pull requests and the cost estimate.
+     */
+    200: PrBatch;
+};
+
+export type CreatePrBatchResponse = CreatePrBatchResponses[keyof CreatePrBatchResponses];
+
+export type GetPrBatchData = {
+    body?: never;
+    path: {
+        batchId: string;
+    };
+    query?: never;
+    url: '/pr-batches/{batchId}';
+};
+
+export type GetPrBatchErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetPrBatchError = GetPrBatchErrors[keyof GetPrBatchErrors];
+
+export type GetPrBatchResponses = {
+    /**
+     * The batch.
+     */
+    200: PrBatch;
+};
+
+export type GetPrBatchResponse = GetPrBatchResponses[keyof GetPrBatchResponses];
+
+export type StartPrBatchData = {
+    body?: never;
+    path: {
+        batchId: string;
+    };
+    query?: never;
+    url: '/pr-batches/{batchId}/start';
+};
+
+export type StartPrBatchErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type StartPrBatchError = StartPrBatchErrors[keyof StartPrBatchErrors];
+
+export type StartPrBatchResponses = {
+    /**
+     * The batch.
+     */
+    200: PrBatch;
+};
+
+export type StartPrBatchResponse = StartPrBatchResponses[keyof StartPrBatchResponses];
+
+export type CancelPrBatchData = {
+    body?: never;
+    path: {
+        batchId: string;
+    };
+    query?: never;
+    url: '/pr-batches/{batchId}/cancel';
+};
+
+export type CancelPrBatchErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CancelPrBatchError = CancelPrBatchErrors[keyof CancelPrBatchErrors];
+
+export type CancelPrBatchResponses = {
+    /**
+     * The batch.
+     */
+    200: PrBatch;
+};
+
+export type CancelPrBatchResponse = CancelPrBatchResponses[keyof CancelPrBatchResponses];
+
+export type AskAuthorData = {
+    body: AskRequest;
+    path?: never;
+    query?: never;
+    url: '/pr-asks';
+};
+
+export type AskAuthorErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type AskAuthorError = AskAuthorErrors[keyof AskAuthorErrors];
+
+export type AskAuthorResponses = {
+    /**
+     * What Speccy did with the concern.
+     */
+    200: AskResult;
+};
+
+export type AskAuthorResponse = AskAuthorResponses[keyof AskAuthorResponses];
+
+export type ListPendingData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * The URL of the pull request.
+         */
+        url: string;
+    };
+    url: '/pending-reviews';
+};
+
+export type ListPendingErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListPendingError = ListPendingErrors[keyof ListPendingErrors];
+
+export type ListPendingResponses = {
+    /**
+     * The pending review, or none.
+     */
+    200: PendingReview;
+};
+
+export type ListPendingResponse = ListPendingResponses[keyof ListPendingResponses];
+
+export type DeletePendingData = {
+    body: {
+        /**
+         * The URL of the pull request.
+         */
+        url: string;
+        ids: Array<number>;
+    };
+    path?: never;
+    query?: never;
+    url: '/pending-reviews/delete';
+};
+
+export type DeletePendingErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeletePendingError = DeletePendingErrors[keyof DeletePendingErrors];
+
+export type DeletePendingResponses = {
+    /**
+     * The comments deleted, and the IDs that are not in the pending review.
+     */
+    200: {
+        deleted: Array<number>;
+        missing: Array<number>;
+    };
+};
+
+export type DeletePendingResponse = DeletePendingResponses[keyof DeletePendingResponses];
+
+export type DiscardPendingData = {
+    body: {
+        urls?: Array<string>;
+        /**
+         * A repo as owner/name.
+         */
+        repo?: string;
+        batch?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/pending-reviews/discard';
+};
+
+export type DiscardPendingErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DiscardPendingError = DiscardPendingErrors[keyof DiscardPendingErrors];
+
+export type DiscardPendingResponses = {
+    /**
+     * The pull requests whose pending review Speccy discarded, and the ones that had none.
+     */
+    200: {
+        discarded: Array<PrRef>;
+        none: Array<PrRef>;
+    };
+};
+
+export type DiscardPendingResponse = DiscardPendingResponses[keyof DiscardPendingResponses];
