@@ -41,18 +41,60 @@ func (e AcceptedFixResult) Valid() bool {
 	}
 }
 
+// Defines values for AskResultPlace.
+const (
+	AskResultPlaceBody AskResultPlace = "body"
+	AskResultPlaceFile AskResultPlace = "file"
+	AskResultPlaceLine AskResultPlace = "line"
+)
+
+// Valid indicates whether the value is a known member of the AskResultPlace enum.
+func (e AskResultPlace) Valid() bool {
+	switch e {
+	case AskResultPlaceBody:
+		return true
+	case AskResultPlaceFile:
+		return true
+	case AskResultPlaceLine:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AskResultStatus.
+const (
+	AskResultStatusAnswered AskResultStatus = "answered"
+	AskResultStatusPosted   AskResultStatus = "posted"
+	AskResultStatusUnclear  AskResultStatus = "unclear"
+)
+
+// Valid indicates whether the value is a known member of the AskResultStatus enum.
+func (e AskResultStatus) Valid() bool {
+	switch e {
+	case AskResultStatusAnswered:
+		return true
+	case AskResultStatusPosted:
+		return true
+	case AskResultStatusUnclear:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackendInputPromptVia.
 const (
-	File  BackendInputPromptVia = "file"
-	Stdin BackendInputPromptVia = "stdin"
+	BackendInputPromptViaFile  BackendInputPromptVia = "file"
+	BackendInputPromptViaStdin BackendInputPromptVia = "stdin"
 )
 
 // Valid indicates whether the value is a known member of the BackendInputPromptVia enum.
 func (e BackendInputPromptVia) Valid() bool {
 	switch e {
-	case File:
+	case BackendInputPromptViaFile:
 		return true
-	case Stdin:
+	case BackendInputPromptViaStdin:
 		return true
 	default:
 		return false
@@ -815,6 +857,84 @@ func (e PacketQuestionResult) Valid() bool {
 	case PacketQuestionResultDiverge:
 		return true
 	case PacketQuestionResultGap:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrBatchStatus.
+const (
+	PrBatchStatusCancelled PrBatchStatus = "cancelled"
+	PrBatchStatusDone      PrBatchStatus = "done"
+	PrBatchStatusPlanned   PrBatchStatus = "planned"
+	PrBatchStatusRunning   PrBatchStatus = "running"
+	PrBatchStatusStopped   PrBatchStatus = "stopped"
+)
+
+// Valid indicates whether the value is a known member of the PrBatchStatus enum.
+func (e PrBatchStatus) Valid() bool {
+	switch e {
+	case PrBatchStatusCancelled:
+		return true
+	case PrBatchStatusDone:
+		return true
+	case PrBatchStatusPlanned:
+		return true
+	case PrBatchStatusRunning:
+		return true
+	case PrBatchStatusStopped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrBatchItemState.
+const (
+	PrBatchItemStateFailed    PrBatchItemState = "failed"
+	PrBatchItemStatePosted    PrBatchItemState = "posted"
+	PrBatchItemStateReviewing PrBatchItemState = "reviewing"
+	PrBatchItemStateSkipped   PrBatchItemState = "skipped"
+	PrBatchItemStateWaiting   PrBatchItemState = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the PrBatchItemState enum.
+func (e PrBatchItemState) Valid() bool {
+	switch e {
+	case PrBatchItemStateFailed:
+		return true
+	case PrBatchItemStatePosted:
+		return true
+	case PrBatchItemStateReviewing:
+		return true
+	case PrBatchItemStateSkipped:
+		return true
+	case PrBatchItemStateWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrBatchRequestStages.
+const (
+	PrBatchRequestStagesCoherence  PrBatchRequestStages = "coherence"
+	PrBatchRequestStagesDivergence PrBatchRequestStages = "divergence"
+	PrBatchRequestStagesGrounding  PrBatchRequestStages = "grounding"
+	PrBatchRequestStagesRubric     PrBatchRequestStages = "rubric"
+)
+
+// Valid indicates whether the value is a known member of the PrBatchRequestStages enum.
+func (e PrBatchRequestStages) Valid() bool {
+	switch e {
+	case PrBatchRequestStagesCoherence:
+		return true
+	case PrBatchRequestStagesDivergence:
+		return true
+	case PrBatchRequestStagesGrounding:
+		return true
+	case PrBatchRequestStagesRubric:
 		return true
 	default:
 		return false
@@ -1667,6 +1787,57 @@ type Anchor struct {
 	// Start Byte offset of the quote in the file.
 	Start  int    `json:"start"`
 	Suffix string `json:"suffix"`
+}
+
+// AskRequest defines model for AskRequest.
+type AskRequest struct {
+	// Concern The reviewer's concern, in their own words.
+	Concern string `json:"concern"`
+
+	// Force Post the question although the doc already answers the concern.
+	Force *bool `json:"force,omitempty"`
+
+	// Section The heading path of the section, when the concern fits more than one.
+	Section *[]string `json:"section,omitempty"`
+
+	// Url The URL of the pull request.
+	Url string `json:"url"`
+}
+
+// AskResult defines model for AskResult.
+type AskResult struct {
+	// AnswerQuote With answered, the text of the doc that answers the concern.
+	AnswerQuote *string `json:"answer_quote,omitempty"`
+
+	// Candidates With unclear, the sections that fit.
+	Candidates *[]AskSection `json:"candidates,omitempty"`
+
+	// Doc The spec doc of the section, relative to the repo root.
+	Doc         *string   `json:"doc,omitempty"`
+	HeadingPath *[]string `json:"heading_path,omitempty"`
+
+	// Line With place line, the line of the comment.
+	Line *int `json:"line,omitempty"`
+
+	// Place With posted, where the question is. line: on its line. body: in the body of the review, because the line is not in the diff. file: on the whole file, because the line is not in the diff and GitHub does not let anyone edit a review body that started empty.
+	Place     *AskResultPlace `json:"place,omitempty"`
+	Question  string          `json:"question"`
+	ReviewUrl *string         `json:"review_url,omitempty"`
+
+	// Status posted: the question is in the pending review. answered: the doc answers the concern, and Speccy posted nothing. unclear: the concern fits two sections equally, and Speccy posted nothing.
+	Status AskResultStatus `json:"status"`
+}
+
+// AskResultPlace With posted, where the question is. line: on its line. body: in the body of the review, because the line is not in the diff. file: on the whole file, because the line is not in the diff and GitHub does not let anyone edit a review body that started empty.
+type AskResultPlace string
+
+// AskResultStatus posted: the question is in the pending review. answered: the doc answers the concern, and Speccy posted nothing. unclear: the concern fits two sections equally, and Speccy posted nothing.
+type AskResultStatus string
+
+// AskSection defines model for AskSection.
+type AskSection struct {
+	Doc         string   `json:"doc"`
+	HeadingPath []string `json:"heading_path"`
 }
 
 // Backend defines model for Backend.
@@ -2752,6 +2923,30 @@ type PacketTraceId struct {
 	Text string `json:"text"`
 }
 
+// PendingComment defines model for PendingComment.
+type PendingComment struct {
+	// Excerpt The first words of the comment.
+	Excerpt string `json:"excerpt"`
+	Id      int64  `json:"id"`
+	Line    *int   `json:"line,omitempty"`
+	Path    string `json:"path"`
+
+	// Speccy True when Speccy wrote the comment.
+	Speccy bool `json:"speccy"`
+}
+
+// PendingReview defines model for PendingReview.
+type PendingReview struct {
+	Body     *string          `json:"body,omitempty"`
+	Comments []PendingComment `json:"comments"`
+
+	// Exists False when you have no pending review on the pull request.
+	Exists    bool    `json:"exists"`
+	Pull      int     `json:"pull"`
+	Repo      string  `json:"repo"`
+	ReviewUrl *string `json:"review_url,omitempty"`
+}
+
 // Person defines model for Person.
 type Person struct {
 	Email string `json:"email"`
@@ -2763,6 +2958,111 @@ type Person struct {
 // PostMessage defines model for PostMessage.
 type PostMessage struct {
 	Body string `json:"body"`
+}
+
+// PrBatch defines model for PrBatch.
+type PrBatch struct {
+	CreatedAt  time.Time          `json:"created_at"`
+	Estimate   PrBatchEstimate    `json:"estimate"`
+	FinishedAt *time.Time         `json:"finished_at,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+	Items      []PrBatchItem      `json:"items"`
+	Parallel   int                `json:"parallel"`
+
+	// Source What the batch took, such as a repo or a count of URLs.
+	Source string        `json:"source"`
+	Status PrBatchStatus `json:"status"`
+}
+
+// PrBatchStatus defines model for PrBatch.Status.
+type PrBatchStatus string
+
+// PrBatchDoc defines model for PrBatchDoc.
+type PrBatchDoc struct {
+	Error *string `json:"error,omitempty"`
+	Must  int     `json:"must"`
+
+	// Path The spec doc, relative to the repo root.
+	Path   string `json:"path"`
+	Should int    `json:"should"`
+
+	// Verdict build_ready or not_build_ready, or empty when the review of the doc failed.
+	Verdict string `json:"verdict"`
+}
+
+// PrBatchEstimate defines model for PrBatchEstimate.
+type PrBatchEstimate struct {
+	// Calls The model calls the cache cannot answer.
+	Calls   int     `json:"calls"`
+	CostUsd float32 `json:"cost_usd"`
+	Docs    int     `json:"docs"`
+
+	// LintOnly True when no reviewer model is assigned, or the stages are empty.
+	LintOnly bool `json:"lint_only"`
+
+	// Priced False when a role has no price, so cost_usd is not complete.
+	Priced bool `json:"priced"`
+
+	// Pulls The pull requests the batch will review. A skipped one is not counted.
+	Pulls     int   `json:"pulls"`
+	TokensIn  int64 `json:"tokens_in"`
+	TokensOut int64 `json:"tokens_out"`
+}
+
+// PrBatchItem defines model for PrBatchItem.
+type PrBatchItem struct {
+	// Comments The comments Speccy added to the pending review.
+	Comments int          `json:"comments"`
+	Docs     []PrBatchDoc `json:"docs"`
+	HeadSha  string       `json:"head_sha"`
+	Pull     int          `json:"pull"`
+
+	// Reason Why a pull request is skipped, or why it failed.
+	Reason string `json:"reason"`
+
+	// Removed Speccy's comments that it removed from the pending review, because their finding is gone.
+	Removed   int              `json:"removed"`
+	Repo      string           `json:"repo"`
+	ReviewUrl string           `json:"review_url"`
+	State     PrBatchItemState `json:"state"`
+	Url       string           `json:"url"`
+}
+
+// PrBatchItemState defines model for PrBatchItem.State.
+type PrBatchItemState string
+
+// PrBatchRequest defines model for PrBatchRequest.
+type PrBatchRequest struct {
+	// Again Review a pull request again although it was reviewed at its head commit.
+	Again *bool `json:"again,omitempty"`
+
+	// Parallel How many pull requests run at the same time. The default is 3.
+	Parallel *int `json:"parallel,omitempty"`
+
+	// Repo A repo as owner/name. The batch takes each open pull request that is not a draft and changes a spec doc.
+	Repo *string `json:"repo,omitempty"`
+
+	// Requested With repo, only the pull requests where someone asked for your review.
+	Requested *bool `json:"requested,omitempty"`
+
+	// Stages The model stages to run. Absent means all; empty means lint only.
+	Stages *[]PrBatchRequestStages `json:"stages,omitempty"`
+
+	// Start False plans the batch and waits for startPrBatch. The default is true.
+	Start *bool `json:"start,omitempty"`
+
+	// Urls Pull request URLs. Give these or repo.
+	Urls *[]string `json:"urls,omitempty"`
+}
+
+// PrBatchRequestStages defines model for PrBatchRequest.Stages.
+type PrBatchRequestStages string
+
+// PrRef defines model for PrRef.
+type PrRef struct {
+	Pull int    `json:"pull"`
+	Repo string `json:"repo"`
+	Url  string `json:"url"`
 }
 
 // Preset defines model for Preset.
@@ -3719,6 +4019,9 @@ type BackendId = openapi_types.UUID
 // BaseVersion defines model for BaseVersion.
 type BaseVersion = openapi_types.UUID
 
+// BatchId defines model for BatchId.
+type BatchId = openapi_types.UUID
+
 // BundleId defines model for BundleId.
 type BundleId = openapi_types.UUID
 
@@ -4002,6 +4305,29 @@ type MarkInboxItemReadJSONBody struct {
 	Key string `json:"key"`
 }
 
+// ListPendingParams defines parameters for ListPending.
+type ListPendingParams struct {
+	// Url The URL of the pull request.
+	Url string `form:"url" json:"url"`
+}
+
+// DeletePendingJSONBody defines parameters for DeletePending.
+type DeletePendingJSONBody struct {
+	Ids []int64 `json:"ids"`
+
+	// Url The URL of the pull request.
+	Url string `json:"url"`
+}
+
+// DiscardPendingJSONBody defines parameters for DiscardPending.
+type DiscardPendingJSONBody struct {
+	Batch *openapi_types.UUID `json:"batch,omitempty"`
+
+	// Repo A repo as owner/name.
+	Repo *string   `json:"repo,omitempty"`
+	Urls *[]string `json:"urls,omitempty"`
+}
+
 // CreateProfileJSONBody defines parameters for CreateProfile.
 type CreateProfileJSONBody struct {
 	Key      string `json:"key"`
@@ -4179,6 +4505,18 @@ type MarkInboxItemReadJSONRequestBody MarkInboxItemReadJSONBody
 
 // SuggestLinksJSONRequestBody defines body for SuggestLinks for application/json ContentType.
 type SuggestLinksJSONRequestBody = LinkSuggestRequest
+
+// DeletePendingJSONRequestBody defines body for DeletePending for application/json ContentType.
+type DeletePendingJSONRequestBody DeletePendingJSONBody
+
+// DiscardPendingJSONRequestBody defines body for DiscardPending for application/json ContentType.
+type DiscardPendingJSONRequestBody DiscardPendingJSONBody
+
+// AskAuthorJSONRequestBody defines body for AskAuthor for application/json ContentType.
+type AskAuthorJSONRequestBody = AskRequest
+
+// CreatePrBatchJSONRequestBody defines body for CreatePrBatch for application/json ContentType.
+type CreatePrBatchJSONRequestBody = PrBatchRequest
 
 // CreateProfileJSONRequestBody defines body for CreateProfile for application/json ContentType.
 type CreateProfileJSONRequestBody CreateProfileJSONBody
@@ -4536,9 +4874,33 @@ type ServerInterface interface {
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(w http.ResponseWriter, r *http.Request)
+	// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+	// (GET /pending-reviews)
+	ListPending(w http.ResponseWriter, r *http.Request, params ListPendingParams)
+	// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+	// (POST /pending-reviews/delete)
+	DeletePending(w http.ResponseWriter, r *http.Request)
+	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// (POST /pending-reviews/discard)
+	DiscardPending(w http.ResponseWriter, r *http.Request)
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	// (GET /people)
 	ListPeople(w http.ResponseWriter, r *http.Request)
+	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// (POST /pr-asks)
+	AskAuthor(w http.ResponseWriter, r *http.Request)
+	// CreatePrBatch Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+	// (POST /pr-batches)
+	CreatePrBatch(w http.ResponseWriter, r *http.Request)
+	// GetPrBatch Get a batch and the state of each of its pull requests.
+	// (GET /pr-batches/{batchId})
+	GetPrBatch(w http.ResponseWriter, r *http.Request, batchId BatchId)
+	// CancelPrBatch Start no new pull request of the batch. The reviews that run now finish.
+	// (POST /pr-batches/{batchId}/cancel)
+	CancelPrBatch(w http.ResponseWriter, r *http.Request, batchId BatchId)
+	// StartPrBatch Start a planned batch.
+	// (POST /pr-batches/{batchId}/start)
+	StartPrBatch(w http.ResponseWriter, r *http.Request, batchId BatchId)
 	// ListProfiles List the profiles, with their current versions.
 	// (GET /profiles)
 	ListProfiles(w http.ResponseWriter, r *http.Request)
@@ -7182,11 +7544,178 @@ func (siw *ServerInterfaceWrapper) GetMeta(w http.ResponseWriter, r *http.Reques
 	handler.ServeHTTP(w, r)
 }
 
+// ListPending operation middleware
+func (siw *ServerInterfaceWrapper) ListPending(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPendingParams
+
+	// ------------- Required query parameter "url" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "url", r.URL.Query(), &params.Url, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "url"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "url", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPending(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeletePending operation middleware
+func (siw *ServerInterfaceWrapper) DeletePending(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePending(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DiscardPending operation middleware
+func (siw *ServerInterfaceWrapper) DiscardPending(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DiscardPending(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPeople operation middleware
 func (siw *ServerInterfaceWrapper) ListPeople(w http.ResponseWriter, r *http.Request) {
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListPeople(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AskAuthor operation middleware
+func (siw *ServerInterfaceWrapper) AskAuthor(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AskAuthor(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrBatch operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrBatch(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrBatch(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPrBatch operation middleware
+func (siw *ServerInterfaceWrapper) GetPrBatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "batchId" -------------
+	var batchId BatchId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "batchId", r.PathValue("batchId"), &batchId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrBatch(w, r, batchId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelPrBatch operation middleware
+func (siw *ServerInterfaceWrapper) CancelPrBatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "batchId" -------------
+	var batchId BatchId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "batchId", r.PathValue("batchId"), &batchId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelPrBatch(w, r, batchId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartPrBatch operation middleware
+func (siw *ServerInterfaceWrapper) StartPrBatch(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "batchId" -------------
+	var batchId BatchId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "batchId", r.PathValue("batchId"), &batchId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "batchId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartPrBatch(w, r, batchId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8406,6 +8935,14 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/budget", wrapper.GetBudget)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/budget", wrapper.SetBudget)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-batches", wrapper.CreatePrBatch)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/pr-batches/{batchId}", wrapper.GetPrBatch)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-batches/{batchId}/start", wrapper.StartPrBatch)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-batches/{batchId}/cancel", wrapper.CancelPrBatch)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-asks", wrapper.AskAuthor)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/pending-reviews", wrapper.ListPending)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/delete", wrapper.DeletePending)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/discard", wrapper.DiscardPending)
 
 	return m
 }
@@ -12217,6 +12754,129 @@ func (response GetMetadefaultApplicationProblemPlusJSONResponse) VisitGetMetaRes
 	return err
 }
 
+type ListPendingRequestObject struct {
+	Params ListPendingParams
+}
+
+type ListPendingResponseObject interface {
+	VisitListPendingResponse(w http.ResponseWriter) error
+}
+
+type ListPending200JSONResponse PendingReview
+
+func (response ListPending200JSONResponse) VisitListPendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPendingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListPendingdefaultApplicationProblemPlusJSONResponse) VisitListPendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePendingRequestObject struct {
+	Body *DeletePendingJSONRequestBody
+}
+
+type DeletePendingResponseObject interface {
+	VisitDeletePendingResponse(w http.ResponseWriter) error
+}
+
+type DeletePending200JSONResponse struct {
+	Deleted []int64 `json:"deleted"`
+	Missing []int64 `json:"missing"`
+}
+
+func (response DeletePending200JSONResponse) VisitDeletePendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeletePendingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeletePendingdefaultApplicationProblemPlusJSONResponse) VisitDeletePendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardPendingRequestObject struct {
+	Body *DiscardPendingJSONRequestBody
+}
+
+type DiscardPendingResponseObject interface {
+	VisitDiscardPendingResponse(w http.ResponseWriter) error
+}
+
+type DiscardPending200JSONResponse struct {
+	Discarded []PrRef `json:"discarded"`
+	None      []PrRef `json:"none"`
+}
+
+func (response DiscardPending200JSONResponse) VisitDiscardPendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DiscardPendingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DiscardPendingdefaultApplicationProblemPlusJSONResponse) VisitDiscardPendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListPeopleRequestObject struct {
 }
 
@@ -12246,6 +12906,201 @@ type ListPeopledefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListPeopledefaultApplicationProblemPlusJSONResponse) VisitListPeopleResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AskAuthorRequestObject struct {
+	Body *AskAuthorJSONRequestBody
+}
+
+type AskAuthorResponseObject interface {
+	VisitAskAuthorResponse(w http.ResponseWriter) error
+}
+
+type AskAuthor200JSONResponse AskResult
+
+func (response AskAuthor200JSONResponse) VisitAskAuthorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AskAuthordefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response AskAuthordefaultApplicationProblemPlusJSONResponse) VisitAskAuthorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePrBatchRequestObject struct {
+	Body *CreatePrBatchJSONRequestBody
+}
+
+type CreatePrBatchResponseObject interface {
+	VisitCreatePrBatchResponse(w http.ResponseWriter) error
+}
+
+type CreatePrBatch200JSONResponse PrBatch
+
+func (response CreatePrBatch200JSONResponse) VisitCreatePrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreatePrBatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreatePrBatchdefaultApplicationProblemPlusJSONResponse) VisitCreatePrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrBatchRequestObject struct {
+	BatchId BatchId `json:"batchId"`
+}
+
+type GetPrBatchResponseObject interface {
+	VisitGetPrBatchResponse(w http.ResponseWriter) error
+}
+
+type GetPrBatch200JSONResponse PrBatch
+
+func (response GetPrBatch200JSONResponse) VisitGetPrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPrBatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetPrBatchdefaultApplicationProblemPlusJSONResponse) VisitGetPrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPrBatchRequestObject struct {
+	BatchId BatchId `json:"batchId"`
+}
+
+type CancelPrBatchResponseObject interface {
+	VisitCancelPrBatchResponse(w http.ResponseWriter) error
+}
+
+type CancelPrBatch200JSONResponse PrBatch
+
+func (response CancelPrBatch200JSONResponse) VisitCancelPrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CancelPrBatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CancelPrBatchdefaultApplicationProblemPlusJSONResponse) VisitCancelPrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartPrBatchRequestObject struct {
+	BatchId BatchId `json:"batchId"`
+}
+
+type StartPrBatchResponseObject interface {
+	VisitStartPrBatchResponse(w http.ResponseWriter) error
+}
+
+type StartPrBatch200JSONResponse PrBatch
+
+func (response StartPrBatch200JSONResponse) VisitStartPrBatchResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartPrBatchdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response StartPrBatchdefaultApplicationProblemPlusJSONResponse) VisitStartPrBatchResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -14156,9 +15011,33 @@ type StrictServerInterface interface {
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(ctx context.Context, request GetMetaRequestObject) (GetMetaResponseObject, error)
+	// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+	// (GET /pending-reviews)
+	ListPending(ctx context.Context, request ListPendingRequestObject) (ListPendingResponseObject, error)
+	// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+	// (POST /pending-reviews/delete)
+	DeletePending(ctx context.Context, request DeletePendingRequestObject) (DeletePendingResponseObject, error)
+	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// (POST /pending-reviews/discard)
+	DiscardPending(ctx context.Context, request DiscardPendingRequestObject) (DiscardPendingResponseObject, error)
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	// (GET /people)
 	ListPeople(ctx context.Context, request ListPeopleRequestObject) (ListPeopleResponseObject, error)
+	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// (POST /pr-asks)
+	AskAuthor(ctx context.Context, request AskAuthorRequestObject) (AskAuthorResponseObject, error)
+	// CreatePrBatch Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+	// (POST /pr-batches)
+	CreatePrBatch(ctx context.Context, request CreatePrBatchRequestObject) (CreatePrBatchResponseObject, error)
+	// GetPrBatch Get a batch and the state of each of its pull requests.
+	// (GET /pr-batches/{batchId})
+	GetPrBatch(ctx context.Context, request GetPrBatchRequestObject) (GetPrBatchResponseObject, error)
+	// CancelPrBatch Start no new pull request of the batch. The reviews that run now finish.
+	// (POST /pr-batches/{batchId}/cancel)
+	CancelPrBatch(ctx context.Context, request CancelPrBatchRequestObject) (CancelPrBatchResponseObject, error)
+	// StartPrBatch Start a planned batch.
+	// (POST /pr-batches/{batchId}/start)
+	StartPrBatch(ctx context.Context, request StartPrBatchRequestObject) (StartPrBatchResponseObject, error)
 	// ListProfiles List the profiles, with their current versions.
 	// (GET /profiles)
 	ListProfiles(ctx context.Context, request ListProfilesRequestObject) (ListProfilesResponseObject, error)
@@ -17070,6 +17949,94 @@ func (sh *strictHandler) GetMeta(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListPending operation middleware
+func (sh *strictHandler) ListPending(w http.ResponseWriter, r *http.Request, params ListPendingParams) {
+	var request ListPendingRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPending(ctx, request.(ListPendingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPending")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPendingResponseObject); ok {
+		if err := validResponse.VisitListPendingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeletePending operation middleware
+func (sh *strictHandler) DeletePending(w http.ResponseWriter, r *http.Request) {
+	var request DeletePendingRequestObject
+
+	var body DeletePendingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePending(ctx, request.(DeletePendingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePending")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePendingResponseObject); ok {
+		if err := validResponse.VisitDeletePendingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DiscardPending operation middleware
+func (sh *strictHandler) DiscardPending(w http.ResponseWriter, r *http.Request) {
+	var request DiscardPendingRequestObject
+
+	var body DiscardPendingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DiscardPending(ctx, request.(DiscardPendingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DiscardPending")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DiscardPendingResponseObject); ok {
+		if err := validResponse.VisitDiscardPendingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListPeople operation middleware
 func (sh *strictHandler) ListPeople(w http.ResponseWriter, r *http.Request) {
 	var request ListPeopleRequestObject
@@ -17087,6 +18054,146 @@ func (sh *strictHandler) ListPeople(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListPeopleResponseObject); ok {
 		if err := validResponse.VisitListPeopleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AskAuthor operation middleware
+func (sh *strictHandler) AskAuthor(w http.ResponseWriter, r *http.Request) {
+	var request AskAuthorRequestObject
+
+	var body AskAuthorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AskAuthor(ctx, request.(AskAuthorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AskAuthor")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AskAuthorResponseObject); ok {
+		if err := validResponse.VisitAskAuthorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrBatch operation middleware
+func (sh *strictHandler) CreatePrBatch(w http.ResponseWriter, r *http.Request) {
+	var request CreatePrBatchRequestObject
+
+	var body CreatePrBatchJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrBatch(ctx, request.(CreatePrBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrBatchResponseObject); ok {
+		if err := validResponse.VisitCreatePrBatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrBatch operation middleware
+func (sh *strictHandler) GetPrBatch(w http.ResponseWriter, r *http.Request, batchId BatchId) {
+	var request GetPrBatchRequestObject
+
+	request.BatchId = batchId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrBatch(ctx, request.(GetPrBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrBatchResponseObject); ok {
+		if err := validResponse.VisitGetPrBatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelPrBatch operation middleware
+func (sh *strictHandler) CancelPrBatch(w http.ResponseWriter, r *http.Request, batchId BatchId) {
+	var request CancelPrBatchRequestObject
+
+	request.BatchId = batchId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelPrBatch(ctx, request.(CancelPrBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelPrBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelPrBatchResponseObject); ok {
+		if err := validResponse.VisitCancelPrBatchResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartPrBatch operation middleware
+func (sh *strictHandler) StartPrBatch(w http.ResponseWriter, r *http.Request, batchId BatchId) {
+	var request StartPrBatchRequestObject
+
+	request.BatchId = batchId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartPrBatch(ctx, request.(StartPrBatchRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartPrBatch")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartPrBatchResponseObject); ok {
+		if err := validResponse.VisitStartPrBatchResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

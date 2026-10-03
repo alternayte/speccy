@@ -7,6 +7,52 @@ description: Each tool of the Speccy MCP server, and its input.
 
 This page lists each tool of Speccy's MCP server. `speccy mcp` runs the server over stdio as the local user. In hosted mode the same tools are at `/mcp`, with a personal API token. [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/) shows the setup.
 
+## `ask_author`
+
+Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. Local mode only.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `concern` | string | yes | the person's concern, in their own words |
+| `force` | boolean |  | post the question although the doc already answers the concern |
+| `section` | null or array |  | the heading path of the section, when the concern fits more than one |
+| `url` | string | yes | the URL of the pull request |
+
+## `cancel_batch`
+
+Stop a batch of pull request reviews: no new pull request starts, and the reviews that run now finish and post.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `batch` | string | yes | the batch ID that review_prs gave |
+
+## `delete_pending`
+
+Delete comments of the person's pending review on a pull request, by the IDs that list_pending gives. Delete only the comments the person named.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `ids` | null or array | yes | the IDs of the comments, from list_pending |
+| `url` | string | yes | the URL of the pull request |
+
+## `discard_pending`
+
+Discard the person's whole pending review on pull requests: the ones named by URL, each open pull request of a repo, or each pull request of a batch. Name exactly one of urls, repo and batch. Nothing the author can see changes.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `batch` | string |  | a batch ID: each pull request the batch posted on |
+| `repo` | string |  | a repo as owner/name: each of its open pull requests |
+| `urls` | null or array |  | the URLs of the pull requests |
+
+## `get_batch`
+
+Get the state of a batch of pull request reviews: for each pull request, waiting, reviewing, posted, skipped with the reason, or failed with the error, and for a posted one the verdict of each spec doc, the count of comments, and the link to the pending review.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `batch` | string | yes | the batch ID that review_prs gave |
+
 ## `get_bundle`
 
 Get one bundle: its files, its verdict, and the text of its spec doc.
@@ -64,6 +110,14 @@ List the bundles with their verdicts.
 
 It takes no input.
 
+## `list_pending`
+
+List the comments of the person's pending review on a pull request: each with its ID, file, line, first words, and whether Speccy wrote it. Call it before delete_pending, and show the list to the person.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `url` | string | yes | the URL of the pull request |
+
 ## `list_threads`
 
 List the discussion threads of a bundle.
@@ -115,6 +169,19 @@ Review markdown files that are not saved: a spec doc with a type in its frontmat
 | `profile` | string |  | the profile for a spec doc with no type, such as prd or sdd |
 | `slug` | string |  | the bundle's slug, so links to and from other bundles resolve |
 | `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
+
+## `review_prs`
+
+Review many spec pull requests in one batch. Each pull request gets a pending review that only the person sees until they submit it on GitHub: each comment leads with a question or a fix for the author. Name the pull requests by their URLs, or name a repo: then the batch takes each open pull request that is not a draft and changes a spec doc, and requested keeps the ones that ask for the person's review. A pull request already reviewed at its head commit is skipped, unless again. The call returns at once with the batch ID and the cost estimate; the batch runs on in Speccy. Call get_batch for its progress, and cancel_batch to stop it. Local mode only.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `again` | boolean |  | review a pull request again although it was reviewed at its head commit |
+| `parallel` | integer |  | how many pull requests run at the same time, 1 to 10. The default is 3. |
+| `repo` | string |  | a repo as owner/name, in place of urls |
+| `requested` | boolean |  | with repo: only the pull requests that ask for the person's review |
+| `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
+| `urls` | null or array |  | the URLs of the pull requests |
 
 ## `review_url`
 

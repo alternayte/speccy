@@ -92,6 +92,7 @@ type Querier interface {
 	GetGithubSource(ctx context.Context, arg GetGithubSourceParams) (GithubSource, error)
 	GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff, error)
 	GetMCPConnection(ctx context.Context, arg GetMCPConnectionParams) (McpConnection, error)
+	GetPrBatch(ctx context.Context, arg GetPrBatchParams) (PrBatch, error)
 	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
 	GetProfileVersion(ctx context.Context, arg GetProfileVersionParams) (ProfileVersion, error)
 	GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, error)
@@ -110,6 +111,7 @@ type Querier interface {
 	GetVersionByNumber(ctx context.Context, arg GetVersionByNumberParams) (Version, error)
 	GetWaiverView(ctx context.Context, arg GetWaiverViewParams) (WaiverView, error)
 	GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error)
+	HasPrReview(ctx context.Context, arg HasPrReviewParams) (int64, error)
 	InsertAnswer(ctx context.Context, arg InsertAnswerParams) error
 	InsertBackend(ctx context.Context, arg InsertBackendParams) error
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
@@ -128,6 +130,8 @@ type Querier interface {
 	InsertLink(ctx context.Context, arg InsertLinkParams) error
 	InsertLinkState(ctx context.Context, arg InsertLinkStateParams) error
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
+	InsertPrBatch(ctx context.Context, arg InsertPrBatchParams) error
+	InsertPrBatchItem(ctx context.Context, arg InsertPrBatchItemParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
 	InsertProfileMaintainer(ctx context.Context, arg InsertProfileMaintainerParams) error
 	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
@@ -165,6 +169,7 @@ type Querier interface {
 	// The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
 	// that a process before it left, and an owner that wants to exit waits until there is none.
 	ListActiveJobs(ctx context.Context) ([]Job, error)
+	ListActivePrBatches(ctx context.Context, workspaceID uuid.UUID) ([]PrBatch, error)
 	ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]AdoptedLink, error)
 	ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error)
 	// For insights: every finished run of the workspace, oldest first.
@@ -196,6 +201,7 @@ type Querier interface {
 	ListMCPConnections(ctx context.Context, workspaceID uuid.UUID) ([]McpConnection, error)
 	// Messages in threads of the workspace after a time, newest first, for the inbox.
 	ListMessagesSince(ctx context.Context, arg ListMessagesSinceParams) ([]ListMessagesSinceRow, error)
+	ListPrBatchItems(ctx context.Context, batchID uuid.UUID) ([]PrBatchItem, error)
 	ListProfileMaintainers(ctx context.Context, profileID uuid.UUID) ([]string, error)
 	ListProfileThreads(ctx context.Context, arg ListProfileThreadsParams) ([]ThreadView, error)
 	ListProfileVersions(ctx context.Context, profileID uuid.UUID) ([]ListProfileVersionsRow, error)
@@ -236,6 +242,7 @@ type Querier interface {
 	// The last finished full review of a spec doc that started before another one.
 	PreviousFullReview(ctx context.Context, arg PreviousFullReviewParams) (ReviewRun, error)
 	PutCache(ctx context.Context, arg PutCacheParams) error
+	RecordPrReview(ctx context.Context, arg RecordPrReviewParams) error
 	RetireQuestion(ctx context.Context, arg RetireQuestionParams) error
 	RetireQuestions(ctx context.Context, arg RetireQuestionsParams) error
 	RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error)
@@ -252,6 +259,7 @@ type Querier interface {
 	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
 	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error
+	SetPrBatchStatus(ctx context.Context, arg SetPrBatchStatusParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
 	SetSpecDocArchived(ctx context.Context, arg SetSpecDocArchivedParams) error
 	// A scan keeps a spec doc in the bundle of its folder, with its slug: a second spec doc in the
@@ -267,12 +275,14 @@ type Querier interface {
 	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
 	StartVerificationRun(ctx context.Context, id uuid.UUID) error
+	StopPrBatchItems(ctx context.Context, arg StopPrBatchItemsParams) error
 	ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error)
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
 	// A scan keeps the title and the source of a bundle in step, and un-archives it.
 	UpdateBundle(ctx context.Context, arg UpdateBundleParams) error
 	UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnectionParams) error
+	UpdatePrBatchItem(ctx context.Context, arg UpdatePrBatchItemParams) error
 	UpdateQuestionCites(ctx context.Context, arg UpdateQuestionCitesParams) error
 	UpdateRunProgress(ctx context.Context, arg UpdateRunProgressParams) error
 	// The head moves only from the version the change was based on.

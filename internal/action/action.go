@@ -79,6 +79,9 @@ type Options struct {
 	Ready   []string
 	// Config is .speccy.yaml as it stands in the checkout, for an enforce command.
 	Config []byte
+	// Prune lets a pending review lose Speccy's comments whose finding is gone. Set it only for
+	// a review that ran every stage: a finding of a stage that did not run is not gone.
+	Prune bool
 }
 
 // Result is what the command prints and returns.
@@ -298,17 +301,7 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 			continue // SHOULD and INFO findings stay in the report
 		}
 		k := keys[i]
-		body := fmt.Sprintf("**%s** `%s`: %s", f.Level, f.CheckSlug, f.Message)
-		if f.Question != nil {
-			body += "\n\nQuestion: " + *f.Question
-		}
-		if f.Fix != nil {
-			body += "\n\nFix: " + *f.Fix
-		}
-		if fixOK {
-			body += suggestion(fix)
-		}
-		body += "\n\n" + keyMarker + k + " -->"
+		body := commentBody(f, fix, fixOK) + "\n\n" + keyMarker + k + " -->"
 		c := candidate{key: k, path: repoPath, line: line, level: f.Level, body: body,
 			summary: fmt.Sprintf("- **%s** `%s` %s:%d: %s", f.Level, f.CheckSlug, repoPath, line, f.Message)}
 		if changed[repoPath][line] {
@@ -341,6 +334,37 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 	}
 	sort.SliceStable(inline, func(i, j int) bool { return rank[inline[i].level] < rank[inline[j].level] })
 	return inline, rest
+}
+
+// commentBody is the text of one inline comment, written for the author. An answer finding
+// leads with its question, a reword finding with its fix, and any other finding with its
+// message. The level and the check go on a last small line, with a link to the check's entry
+// in the Check catalog.
+func commentBody(f api.Finding, fix string, fixOK bool) string {
+	var b strings.Builder
+	switch {
+	case f.Question != nil && *f.Question != "":
+		b.WriteString(*f.Question)
+		if f.Message != "" && f.Message != *f.Question {
+			b.WriteString("\n\n" + f.Message)
+		}
+	case f.FixKind == api.Reword && f.Fix != nil && *f.Fix != "":
+		b.WriteString(*f.Fix)
+	default:
+		b.WriteString(f.Message)
+		if f.Fix != nil && *f.Fix != "" {
+			b.WriteString("\n\n" + *f.Fix)
+		}
+	}
+	if fixOK {
+		b.WriteString(suggestion(fix))
+	}
+	check := "`" + f.CheckSlug + "`"
+	if profile.InCatalog(f.CheckSlug) {
+		check = "[`" + f.CheckSlug + "`](" + profile.CatalogURL(f.CheckSlug) + ")"
+	}
+	fmt.Fprintf(&b, "\n\n<sub>%s · %s</sub>", f.Level, check)
+	return b.String()
 }
 
 // keyIn returns the finding key in a comment body.

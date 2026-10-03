@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"syscall"
 
@@ -94,39 +93,14 @@ func runActionPR(prURL string, pending, dryRun bool, fl reviewFlags, stdout, std
 		}
 	}
 	profiles, _ := profile.LoadLocal(filepath.Join(rootDir, ".speccy", "profiles"))
-	var bundles []action.Bundle
-	for _, d := range rev.Docs {
-		ab := action.Bundle{Slug: d.Slug, Dir: d.Dir, Files: map[string][]byte{}}
-		if d.Review == nil {
-			if d.Error != nil {
-				ab.Error = *d.Error
-			}
-			bundles = append(bundles, ab)
-			continue
-		}
-		v := d.Review
-		ab.MainDoc, ab.Profile, ab.Kind = v.MainDoc, v.ProfileKey, "full"
-		if lint {
-			ab.Kind = "lint"
-		}
-		ab.Verdict, ab.Score, ab.Must, ab.Should = string(v.Verdict.Result), v.Verdict.Score, v.Verdict.Must, v.Verdict.Should
-		ab.Waivers, ab.Relaxed, ab.Findings = v.Verdict.WaiverCount, v.Verdict.RelaxedCount, v.Findings
-		// A comment needs the text of its line, so each file that a finding names is read.
-		for _, f := range append([]api.Finding{{Anchor: api.Anchor{File: v.MainDoc}}}, v.Findings...) {
-			if _, done := ab.Files[f.Anchor.File]; done || f.Anchor.File == "" {
-				continue
-			}
-			content, _, err := gh.FileAt(ctx, rev.Repo, rev.Commit, path.Join(d.Dir, f.Anchor.File))
-			if err != nil {
-				fmt.Fprintf(stderr, "speccy action: %s does not read: %v.\n", path.Join(d.Dir, f.Anchor.File), err)
-				return exitRun
-			}
-			ab.Files[f.Anchor.File] = content
-		}
-		if p, ok := profiles[v.ProfileKey]; ok {
-			ab.Prefixes, ab.CoverPrefixes, ab.Checks = p.Profile.Trace.Prefixes, p.Profile.Trace.Cover, p.Profile
-		}
-		bundles = append(bundles, ab)
+	checks := func(key string) (profile.Profile, bool) {
+		p, ok := profiles[key]
+		return p.Profile, ok
+	}
+	bundles, err := action.BundlesOf(ctx, gh, rev, checks, lint)
+	if err != nil {
+		fmt.Fprintf(stderr, "speccy action: %v.\n", err)
+		return exitRun
 	}
 	pr := action.Pending(o, bundles, files)
 	if dryRun {

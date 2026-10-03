@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing/fstest"
 	"time"
@@ -62,6 +63,21 @@ type owned struct {
 	handler nethttp.Handler
 	stop    context.CancelFunc
 	served  chan struct{}
+	// calls counts the API calls in flight that are not a GET. An owner that wants to exit
+	// waits for them, so a client's question or review does not fail because the owner ended.
+	// A GET can be a stream of run events that stays open, so it does not count.
+	calls atomic.Int64
+}
+
+// counted counts the calls in flight that are not a GET.
+func (o *owned) counted(next nethttp.Handler) nethttp.Handler {
+	return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		if r.Method != nethttp.MethodGet {
+			o.calls.Add(1)
+			defer o.calls.Add(-1)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // seats are the seats this process took. run closes them when the command ends, so an owner
@@ -178,7 +194,9 @@ func (s *seat) becomeOwner(lock *owner.Lock) (err error) {
 	if spa == nil {
 		spa = fstest.MapFS{}
 	}
-	handler := localHandler(spa, a, db)
+	own := &owned{lock: lock, app: a, stop: stop}
+	handler := own.counted(localHandler(spa, a, db))
+	own.handler = handler
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return err
@@ -200,7 +218,8 @@ func (s *seat) becomeOwner(lock *owner.Lock) (err error) {
 		<-served
 		return err
 	}
-	s.own, s.peer = &owned{lock: lock, app: a, handler: handler, stop: stop, served: served}, owner.Info{}
+	own.served = served
+	s.own, s.peer = own, owner.Info{}
 	return nil
 }
 
@@ -347,13 +366,13 @@ func (s *seat) close(stderr io.Writer) {
 	said := false
 wait:
 	for {
-		idle, err := own.app.Reviews.Idle(context.Background())
-		if idle || err != nil {
+		idle, err := own.app.Idle(context.Background())
+		if (idle || err != nil) && own.calls.Load() == 0 {
 			break
 		}
 		if !said {
 			said = true
-			fmt.Fprintln(stderr, "Speccy finishes the reviews in its queue before it stops. Press Ctrl+C to stop now.")
+			fmt.Fprintln(stderr, "Speccy finishes the reviews in its queue and its pull request batches before it stops. Press Ctrl+C to stop now.")
 		}
 		select {
 		case <-sig:

@@ -928,10 +928,86 @@ type ClientInterface interface {
 	// Corresponds with GET /meta (the `GetMeta` operationId).
 	GetMeta(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+	//
+	// Corresponds with GET /pending-reviews (the `ListPending` operationId).
+	ListPending(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePendingWithBody Delete comments of the local user's pending review on a pull request. Local mode only.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+	DeletePendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+	DeletePending(ctx context.Context, body DeletePendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DiscardPendingWithBody Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+	DiscardPendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+	DiscardPending(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	//
 	// Corresponds with GET /people (the `ListPeople` operationId).
 	ListPeople(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AskAuthorWithBody Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+	AskAuthorWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+	AskAuthor(ctx context.Context, body AskAuthorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreatePrBatchWithBody Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+	CreatePrBatchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreatePrBatch Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+	CreatePrBatch(ctx context.Context, body CreatePrBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPrBatch Get a batch and the state of each of its pull requests.
+	//
+	// Corresponds with GET /pr-batches/{batchId} (the `GetPrBatch` operationId).
+	GetPrBatch(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CancelPrBatch Start no new pull request of the batch. The reviews that run now finish.
+	//
+	// Corresponds with POST /pr-batches/{batchId}/cancel (the `CancelPrBatch` operationId).
+	CancelPrBatch(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartPrBatch Start a planned batch.
+	//
+	// Corresponds with POST /pr-batches/{batchId}/start (the `StartPrBatch` operationId).
+	StartPrBatch(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListProfiles List the profiles, with their current versions.
 	//
@@ -3485,11 +3561,207 @@ func (c *Client) GetMeta(ctx context.Context, reqEditors ...RequestEditorFn) (*h
 	return c.Client.Do(req)
 }
 
+// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+//
+// Corresponds with GET /pending-reviews (the `ListPending` operationId).
+func (c *Client) ListPending(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListPendingRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeletePendingWithBody Delete comments of the local user's pending review on a pull request. Local mode only.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+func (c *Client) DeletePendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePendingRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+func (c *Client) DeletePending(ctx context.Context, body DeletePendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePendingRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DiscardPendingWithBody Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+func (c *Client) DiscardPendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscardPendingRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+func (c *Client) DiscardPending(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDiscardPendingRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 //
 // Corresponds with GET /people (the `ListPeople` operationId).
 func (c *Client) ListPeople(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListPeopleRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AskAuthorWithBody Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+func (c *Client) AskAuthorWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAskAuthorRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+func (c *Client) AskAuthor(ctx context.Context, body AskAuthorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAskAuthorRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreatePrBatchWithBody Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+func (c *Client) CreatePrBatchWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePrBatchRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreatePrBatch Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+func (c *Client) CreatePrBatch(ctx context.Context, body CreatePrBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePrBatchRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPrBatch Get a batch and the state of each of its pull requests.
+//
+// Corresponds with GET /pr-batches/{batchId} (the `GetPrBatch` operationId).
+func (c *Client) GetPrBatch(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPrBatchRequest(c.Server, batchId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CancelPrBatch Start no new pull request of the batch. The reviews that run now finish.
+//
+// Corresponds with POST /pr-batches/{batchId}/cancel (the `CancelPrBatch` operationId).
+func (c *Client) CancelPrBatch(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCancelPrBatchRequest(c.Server, batchId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartPrBatch Start a planned batch.
+//
+// Corresponds with POST /pr-batches/{batchId}/start (the `StartPrBatch` operationId).
+func (c *Client) StartPrBatch(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartPrBatchRequest(c.Server, batchId)
 	if err != nil {
 		return nil, err
 	}
@@ -8498,6 +8770,136 @@ func NewGetMetaRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewListPendingRequest constructs an http.Request for the ListPending method
+func NewListPendingRequest(server string, params *ListPendingParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pending-reviews")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "url", params.Url, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeletePendingRequest calls the generic DeletePending builder with application/json body
+func NewDeletePendingRequest(server string, body DeletePendingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDeletePendingRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDeletePendingRequestWithBody constructs an http.Request for the DeletePending method, with any body, and a specified content type
+func NewDeletePendingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pending-reviews/delete")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDiscardPendingRequest calls the generic DiscardPending builder with application/json body
+func NewDiscardPendingRequest(server string, body DiscardPendingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewDiscardPendingRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewDiscardPendingRequestWithBody constructs an http.Request for the DiscardPending method, with any body, and a specified content type
+func NewDiscardPendingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pending-reviews/discard")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListPeopleRequest constructs an http.Request for the ListPeople method
 func NewListPeopleRequest(server string) (*http.Request, error) {
 	var err error
@@ -8518,6 +8920,188 @@ func NewListPeopleRequest(server string) (*http.Request, error) {
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewAskAuthorRequest calls the generic AskAuthor builder with application/json body
+func NewAskAuthorRequest(server string, body AskAuthorJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAskAuthorRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewAskAuthorRequestWithBody constructs an http.Request for the AskAuthor method, with any body, and a specified content type
+func NewAskAuthorRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pr-asks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreatePrBatchRequest calls the generic CreatePrBatch builder with application/json body
+func NewCreatePrBatchRequest(server string, body CreatePrBatchJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreatePrBatchRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreatePrBatchRequestWithBody constructs an http.Request for the CreatePrBatch method, with any body, and a specified content type
+func NewCreatePrBatchRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pr-batches")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetPrBatchRequest constructs an http.Request for the GetPrBatch method
+func NewGetPrBatchRequest(server string, batchId BatchId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "batchId", batchId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pr-batches/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCancelPrBatchRequest constructs an http.Request for the CancelPrBatch method
+func NewCancelPrBatchRequest(server string, batchId BatchId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "batchId", batchId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pr-batches/%s/cancel", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStartPrBatchRequest constructs an http.Request for the StartPrBatch method
+func NewStartPrBatchRequest(server string, batchId BatchId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "batchId", batchId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pr-batches/%s/start", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -11103,12 +11687,96 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /meta (the `GetMeta` operationId).
 	GetMetaWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMetaResponse, error)
 
+	// ListPendingWithResponse List the comments of the local user's pending review on a pull request. Local mode only.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /pending-reviews (the `ListPending` operationId).
+	ListPendingWithResponse(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*ListPendingResponse, error)
+
+	// DeletePendingWithBodyWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+	DeletePendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeletePendingResponse, error)
+
+	// DeletePendingWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+	DeletePendingWithResponse(ctx context.Context, body DeletePendingJSONRequestBody, reqEditors ...RequestEditorFn) (*DeletePendingResponse, error)
+
+	// DiscardPendingWithBodyWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+	DiscardPendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DiscardPendingResponse, error)
+
+	// DiscardPendingWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+	DiscardPendingWithResponse(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*DiscardPendingResponse, error)
+
 	// ListPeopleWithResponse The members of the workspace, for reviewers and mentions. Empty in local mode.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /people (the `ListPeople` operationId).
 	ListPeopleWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListPeopleResponse, error)
+
+	// AskAuthorWithBodyWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+	AskAuthorWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AskAuthorResponse, error)
+
+	// AskAuthorWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+	AskAuthorWithResponse(ctx context.Context, body AskAuthorJSONRequestBody, reqEditors ...RequestEditorFn) (*AskAuthorResponse, error)
+
+	// CreatePrBatchWithBodyWithResponse Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+	CreatePrBatchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePrBatchResponse, error)
+
+	// CreatePrBatchWithResponse Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+	CreatePrBatchWithResponse(ctx context.Context, body CreatePrBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePrBatchResponse, error)
+
+	// GetPrBatchWithResponse Get a batch and the state of each of its pull requests.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /pr-batches/{batchId} (the `GetPrBatch` operationId).
+	GetPrBatchWithResponse(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*GetPrBatchResponse, error)
+
+	// CancelPrBatchWithResponse Start no new pull request of the batch. The reviews that run now finish.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pr-batches/{batchId}/cancel (the `CancelPrBatch` operationId).
+	CancelPrBatchWithResponse(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*CancelPrBatchResponse, error)
+
+	// StartPrBatchWithResponse Start a planned batch.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pr-batches/{batchId}/start (the `StartPrBatch` operationId).
+	StartPrBatchWithResponse(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*StartPrBatchResponse, error)
 
 	// ListProfilesWithResponse List the profiles, with their current versions.
 	//
@@ -16152,6 +16820,162 @@ func (r GetMetaResponse) ContentType() string {
 	return ""
 }
 
+type ListPendingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PendingReview
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListPendingResponse) GetJSON200() *PendingReview {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListPendingResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListPendingResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListPendingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListPendingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListPendingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeletePendingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Deleted []int64 `json:"deleted"`
+		Missing []int64 `json:"missing"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeletePendingResponse) GetJSON200() *struct {
+	Deleted []int64 `json:"deleted"`
+	Missing []int64 `json:"missing"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeletePendingResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeletePendingResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePendingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePendingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeletePendingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DiscardPendingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Discarded []PrRef `json:"discarded"`
+		None      []PrRef `json:"none"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DiscardPendingResponse) GetJSON200() *struct {
+	Discarded []PrRef `json:"discarded"`
+	None      []PrRef `json:"none"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DiscardPendingResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DiscardPendingResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DiscardPendingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DiscardPendingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DiscardPendingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListPeopleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -16198,6 +17022,246 @@ func (r ListPeopleResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListPeopleResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AskAuthorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AskResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r AskAuthorResponse) GetJSON200() *AskResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AskAuthorResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AskAuthorResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AskAuthorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AskAuthorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AskAuthorResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreatePrBatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PrBatch
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CreatePrBatchResponse) GetJSON200() *PrBatch {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CreatePrBatchResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreatePrBatchResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreatePrBatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreatePrBatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreatePrBatchResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetPrBatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PrBatch
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPrBatchResponse) GetJSON200() *PrBatch {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetPrBatchResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPrBatchResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPrBatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPrBatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPrBatchResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CancelPrBatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PrBatch
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CancelPrBatchResponse) GetJSON200() *PrBatch {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CancelPrBatchResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CancelPrBatchResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CancelPrBatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CancelPrBatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CancelPrBatchResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StartPrBatchResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PrBatch
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StartPrBatchResponse) GetJSON200() *PrBatch {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r StartPrBatchResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r StartPrBatchResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StartPrBatchResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartPrBatchResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StartPrBatchResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -19823,6 +20887,71 @@ func (c *ClientWithResponses) GetMetaWithResponse(ctx context.Context, reqEditor
 	return ParseGetMetaResponse(rsp)
 }
 
+// ListPendingWithResponse List the comments of the local user's pending review on a pull request. Local mode only.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /pending-reviews (the `ListPending` operationId).
+func (c *ClientWithResponses) ListPendingWithResponse(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*ListPendingResponse, error) {
+	rsp, err := c.ListPending(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListPendingResponse(rsp)
+}
+
+// DeletePendingWithBodyWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+func (c *ClientWithResponses) DeletePendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeletePendingResponse, error) {
+	rsp, err := c.DeletePendingWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePendingResponse(rsp)
+}
+
+// DeletePendingWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
+func (c *ClientWithResponses) DeletePendingWithResponse(ctx context.Context, body DeletePendingJSONRequestBody, reqEditors ...RequestEditorFn) (*DeletePendingResponse, error) {
+	rsp, err := c.DeletePending(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePendingResponse(rsp)
+}
+
+// DiscardPendingWithBodyWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+func (c *ClientWithResponses) DiscardPendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DiscardPendingResponse, error) {
+	rsp, err := c.DiscardPendingWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscardPendingResponse(rsp)
+}
+
+// DiscardPendingWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
+func (c *ClientWithResponses) DiscardPendingWithResponse(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*DiscardPendingResponse, error) {
+	rsp, err := c.DiscardPending(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDiscardPendingResponse(rsp)
+}
+
 // ListPeopleWithResponse The members of the workspace, for reviewers and mentions. Empty in local mode.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -19834,6 +20963,97 @@ func (c *ClientWithResponses) ListPeopleWithResponse(ctx context.Context, reqEdi
 		return nil, err
 	}
 	return ParseListPeopleResponse(rsp)
+}
+
+// AskAuthorWithBodyWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+func (c *ClientWithResponses) AskAuthorWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AskAuthorResponse, error) {
+	rsp, err := c.AskAuthorWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAskAuthorResponse(rsp)
+}
+
+// AskAuthorWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
+func (c *ClientWithResponses) AskAuthorWithResponse(ctx context.Context, body AskAuthorJSONRequestBody, reqEditors ...RequestEditorFn) (*AskAuthorResponse, error) {
+	rsp, err := c.AskAuthor(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAskAuthorResponse(rsp)
+}
+
+// CreatePrBatchWithBodyWithResponse Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+func (c *ClientWithResponses) CreatePrBatchWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePrBatchResponse, error) {
+	rsp, err := c.CreatePrBatchWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePrBatchResponse(rsp)
+}
+
+// CreatePrBatchWithResponse Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pr-batches (the `CreatePrBatch` operationId).
+func (c *ClientWithResponses) CreatePrBatchWithResponse(ctx context.Context, body CreatePrBatchJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePrBatchResponse, error) {
+	rsp, err := c.CreatePrBatch(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePrBatchResponse(rsp)
+}
+
+// GetPrBatchWithResponse Get a batch and the state of each of its pull requests.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /pr-batches/{batchId} (the `GetPrBatch` operationId).
+func (c *ClientWithResponses) GetPrBatchWithResponse(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*GetPrBatchResponse, error) {
+	rsp, err := c.GetPrBatch(ctx, batchId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPrBatchResponse(rsp)
+}
+
+// CancelPrBatchWithResponse Start no new pull request of the batch. The reviews that run now finish.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pr-batches/{batchId}/cancel (the `CancelPrBatch` operationId).
+func (c *ClientWithResponses) CancelPrBatchWithResponse(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*CancelPrBatchResponse, error) {
+	rsp, err := c.CancelPrBatch(ctx, batchId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCancelPrBatchResponse(rsp)
+}
+
+// StartPrBatchWithResponse Start a planned batch.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pr-batches/{batchId}/start (the `StartPrBatch` operationId).
+func (c *ClientWithResponses) StartPrBatchWithResponse(ctx context.Context, batchId BatchId, reqEditors ...RequestEditorFn) (*StartPrBatchResponse, error) {
+	rsp, err := c.StartPrBatch(ctx, batchId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartPrBatchResponse(rsp)
 }
 
 // ListProfilesWithResponse List the profiles, with their current versions.
@@ -23783,6 +25003,111 @@ func ParseGetMetaResponse(rsp *http.Response) (*GetMetaResponse, error) {
 	return response, nil
 }
 
+// ParseListPendingResponse parses an HTTP response from a ListPendingWithResponse call
+func ParseListPendingResponse(rsp *http.Response) (*ListPendingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListPendingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PendingReview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePendingResponse parses an HTTP response from a DeletePendingWithResponse call
+func ParseDeletePendingResponse(rsp *http.Response) (*DeletePendingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePendingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Deleted []int64 `json:"deleted"`
+			Missing []int64 `json:"missing"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDiscardPendingResponse parses an HTTP response from a DiscardPendingWithResponse call
+func ParseDiscardPendingResponse(rsp *http.Response) (*DiscardPendingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DiscardPendingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Discarded []PrRef `json:"discarded"`
+			None      []PrRef `json:"none"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListPeopleResponse parses an HTTP response from a ListPeopleWithResponse call
 func ParseListPeopleResponse(rsp *http.Response) (*ListPeopleResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -23801,6 +25126,171 @@ func ParseListPeopleResponse(rsp *http.Response) (*ListPeopleResponse, error) {
 		var dest struct {
 			Items []Person `json:"items"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAskAuthorResponse parses an HTTP response from a AskAuthorWithResponse call
+func ParseAskAuthorResponse(rsp *http.Response) (*AskAuthorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AskAuthorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AskResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreatePrBatchResponse parses an HTTP response from a CreatePrBatchWithResponse call
+func ParseCreatePrBatchResponse(rsp *http.Response) (*CreatePrBatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreatePrBatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PrBatch
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPrBatchResponse parses an HTTP response from a GetPrBatchWithResponse call
+func ParseGetPrBatchResponse(rsp *http.Response) (*GetPrBatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPrBatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PrBatch
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCancelPrBatchResponse parses an HTTP response from a CancelPrBatchWithResponse call
+func ParseCancelPrBatchResponse(rsp *http.Response) (*CancelPrBatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CancelPrBatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PrBatch
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartPrBatchResponse parses an HTTP response from a StartPrBatchWithResponse call
+func ParseStartPrBatchResponse(rsp *http.Response) (*StartPrBatchResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartPrBatchResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PrBatch
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -324,6 +324,11 @@ func (a Adapter) GetMCPConnection(ctx context.Context, arg pgdb.GetMCPConnection
 	return pgdb.McpConnection(r), err
 }
 
+func (a Adapter) GetPrBatch(ctx context.Context, arg pgdb.GetPrBatchParams) (pgdb.PrBatch, error) {
+	r, err := a.q.GetPrBatch(ctx, GetPrBatchParams(arg))
+	return pgdb.PrBatch(r), err
+}
+
 func (a Adapter) GetProfileByKey(ctx context.Context, arg pgdb.GetProfileByKeyParams) (pgdb.Profile, error) {
 	r, err := a.q.GetProfileByKey(ctx, GetProfileByKeyParams(arg))
 	return pgdb.Profile(r), err
@@ -414,6 +419,10 @@ func (a Adapter) GetWorkspace(ctx context.Context, id uuid.UUID) (pgdb.Workspace
 	return pgdb.Workspace(r), err
 }
 
+func (a Adapter) HasPrReview(ctx context.Context, arg pgdb.HasPrReviewParams) (int64, error) {
+	return a.q.HasPrReview(ctx, HasPrReviewParams(arg))
+}
+
 func (a Adapter) InsertAnswer(ctx context.Context, arg pgdb.InsertAnswerParams) error {
 	return a.q.InsertAnswer(ctx, InsertAnswerParams(arg))
 }
@@ -484,6 +493,14 @@ func (a Adapter) InsertLinkState(ctx context.Context, arg pgdb.InsertLinkStatePa
 
 func (a Adapter) InsertMCPConnection(ctx context.Context, arg pgdb.InsertMCPConnectionParams) error {
 	return a.q.InsertMCPConnection(ctx, InsertMCPConnectionParams(arg))
+}
+
+func (a Adapter) InsertPrBatch(ctx context.Context, arg pgdb.InsertPrBatchParams) error {
+	return a.q.InsertPrBatch(ctx, InsertPrBatchParams(arg))
+}
+
+func (a Adapter) InsertPrBatchItem(ctx context.Context, arg pgdb.InsertPrBatchItemParams) error {
+	return a.q.InsertPrBatchItem(ctx, InsertPrBatchItemParams(arg))
 }
 
 func (a Adapter) InsertProfile(ctx context.Context, arg pgdb.InsertProfileParams) error {
@@ -620,6 +637,18 @@ func (a Adapter) ListActiveJobs(ctx context.Context) ([]pgdb.Job, error) {
 	out := make([]pgdb.Job, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.Job(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListActivePrBatches(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.PrBatch, error) {
+	rows, err := a.q.ListActivePrBatches(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.PrBatch, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.PrBatch(r)
 	}
 	return out, nil
 }
@@ -920,6 +949,18 @@ func (a Adapter) ListMessagesSince(ctx context.Context, arg pgdb.ListMessagesSin
 	out := make([]pgdb.ListMessagesSinceRow, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.ListMessagesSinceRow(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListPrBatchItems(ctx context.Context, batchID uuid.UUID) ([]pgdb.PrBatchItem, error) {
+	rows, err := a.q.ListPrBatchItems(ctx, batchID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.PrBatchItem, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.PrBatchItem(r)
 	}
 	return out, nil
 }
@@ -1283,6 +1324,10 @@ func (a Adapter) PutCache(ctx context.Context, arg pgdb.PutCacheParams) error {
 	return a.q.PutCache(ctx, PutCacheParams(arg))
 }
 
+func (a Adapter) RecordPrReview(ctx context.Context, arg pgdb.RecordPrReviewParams) error {
+	return a.q.RecordPrReview(ctx, RecordPrReviewParams(arg))
+}
+
 func (a Adapter) RetireQuestion(ctx context.Context, arg pgdb.RetireQuestionParams) error {
 	return a.q.RetireQuestion(ctx, RetireQuestionParams(arg))
 }
@@ -1348,6 +1393,10 @@ func (a Adapter) SetMessageDecision(ctx context.Context, arg pgdb.SetMessageDeci
 	return a.q.SetMessageDecision(ctx, SetMessageDecisionParams(arg))
 }
 
+func (a Adapter) SetPrBatchStatus(ctx context.Context, arg pgdb.SetPrBatchStatusParams) error {
+	return a.q.SetPrBatchStatus(ctx, SetPrBatchStatusParams(arg))
+}
+
 func (a Adapter) SetProfileVersion(ctx context.Context, arg pgdb.SetProfileVersionParams) error {
 	return a.q.SetProfileVersion(ctx, SetProfileVersionParams(arg))
 }
@@ -1394,6 +1443,10 @@ func (a Adapter) StartVerificationRun(ctx context.Context, id uuid.UUID) error {
 	return a.q.StartVerificationRun(ctx, id)
 }
 
+func (a Adapter) StopPrBatchItems(ctx context.Context, arg pgdb.StopPrBatchItemsParams) error {
+	return a.q.StopPrBatchItems(ctx, StopPrBatchItemsParams(arg))
+}
+
 func (a Adapter) ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error) {
 	return a.q.ThreadIDsOfSpecDoc(ctx, specDocID)
 }
@@ -1412,6 +1465,10 @@ func (a Adapter) UpdateBundle(ctx context.Context, arg pgdb.UpdateBundleParams) 
 
 func (a Adapter) UpdateMCPConnection(ctx context.Context, arg pgdb.UpdateMCPConnectionParams) error {
 	return a.q.UpdateMCPConnection(ctx, UpdateMCPConnectionParams(arg))
+}
+
+func (a Adapter) UpdatePrBatchItem(ctx context.Context, arg pgdb.UpdatePrBatchItemParams) error {
+	return a.q.UpdatePrBatchItem(ctx, UpdatePrBatchItemParams(arg))
 }
 
 func (a Adapter) UpdateQuestionCites(ctx context.Context, arg pgdb.UpdateQuestionCitesParams) error {

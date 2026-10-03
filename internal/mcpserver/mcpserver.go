@@ -51,6 +51,13 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "verify_build", "Verify one build against the bundle. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
+	add(s, t, "review_prs", "Review many spec pull requests in one batch. Each pull request gets a pending review that only the person sees until they submit it on GitHub: each comment leads with a question or a fix for the author. Name the pull requests by their URLs, or name a repo: then the batch takes each open pull request that is not a draft and changes a spec doc, and requested keeps the ones that ask for the person's review. A pull request already reviewed at its head commit is skipped, unless again. The call returns at once with the batch ID and the cost estimate; the batch runs on in Speccy. Call get_batch for its progress, and cancel_batch to stop it. Local mode only.", t.reviewPRs)
+	add(s, t, "get_batch", "Get the state of a batch of pull request reviews: for each pull request, waiting, reviewing, posted, skipped with the reason, or failed with the error, and for a posted one the verdict of each spec doc, the count of comments, and the link to the pending review.", t.getBatch)
+	add(s, t, "cancel_batch", "Stop a batch of pull request reviews: no new pull request starts, and the reviews that run now finish and post.", t.cancelBatch)
+	add(s, t, "ask_author", "Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. Local mode only.", t.askAuthor)
+	add(s, t, "list_pending", "List the comments of the person's pending review on a pull request: each with its ID, file, line, first words, and whether Speccy wrote it. Call it before delete_pending, and show the list to the person.", t.listPending)
+	add(s, t, "delete_pending", "Delete comments of the person's pending review on a pull request, by the IDs that list_pending gives. Delete only the comments the person named.", t.deletePending)
+	add(s, t, "discard_pending", "Discard the person's whole pending review on pull requests: the ones named by URL, each open pull request of a repo, or each pull request of a batch. Name exactly one of urls, repo and batch. Nothing the author can see changes.", t.discardPending)
 	return s
 }
 
@@ -618,6 +625,180 @@ func (tools) postMessage(ctx context.Context, c *api.ClientWithResponses, in mes
 		body.Title = &in.Title
 	}
 	res, err := c.OpenBundleThreadWithResponse(ctx, b.Id, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type batchArg struct {
+	URLs      []string `json:"urls,omitempty" jsonschema:"the URLs of the pull requests"`
+	Repo      string   `json:"repo,omitempty" jsonschema:"a repo as owner/name, in place of urls"`
+	Requested bool     `json:"requested,omitempty" jsonschema:"with repo: only the pull requests that ask for the person's review"`
+	Parallel  int      `json:"parallel,omitempty" jsonschema:"how many pull requests run at the same time, 1 to 10. The default is 3."`
+	Again     bool     `json:"again,omitempty" jsonschema:"review a pull request again although it was reviewed at its head commit"`
+	Stages    []string `json:"stages,omitempty" jsonschema:"the model stages to run: rubric, grounding, divergence, coherence. Absent means all."`
+}
+
+// reviewPRs starts a batch of pull request reviews (docs/specs/pr-review-batch.md).
+func (tools) reviewPRs(ctx context.Context, c *api.ClientWithResponses, in batchArg) (any, error) {
+	body := api.CreatePrBatchJSONRequestBody{}
+	if len(in.URLs) > 0 {
+		body.Urls = &in.URLs
+	}
+	if in.Repo != "" {
+		body.Repo = &in.Repo
+	}
+	if in.Requested {
+		body.Requested = &in.Requested
+	}
+	if in.Parallel != 0 {
+		body.Parallel = &in.Parallel
+	}
+	if in.Again {
+		body.Again = &in.Again
+	}
+	if in.Stages != nil {
+		st := make([]api.PrBatchRequestStages, len(in.Stages))
+		for i, x := range in.Stages {
+			st[i] = api.PrBatchRequestStages(x)
+		}
+		body.Stages = &st
+	}
+	res, err := c.CreatePrBatchWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type batchIDArg struct {
+	Batch string `json:"batch" jsonschema:"the batch ID that review_prs gave"`
+}
+
+func batchID(ref string) (uuid.UUID, error) {
+	id, err := uuid.Parse(strings.TrimSpace(ref))
+	if err != nil {
+		return id, fmt.Errorf("batch must be the ID that review_prs gave")
+	}
+	return id, nil
+}
+
+func (tools) getBatch(ctx context.Context, c *api.ClientWithResponses, in batchIDArg) (any, error) {
+	id, err := batchID(in.Batch)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.GetPrBatchWithResponse(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+func (tools) cancelBatch(ctx context.Context, c *api.ClientWithResponses, in batchIDArg) (any, error) {
+	id, err := batchID(in.Batch)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.CancelPrBatchWithResponse(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type askArg struct {
+	URL     string   `json:"url" jsonschema:"the URL of the pull request"`
+	Concern string   `json:"concern" jsonschema:"the person's concern, in their own words"`
+	Section []string `json:"section,omitempty" jsonschema:"the heading path of the section, when the concern fits more than one"`
+	Force   bool     `json:"force,omitempty" jsonschema:"post the question although the doc already answers the concern"`
+}
+
+// askAuthor turns a concern into a question for the author in the pending review.
+func (tools) askAuthor(ctx context.Context, c *api.ClientWithResponses, in askArg) (any, error) {
+	body := api.AskAuthorJSONRequestBody{Url: in.URL, Concern: in.Concern}
+	if len(in.Section) > 0 {
+		body.Section = &in.Section
+	}
+	if in.Force {
+		body.Force = &in.Force
+	}
+	res, err := c.AskAuthorWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type pendingArg struct {
+	URL string `json:"url" jsonschema:"the URL of the pull request"`
+}
+
+func (tools) listPending(ctx context.Context, c *api.ClientWithResponses, in pendingArg) (any, error) {
+	res, err := c.ListPendingWithResponse(ctx, &api.ListPendingParams{Url: in.URL})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type deleteArg struct {
+	URL string  `json:"url" jsonschema:"the URL of the pull request"`
+	IDs []int64 `json:"ids" jsonschema:"the IDs of the comments, from list_pending"`
+}
+
+func (tools) deletePending(ctx context.Context, c *api.ClientWithResponses, in deleteArg) (any, error) {
+	res, err := c.DeletePendingWithResponse(ctx, api.DeletePendingJSONRequestBody{Url: in.URL, Ids: in.IDs})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type discardArg struct {
+	URLs  []string `json:"urls,omitempty" jsonschema:"the URLs of the pull requests"`
+	Repo  string   `json:"repo,omitempty" jsonschema:"a repo as owner/name: each of its open pull requests"`
+	Batch string   `json:"batch,omitempty" jsonschema:"a batch ID: each pull request the batch posted on"`
+}
+
+func (tools) discardPending(ctx context.Context, c *api.ClientWithResponses, in discardArg) (any, error) {
+	body := api.DiscardPendingJSONRequestBody{}
+	if len(in.URLs) > 0 {
+		body.Urls = &in.URLs
+	}
+	if in.Repo != "" {
+		body.Repo = &in.Repo
+	}
+	if in.Batch != "" {
+		id, err := batchID(in.Batch)
+		if err != nil {
+			return nil, err
+		}
+		body.Batch = &id
+	}
+	res, err := c.DiscardPendingWithResponse(ctx, body)
 	if err != nil {
 		return nil, err
 	}

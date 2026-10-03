@@ -243,13 +243,13 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 	path := strings.NewReplacer(
 		"{bundleId}", env.bundle.BundleID.String(), "{docId}", env.bundle.ID.String(), "{runId}", env.run.ID.String(), "{token}", "not-a-token",
 		"{connectionId}", uuid.NewString(), "{backendId}", uuid.NewString(), "{inviteId}", uuid.NewString(), "{role}", "reviewer",
-		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding, "{sourceId}", uuid.NewString(), "{reviewId}", uuid.NewString(), "{handoffId}", uuid.NewString(),
+		"{threadId}", env.thread, "{waiverId}", env.waiver, "{key}", "sdd", "{findingId}", env.finding, "{sourceId}", uuid.NewString(), "{reviewId}", uuid.NewString(), "{handoffId}", uuid.NewString(), "{batchId}", uuid.NewString(),
 	).Replace(op.path)
 	query := "?path=SPEC.md&base_version=" + env.bundle.CurrentVersionID.UUID.String() +
 		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String() +
 		// A slug that never matches: the probe reaches the role check and stops before it
 		// deletes the bundle every other case needs.
-		"&slug=not-the-slug&from_version=1&to_version=1&kind=implements&target=prd"
+		"&slug=not-the-slug&from_version=1&to_version=1&kind=implements&target=prd&url=https://github.com/acme/specs/pull/1"
 	var body *bytes.Reader
 	switch op.method {
 	case "POST", "PUT":
@@ -284,4 +284,25 @@ func (env *hostedEnv) call(t *testing.T, op operation, a kernel.Actor) (int, str
 	var p struct{ Code string }
 	_ = json.Unmarshal(body, &p)
 	return status, p.Code
+}
+
+// Hosted mode holds one workspace token, so a pending review would post as that account and
+// not as the person. Each pull request batch, question and pending review call refuses there.
+func TestHosted_PendingReviewsAreLocalOnly(t *testing.T) {
+	env := newHosted(t, storetest.Engines()[0])
+	admin := kernel.Actor{UserID: "user-admin", Role: kernel.RoleAdmin}
+	pr := "https://github.com/acme/specs/pull/1"
+	for path, body := range map[string]string{
+		"/pr-batches":              `{"repo":"acme/specs"}`,
+		"/pr-asks":                 `{"url":"` + pr + `","concern":"retries"}`,
+		"/pending-reviews/delete":  `{"url":"` + pr + `","ids":[1]}`,
+		"/pending-reviews/discard": `{"repo":"acme/specs"}`,
+	} {
+		status, out := env.post(t, path, body, admin)
+		var p struct{ Code, Detail string }
+		_ = json.Unmarshal(out, &p)
+		if status != 400 || p.Code != "local_only" || p.Detail != "Pending reviews post as you, so they run in local mode." {
+			t.Errorf("POST %s in hosted mode: status %d, %s %q; want 400 local_only", path, status, p.Code, p.Detail)
+		}
+	}
 }
