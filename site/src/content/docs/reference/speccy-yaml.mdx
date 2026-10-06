@@ -116,7 +116,7 @@ A local folder review does not look, because the folder names no repo that Specc
 - When several pull requests match, Speccy uses the one with the latest update. A run note names the others.
 - Speccy reads the doc at the head commit of that pull request. The coherence, coverage and `reads: [upstream]` checks run against it.
 - Speccy reads the doc again on each review, because a pull request can change.
-- The report, the pull request review and the JSON output say "from pull request #N at <commit>". In the JSON output, the link has `pull` with `number`, `sha` and `url`.
+- The report, the pull request review and the JSON output say `from pull request #N at <commit>`. In the JSON output, the link has `pull` with `number`, `sha` and `url`.
 - A Build Ready verdict that depends on such a link gets a run note: the upstream doc is not merged.
 - Only a link rule looks. A `links` entry in the frontmatter does not.
 
