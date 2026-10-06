@@ -7,6 +7,14 @@ description: Each tool of the Speccy MCP server, and its input.
 
 This page lists each tool of Speccy's MCP server. `speccy mcp` runs the server over stdio as the local user. In hosted mode the same tools are at `/mcp`, with a personal API token. [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/) shows the setup.
 
+## `approve_waiver`
+
+Approve a requested waiver under the profile's waiver policy. Speccy refuses an approval that the policy does not allow to the person. The final approval writes the waiver to the doc's sidecar, and the finding no longer counts in the verdict. Approve only when the person tells you to approve this waiver.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `waiver_id` | string | yes | the id of the waiver, from request_waiver or list_waivers |
+
 ## `ask_author`
 
 Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. Local mode only.
@@ -126,6 +134,14 @@ List the discussion threads of a bundle.
 |---|---|---|---|
 | `bundle` | string | yes | the bundle's slug or ID |
 
+## `list_waivers`
+
+List the waivers of a bundle, newest first: each with its check, section, reason, status, approvals, and for a contradiction the conflict it excuses.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `bundle` | string | yes | the bundle's slug or ID |
+
 ## `post_message`
 
 Post a message to a thread, or open a thread on a bundle when no thread_id is given.
@@ -148,6 +164,16 @@ Report what you learned about the doc while you built from a build packet. kind 
 | `section` | null or array |  | the heading path of the section the report is about |
 | `text` | string | yes | what you need, in your own words |
 | `trace_id` | string |  | a trace ID the report is about, such as REQ-012 |
+
+## `request_waiver`
+
+Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `bundle` | string | yes | the bundle's slug or ID |
+| `finding_id` | string | yes | the id of the finding, from get_findings |
+| `reason` | string | yes | why the check does not apply here, in the person's own words. At least 20 characters |
 
 ## `review_bundle`
 

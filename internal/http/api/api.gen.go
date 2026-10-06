@@ -2272,6 +2272,18 @@ type ConfirmedLink struct {
 	Target string `json:"target"`
 }
 
+// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+type Conflict struct {
+	// Quote The text of this doc that conflicts.
+	Quote string `json:"quote"`
+
+	// With The slug of the linked doc.
+	With string `json:"with"`
+
+	// WithQuote The text of the linked doc that it conflicts with.
+	WithQuote string `json:"with_quote"`
+}
+
 // ContentFile defines model for ContentFile.
 type ContentFile struct {
 	// Content The file text, or base64 when encoding is base64.
@@ -2436,6 +2448,9 @@ type Finding struct {
 	// Carried An AI finding of the last full review, which read an older version. Its section has not changed since.
 	Carried   *bool  `json:"carried,omitempty"`
 	CheckSlug string `json:"check_slug"`
+
+	// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+	Conflict *Conflict `json:"conflict,omitempty"`
 
 	// EndLine The line where the text of the finding ends.
 	EndLine int     `json:"end_line"`
@@ -3951,9 +3966,12 @@ type Waiver struct {
 	Approvals []string `json:"approvals"`
 
 	// CanApprove Whether the caller can approve or reject it now.
-	CanApprove bool      `json:"can_approve"`
-	CheckSlug  string    `json:"check_slug"`
-	CreatedAt  time.Time `json:"created_at"`
+	CanApprove bool   `json:"can_approve"`
+	CheckSlug  string `json:"check_slug"`
+
+	// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+	Conflict  *Conflict `json:"conflict,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 
 	// DecisionReason Why the waiver is rejected. Only a rejected waiver has one.
 	DecisionReason *string            `json:"decision_reason,omitempty"`

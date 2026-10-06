@@ -135,12 +135,21 @@ func TestDecisions_Sidecar(t *testing.T) {
 	if len(d.Waivers) != 2 || d.Waivers[0].SectionHash != "sha256:y" || d.Waivers[0].RequestedBy != "maria" {
 		t.Fatalf("waivers %+v", d.Waivers)
 	}
+	// A section holds one waiver per conflict of coherence.contradiction (#136). The same
+	// conflict, quoted with other case and spaces, replaces its entry.
+	pay := []string{"Pay"}
+	d = d.WithWaiver(Waiver{Check: ContradictionCheck, Section: pay, Reason: "One.", SectionHash: "sha256:p", Conflict: &Conflict{With: "prd", Quote: "10 days", WithQuote: "5 days"}})
+	d = d.WithWaiver(Waiver{Check: ContradictionCheck, Section: pay, Reason: "Two.", SectionHash: "sha256:p", Conflict: &Conflict{With: "prd", Quote: "7 days", WithQuote: "5 days"}})
+	d = d.WithWaiver(Waiver{Check: ContradictionCheck, Section: pay, Reason: "One again.", SectionHash: "sha256:p", Conflict: &Conflict{With: "prd", Quote: " 10  DAYS", WithQuote: "5 days"}})
+	if len(d.Waivers) != 4 || d.Waivers[2].Reason != "One again." || d.Waivers[3].Reason != "Two." {
+		t.Fatalf("contradiction waivers %+v", d.Waivers[2:])
+	}
 	out, err := d.Marshal()
 	if err != nil {
 		t.Fatal(err)
 	}
 	back, err := ParseDecisions(out)
-	if err != nil || len(back.Waivers) != 2 {
+	if err != nil || len(back.Waivers) != 4 || !back.Waivers[3].Conflict.Same(d.Waivers[3].Conflict) {
 		t.Fatalf("round trip %+v, %v:\n%s", back, err, out)
 	}
 	// An unknown key is an error, so a typo does not pass silently.

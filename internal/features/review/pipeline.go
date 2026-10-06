@@ -587,12 +587,12 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 
 	// Coherence: one call per linked doc that the contradiction check reads.
 	if stages.has(StageCoherence) && !standalone(in.dec) {
+		this := contradictionData(in)
 		for _, l := range in.linked {
 			if !slices.Contains(contradictionKinds, l.kind) {
 				continue
 			}
-			k := cacheKey{Step: "contradiction", InputHash: hashOf(bundleHash(in), l.target.ID.String(), l.version.String()),
-				ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptContradiction, Extra: l.kind}
+			k := contradictionKey(this, l, p.Version, fp)
 			if hit, _ := s.cached(ctx, k, &scratch); hit {
 				est.CachedHits++
 				continue

@@ -14,6 +14,7 @@ import (
 	"github.com/alternayte/speccy/internal/es"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 )
 
 // StreamType is the stream type of a waiver.
@@ -79,18 +80,20 @@ type State struct {
 	Repo    string `json:"repo,omitempty"`
 	// RunID is the verification run a verification waiver was asked from. The inbox link to
 	// the request opens it. A request that named no run has none.
-	RunID       uuid.UUID      `json:"run_id,omitzero"`
-	AckStatus   string         `json:"ack_status,omitempty"`
-	AckTarget   string         `json:"ack_target,omitempty"`
-	Level       kernel.Level   `json:"level"`
-	Section     []string       `json:"section"`
-	SectionHash string         `json:"section_hash"`
-	Reason      string         `json:"reason"`
-	Policy      profile.Policy `json:"policy"`
-	Status      string         `json:"status"`
-	RequestedBy string         `json:"requested_by"`
-	Approvals   []string       `json:"approvals"`
-	DecidedBy   string         `json:"decided_by"`
+	RunID     uuid.UUID `json:"run_id,omitzero"`
+	AckStatus string    `json:"ack_status,omitempty"`
+	AckTarget string    `json:"ack_target,omitempty"`
+	// Conflict is the one conflict a waiver of coherence.contradiction excuses (#136).
+	Conflict    *source.Conflict `json:"conflict,omitempty"`
+	Level       kernel.Level     `json:"level"`
+	Section     []string         `json:"section"`
+	SectionHash string           `json:"section_hash"`
+	Reason      string           `json:"reason"`
+	Policy      profile.Policy   `json:"policy"`
+	Status      string           `json:"status"`
+	RequestedBy string           `json:"requested_by"`
+	Approvals   []string         `json:"approvals"`
+	DecidedBy   string           `json:"decided_by"`
 	// DecisionReason is why the waiver is rejected. Only a rejection has one.
 	DecisionReason string `json:"decision_reason"`
 	// WithdrawnBy is who took an approved Acknowledgement out of the sidecar.
@@ -118,6 +121,7 @@ type Request struct {
 	RunID       uuid.UUID `json:",omitzero"`
 	AckStatus   string
 	AckTarget   string
+	Conflict    *source.Conflict `json:",omitempty"`
 	Level       kernel.Level
 	Section     []string
 	SectionHash string
@@ -263,7 +267,7 @@ func Evolve(s State, e es.Event) State {
 			scope = ScopeCheck
 		}
 		return State{ID: r.ID, BundleID: r.BundleID, Check: r.Check, Scope: scope, TraceID: r.TraceID, Repo: r.Repo,
-			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget,
+			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget, Conflict: r.Conflict,
 			Level: r.Level, Section: r.Section, SectionHash: r.SectionHash,
 			Reason: strings.TrimSpace(r.Reason), Policy: r.Policy, Status: StatusRequested, RequestedBy: r.By, Approvals: []string{}}
 	case Approved:

@@ -2,6 +2,7 @@ package source
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -67,19 +68,71 @@ func (d Decisions) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// WithWaiver returns the sidecar with w in it. A waiver for the same check and section is
-// replaced, so one section holds one decision for one check.
+// WithWaiver returns the sidecar with w in it. A waiver for the same check, section and
+// conflict is replaced, so one section holds one decision for one check, or for one conflict
+// of coherence.contradiction.
 func (d Decisions) WithWaiver(w Waiver) Decisions {
 	out := d
 	out.Waivers = slices.Clone(d.Waivers)
 	for i, old := range out.Waivers {
-		if old.Check == w.Check && slices.Equal(old.Section, w.Section) {
+		if old.Check == w.Check && slices.Equal(old.Section, w.Section) && old.Conflict.Same(w.Conflict) {
 			out.Waivers[i] = w
 			return out
 		}
 	}
 	out.Waivers = append(out.Waivers, w)
 	return out
+}
+
+// ContradictionCheck is the coherence check whose finding names one conflict with a linked doc.
+const ContradictionCheck = "coherence.contradiction"
+
+// Conflict is one conflict between a doc and a linked doc: what a waiver of
+// coherence.contradiction excuses (#136).
+type Conflict struct {
+	// With is the slug of the linked doc.
+	With string `yaml:"with" json:"with"`
+	// Quote is the text of this doc, and WithQuote the text of the linked doc.
+	Quote     string `yaml:"quote" json:"quote"`
+	WithQuote string `yaml:"with_quote" json:"with_quote"`
+}
+
+// Same reports whether c and o name the same conflict. Two absent conflicts are the same. The
+// quotes match with case and runs of white space folded, because a model quotes the same text
+// with such small changes from one run to the next. A conflict quoted in other words is a new
+// conflict, and it needs its own waiver.
+func (c *Conflict) Same(o *Conflict) bool {
+	if c == nil || o == nil {
+		return c == nil && o == nil
+	}
+	return c.Key() == o.Key()
+}
+
+// Key is the folded identity of the conflict. An absent conflict has the empty key.
+func (c *Conflict) Key() string {
+	if c == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.With) + "\x00" + foldQuote(c.Quote) + "\x00" + foldQuote(c.WithQuote)
+}
+
+func foldQuote(s string) string { return strings.ToLower(strings.Join(strings.Fields(s), " ")) }
+
+// ConflictOf reads the conflict from the evidence of a finding. It is nil for a finding of
+// another check, and for evidence that names no conflict.
+func ConflictOf(check string, evidence []byte) *Conflict {
+	if check != ContradictionCheck {
+		return nil
+	}
+	var ev struct {
+		Upstream      string `json:"upstream"`
+		Quote         string `json:"quote"`
+		UpstreamQuote string `json:"upstream_quote"`
+	}
+	if json.Unmarshal(evidence, &ev) != nil || ev.Upstream == "" || strings.TrimSpace(ev.Quote) == "" || strings.TrimSpace(ev.UpstreamQuote) == "" {
+		return nil
+	}
+	return &Conflict{With: ev.Upstream, Quote: ev.Quote, WithQuote: ev.UpstreamQuote}
 }
 
 // WithTraceAck returns the sidecar with t in it, replacing the acknowledgement of the same ID.

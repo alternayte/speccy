@@ -539,10 +539,7 @@ func runPending(args []string, stdout, stderr io.Writer) int {
 // commandProblem prints an API refusal for a command, and returns its exit code.
 func commandProblem(stderr io.Writer, cmd string, p *api.Problem) int {
 	fmt.Fprintf(stderr, "speccy %s: %s\n", cmd, problemText(p))
-	if p != nil && (p.Status == 400 || p.Status == 401 || p.Status == 403 || p.Status == 404 || p.Status == 422) {
-		return exitUsage
-	}
-	return exitRun
+	return commandExit(p)
 }
 
 func deref[T any](p *T) T {

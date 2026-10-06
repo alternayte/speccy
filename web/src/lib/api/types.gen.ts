@@ -865,6 +865,7 @@ export type Finding = {
      * For a coverage gap, the upstream trace ID it is about.
      */
     trace_id?: string;
+    conflict?: Conflict;
     /**
      * For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
      */
@@ -1508,6 +1509,7 @@ export type Waiver = {
     decision_reason?: string;
     section_range?: SectionRange;
     trace?: TraceAck;
+    conflict?: Conflict;
     verification?: VerificationExcuse;
     /**
      * True for a standalone Acknowledgement. On approval it goes in the sidecar under standalone.
@@ -1556,6 +1558,25 @@ export type TraceAck = {
     id: string;
     status: 'out_of_scope' | 'covered_by';
     target?: string;
+};
+
+/**
+ * One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+ *
+ */
+export type Conflict = {
+    /**
+     * The slug of the linked doc.
+     */
+    with: string;
+    /**
+     * The text of this doc that conflicts.
+     */
+    quote: string;
+    /**
+     * The text of the linked doc that it conflicts with.
+     */
+    with_quote: string;
 };
 
 export type HandoffRequest = {

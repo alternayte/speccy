@@ -12,6 +12,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/coherence"
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/verdict"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
@@ -21,7 +22,7 @@ import (
 const (
 	CoverageSlug      = "trace.coverage"
 	RestatementSlug   = "coherence.restatement"
-	ContradictionSlug = "coherence.contradiction"
+	ContradictionSlug = source.ContradictionCheck
 )
 
 // Link kinds that each coherence check reads.
@@ -190,6 +191,21 @@ type conflict struct {
 	Explanation string `json:"explanation"`
 }
 
+// contradictionData is this doc as the contradiction call reads it: the main doc and its text
+// assets.
+func contradictionData(in input) string {
+	return bundleData(in.bundle.DocPath, in.main, textAssets(in))
+}
+
+// contradictionKey is the cache key of the contradiction call with one linked doc (#132). It
+// holds only what the model reads: this doc as data, and the other doc's main doc. An edit to a
+// binary asset, or a new version of the other doc that changes only its sidecar or its assets,
+// such as a waiver approved on it, keeps the answer.
+func contradictionKey(this string, l linked, profileVer int64, fingerprint string) cacheKey {
+	return cacheKey{Step: "contradiction", InputHash: hashOf(this, l.target.ID.String(), version.Hash(l.main)),
+		ProfileVer: profileVer, Fingerprint: fingerprint, PromptVersion: PromptContradiction, Extra: l.kind}
+}
+
 // contradictionStage asks the reviewer for conflicts between the doc and each linked doc
 // (REQ-054). A conflict is kept only when both quotes are in their docs; it becomes a MUST
 // finding anchored in this doc, with the other doc's anchor in its evidence.
@@ -204,11 +220,10 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 		}
 	}
 	lvl := in.level(ContradictionSlug, kernel.Must)
-	this := bundleData(in.bundle.DocPath, in.main, textAssets(in))
+	this := contradictionData(in)
 	for i, l := range targets {
 		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Comparing with " + l.target.Slug, Done: i, Total: len(targets)})
-		key := cacheKey{Step: "contradiction", InputHash: hashOf(bundleHash(in), l.target.ID.String(), l.version.String()),
-			ProfileVer: in.profile.Version, Fingerprint: fingerprint, PromptVersion: PromptContradiction, Extra: l.kind}
+		key := contradictionKey(this, l, in.profile.Version, fingerprint)
 		var out struct {
 			Conflicts []conflict `json:"conflicts"`
 		}

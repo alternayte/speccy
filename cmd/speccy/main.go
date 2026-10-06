@@ -83,6 +83,11 @@ const usage = `Usage:
                 [--label <name>] [--acknowledged]
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
                 [--blocked | --note] [--section "A › B"] [--trace-id REQ-012]
+  speccy waive <doc path> <finding ID> --reason "<reason>" [--approve]
+                                                         Ask for a waiver of one finding. The finding ID is
+                                                         from speccy review --format json. --approve also
+                                                         approves it, as the profile's waiver policy allows.
+  speccy waivers list <doc path>                         List the waivers of a spec doc, with their status.
   speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
                                                          the repo the doc's implemented-by link names.
   speccy admin invite --role admin|member                Print an invite link (hosted).
@@ -137,6 +142,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runReport(args[1:], stdout, stderr)
 	case "verify":
 		return runVerify(args[1:], stdout, stderr)
+	case "waive":
+		return runWaive(args[1:], stdout, stderr)
+	case "waivers":
+		return runWaivers(args[1:], stdout, stderr)
 	case "mcp":
 		return runMCP(args[1:], stderr)
 	case "tui":

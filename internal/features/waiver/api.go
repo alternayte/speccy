@@ -169,6 +169,13 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	if standalone {
 		r.Scope = ScopeStandalone
 	}
+	// A waiver of a contradiction excuses the one conflict of the finding, not every conflict
+	// in its section (#136).
+	if f.CheckSlug == source.ContradictionCheck {
+		if r.Conflict = source.ConflictOf(f.CheckSlug, f.Evidence); r.Conflict == nil {
+			return nil, kernel.Invalid("no_conflict", "This finding names no conflict. Run the review again.")
+		}
+	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
 	}
@@ -251,7 +258,7 @@ func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approve
 		return err
 	}
 	w := source.Waiver{Check: s.Check, Section: s.Section, Reason: s.Reason, SectionHash: s.SectionHash,
-		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label()}
+		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(), Conflict: s.Conflict}
 	if profile.IsCheckHash(s.SectionHash) {
 		w.SectionHash, w.CheckHash = "", s.SectionHash
 	}
@@ -413,6 +420,9 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		}
 		w.Trace = &t
 	}
+	if c := s.Conflict; c != nil {
+		w.Conflict = &api.Conflict{With: c.With, Quote: c.Quote, WithQuote: c.WithQuote}
+	}
 	if s.Scope == ScopeVerify {
 		v := api.VerificationExcuse{TraceId: s.TraceID, Repo: s.Repo}
 		if s.RunID != uuid.Nil {
@@ -515,10 +525,14 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 				}
 				dec = &d
 			}
-			inSidecar := slices.ContainsFunc(dec.Waivers, func(w source.Waiver) bool {
-				return w.Check == r.CheckSlug && slices.Equal(w.Section, path) && (w.SectionHash == r.SectionHash || w.CheckHash == r.SectionHash)
-			})
-			decide = func(s State) ([]es.Event, error) { return DecideRestore(s, holds, inSidecar) }
+			waivers := dec.Waivers
+			decide = func(s State) ([]es.Event, error) {
+				inSidecar := slices.ContainsFunc(waivers, func(w source.Waiver) bool {
+					return w.Check == r.CheckSlug && slices.Equal(w.Section, path) && (w.SectionHash == r.SectionHash || w.CheckHash == r.SectionHash) &&
+						w.Conflict.Same(s.Conflict)
+				})
+				return DecideRestore(s, holds, inSidecar)
+			}
 		}
 		if _, err := es.Run(ctx, st, StreamType, r.ID, decide, Evolve); err != nil {
 			return err

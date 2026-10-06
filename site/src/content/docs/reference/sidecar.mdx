@@ -50,7 +50,7 @@ The sidecar has three top-level keys. Each one is optional. In the tables, **Nee
 
 ### waivers
 
-Each waiver excuses one check in one section. One waiver covers every shortfall of that check there.
+Each waiver excuses one check in one section. One waiver covers every shortfall of that check there. A waiver of `coherence.contradiction` is different: it excuses one conflict. See [A waiver of a conflict](#a-waiver-of-a-conflict).
 
 | Key | Type | Needed | What it holds |
 |---|---|---|---|
@@ -60,6 +60,7 @@ Each waiver excuses one check in one section. One waiver covers every shortfall 
 | `section_hash` | `sha256:<hex>` | yes, unless the waiver has `check_hash` | The hash of the section at the time of the request. |
 | `check_hash` | `check:<hex>` | yes, for a whole-doc check | The hash of the check's `question` and `pass_when` at the time of the request. It replaces `section_hash`. |
 | `requested_by` | text | no | The person who asked for the waiver: a name or an email from the app, or a GitHub login from a reply command. |
+| `conflict` | one conflict | no | For `coherence.contradiction` only: the one conflict that the waiver excuses. |
 
 What Speccy writes depends on the check:
 
@@ -89,6 +90,35 @@ A waiver holds while its `check` and `reason` are not empty and its hash still m
 The entry stays in the file. The app shows the waiver as ended, and it says why.
 
 The sidecar names no approver. In the app, the approval records who approved. In a pull request, the merge records it.
+
+#### A waiver of a conflict
+
+A `coherence.contradiction` finding names one conflict: a quote in this doc, and a quote in a linked doc that says a different thing. Its waiver binds to that conflict, so a new conflict in the same section stays open.
+
+| Key | Type | Needed | What it holds |
+|---|---|---|---|
+| `with` | spec doc slug | yes | The linked doc. |
+| `quote` | text | yes | The text of this doc that conflicts. |
+| `with_quote` | text | yes | The text of the linked doc that it conflicts with. |
+
+```yaml sidecar
+waivers:
+  - check: coherence.contradiction
+    section: [Payment retries, Timing]
+    reason: The PRD changes to 10 days in the next release, and the product team agreed.
+    section_hash: sha256:752d1754bd7b42a181cc8ec171e2e5999fbf1eadfab58904f84cca38ea8a984b
+    requested_by: Nathan
+    conflict:
+      with: docs/prd-payments
+      quote: The worker pays each refund within 10 working days.
+      with_quote: The system MUST refund a card payment within 5 working days of the request.
+```
+
+The waiver covers a finding when the check, the section, and the three keys of `conflict` match. Speccy compares the quotes without case, and it treats each run of spaces and line breaks as one space. The review model can quote the same text with such small changes from one run to the next. When the model quotes the conflict in other words, the waiver does not cover it. Ask for a new waiver.
+
+The waiver also holds only while the section is the same, as the `section_hash` says.
+
+A `coherence.contradiction` waiver with no `conflict` key covers each conflict in its section. Speccy wrote waivers in this form before it recorded the conflict, and they keep working. A new waiver always names its conflict.
 
 ### trace
 
@@ -143,7 +173,7 @@ A pull request from a fork gives the Action no write token. The Action then prin
 
 A verification waiver never goes in the sidecar. It excuses one trace ID in one code repo, and the sidecar travels with the doc into every build.
 
-When Speccy writes a waiver for a check and a section that the sidecar has already, the new entry replaces the old one. A trace acknowledgement replaces the one with the same `id`.
+When Speccy writes a waiver for a check and a section that the sidecar has already, the new entry replaces the old one. For `coherence.contradiction`, the conflict must match too, so one section can hold one waiver for each conflict. A trace acknowledgement replaces the one with the same `id`.
 
 ## Errors
 

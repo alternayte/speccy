@@ -4368,6 +4368,8 @@ components:
         trace_id:
           type: string
           description: For a coverage gap, the upstream trace ID it is about.
+        conflict:
+          $ref: "#/components/schemas/Conflict"
         source_url:
           type: string
           description: For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
@@ -5281,6 +5283,8 @@ components:
           $ref: "#/components/schemas/SectionRange"
         trace:
           $ref: "#/components/schemas/TraceAck"
+        conflict:
+          $ref: "#/components/schemas/Conflict"
         verification:
           $ref: "#/components/schemas/VerificationExcuse"
         standalone:
@@ -5337,6 +5341,23 @@ components:
           enum: [out_of_scope, covered_by]
         target:
           type: string
+
+    Conflict:
+      type: object
+      description: >
+        One conflict between a doc and a linked doc, as a coherence.contradiction finding names it.
+        A waiver of that check binds to it, and excuses no other conflict in the section.
+      required: [with, quote, with_quote]
+      properties:
+        with:
+          type: string
+          description: The slug of the linked doc.
+        quote:
+          type: string
+          description: The text of this doc that conflicts.
+        with_quote:
+          type: string
+          description: The text of the linked doc that it conflicts with.
 
     HandoffRequest:
       type: object

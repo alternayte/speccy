@@ -144,7 +144,8 @@ func textAssets(in input) []textFile {
 	var out []textFile
 	total := 0
 	for _, f := range in.files {
-		if f.Path == in.bundle.DocPath || !utf8.Valid(f.Content) || len(f.Content) == 0 {
+		// The sidecar holds decisions about the doc, not spec text, so no prompt reads it.
+		if f.Path == in.bundle.DocPath || source.IsSidecar(f.Path) || !utf8.Valid(f.Content) || len(f.Content) == 0 {
 			continue
 		}
 		if total+len(f.Content) > maxAssetText {
