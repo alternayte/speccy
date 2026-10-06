@@ -90,3 +90,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Owner: the one local process that holds a state folder: its store, its review worker and its watch on the files. Avoid: leader, primary, master, daemon.
 - Client process: a local Speccy process that sends its API calls to the owner and opens no store. Avoid: follower, secondary, proxy.
 - Internal claim: a claim about a system, a team or a process of the author's own organisation, which no public web page describes. It never goes to the web search of the backend. Avoid: private claim, local claim, in-house claim.
+- Upstream request: an approved answer to a coherence conflict saying the linked upstream doc must change. It sits in the downstream doc's sidecar and does not block the downstream verdict. Avoid: escalation, upstream waiver, push upstream.
+- Send-back: the answer on the upstream doc that ends an upstream request and blocks the downstream doc again. Avoid: rejection, bounce, counter-request.
+- Pointed-to section: a section of the same doc that a check's section links to or names by its full heading title, read by the check as context. Avoid: referenced section, linked section, related section.
