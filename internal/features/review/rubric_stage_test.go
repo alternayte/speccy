@@ -170,3 +170,162 @@ func TestRubric_ReadsUpstream(t *testing.T) {
 		t.Errorf("after a PRD edit: %d calls for the check that reads upstream, %d for the others; want 1 and 0", len(delta), len(other))
 	}
 }
+
+// A MUST check that the reviewer gives no valid answer for, after one more call, blocks the
+// verdict with a finding on the check, and the run does not fail. The next run asks only for
+// that check, and the verdict follows its answer.
+func TestRubric_UnansweredMustBlocks(t *testing.T) {
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": groundedSDD}, "fake-1")
+	pe.fake.rubricPass = true
+	drop := true
+	var mu sync.Mutex
+	var asked []string
+	pe.gateway.Fake = model.BackendFunc(func(ctx context.Context, m string, c model.Call) (model.Raw, error) {
+		raw, err := pe.fake.Call(ctx, m, c)
+		if err != nil || c.PromptVersion != review.PromptRubric {
+			return raw, err
+		}
+		mu.Lock()
+		for _, s := range slugsRe.FindAllStringSubmatch(outsideData(c.Prompt), -1) {
+			asked = append(asked, s[1])
+		}
+		mu.Unlock()
+		if !drop {
+			return raw, nil
+		}
+		var out struct {
+			Results []map[string]any `json:"results"`
+		}
+		if err := json.Unmarshal([]byte(raw.Text), &out); err != nil {
+			return raw, err
+		}
+		kept := []map[string]any{}
+		for _, r := range out.Results {
+			if r["slug"] != "sdd.consistency" {
+				kept = append(kept, r)
+			}
+		}
+		b, _ := json.Marshal(map[string]any{"results": kept})
+		raw.Text = string(b)
+		return raw, nil
+	})
+	item := func(v pgdb.Verdict) (passed, applicable bool) {
+		var items []struct {
+			Slug       string `json:"slug"`
+			Passed     bool   `json:"passed"`
+			Applicable bool   `json:"applicable"`
+		}
+		_ = json.Unmarshal(v.Items, &items)
+		for _, it := range items {
+			if it.Slug == "sdd.consistency" {
+				return it.Passed, it.Applicable
+			}
+		}
+		t.Fatal("the verdict has no item for sdd.consistency")
+		return false, false
+	}
+
+	_, fs, v := pe.run(t, "pay")
+	var unanswered []pgdb.Finding
+	for _, f := range fs {
+		if f.CheckSlug == "sdd.consistency" {
+			unanswered = append(unanswered, f)
+		}
+	}
+	if len(unanswered) != 1 || unanswered[0].Level != "MUST" || unanswered[0].Message != "The reviewer gave no answer for this check. Run the review again." {
+		t.Fatalf("findings of the unanswered check: %+v", unanswered)
+	}
+	if passed, applicable := item(v); passed || !applicable || v.Result != "not_build_ready" {
+		t.Errorf("verdict %s, item passed %v applicable %v; want a MUST that blocks", v.Result, passed, applicable)
+	}
+
+	drop = false
+	asked = nil
+	_, fs, v = pe.run(t, "pay")
+	if len(asked) != 1 || asked[0] != "sdd.consistency" {
+		t.Errorf("run 2 asked for %v, want only sdd.consistency", asked)
+	}
+	for _, f := range fs {
+		if f.CheckSlug == "sdd.consistency" {
+			t.Errorf("the check that has an answer now still has a finding: %s", f.Message)
+		}
+	}
+	if passed, _ := item(v); !passed {
+		t.Error("the verdict does not follow the answer of run 2")
+	}
+}
+
+// #139: a check that names a section reads the sections that its text points to. An edit to a
+// pointed-to section asks the check again; an edit elsewhere takes it from the cache, also when
+// its answer quotes the pointed-to section.
+func TestRubric_ReadsPointedToSections(t *testing.T) {
+	const doc = `---
+type: sdd
+title: Pay
+---
+
+# Pay
+
+## Security
+
+Each request carries a token. Governance and compliance records the deviation. The service keeps the data for one year.
+
+## Governance and compliance
+
+The break-glass account skips MFA, and the security team reviews each use within 24 hours.
+
+## Data
+
+Orders and refunds.
+
+## Notes
+
+Nothing else.
+`
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"pay/SPEC.md": doc}, "fake-1")
+	sdd := pe.reviews.Profiles()["sdd"]
+	sdd.Profile.Checks = append(append([]profile.Check{}, sdd.Profile.Checks...), profile.Check{Slug: "sdd.pointer", Level: "MUST", Stage: review.StageRubric,
+		Scope: "doc", Section: "Security", Question: "Is privileged access addressed?", PassWhen: "Privileged access is addressed."})
+	versions := map[string]profile.Versioned{"sdd": sdd}
+	pe.reviews.Profiles = func() map[string]profile.Versioned { return versions }
+	pe.fake.shortfalls = map[string][]map[string]string{"sdd.pointer": {{"reason": "The review is late.", "quote": "the security team reviews each use within 24 hours"}}}
+	var mu sync.Mutex
+	var prompts []string
+	pe.gateway.Fake = model.BackendFunc(func(ctx context.Context, m string, c model.Call) (model.Raw, error) {
+		if c.PromptVersion == review.PromptRubric && strings.Contains(outsideData(c.Prompt), "slug: sdd.pointer\n") {
+			mu.Lock()
+			prompts = append(prompts, c.Prompt)
+			mu.Unlock()
+		}
+		return pe.fake.Call(ctx, m, c)
+	})
+	asked := func() []string {
+		out := prompts
+		prompts = nil
+		return out
+	}
+
+	pe.run(t, "pay")
+	got := asked()
+	if len(got) != 1 {
+		t.Fatalf("sdd.pointer was asked %d times, want 1", len(got))
+	}
+	if !strings.Contains(got[0], "Pointed-to section Pay > Governance and compliance:") || !strings.Contains(insideData(got[0]), "break-glass account") {
+		t.Error("the check did not read the pointed-to section")
+	}
+	if strings.Contains(insideData(got[0]), "Orders and refunds") || strings.Contains(insideData(got[0]), "Nothing else") {
+		t.Error("the check read a section that its section does not point to")
+	}
+
+	pe.write(t, "pay/SPEC.md", strings.Replace(doc, "Nothing else.", "Nothing more.", 1))
+	pe.run(t, "pay")
+	if n := len(asked()); n != 0 {
+		t.Errorf("after an edit of another section, sdd.pointer was asked %d times, want 0", n)
+	}
+
+	pe.write(t, "pay/SPEC.md", strings.Replace(doc, "break-glass account", "emergency account", 1))
+	pe.run(t, "pay")
+	if n := len(asked()); n != 1 {
+		t.Errorf("after an edit of the pointed-to section, sdd.pointer was asked %d times, want 1", n)
+	}
+}

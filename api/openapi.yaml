@@ -4369,6 +4369,11 @@ components:
         waived:
           type: boolean
           description: A valid waiver covers this finding (REQ-074).
+        unanswered:
+          type: boolean
+          description: >
+            The reviewer gave no valid answer for this MUST check. A waiver cannot cover the
+            finding. The next review asks for the check again, and only an answer clears it.
         id:
           type: string
           format: uuid

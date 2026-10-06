@@ -25,7 +25,7 @@ What a waiver binds to depends on the check:
 - **A check of another stage that reads the whole doc**, such as `links.has-upstream`. The waiver binds to the whole doc body.
 - **`coherence.contradiction`.** The waiver binds to the section of the finding and to the one conflict that the finding names. The conflict is the linked doc, the quote in this doc, and the quote in the linked doc. A new conflict in the same section stays open, and it needs its own waiver. Speccy ignores case and extra spaces when it compares the quotes, so a small change in how the model quotes the text keeps the waiver. A conflict quoted in other words needs a new waiver.
 
-Two kinds of finding take no waiver. An INFO finding never changes the verdict, so it needs none. A coverage gap takes an answer instead: an acknowledgement, or a reference to the trace ID in the doc.
+Three kinds of finding take no waiver. An INFO finding never changes the verdict, so it needs none. A coverage gap takes an answer instead: an acknowledgement, or a reference to the trace ID in the doc. A MUST rubric check that the reviewer gave no answer for takes another review: only an answer clears it.
 
 ## The waiver policy
 
@@ -41,7 +41,7 @@ The profile says who may approve a waiver. `waivers.should` applies to a SHOULD 
 
 The built-in profiles use `non_author` for SHOULD and `maintainer` for MUST.
 
-A person who can approve a waiver can also reject it. A rejection needs a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and in the tour. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
+A person who can approve a waiver can also reject it. To reject it, the approver gives a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and in the tour. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
 
 A waiver that people approve again and again points at a limit that is wrong. Change the limit in the profile instead.
 

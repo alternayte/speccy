@@ -175,7 +175,13 @@ type rubricAnswer struct {
 	Shortfalls []shortfall `json:"shortfalls"`
 	// Prior is what the model says about each shortfall of the last review, by its number.
 	Prior []priorState `json:"prior,omitempty"`
+	// Unanswered says the reviewer gave no valid answer for a MUST check, after one more call.
+	// Such an answer is never cached.
+	Unanswered bool `json:"-"`
 }
+
+// unansweredMessage is the message of the finding of a MUST check with no answer.
+const unansweredMessage = "The reviewer gave no answer for this check. Run the review again."
 
 // priorState is the model's answer about one shortfall of the last review.
 type priorState struct {
@@ -345,6 +351,9 @@ type scopeUnit struct {
 	// title, and no other doc text. Otherwise sec is one section of a scope: section check,
 	// which reads the bundle for context.
 	named bool
+	// pointed are the Pointed-to sections of a named section: the sections that its text links
+	// to or names. The model reads them as context (#139).
+	pointed []*section.Section
 	// upstream says the checks read the upstream docs too (reads: [upstream]).
 	upstream  bool
 	inputHash string
@@ -370,18 +379,23 @@ func (u scopeUnit) namedKey() string {
 }
 
 // outside reports whether an answer of the checks that name a section holds a shortfall on
-// text of another section. The model read the named section alone, so such a shortfall came
-// from a whole-doc review of the check through an older Speccy (#116), and the answer is not
-// one of this section.
+// text of another section. The model read the named section and its Pointed-to sections alone,
+// so such a shortfall came from a whole-doc review of the check through an older Speccy (#116),
+// and the answer is not one of this section.
 func (u scopeUnit) outside(in input, a rubricAnswer) bool {
 	if !u.named {
 		return false
 	}
-	for _, sf := range a.Shortfalls {
-		if strings.TrimSpace(sf.Quote) == "" {
-			continue
+	read := func(quote string) bool {
+		for _, s := range append([]*section.Section{u.sec}, u.pointed...) {
+			if _, _, ok := anchor.Find(in.main[s.Start:s.End], quote); ok {
+				return true
+			}
 		}
-		if _, _, ok := anchor.Find(in.main[u.sec.Start:u.sec.End], sf.Quote); ok {
+		return false
+	}
+	for _, sf := range a.Shortfalls {
+		if strings.TrimSpace(sf.Quote) == "" || read(sf.Quote) {
 			continue
 		}
 		if _, _, ok := anchor.Find(in.main, sf.Quote); ok {
@@ -414,11 +428,15 @@ func docTitle(in input) string {
 }
 
 // namedHash is the input hash of the checks that name sec: the section with its child
-// sections, the doc title, and the text assets. An edit to another section leaves it as it is.
-func namedHash(in input, sec *section.Section) string {
+// sections, the doc title, the text assets, and each Pointed-to section with its child
+// sections. An edit to another section leaves it as it is.
+func namedHash(in input, sec *section.Section, pointed []*section.Section) string {
 	parts := []string{sec.TreeHash(in.main), docTitle(in)}
 	for _, f := range textAssets(in) {
 		parts = append(parts, f.path, version.Hash([]byte(f.text)))
+	}
+	for _, p := range pointed {
+		parts = append(parts, "pointed", strings.Join(p.Path, " > "), p.TreeHash(in.main))
 	}
 	return hashOf(parts...)
 }
@@ -475,7 +493,9 @@ func rubricUnits(in input) []scopeUnit {
 		}
 	}
 	for _, k := range order {
-		units = append(units, scopeUnit{sec: k.sec, named: true, upstream: k.up == 1, inputHash: withUp(namedHash(in, k.sec), k.up), checks: named[k], levels: levels})
+		pointed := pointedSections(in.bundle.DocPath, in.main, in.doc, k.sec)
+		units = append(units, scopeUnit{sec: k.sec, named: true, pointed: pointed, upstream: k.up == 1,
+			inputHash: withUp(namedHash(in, k.sec, pointed), k.up), checks: named[k], levels: levels})
 	}
 	for up, checks := range sectionChecks {
 		if len(checks) == 0 {
@@ -582,6 +602,19 @@ func (s *Service) rubricStage(ctx context.Context, rc *runCtx, in input, ev *eva
 			if a.Result != "fail" {
 				continue
 			}
+			if a.Unanswered {
+				// No waiver covers this finding: only an answer clears it.
+				an, _ := rubricAnchor(in, r.unit.sec, nil)
+				msg := unansweredMessage
+				if r.unit.sec != nil && !r.unit.named {
+					msg = fmt.Sprintf("%s: %s", strings.Join(r.unit.sec.Path, " › "), unansweredMessage)
+				}
+				ev.findings = append(ev.findings, pending{
+					slug: c.Slug, level: lvl, stage: StageRubric, anchor: an, message: msg,
+					evidence: map[string]any{"question": c.Question, source.UnansweredKey: true, "section": r.unit.sectionKey(), "named": r.unit.namedKey()},
+				})
+				continue
+			}
 			// Each shortfall is one finding, so the author sees every one in this review and not
 			// the next one after each fix. An answer with none, from an older cache entry or a
 			// model that gave none, is one finding with the reason of the check.
@@ -658,6 +691,16 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		name := strings.Join(u.sec.Path, " > ")
 		scopeNote = fmt.Sprintf("The data holds one section of the doc \"%s\": the section \"%s\" with its subsections. Answer the checks from this section. The rest of the doc is not here; do not guess what it says.", docTitle(in), name)
 		bundle = data("Section "+name, string(in.main[u.sec.Start:u.sec.End]))
+		if len(u.pointed) > 0 {
+			// The section points to other sections for some facts, so the model reads them as
+			// context (#139).
+			names := make([]string, len(u.pointed))
+			for i, p := range u.pointed {
+				names[i] = fmt.Sprintf("\"%s\"", strings.Join(p.Path, " > "))
+				bundle += "\n" + data("Pointed-to section "+strings.Join(p.Path, " > "), string(in.main[p.Start:p.End]))
+			}
+			scopeNote = fmt.Sprintf("The data holds one section of the doc \"%s\": the section \"%s\" with its subsections. The data also holds the sections that this section points to: %s. Answer the checks for the section \"%s\". Where it points to another section for a fact, that fact counts as part of it, and you may quote the other section. The rest of the doc is not here; do not guess what it says.", docTitle(in), name, strings.Join(names, ", "), name)
+		}
 		for _, a := range textAssets(in) {
 			bundle += "\n" + data("Asset "+a.path, a.text)
 		}
@@ -722,6 +765,10 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 			switch {
 			case !ok && !asked:
 				continue // the run fails; the next run asks again
+			case !ok && u.levels[c.Slug] == kernel.Must:
+				// A MUST check with no answer blocks the verdict: Build Ready means that every MUST
+				// check got a judgement. The answer is not cached, so the next run asks again.
+				a = rubricAnswer{Slug: c.Slug, Result: "fail", Reason: unansweredMessage, Unanswered: true}
 			case !ok:
 				// The same rule as a check the reviewer left out: not applicable, with a run note,
 				// and not cached, so the next run asks again.

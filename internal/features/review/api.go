@@ -329,6 +329,10 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 			}
 		}
 		af.Conflict = conflictAPI(source.ConflictOf(f.CheckSlug, f.Evidence))
+		if source.Unanswered(f.Evidence) {
+			yes := true
+			af.Unanswered = &yes
+		}
 		if f.CheckSlug == HasUpstreamSlug {
 			var ev sourceEvidence
 			_ = json.Unmarshal(f.Evidence, &ev)

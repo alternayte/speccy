@@ -234,6 +234,10 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		}
 		evidence, _ := json.Marshal(f.evidence)
 		af.Conflict = conflictAPI(source.ConflictOf(f.slug, evidence))
+		if source.Unanswered(evidence) {
+			yes := true
+			af.Unanswered = &yes
+		}
 		if question := answerQuestion(f.slug, f.message, f.anchor.Quote, f.question, evidence); question != "" {
 			af.Question = &question
 		}

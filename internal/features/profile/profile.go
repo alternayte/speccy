@@ -162,9 +162,9 @@ type Check struct {
 	Waiver   *Policy `yaml:"waiver,omitempty" json:"waiver,omitempty"`
 	// Sizes are the doc sizes this check applies to. An empty list applies at every size.
 	Sizes []string `yaml:"sizes,omitempty" json:"sizes,omitempty"`
-	// Section is the heading a rubric check is about. The check then reads that section only,
-	// so an edit to another section does not change its answer. A doc with no such heading
-	// gets the check as a whole-doc check. SectionNone says that the check reads the whole doc
+	// Section is the heading a rubric check is about. The check then reads that section and its
+	// Pointed-to sections only, so an edit to another section does not change its answer. A
+	// doc with no such heading gets the check as a whole-doc check. SectionNone says that the check reads the whole doc
 	// on purpose.
 	Section string `yaml:"section,omitempty" json:"section,omitempty"`
 	// Reads are the other texts a rubric check reads besides the doc. "upstream" adds the main

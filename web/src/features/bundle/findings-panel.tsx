@@ -259,7 +259,7 @@ export function FindingsPanel({
                   >
                     Answer the gap
                   </button>
-                ) : !f.waived && f.level !== "INFO" && !f.trace_id && f.check_slug !== upstreamSlug ? (
+                ) : !f.waived && !f.unanswered && f.level !== "INFO" && !f.trace_id && f.check_slug !== upstreamSlug ? (
                   <button
                     type="button"
                     onClick={() => setWaiving({ finding: f })}
@@ -294,7 +294,8 @@ export function FindingsPanel({
             }}
           />
         ) : null}
-        {canEdit && !f.waived && !f.trace_id ? (
+        {/* A check with no answer needs another review, not a fix. */}
+        {canEdit && !f.waived && !f.trace_id && !f.unanswered ? (
           <SuggestFix
             runId={f.run_id}
             docId={docId}

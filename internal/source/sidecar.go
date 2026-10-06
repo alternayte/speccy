@@ -135,6 +135,21 @@ func ConflictOf(check string, evidence []byte) *Conflict {
 	return &Conflict{With: ev.Upstream, Quote: ev.Quote, WithQuote: ev.UpstreamQuote}
 }
 
+// UnansweredKey is the evidence key of the finding of a MUST rubric check that the reviewer gave
+// no valid answer for. No waiver covers such a finding: only an answer clears it.
+const UnansweredKey = "unanswered"
+
+// Unanswered reports whether the evidence of a finding says the reviewer gave no answer for its
+// check.
+func Unanswered(evidence []byte) bool {
+	var ev map[string]any
+	if json.Unmarshal(evidence, &ev) != nil {
+		return false
+	}
+	yes, _ := ev[UnansweredKey].(bool)
+	return yes
+}
+
 // WithTraceAck returns the sidecar with t in it, replacing the acknowledgement of the same ID.
 func (d Decisions) WithTraceAck(t TraceAck) Decisions {
 	out := d

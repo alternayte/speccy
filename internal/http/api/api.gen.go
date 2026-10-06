@@ -2628,6 +2628,9 @@ type Finding struct {
 	// TraceId For a coverage gap, the upstream trace ID it is about.
 	TraceId *string `json:"trace_id,omitempty"`
 
+	// Unanswered The reviewer gave no valid answer for this MUST check. A waiver cannot cover the finding. The next review asks for the check again, and only an answer clears it.
+	Unanswered *bool `json:"unanswered,omitempty"`
+
 	// VerifyTarget For a drifted code link, the commit URL a verification run reads to check the code still conforms.
 	VerifyTarget *string `json:"verify_target,omitempty"`
 

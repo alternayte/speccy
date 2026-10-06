@@ -76,6 +76,10 @@ func Of(in Inputs) *api.NextAction {
 			}
 		}
 	}
+	// A MUST check with no answer needs another review, not an edit.
+	if f := in.Finding; f != nil && f.Unanswered != nil && *f.Unanswered {
+		return &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc again"}
+	}
 	if f := in.Finding; f != nil {
 		id := f.Id
 		return &api.NextAction{

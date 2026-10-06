@@ -105,6 +105,9 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	if kernel.Level(f.Level) == kernel.Info {
 		return nil, kernel.Invalid("info_finding", "An INFO finding never changes the verdict, so it needs no waiver.")
 	}
+	if source.Unanswered(f.Evidence) {
+		return nil, kernel.Invalid("unanswered_check", "The reviewer gave no answer for this check, so a waiver cannot cover it. Run the review again.")
+	}
 	p, ok := a.Profiles()[b.ProfileKey]
 	if !ok {
 		return nil, kernel.Invalid("no_profile", "The bundle's doc type has no profile.")

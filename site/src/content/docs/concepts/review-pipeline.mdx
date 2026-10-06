@@ -39,12 +39,24 @@ A lint finding describes the writing, never the author. Lint finishes a doc of 1
 
 What a check reads depends on the check:
 
-- A check that names a heading, such as `section: "Monitoring"`, reads that section with its subsections, the doc title and the text assets. An edit to another section does not send the check to the model again. When the doc has no such heading, the check reads the whole doc.
+- A check that names a heading, such as `section: "Monitoring"`, reads that section with its subsections, the doc title and the text assets. It also reads each pointed-to section. An edit to another section does not send the check to the model again. When the doc has no such heading, the check reads the whole doc.
 - A check with `scope: section` runs once for each section.
 - Any other rubric check is a whole-doc check. It reads the whole bundle: the spec doc and its text assets. The model judges it again after any edit.
 - A check with `reads: [upstream]` also reads the spec doc of each `implements` or `refines` link target, such as the PRD. A change to the text of that doc sends the check to the model again.
 
-Sometimes the answer for one check does not match the schema. That check then gets one more call, and the review continues. When the second answer does not match either, the check counts as not applicable. The run report then has a note. When a call fails, the answers of the other calls stay in the cache. The next review asks only for the checks that have no answer.
+A pointed-to section is a section of the same doc that the named section points to. A pointer is one of these:
+
+- A markdown link to the anchor of a heading in the same doc, such as `[the audit rules](#governance-and-compliance)`.
+- The full title of a heading in the text, with case ignored, such as "Governance and compliance records the deviation". A heading title of one word counts only as a link. Thus the words "the data" do not point to a heading "Data".
+
+Speccy follows pointers one level deep. The pointers of a pointed-to section add nothing. The model reads each pointed-to section with its subsections as context, and the data labels it with its heading path. Where the named section points to another section for a fact, the fact counts as part of the named section. The answer can quote the pointed-to section. An edit to a pointed-to section sends the check to the model again. The cost estimate counts the pointed-to sections. A pointer into another doc or an asset adds nothing. A whole-doc check and a `scope: section` check do not follow pointers.
+
+Sometimes the answer for one check does not match the schema. That check then gets one more call, and the review continues. When the second answer does not match either, the result depends on the level of the check:
+
+- A MUST check gets a MUST finding on the check: "The reviewer gave no answer for this check. Run the review again." The verdict is then Not Build Ready. Thus Build Ready means that each MUST check got a judgement. A waiver cannot cover this finding. Only an answer clears it.
+- A SHOULD or INFO check counts as not applicable. The run report then has a note.
+
+In both cases the run does not fail, and Speccy does not cache the missing answer. The next review asks the model for that check again, and takes the other answers from the cache. When a call fails, the answers of the other calls stay in the cache. The next review asks only for the checks that have no answer.
 
 The built-in PRD and SDD profiles name a section on each check that is about one section of the template. The reviewer answers up to eight checks in one call.
 

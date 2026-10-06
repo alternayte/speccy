@@ -8,6 +8,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/source"
 )
 
 // quoted finds the first text in double quotes in a message.
@@ -19,7 +20,8 @@ var quoted = regexp.MustCompile(`"([^"]+)"`)
 // question, the claim, the quoted text. A person, or an agent that asks the person, then needs
 // no guess about which fact is missing. A reword finding needs no fact, and has no question.
 func answerQuestion(slug, message, quote, written string, evidence []byte) string {
-	if fixKind(slug, evidence) != api.Answer {
+	// A check with no answer needs another review, not a fact from the author.
+	if fixKind(slug, evidence) != api.Answer || source.Unanswered(evidence) {
 		return ""
 	}
 	if written = strings.TrimSpace(written); written != "" {

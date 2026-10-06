@@ -514,10 +514,13 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 		}
 		switch {
 		case u.named:
-			// The call holds the section and the assets, not the bundle.
+			// The call holds the section, its Pointed-to sections and the assets, not the bundle.
 			assetTokens := int64(0)
 			for _, f := range textAssets(in) {
 				assetTokens += int64(len(f.text)) / 4
+			}
+			for _, p := range u.pointed {
+				assetTokens += int64(p.End-p.Start) / 4
 			}
 			rubricUnit(u.inputHash, u.checks, extra+int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
 		case u.sec != nil:

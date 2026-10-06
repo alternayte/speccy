@@ -318,7 +318,7 @@ Small implementation choices that `SDD.md` does not cover (`BUILD.md` §2). Newe
 
 ## 2026-09-19 — Rubric stage
 
-- **Choice:** Checks with `scope: doc` read the bundle (the main doc and up to 200 kB of text assets); `scope: section` checks run per section. The reviewer answers up to 8 checks per call, and a skipped check gets one more call alone; a check still unanswered counts as not applicable, with a run note. A failed check's finding anchors on its first quote that is in the doc, else on the section, else on the doc.
+- **Choice:** Checks with `scope: doc` read the bundle (the main doc and up to 200 kB of text assets); `scope: section` checks run per section. The reviewer answers up to 8 checks per call, and a skipped check gets one more call alone; a MUST check still unanswered gets a MUST finding that no waiver covers and that is not cached, and a SHOULD or INFO check still unanswered counts as not applicable, with a run note. A check that names a section also reads its pointed-to sections, one level deep (#139). A failed check's finding anchors on its first quote that is in the doc, else on the section, else on the doc.
 - **Alternative:** One call per check.
 - **Reason:** Fewer calls; each answer is still cached per check (§8.10).
 

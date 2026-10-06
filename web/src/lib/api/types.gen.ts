@@ -843,6 +843,11 @@ export type Finding = {
      * A valid waiver covers this finding (REQ-074).
      */
     waived: boolean;
+    /**
+     * The reviewer gave no valid answer for this MUST check. A waiver cannot cover the finding. The next review asks for the check again, and only an answer clears it.
+     *
+     */
+    unanswered?: boolean;
     id: string;
     check_slug: string;
     level: 'MUST' | 'SHOULD' | 'INFO';
