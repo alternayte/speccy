@@ -4032,6 +4032,26 @@ components:
           description: >
             True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a
             frontmatter link of a doc Speccy writes. Absent on an incoming link.
+        pull:
+          $ref: "#/components/schemas/LinkPull"
+          description: >
+            Set when the target of a link rule is not in the tree and an open pull request of
+            the same repo holds it (#142). The review read the doc at that pull request's head
+            commit. The doc is not merged.
+
+    LinkPull:
+      type: object
+      required: [number, sha, url]
+      properties:
+        number:
+          type: integer
+          description: The number of the open pull request.
+        sha:
+          type: string
+          description: The head commit of the pull request that the review read.
+        url:
+          type: string
+          description: The web page of the pull request.
 
     RemovedLink:
       type: object
@@ -4958,6 +4978,13 @@ components:
           type: array
           items:
             type: string
+        links:
+          type: array
+          description: >
+            The outgoing links of the doc, as this review resolved them. A link whose target
+            comes from an open pull request has pull.
+          items:
+            $ref: "#/components/schemas/BundleLink"
         tokens_in:
           type: integer
           format: int64

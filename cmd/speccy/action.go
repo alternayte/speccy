@@ -30,6 +30,12 @@ type actionEvent struct {
 	} `json:"pull_request"`
 }
 
+// actionRepo is the repo of the checkout that speccy action reviews in CI. The store that this
+// process opens reads a link rule target that is not in the tree from the open pull requests
+// of that repo (#142). Every other command leaves it nil: a folder on a laptop names no repo
+// that Speccy can trust.
+var actionRepo *review.FolderRepo
+
 // runAction is speccy action, the GitHub Action (SDD §12.4, REQ-124). It reviews the bundles
 // that a pull request changes, posts or updates one summary comment, posts inline comments on
 // changed lines, and sets one check run per bundle. It reads the Actions environment:
@@ -186,6 +192,7 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	if fl.server != "" {
 		results, code = reviewRemote(ctx, fl, stages, selected, stderr)
 	} else {
+		actionRepo = &review.FolderRepo{Client: gh, Repo: repo, Dir: root.Dir(), Pull: prNumber(event)}
 		if s, err = openSession(ctx, root.Dir()); err != nil {
 			fmt.Fprintf(stderr, "speccy action: %v.\n", problemText(err))
 			return exitRun
@@ -248,6 +255,20 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		}
 		if r.Report != "" {
 			ab.Report = r.Report // connected mode: the report on the server
+		}
+		// The links that the review read from open pull requests (#142), as the run stored them.
+		if s != nil && r.DocID != "" && r.Error == "" {
+			if id, err := parseUUID(r.DocID); err == nil {
+				tr, err := s.client.GetTraceWithResponse(ctx, id)
+				switch {
+				case err != nil:
+					fmt.Fprintf(stderr, "Warning: the links of %s do not read: %v.\n", r.Path, err)
+				case tr.JSON200 == nil:
+					fmt.Fprintf(stderr, "Warning: the links of %s do not read: %s.\n", r.Path, problemText(tr.ApplicationproblemJSONDefault))
+				default:
+					ab.Upstream = action.UpstreamOf(tr.JSON200.Links)
+				}
+			}
 		}
 		bundles = append(bundles, ab)
 	}

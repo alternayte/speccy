@@ -50,6 +50,9 @@ type FromRepo struct {
 	// docs and files are the siblings as the link resolver reads them.
 	docs  []pgdb.SpecDoc
 	files map[uuid.UUID][]source.File
+	// pulls finds a link rule target that is not in the commit in the open pull requests of
+	// the repo (#142). The docs of one review share it. Nil for content with no repo.
+	pulls *pullFinder
 }
 
 // Sibling is another spec doc of the same commit.
@@ -150,6 +153,8 @@ type ContentResult struct {
 	Verdict        verdict.Verdict
 	RelaxedCount   int
 	Notes          []string
+	// Links are the doc's outgoing links as the review resolved them.
+	Links []api.BundleLink
 	// Size is the doc size the review used.
 	Size      string
 	TokensIn  int64
@@ -184,6 +189,9 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	}
 	if in.sizeNote != "" {
 		rc.note(in.sizeNote)
+	}
+	for _, n := range in.linkNotes {
+		rc.note(n)
 	}
 	if rc.progress == nil {
 		rc.progress = NewBroker()
@@ -248,6 +256,10 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		out.Findings = append(out.Findings, af)
 	}
 	out.Verdict = verdict.Decide(vin)
+	if n := readyOnPullNote(in.links, out.Verdict.Result); n != "" {
+		rc.note(n)
+	}
+	out.Links = contentLinks(in.links, c.From)
 	out.ProfileKey, out.ProfileVersion, out.MainDoc = p.Profile.Key, p.Version, in.bundle.DocPath
 	out.Title, out.Slug = in.bundle.Title, in.bundle.Slug
 	out.RelaxedCount = relaxedCount(p.Profile, ev.relaxed)
@@ -260,6 +272,29 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		out.Notes = append(out.Notes, "Stages in this review: "+strings.Join(append([]string{StageLint}, stages...), ", ")+". The verdict counts only these stages, because this content has no earlier review.")
 	}
 	return out, nil
+}
+
+// contentLinks are the links of reviewed content as the API gives them. A target names a
+// saved spec doc only when it is one: a doc of the same commit or of an open pull request is
+// not saved, so it has only its path.
+func contentLinks(links []link, from *FromRepo) []api.BundleLink {
+	out := []api.BundleLink{}
+	for _, l := range links {
+		bl := api.BundleLink{Kind: api.BundleLinkKind(l.kind), Origin: api.BundleLinkOrigin(l.origin),
+			TargetKind: api.BundleLinkTargetKind(l.targetKind), TargetRef: l.ref}
+		switch {
+		case l.pull != nil:
+			bl.Pull = &api.LinkPull{Number: l.pull.Number, Sha: l.pull.SHA, Url: l.pull.URL}
+		case l.target != nil && (from == nil || from.files[l.target.ID] == nil):
+			r := bundleRefAPI(*l.target)
+			bl.Bundle = &r
+		}
+		if l.external != nil {
+			bl.TargetUrl = &l.external.URL
+		}
+		out = append(out, bl)
+	}
+	return out
 }
 
 // mainContent is the bytes of the main doc in c.
@@ -344,6 +379,10 @@ func (a *API) ReviewContent(ctx context.Context, req api.ReviewContentRequestObj
 func (a *API) contentReview(ctx context.Context, res ContentResult, files []source.File) (api.ContentReview, error) {
 	out := api.ContentReview{ProfileKey: res.ProfileKey, ProfileVersion: res.ProfileVersion, MainDoc: res.MainDoc, Size: &res.Size,
 		Findings: res.Findings, Notes: res.Notes}
+	if res.Links != nil {
+		links := res.Links
+		out.Links = &links
+	}
 	if out.Findings == nil {
 		out.Findings = []api.Finding{}
 	}

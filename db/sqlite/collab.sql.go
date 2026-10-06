@@ -889,7 +889,7 @@ func (q *Queries) ListSpecDocWaivers(ctx context.Context, specDocID uuid.UUID) (
 }
 
 const listSupersedesLinks = `-- name: ListSupersedesLinks :many
-SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url FROM link WHERE workspace_id = ?1 AND kind = 'supersedes' AND target_spec_doc_id IS NOT NULL
+SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url, pull_number, pull_sha, pull_url FROM link WHERE workspace_id = ?1 AND kind = 'supersedes' AND target_spec_doc_id IS NOT NULL
 `
 
 func (q *Queries) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error) {
@@ -911,6 +911,9 @@ func (q *Queries) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID
 			&i.TargetRef,
 			&i.Origin,
 			&i.TargetUrl,
+			&i.PullNumber,
+			&i.PullSha,
+			&i.PullUrl,
 		); err != nil {
 			return nil, err
 		}

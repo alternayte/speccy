@@ -44,6 +44,8 @@ This guide sets up the Speccy GitHub Action for the full review, and shows how t
 
 The Action downloads the Speccy release that the `version` input names, `latest` by default. It runs on Linux and macOS runners, on x64 and ARM64. It changes to the folder of the file that the `config` input names, `.speccy.yaml` at the root by default. It reviews the bundles of that folder.
 
+In standalone mode, a link rule whose target is not in the checkout finds the target in an open pull request of the same repo. The summary comment and the check say `The upstream doc docs/x/PRD.md is from pull request #12 at 1a2b3c4. It is not merged.` [.speccy.yaml](/reference/speccy-yaml/#a-target-in-an-open-pull-request) has the rules.
+
 On an event with no pull request, such as a push to `main`, the Action reviews every bundle of the repo. It prints the results in the job log and posts no comment. In blocking mode, any bundle that is not Build Ready fails the job.
 
 ## Choose the models

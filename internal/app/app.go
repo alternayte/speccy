@@ -57,6 +57,8 @@ type Options struct {
 	ProfilesDir string
 	// People lists the members. Nil means local mode's one person.
 	People kernel.Directory
+	// FolderRepo is the GitHub repo that Root is a checkout of. Only the CI Action sets it (#142).
+	FolderRepo *review.FolderRepo
 }
 
 // New builds the services on an open, migrated store. The review worker runs until ctx ends.
@@ -101,6 +103,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		ResolveSources: func(ctx context.Context) bool { return settings(ctx).ResolveSourcesOn() },
 		ES:             events,
 	}
+	reviews.FolderRepo = o.FolderRepo
 	if root != nil {
 		// REQ-129: local mode reads GitHub with the machine's gh login, and falls back to a
 		// token pasted in the app.

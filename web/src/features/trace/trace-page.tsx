@@ -212,6 +212,14 @@ function LinkRow({ link: l, incoming, unlink }: { link: BundleLink; incoming?: b
           <BundleName id={l.bundle.id} title={l.bundle.title} slug={l.bundle.slug} />
         ) : l.target_kind === "external" ? (
           <span className="font-mono text-xs text-ink-2">{l.target_ref}</span>
+        ) : l.pull ? (
+          <span className="text-ink-2">
+            <span className="font-mono text-xs">{l.target_ref}</span> from{" "}
+            <a href={l.pull.url} target="_blank" rel="noreferrer" className="hover:text-accent">
+              pull request #{l.pull.number}
+            </a>{" "}
+            at <span className="font-mono text-xs">{l.pull.sha.slice(0, 7)}</span>. It is not merged.
+          </span>
         ) : (
           <span className="text-bad">
             <span className="font-mono text-xs">{l.target_ref}</span> — no bundle has this name

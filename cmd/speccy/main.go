@@ -273,7 +273,7 @@ func openApp(ctx context.Context, root *local.Root, stateDir, keyFile string) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	a, err := app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles")})
+	a, err := app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles"), FolderRepo: actionRepo})
 	if err != nil {
 		return nil, nil, err
 	}

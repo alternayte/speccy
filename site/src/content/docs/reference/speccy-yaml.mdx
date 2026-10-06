@@ -101,6 +101,27 @@ A link rule links two spec docs by a path convention, so the docs need no `links
 - A rule makes a link only when the target spec doc exists.
 - A link in the frontmatter comes first. A rule adds no second link of the same kind to the same target.
 
+#### A target in an open pull request
+
+An SDD and its PRD often go into review at the same time, in two pull requests. Then the tree of the SDD does not hold the PRD. A review that knows its GitHub repo looks for the target in the open pull requests of that repo:
+
+- `speccy action --pr`, `speccy review-prs`, the `review_url` tool and `POST /reviews/url`.
+- A GitHub source.
+- `speccy action` in GitHub Actions, in standalone mode.
+
+A local folder review does not look, because the folder names no repo that Speccy can trust. Connected mode does not look either.
+
+- Speccy looks only when the tree holds no file at the target path. A doc in the tree always wins.
+- A pull request matches when its changed files add or change exactly the target path. A draft pull request counts.
+- When several pull requests match, Speccy uses the one with the latest update. A run note names the others.
+- Speccy reads the doc at the head commit of that pull request. The coherence, coverage and `reads: [upstream]` checks run against it.
+- Speccy reads the doc again on each review, because a pull request can change.
+- The report, the pull request review and the JSON output say "from pull request #N at <commit>". In the JSON output, the link has `pull` with `number`, `sha` and `url`.
+- A Build Ready verdict that depends on such a link gets a run note: the upstream doc is not merged.
+- Only a link rule looks. A `links` entry in the frontmatter does not.
+
+One review lists the open pull requests of the repo once. It reads the changed files of each pull request once, and only when a target is missing.
+
 ### link_patterns
 
 A pattern turns a short external link target into a URL. The key is the scheme, and the value is a URL with `{key}` in it. With the sample above, the target `jira:PAY-412` opens `https://company.atlassian.net/browse/PAY-412`.
