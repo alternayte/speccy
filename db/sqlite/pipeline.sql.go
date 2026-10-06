@@ -201,7 +201,7 @@ func (q *Queries) GetMCPConnection(ctx context.Context, arg GetMCPConnectionPara
 }
 
 const getRunByID = `-- name: GetRunByID :one
-SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE id = ?1
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash, config_hash FROM review_run WHERE id = ?1
 `
 
 func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error) {
@@ -229,6 +229,7 @@ func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, erro
 		&i.Notes,
 		&i.Stages,
 		&i.DecisionsHash,
+		&i.ConfigHash,
 	)
 	return i, err
 }
@@ -1034,7 +1035,7 @@ func (q *Queries) RetireQuestions(ctx context.Context, arg RetireQuestionsParams
 }
 
 const runningRunFor = `-- name: RunningRunFor :one
-SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash, config_hash FROM review_run
 WHERE spec_doc_id = ?1 AND kind = 'full' AND status IN ('queued', 'running')
 ORDER BY started_at DESC
 LIMIT 1
@@ -1065,6 +1066,7 @@ func (q *Queries) RunningRunFor(ctx context.Context, specDocID uuid.UUID) (Revie
 		&i.Notes,
 		&i.Stages,
 		&i.DecisionsHash,
+		&i.ConfigHash,
 	)
 	return i, err
 }

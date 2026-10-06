@@ -118,13 +118,18 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 		}
 		run.DecisionsHash = decisionsHash(dec)
 	}
+	repo, err := s.repoConfig(ctx, b)
+	if err != nil {
+		return pgdb.ReviewRun{}, err
+	}
+	run.ConfigHash = configHash(repo, mainDocPath(b, nil))
 	payload, _ := json.Marshal(runJob{RunID: run.ID.String(), Stages: stages})
-	err := s.DB.InTx(ctx, func(tx store.Tx) error {
+	err = s.DB.InTx(ctx, func(tx store.Tx) error {
 		tq := tx.Queries()
 		if err := tq.InsertRun(ctx, pgdb.InsertRunParams{
 			ID: run.ID, WorkspaceID: run.WorkspaceID, SpecDocID: run.SpecDocID, VersionID: run.VersionID, ProfileKey: run.ProfileKey,
 			ProfileVersion: run.ProfileVersion, Kind: run.Kind, Status: run.Status, Stage: run.Stage,
-			DecisionsHash: run.DecisionsHash, StartedAt: now,
+			DecisionsHash: run.DecisionsHash, ConfigHash: run.ConfigHash, StartedAt: now,
 		}); err != nil {
 			return err
 		}
@@ -306,8 +311,10 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	if in.sizeNote != "" {
 		rc.note(in.sizeNote)
 	}
-	if note := sectionNote(p); note != "" {
-		rc.note(note)
+	if stages.has(StageRubric) {
+		for _, note := range sectionNotes(p, in) {
+			rc.note(note)
+		}
 	}
 
 	ev, err := s.runStages(ctx, rc, in, stages, fingerprint, native, func(st string) {
@@ -613,6 +620,9 @@ func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages St
 	enter(StageLint)
 	rc.enter(StageLint)
 	ev := lintStage(in)
+	for _, n := range ev.notes {
+		rc.note(n)
+	}
 	steps := []struct {
 		stage string
 		run   func() error
@@ -671,18 +681,37 @@ func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p prof
 	}
 }
 
-// sectionNote is the line a run adds when checks of the profile are about one section and
-// name none: each runs again on the whole doc after each edit, so the review of the doc does
-// not converge, and the author would not know why (#108).
-func sectionNote(p profile.Versioned) string {
-	hints := profile.SectionHints(p.Loaded)
-	if len(hints) == 0 {
-		return ""
+// sectionNotes are the lines a run adds about the sections of the rubric checks that apply to
+// the doc. A check that is about one section of this doc and names none runs again on the
+// whole doc after each edit, so the review does not converge, and the author would not know
+// why (#108). A check that names a section this doc does not have reads the whole doc (#138).
+// A check with an explicit "scope: doc" reads the whole doc on purpose, and gets no note.
+func sectionNotes(p profile.Versioned, in input) []string {
+	applies := func(slug string) bool {
+		c, ok := p.Profile.Check(slug)
+		return ok && c.AppliesAt(in.size)
 	}
-	slugs := make([]string, len(hints))
-	for i, h := range hints {
-		slugs[i] = h.Slug
+	docs := []section.Doc{in.doc}
+	var out []string
+	var hinted []string
+	for _, h := range profile.SectionHints(p.Loaded, docs) {
+		if h.Found > 0 && applies(h.Slug) {
+			hinted = append(hinted, h.Slug)
+		}
 	}
-	return fmt.Sprintf("%d check%s of the %s profile name no section, so each one runs again on the whole doc after each edit: %s. Run \"speccy profile validate\" on the profile file: it names the section to add to each.",
-		len(hints), plural(len(hints)), p.Profile.Key, quoteList(slugs))
+	if len(hinted) > 0 {
+		out = append(out, fmt.Sprintf("%d check%s of the %s profile name no section, so each one runs again on the whole doc after each edit: %s. Run \"speccy profile validate\" on the profile file: it names the section to add to each.",
+			len(hinted), plural(len(hinted)), p.Profile.Key, quoteList(hinted)))
+	}
+	var missing []string
+	for _, m := range profile.MissingSections(p.Profile, docs) {
+		if applies(m.Slug) {
+			missing = append(missing, fmt.Sprintf("%s (%q)", m.Slug, m.Section))
+		}
+	}
+	if len(missing) > 0 {
+		out = append(out, fmt.Sprintf("%d check%s of the %s profile name a section that this doc does not have, so each one reads the whole doc: %s.",
+			len(missing), plural(len(missing)), p.Profile.Key, strings.Join(missing, ", ")))
+	}
+	return out
 }

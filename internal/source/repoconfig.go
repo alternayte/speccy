@@ -135,12 +135,19 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 
 // MappedProfile returns the profile that a mapping gives the file at rel, if any.
 func (c RepoConfig) MappedProfile(rel string) (string, bool) {
+	m, ok := c.MapEntry(rel)
+	return m.Profile, ok
+}
+
+// MapEntry returns the first map entry that covers the file at rel, if any. Only that entry
+// applies to the file.
+func (c RepoConfig) MapEntry(rel string) (Mapping, bool) {
 	for _, m := range c.Map {
 		if ok, _ := doublestar.Match(m.Glob, rel); ok {
-			return m.Profile, true
+			return m, true
 		}
 	}
-	return "", false
+	return Mapping{}, false
 }
 
 // NamedSize is one place that names the size of a doc, and the value it names there.
@@ -166,11 +173,8 @@ func (c RepoConfig) NamedSizes(rel string, content []byte) []NamedSize {
 	if key := strings.TrimSpace(c.Frontmatter.Keys["size"]); key != "" && key != "size" {
 		add(FrontmatterValue(content, key), "the frontmatter key "+key)
 	}
-	for _, m := range c.Map {
-		if ok, _ := doublestar.Match(m.Glob, rel); ok {
-			add(m.Size, "the map entry for "+m.Glob+" in "+RepoConfigFile)
-			break
-		}
+	if m, ok := c.MapEntry(rel); ok {
+		add(m.Size, "the map entry for "+m.Glob+" in "+RepoConfigFile)
 	}
 	return out
 }

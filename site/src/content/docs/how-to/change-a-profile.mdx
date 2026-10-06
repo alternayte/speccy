@@ -61,7 +61,12 @@ In local mode, you can also write the files yourself.
 
    A valid file prints its key, its name and the number of checks. A file that is not valid prints each error with its path, and the command exits with code 2.
 
-   A valid file can also print warnings. A rubric check that asks about one section, and has no `section` key, runs again on the whole doc after each edit. An edit to another section can then change its answer, and a review of the doc does not converge. The warning names the check and the `section` to add. A profile from a release before 0.20.0 has no `section` keys, so read the warnings after an upgrade. The run report of a review shows the same warning as a note.
+   A valid file can also print warnings. The command reads the docs of the profile in the folder, and the warnings use their headings. Run it in the folder with `.speccy.yaml`, or in a folder below it.
+
+   - A rubric check that asks about one section, and has no `section` key, runs again on the whole doc after each edit. An edit to another section can then change its answer, and a review of the doc does not converge. The warning names the check and the heading. It says how many docs of the profile have that heading. When no doc has the heading, do not add the `section` key. Add `scope: doc` to keep the check on the whole doc, and the warning stops.
+   - A rubric check whose `section` names a heading that no doc of the profile has reads the whole doc. The warning names the check and the heading. Change the `section` to a heading that the docs use.
+
+   A profile from a release before 0.20.0 has no `section` keys, so read the warnings after an upgrade. The run report of a review shows the same warnings as notes, for the headings of the doc it reviewed.
 
 4. Optional: look for checks that pull against each other:
 
@@ -165,6 +170,7 @@ checks:
 - `section` is for a check of the rubric stage. Do not use it with `scope: section`.
 - `scope` is `doc` or `section`. With `section`, the check runs once for each section. The default is `doc`.
 - A rubric check with no `section`, and without `scope: section`, is a whole-doc check. The model judges it again after any edit, and a waiver of it does not end on an edit. Name a section when the check is about one section.
+- Write `scope: doc` on a whole-doc check that must read the whole doc, such as a check that compares two sections. `profile validate` and the run notes then give no warning about a missing `section` for it.
 - `sizes` limits the check to the doc sizes you name. With no `sizes`, the check applies at every size.
 - `question` and `pass_when` are what the model reads. Write one binary question.
 

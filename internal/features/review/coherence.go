@@ -1,6 +1,7 @@
 package review
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -79,35 +80,53 @@ func coherenceChecks(in input, ev *evaluation) {
 
 	for _, l := range in.linked {
 		if slices.Contains(coverageKinds, l.kind) && len(covered) > 0 {
-			defs := lint.Definitions(l.main, covered)
+			// A doc often defines one ID in a summary table and again in a heading: coverage
+			// checks each ID once, at its first definition (#130).
+			defined := definedIDs(lint.Definitions(l.main, covered))
 			// An upstream doc with no ID gives coverage nothing to check: the check does not
 			// apply, and it never passes on nothing.
-			if len(defs) == 0 {
+			if len(defined) == 0 {
 				ev.items = append(ev.items, verdict.Item{Slug: CoverageSlug, Category: verdict.Coherence, Level: coverLevel, Applicable: false})
 			}
-			ids := make([]string, len(defs))
-			byID := map[string]lint.Definition{}
-			for i, d := range defs {
-				ids[i] = d.ID
-				byID[d.ID] = d
+			ids := make([]string, len(defined))
+			for i, d := range defined {
+				ids[i] = d.id
 			}
-			for _, c := range coherence.Coverage(ids, referenced, acks) {
+			var gaps []string
+			for i, c := range coherence.Coverage(ids, referenced, acks) {
 				ev.items = append(ev.items, verdict.Item{Slug: CoverageSlug, Category: verdict.Coherence, Level: coverLevel, Passed: c.State != "gap", Applicable: true})
 				if c.State != "gap" {
 					continue
 				}
-				d := byID[c.ID]
+				gaps = append(gaps, c.ID)
+				sites := defined[i].sites
+				d := sites[0]
 				up := anchor.New(l.target.DocPath, l.main, l.doc, d.Start, d.End)
 				msg := fmt.Sprintf("%s of %s is not referenced in this doc, and not acknowledged.", c.ID, l.target.Slug)
 				if a, ok := acks[c.ID]; ok && !a.Valid() {
 					msg = fmt.Sprintf("%s of %s is not referenced, and its acknowledgement needs a status, a reason, and a target for covered_by.", c.ID, l.target.Slug)
 				}
+				evidence := map[string]any{"id": c.ID, "text": strings.TrimSpace(d.Text), "upstream": l.target.Slug,
+					"upstream_bundle_id": l.target.ID, "upstream_anchor": up}
+				if len(sites) > 1 {
+					anchors := make([]anchor.Anchor, len(sites))
+					places := make([]string, len(sites))
+					for j, s := range sites {
+						anchors[j] = anchor.New(l.target.DocPath, l.main, l.doc, s.Start, s.End)
+						places[j] = placeOf(l.main, anchors[j])
+					}
+					evidence["upstream_definitions"] = anchors
+					msg += fmt.Sprintf(" %s defines it in %d places: %s.", l.target.Slug, len(sites), strings.Join(places, "; "))
+				}
 				ev.findings = append(ev.findings, pending{
 					slug: CoverageSlug, level: coverLevel, stage: StageCoherence, anchor: docAnchor(in), message: msg,
-					fix: fmt.Sprintf("Answer the gap: name %s in the section that covers it, name the doc that covers it, or mark it out of scope with a reason.", c.ID),
-					evidence: map[string]any{"id": c.ID, "text": strings.TrimSpace(d.Text), "upstream": l.target.Slug,
-						"upstream_bundle_id": l.target.ID, "upstream_anchor": up},
+					fix:      fmt.Sprintf("Answer the gap: name %s in the section that covers it, name the doc that covers it, or mark it out of scope with a reason.", c.ID),
+					evidence: evidence,
 				})
+			}
+			if len(gaps) > 1 {
+				ev.notes = append(ev.notes, fmt.Sprintf("%d IDs of %s have no reference and no acknowledgement in this doc: %s. One coverage table that names each ID answers all of them.",
+					len(gaps), l.target.Slug, strings.Join(gaps, ", ")))
 			}
 		}
 		if slices.Contains(restatementKinds, l.kind) {
@@ -131,6 +150,36 @@ func coherenceChecks(in input, ev *evaluation) {
 			}
 		}
 	}
+}
+
+// definedID is one trace ID and each place that defines it, in doc order.
+type definedID struct {
+	id    string
+	sites []lint.Definition
+}
+
+// definedIDs groups definitions by ID, in the order of each ID's first definition.
+func definedIDs(defs []lint.Definition) []definedID {
+	at := map[string]int{}
+	var out []definedID
+	for _, d := range defs {
+		if i, ok := at[d.ID]; ok {
+			out[i].sites = append(out[i].sites, d)
+			continue
+		}
+		at[d.ID] = len(out)
+		out = append(out, definedID{id: d.ID, sites: []lint.Definition{d}})
+	}
+	return out
+}
+
+// placeOf names where an anchor is in src, for a message: the line and the heading path.
+func placeOf(src []byte, a anchor.Anchor) string {
+	line := bytes.Count(src[:min(a.Start, len(src))], []byte("\n")) + 1
+	if len(a.HeadingPath) == 0 {
+		return fmt.Sprintf("line %d", line)
+	}
+	return fmt.Sprintf("line %d, under %s", line, strings.Join(a.HeadingPath, " / "))
 }
 
 type conflict struct {

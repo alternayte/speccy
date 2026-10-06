@@ -81,6 +81,8 @@ A doc with no IDs can still be Build Ready. But no downstream doc can then say w
 
 For each `implements` link, each upstream ID with a `trace.cover` prefix needs an answer in the downstream doc. The downstream doc references the ID, or an acknowledgement answers for it. An ID with neither is a gap, and a gap is the MUST finding `trace.coverage`.
 
+Each ID gives at most one finding. The upstream doc can define an ID in more than one place, such as a row of a summary table and a heading. The finding then points at the first place and names each place. When two or more IDs of one upstream doc are gaps, the run report lists them in a note. One coverage table in the downstream doc can answer all of them.
+
 The matrix of **Traceability** shows each upstream ID against the doc that implements it. A cell says one of four things:
 
 - **Referenced**: the downstream doc names the ID.

@@ -3,10 +3,38 @@ package review
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/alternayte/speccy/internal/engine/section"
+	"github.com/alternayte/speccy/internal/features/profile"
 )
+
+// #138: the run note names a check with no section only when this doc has its heading, and
+// never a check with an explicit "scope: doc". A second note names a check whose section this
+// doc does not have.
+func TestSectionNotes(t *testing.T) {
+	var p profile.Versioned
+	p.TemplateText = []byte("# T\n\n## Migration\n\n## Security\n")
+	p.Profile.Key = "sdd"
+	p.Profile.Checks = []profile.Check{
+		{Slug: "x.rollout", Stage: "rubric", Question: "Does the Migration section give the order?"},
+		{Slug: "x.access", Stage: "rubric", Question: "Does the Security section name each role?"},
+		{Slug: "x.whole", Stage: "rubric", Scope: "doc", Question: "Does the Security section agree with the plan?"},
+		{Slug: "x.obs", Stage: "rubric", Section: "Observability"},
+	}
+	main := []byte("# Doc\n\n## Security\n\nRoles.\n")
+	notes := sectionNotes(p, input{main: main, doc: section.Parse(main)})
+	if len(notes) != 2 {
+		t.Fatalf("notes = %q, want 2", notes)
+	}
+	if !strings.Contains(notes[0], `"x.access"`) || strings.Contains(notes[0], "x.rollout") || strings.Contains(notes[0], "x.whole") {
+		t.Errorf("hint note = %q, want x.access only", notes[0])
+	}
+	if !strings.Contains(notes[1], `x.obs ("Observability")`) {
+		t.Errorf("missing-section note = %q, want x.obs", notes[1])
+	}
+}
 
 // #116: a cached answer of a check that names a section, with a shortfall on the text of
 // another section, is one that an older Speccy took from a whole-doc review. It is not read

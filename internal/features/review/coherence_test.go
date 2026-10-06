@@ -71,6 +71,38 @@ func TestCoherence_UncoveredReqIsMust(t *testing.T) {
 	}
 }
 
+// #130: an ID that the upstream doc defines in a table and in a heading is one gap, not two.
+func TestCoherence_CoverageOncePerID(t *testing.T) {
+	prd := "---\ntype: prd\ntitle: Refunds\n---\n\n# Refunds\n\n## Requirements\n\n" +
+		"| ID | Requirement |\n|---|---|\n| REQ-001 | The system MUST refund a card payment. |\n| REQ-002 | The system MUST email the customer. |\n| REQ-003 | The system MUST log each refund. |\n\n" +
+		"### REQ-002 — Refund email\n\nThe mail names the order.\n\n### REQ-003 — Refund log\n\nThe log keeps a year.\n"
+	for _, e := range storetest.Engines() {
+		t.Run(e.Name, func(t *testing.T) {
+			en := newEnv(t, e, map[string]string{"refunds-prd/PRD.md": prd, "refunds-sdd/SPEC.md": sdd("", "")})
+			run, fs, _ := en.latest(t, "refunds-sdd")
+			gaps := findingsOf(fs, review.CoverageSlug)
+			if len(gaps) != 2 {
+				t.Fatalf("coverage findings %d, want 2 (REQ-002 and REQ-003 once each)", len(gaps))
+			}
+			var ev struct {
+				ID          string `json:"id"`
+				Definitions []struct {
+					HeadingPath []string `json:"heading_path"`
+				} `json:"upstream_definitions"`
+			}
+			if err := json.Unmarshal(gaps[0].Evidence, &ev); err != nil {
+				t.Fatal(err)
+			}
+			if ev.ID != "REQ-002" || len(ev.Definitions) != 2 || !strings.Contains(gaps[0].Message, "2 places") {
+				t.Errorf("gap %s: %d definitions, message %q; want REQ-002 with both places", ev.ID, len(ev.Definitions), gaps[0].Message)
+			}
+			if !strings.Contains(string(run.Notes), "REQ-002, REQ-003") {
+				t.Errorf("run notes %s do not list the missing IDs", run.Notes)
+			}
+		})
+	}
+}
+
 // T-071
 func TestCoherence_StandaloneAck(t *testing.T) {
 	for _, e := range storetest.Engines() {

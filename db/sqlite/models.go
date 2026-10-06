@@ -369,6 +369,7 @@ type ReviewRun struct {
 	Notes          dbtype.JSON
 	Stages         dbtype.JSON
 	DecisionsHash  string
+	ConfigHash     string
 }
 
 type RoleAssignment struct {
