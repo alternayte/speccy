@@ -208,7 +208,7 @@
           "slug": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$", "description": "The ID of the check: lower-case words with dots between them, such as `sdd.data-model`. It is unique in the profile." },
           "level": { "enum": ["MUST", "SHOULD", "INFO"], "description": "The level of a finding. An open MUST finding makes the verdict Not Build Ready." },
           "stage": { "enum": ["rubric", "grounding", "divergence", "coherence"], "description": "The review stage that runs the check." },
-          "scope": { "enum": ["doc", "section"], "description": "What the check reads. With doc, the check reads the whole doc, or the one section that `section` names. With section, the check runs on every section, and a waiver covers one section. Default doc. Write doc on a rubric check with no `section` to say that it reads the whole doc on purpose: `profile validate` and the run notes then give no warning about a missing `section`." },
+          "scope": { "enum": ["doc", "section"], "description": "What the check reads. With doc, the check reads the whole doc, or the one section that `section` names. With section, the check runs on every section, and a waiver covers one section. Default doc." },
           "question": { "type": "string", "description": "The question the check asks about the doc." },
           "pass_when": { "type": "string", "description": "What must hold for the check to pass. A finding gives it as the fix." },
           "waiver": { "$ref": "#/$defs/waiverPolicy", "description": "Who approves a waiver of this check. It replaces `waivers.should` or `waivers.must` for this check." },
@@ -217,7 +217,7 @@
             "items": { "enum": ["feature", "app", "initiative"] },
             "description": "The doc sizes this check applies to. An empty list applies at every size."
           },
-          "section": { "type": "string", "minLength": 1, "description": "The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, so an edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc, and the run notes say so. `profile validate` warns when no doc of the profile in the folder has the heading." }
+          "section": { "type": "string", "minLength": 1, "description": "The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, so an edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc, and the run notes say so. `profile validate` warns when no doc of the profile in the folder has the heading. The value `none` is reserved and names no heading: the check reads the whole doc on purpose, and `profile validate` and the run notes give no warning about its section." }
         }
       }
     }

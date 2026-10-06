@@ -30,7 +30,7 @@ func (h SectionHint) String() string {
 	case h.Docs == 0:
 		return fmt.Sprintf("%s Add \"section: %s\" when the check is about that section only, and the docs of the profile have that heading.", head, h.Section)
 	case h.Found == 0:
-		return fmt.Sprintf("%s No doc of the profile has the heading %q. Add \"section:\" with a heading that the docs use, or add \"scope: doc\" to keep the whole doc.", head, h.Section)
+		return fmt.Sprintf("%s No doc of the profile has the heading %q. Add \"section:\" with a heading that the docs use, or add \"section: none\" to keep the whole doc.", head, h.Section)
 	}
 	return fmt.Sprintf("%s %d of %d docs of the profile have the heading %q. Add \"section: %s\" when the check is about that section only.", head, h.Found, h.Docs, h.Section, h.Section)
 }
@@ -39,14 +39,13 @@ func (h SectionHint) String() string {
 // one: a check with the slug of a built-in check that names a section, or a check whose
 // question or pass condition names exactly one heading of the profile's template. A check
 // that names no heading, or more than one, is a whole-doc check on purpose, and gets no hint.
-// A check with an explicit "scope: doc" says that it reads the whole doc, and gets no hint.
-// docs are the docs of the profile: each hint counts the docs with its heading.
+// A check with "section: none" says that it reads the whole doc, and gets no hint. docs are the docs of the profile: each hint counts the docs with its heading.
 func SectionHints(l Loaded, docs []section.Doc) []SectionHint {
 	builtinSection := map[string]string{}
 	if builtins, err := Builtins(); err == nil {
 		for _, b := range builtins {
 			for _, c := range b.Profile.Checks {
-				if c.Section != "" {
+				if c.NamesSection() {
 					builtinSection[c.Slug] = c.Section
 				}
 			}
@@ -60,7 +59,7 @@ func SectionHints(l Loaded, docs []section.Doc) []SectionHint {
 	}
 	var out []SectionHint
 	for _, c := range l.Profile.Checks {
-		if c.Stage != "rubric" || c.Section != "" || c.Scope != "" {
+		if c.Stage != "rubric" || c.Section != "" || c.Scope == "section" {
 			continue
 		}
 		sec, ok := builtinSection[c.Slug]
@@ -110,7 +109,7 @@ func MissingSections(p Profile, docs []section.Doc) []MissingSection {
 	}
 	var out []MissingSection
 	for _, c := range p.Checks {
-		if c.Stage == "rubric" && c.Section != "" && withHeading(c.Section, docs) == 0 {
+		if c.Stage == "rubric" && c.NamesSection() && withHeading(c.Section, docs) == 0 {
 			out = append(out, MissingSection{Slug: c.Slug, Section: c.Section})
 		}
 	}

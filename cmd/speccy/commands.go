@@ -432,7 +432,7 @@ func profileConflicts(l profile.Loaded, stdout, stderr io.Writer) int {
 			Section  *string `json:"section,omitempty"`
 			Slug     string  `json:"slug"`
 		}{PassWhen: c.PassWhen, Question: c.Question, Slug: c.Slug}
-		if c.Section != "" {
+		if c.NamesSection() {
 			check.Section = &c.Section
 		}
 		body.Checks = append(body.Checks, check)

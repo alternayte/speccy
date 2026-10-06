@@ -685,7 +685,7 @@ func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p prof
 // the doc. A check that is about one section of this doc and names none runs again on the
 // whole doc after each edit, so the review does not converge, and the author would not know
 // why (#108). A check that names a section this doc does not have reads the whole doc (#138).
-// A check with an explicit "scope: doc" reads the whole doc on purpose, and gets no note.
+// A check with "section: none" reads the whole doc on purpose, and gets no note.
 func sectionNotes(p profile.Versioned, in input) []string {
 	applies := func(slug string) bool {
 		c, ok := p.Profile.Check(slug)

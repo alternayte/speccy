@@ -11,8 +11,8 @@ import (
 )
 
 // #138: the run note names a check with no section only when this doc has its heading, and
-// never a check with an explicit "scope: doc". A second note names a check whose section this
-// doc does not have.
+// never a check with "section: none". A second note names a check whose section this doc does
+// not have; "none" is not a heading.
 func TestSectionNotes(t *testing.T) {
 	var p profile.Versioned
 	p.TemplateText = []byte("# T\n\n## Migration\n\n## Security\n")
@@ -20,7 +20,7 @@ func TestSectionNotes(t *testing.T) {
 	p.Profile.Checks = []profile.Check{
 		{Slug: "x.rollout", Stage: "rubric", Question: "Does the Migration section give the order?"},
 		{Slug: "x.access", Stage: "rubric", Question: "Does the Security section name each role?"},
-		{Slug: "x.whole", Stage: "rubric", Scope: "doc", Question: "Does the Security section agree with the plan?"},
+		{Slug: "x.whole", Stage: "rubric", Section: "none", Question: "Does the Security section agree with the plan?"},
 		{Slug: "x.obs", Stage: "rubric", Section: "Observability"},
 	}
 	main := []byte("# Doc\n\n## Security\n\nRoles.\n")

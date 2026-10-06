@@ -258,10 +258,16 @@ func (a *API) externalLinks(ctx context.Context, b pgdb.SpecDoc) ([]api.PacketEx
 }
 
 // traceIDs are the doc's own trace IDs, in document order. They are the units of work the
-// re-entry prompt lists.
+// re-entry prompt lists. A doc can define one ID in a table row and again in a heading: the ID
+// appears once, with the text of its first definition.
 func traceIDs(main []byte, prefixes []string) []api.PacketTraceId {
 	out := []api.PacketTraceId{}
+	seen := map[string]bool{}
 	for _, d := range lint.Definitions(main, prefixes) {
+		if seen[d.ID] {
+			continue
+		}
+		seen[d.ID] = true
 		out = append(out, api.PacketTraceId{Id: d.ID, Text: strings.TrimSpace(d.Text)})
 	}
 	return out
