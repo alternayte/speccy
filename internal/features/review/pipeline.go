@@ -112,11 +112,11 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 		ProfileKey: b.ProfileKey, ProfileVersion: p.Version, Kind: "full", Status: "queued", Stage: "queued", StartedAt: now,
 	}
 	if s.Decisions != nil {
-		dec, err := s.Decisions(ctx, b)
+		key, err := s.decisionsKey(ctx, b)
 		if err != nil {
 			return pgdb.ReviewRun{}, err
 		}
-		run.DecisionsHash = decisionsHash(dec)
+		run.DecisionsHash = key
 	}
 	repo, err := s.repoConfig(ctx, b)
 	if err != nil {
@@ -304,12 +304,16 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	_ = json.Unmarshal(assigned.Backend.Config, &preset)
 	native := model.SearchCapable(assigned.Backend.Kind, preset.Preset, assigned.Model)
 
-	in, err := s.load(ctx, b, run.VersionID, p)
+	// A link rule target may come from an open pull request; this run reads it again (#142).
+	in, err := s.load(withPulls(ctx), b, run.VersionID, p)
 	if err != nil {
 		return fail(err)
 	}
 	if in.sizeNote != "" {
 		rc.note(in.sizeNote)
+	}
+	for _, n := range in.linkNotes {
+		rc.note(n)
 	}
 	if stages.has(StageRubric) {
 		for _, note := range sectionNotes(p, in) {
@@ -514,10 +518,13 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 		}
 		switch {
 		case u.named:
-			// The call holds the section and the assets, not the bundle.
+			// The call holds the section, its Pointed-to sections and the assets, not the bundle.
 			assetTokens := int64(0)
 			for _, f := range textAssets(in) {
 				assetTokens += int64(len(f.text)) / 4
+			}
+			for _, p := range u.pointed {
+				assetTokens += int64(p.End-p.Start) / 4
 			}
 			rubricUnit(u.inputHash, u.checks, extra+int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
 		case u.sec != nil:
@@ -673,7 +680,7 @@ func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p prof
 			main = f.Content
 		}
 	}
-	links, err := s.resolveLinks(ctx, b, main, nil)
+	links, _, err := s.resolveLinks(ctx, b, main, nil)
 	if err != nil {
 		return
 	}

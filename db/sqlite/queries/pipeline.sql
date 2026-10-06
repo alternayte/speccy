@@ -152,9 +152,11 @@ SELECT * FROM question_result WHERE run_id = sqlc.arg(run_id);
 DELETE FROM link WHERE from_spec_doc_id = sqlc.arg(from_spec_doc_id);
 
 -- name: InsertLink :exec
-INSERT INTO link (id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url)
+INSERT INTO link (id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url,
+                  pull_number, pull_sha, pull_url)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(from_spec_doc_id), sqlc.arg(kind), sqlc.arg(target_kind),
-        sqlc.arg(target_spec_doc_id), sqlc.arg(target_ref), sqlc.arg(origin), sqlc.arg(target_url));
+        sqlc.arg(target_spec_doc_id), sqlc.arg(target_ref), sqlc.arg(origin), sqlc.arg(target_url),
+        sqlc.arg(pull_number), sqlc.arg(pull_sha), sqlc.arg(pull_url));
 
 -- name: ListLinksFrom :many
 SELECT * FROM link WHERE from_spec_doc_id = sqlc.arg(from_spec_doc_id) ORDER BY kind, target_ref;

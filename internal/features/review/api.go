@@ -141,7 +141,7 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.R
 		out.Trend = &api.Trend{SinceVersion: t.SinceVersion, Fixed: t.Fixed, Open: t.Open, New: t.New}
 	}
 	for _, f := range fs {
-		if f.Waived {
+		if !blocksVerdict(f) {
 			continue
 		}
 		switch kernel.Level(f.Level) {
@@ -329,6 +329,13 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 			}
 		}
 		af.Conflict = conflictAPI(source.ConflictOf(f.CheckSlug, f.Evidence))
+		if source.Unanswered(f.Evidence) {
+			yes := true
+			af.Unanswered = &yes
+		}
+		if f.CheckSlug == ContradictionSlug {
+			af.UpstreamChange = upstreamAPI(f.Evidence)
+		}
 		if f.CheckSlug == HasUpstreamSlug {
 			var ev sourceEvidence
 			_ = json.Unmarshal(f.Evidence, &ev)
@@ -396,7 +403,7 @@ func (a *API) FirstMust(ctx context.Context, runID uuid.UUID) (*api.Finding, err
 		return nil, nil
 	}
 	for i, f := range list.Items {
-		if f.Level == api.FindingLevelMUST && !f.Waived {
+		if f.Level == api.FindingLevelMUST && !f.Waived && (f.UpstreamChange == nil || f.UpstreamChange.Blocks) {
 			return &list.Items[i], nil
 		}
 	}
@@ -425,6 +432,7 @@ func carriedRows(ctx context.Context, q store.Querier, runID uuid.UUID) ([]pgdb.
 			return nil, err
 		}
 		f.Waived = c.Waived
+		carriedUpstream(&f, c)
 		out = append(out, f)
 	}
 	return out, nil

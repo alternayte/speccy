@@ -1815,6 +1815,19 @@ paths:
                   description: >
                     Mark the doc standalone: the answer to a links.has-upstream finding. It is an
                     Acknowledgement, and its approval writes standalone to the doc's sidecar.
+                upstream_change:
+                  type: boolean
+                  description: >
+                    Answer a coherence.contradiction finding with "The linked doc must change": an
+                    upstream request. Its approval writes the request to the doc's sidecar under
+                    upstream_changes. The conflict then waits on the linked doc, and the review of
+                    the linked doc reports it as coherence.downstream-request.
+                send_back:
+                  type: boolean
+                  description: >
+                    Answer a coherence.downstream-request finding with "The downstream doc must
+                    change": a send-back. Its approval ends the upstream request in the sidecar of
+                    the downstream doc, and the conflict blocks there again with this reason.
       responses:
         "200":
           description: The waiver.
@@ -4032,6 +4045,26 @@ components:
           description: >
             True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a
             frontmatter link of a doc Speccy writes. Absent on an incoming link.
+        pull:
+          $ref: "#/components/schemas/LinkPull"
+          description: >
+            Set when the target of a link rule is not in the tree and an open pull request of
+            the same repo holds it (#142). The review read the doc at that pull request's head
+            commit. The doc is not merged.
+
+    LinkPull:
+      type: object
+      required: [number, sha, url]
+      properties:
+        number:
+          type: integer
+          description: The number of the open pull request.
+        sha:
+          type: string
+          description: The head commit of the pull request that the review read.
+        url:
+          type: string
+          description: The web page of the pull request.
 
     RemovedLink:
       type: object
@@ -4369,6 +4402,11 @@ components:
         waived:
           type: boolean
           description: A valid waiver covers this finding (REQ-074).
+        unanswered:
+          type: boolean
+          description: >
+            The reviewer gave no valid answer for this MUST check. A waiver cannot cover the
+            finding. The next review asks for the check again, and only an answer clears it.
         id:
           type: string
           format: uuid
@@ -4398,6 +4436,8 @@ components:
           description: For a coverage gap, the upstream trace ID it is about.
         conflict:
           $ref: "#/components/schemas/Conflict"
+        upstream_change:
+          $ref: "#/components/schemas/UpstreamChange"
         source_url:
           type: string
           description: For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
@@ -4953,6 +4993,13 @@ components:
           type: array
           items:
             type: string
+        links:
+          type: array
+          description: >
+            The outgoing links of the doc, as this review resolved them. A link whose target
+            comes from an open pull request has pull.
+          items:
+            $ref: "#/components/schemas/BundleLink"
         tokens_in:
           type: integer
           format: int64
@@ -5359,15 +5406,28 @@ components:
         standalone:
           type: boolean
           description: True for a standalone Acknowledgement. On approval it goes in the sidecar under standalone.
+        upstream_change:
+          type: boolean
+          description: True for an upstream request, the answer "The linked doc must change". On approval it goes in the sidecar under upstream_changes.
+        send_back:
+          type: boolean
+          description: True for a send-back, the answer "The downstream doc must change" to a coherence.downstream-request finding.
+        downstream:
+          $ref: "#/components/schemas/BundleRef"
+          description: >
+            For a send-back, or a waiver of a coherence.downstream-request finding: the downstream
+            doc. The approval writes to its sidecar, because Speccy writes nothing into the
+            linked doc's sidecar.
         withdrawn_by:
           type: string
           description: Who withdrew the Acknowledgement. Only a withdrawn one has it.
         ended_because:
           type: string
-          enum: [section_changed, check_passed, check_changed]
+          enum: [section_changed, check_passed, check_changed, sent_back, conflict_closed]
           description: >
             Why an ended waiver ended: an edit changed its section, a full review passed its
-            whole-doc check, or the profile changed what the check asks.
+            whole-doc check, or the profile changed what the check asks. An upstream request ends
+            when the linked doc sends it back, or when an edit removes a quote of its conflict.
         whole_doc:
           type: boolean
           description: >
@@ -5411,11 +5471,42 @@ components:
         target:
           type: string
 
+    UpstreamChange:
+      type: object
+      description: >
+        The upstream request of a coherence.contradiction finding: the answer "The linked doc must
+        change". While it waits, the finding reads "Waiting on" the linked doc. A send-back ends it.
+      required: [upstream, reason, state, blocks]
+      properties:
+        upstream:
+          type: string
+          description: The slug of the linked doc that must change.
+        upstream_title:
+          type: string
+        reason:
+          type: string
+          description: Why the linked doc must change.
+        requested_by:
+          type: string
+        state:
+          type: string
+          enum: [waiting, sent_back]
+          description: waiting while the linked doc must change; sent_back after the linked doc answered that this doc must change.
+        blocks:
+          type: boolean
+          description: The finding counts in the verdict. A waiting finding blocks only when the profile sets coherence.upstream_pending to block.
+        sent_back_reason:
+          type: string
+          description: The reason of the send-back.
+        sent_back_by:
+          type: string
+
     Conflict:
       type: object
       description: >
         One conflict between a doc and a linked doc, as a coherence.contradiction finding names it.
-        A waiver of that check binds to it, and excuses no other conflict in the section.
+        A waiver of that check binds to it, and excuses no other conflict in the section. On a
+        coherence.downstream-request finding, it is the conflict as the downstream doc names it.
       required: [with, quote, with_quote]
       properties:
         with:

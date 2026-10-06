@@ -39,6 +39,9 @@ type Finding struct {
 	ID     string
 	Level  kernel.Level
 	Waived bool // a valid waiver covers it
+	// Waiting is a conflict whose approved upstream request says the linked doc must change.
+	// It does not block, and it is no waiver: the conflict is still open on the linked doc.
+	Waiting bool
 }
 
 // Item is one scored item: a check result, a build question, or a coherence item.
@@ -84,7 +87,7 @@ func Decide(in Input) Verdict {
 			v.WaiverCount++
 			continue
 		}
-		if f.Level == kernel.Must {
+		if f.Level == kernel.Must && !f.Waiting {
 			v.BlockingFindingIDs = append(v.BlockingFindingIDs, f.ID)
 		}
 	}

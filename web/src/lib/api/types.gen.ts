@@ -629,6 +629,26 @@ export type BundleLink = {
      *
      */
     removable?: boolean;
+    /**
+     * Set when the target of a link rule is not in the tree and an open pull request of the same repo holds it (#142). The review read the doc at that pull request's head commit. The doc is not merged.
+     *
+     */
+    pull?: LinkPull;
+};
+
+export type LinkPull = {
+    /**
+     * The number of the open pull request.
+     */
+    number: number;
+    /**
+     * The head commit of the pull request that the review read.
+     */
+    sha: string;
+    /**
+     * The web page of the pull request.
+     */
+    url: string;
 };
 
 export type RemovedLink = {
@@ -843,6 +863,11 @@ export type Finding = {
      * A valid waiver covers this finding (REQ-074).
      */
     waived: boolean;
+    /**
+     * The reviewer gave no valid answer for this MUST check. A waiver cannot cover the finding. The next review asks for the check again, and only an answer clears it.
+     *
+     */
+    unanswered?: boolean;
     id: string;
     check_slug: string;
     level: 'MUST' | 'SHOULD' | 'INFO';
@@ -866,6 +891,7 @@ export type Finding = {
      */
     trace_id?: string;
     conflict?: Conflict;
+    upstream_change?: UpstreamChange;
     /**
      * For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
      */
@@ -1266,6 +1292,11 @@ export type ContentReview = {
     verdict: ContentVerdict;
     findings: Array<Finding>;
     notes: Array<string>;
+    /**
+     * The outgoing links of the doc, as this review resolved them. A link whose target comes from an open pull request has pull.
+     *
+     */
+    links?: Array<BundleLink>;
     tokens_in?: number;
     tokens_out?: number;
     cost_estimate?: number;
@@ -1552,14 +1583,27 @@ export type Waiver = {
      */
     standalone?: boolean;
     /**
+     * True for an upstream request, the answer "The linked doc must change". On approval it goes in the sidecar under upstream_changes.
+     */
+    upstream_change?: boolean;
+    /**
+     * True for a send-back, the answer "The downstream doc must change" to a coherence.downstream-request finding.
+     */
+    send_back?: boolean;
+    /**
+     * For a send-back, or a waiver of a coherence.downstream-request finding: the downstream doc. The approval writes to its sidecar, because Speccy writes nothing into the linked doc's sidecar.
+     *
+     */
+    downstream?: BundleRef;
+    /**
      * Who withdrew the Acknowledgement. Only a withdrawn one has it.
      */
     withdrawn_by?: string;
     /**
-     * Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+     * Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks. An upstream request ends when the linked doc sends it back, or when an edit removes a quote of its conflict.
      *
      */
-    ended_because?: 'section_changed' | 'check_passed' | 'check_changed';
+    ended_because?: 'section_changed' | 'check_passed' | 'check_changed' | 'sent_back' | 'conflict_closed';
     /**
      * True for a waiver of a whole-doc check. An edit does not end it. It ends when a full review passes the check, or when the profile changes what the check asks.
      *
@@ -1597,7 +1641,37 @@ export type TraceAck = {
 };
 
 /**
- * One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+ * The upstream request of a coherence.contradiction finding: the answer "The linked doc must change". While it waits, the finding reads "Waiting on" the linked doc. A send-back ends it.
+ *
+ */
+export type UpstreamChange = {
+    /**
+     * The slug of the linked doc that must change.
+     */
+    upstream: string;
+    upstream_title?: string;
+    /**
+     * Why the linked doc must change.
+     */
+    reason: string;
+    requested_by?: string;
+    /**
+     * waiting while the linked doc must change; sent_back after the linked doc answered that this doc must change.
+     */
+    state: 'waiting' | 'sent_back';
+    /**
+     * The finding counts in the verdict. A waiting finding blocks only when the profile sets coherence.upstream_pending to block.
+     */
+    blocks: boolean;
+    /**
+     * The reason of the send-back.
+     */
+    sent_back_reason?: string;
+    sent_back_by?: string;
+};
+
+/**
+ * One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section. On a coherence.downstream-request finding, it is the conflict as the downstream doc names it.
  *
  */
 export type Conflict = {
@@ -5007,6 +5081,16 @@ export type RequestWaiverData = {
          *
          */
         standalone?: boolean;
+        /**
+         * Answer a coherence.contradiction finding with "The linked doc must change": an upstream request. Its approval writes the request to the doc's sidecar under upstream_changes. The conflict then waits on the linked doc, and the review of the linked doc reports it as coherence.downstream-request.
+         *
+         */
+        upstream_change?: boolean;
+        /**
+         * Answer a coherence.downstream-request finding with "The downstream doc must change": a send-back. Its approval ends the upstream request in the sidecar of the downstream doc, and the conflict blocks there again with this reason.
+         *
+         */
+        send_back?: boolean;
     };
     path: {
         /**

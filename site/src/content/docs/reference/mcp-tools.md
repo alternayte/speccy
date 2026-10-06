@@ -168,13 +168,15 @@ Report what you learned about the doc while you built from a build packet. kind 
 
 ## `request_waiver`
 
-Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs.
+Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. With upstream_change, the answer to a coherence.contradiction finding is that the linked doc must change: after approval the conflict waits on that doc and does not block. With send_back, the answer to a coherence.downstream-request finding is that the downstream doc must change: after approval the conflict blocks that doc again. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
 | `bundle` | string | yes | the bundle's slug or ID |
 | `finding_id` | string | yes | the id of the finding, from get_findings |
 | `reason` | string | yes | why the check does not apply here, in the person's own words. At least 20 characters |
+| `send_back` | boolean |  | answer a coherence.downstream-request finding with: the downstream doc must change. Only when the person says that this doc is right |
+| `upstream_change` | boolean |  | answer a coherence.contradiction finding with: the linked doc must change. Only when the person says that the other doc is wrong |
 
 ## `review_bundle`
 

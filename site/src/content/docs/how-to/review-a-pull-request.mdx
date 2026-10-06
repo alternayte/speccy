@@ -88,6 +88,18 @@ Two flags change the review:
 
 GitHub lets a person have one pending review on a pull request at a time. When you have one, submit or discard it, then run the command again.
 
+### An upstream doc in another pull request
+
+An SDD and its PRD often go into review at the same time, in two pull requests. A link rule such as `{dir*}/SDD{rest} implements {dir*}/PRD{rest}` then names a PRD that the tree of the SDD does not hold. Speccy looks for the PRD in the open pull requests of the same repo:
+
+1. Speccy finds the open pull requests that add or change exactly the target path. A draft pull request counts.
+2. Speccy uses the one with the latest update, and reads the PRD at its head commit.
+3. The coherence and coverage checks run against that PRD.
+
+The body of the review says `The upstream doc docs/x/PRD.md is from pull request #12 at 1a2b3c4. It is not merged.` In the JSON of `--dry-run`, the link has `pull` with the number and the commit. A run note names the other pull requests that change the same path. A Build Ready verdict that depends on the PRD gets a run note that the PRD is not merged.
+
+Run the review again after the PRD pull request gets a new commit: each review reads the PRD again. When the PRD merges, the PRD in the tree wins, and the review names no pull request. [.speccy.yaml](/reference/speccy-yaml/#a-target-in-an-open-pull-request) has the rules.
+
 To review many pull requests at once, or to add to a pending review that you already have, use `speccy review-prs`. [Review many pull requests](/how-to/review-many-pull-requests/) shows how.
 
 ## What such a review does not have

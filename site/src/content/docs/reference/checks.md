@@ -609,7 +609,17 @@ Coherence checks read the doc together with the docs it links to.
 
 No statement in this doc conflicts with a statement in a doc it implements, refines or references.
 
-To fix a finding: Change one of the two statements, so that the docs agree.
+To fix a finding: Change one of the two statements, so that the docs agree. When only the linked doc can change, answer "The linked doc must change". The conflict then waits on the linked doc.
+
+<h3 id="coherence.downstream-request"><code>coherence.downstream-request</code></h3>
+
+- Level: MUST
+- Profiles: every profile
+- Fix kind: answer
+
+No doc that links to this doc asks it to change. A doc asks when its author answers a conflict with "The linked doc must change", and the request is approved.
+
+To fix a finding: Change this doc so that both docs agree, or answer "The downstream doc must change" with a reason. A waiver of the conflict says that the conflict is acceptable, and it closes the conflict on both docs.
 
 <h3 id="coherence.external"><code>coherence.external</code></h3>
 

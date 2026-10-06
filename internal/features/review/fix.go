@@ -160,7 +160,8 @@ type candidateEvidence struct {
 // link is a reword finding only when one bundle file has the linked name. Every other finding
 // needs a fact from the author.
 func fixKind(slug string, evidence []byte) api.FixKind {
-	if !profile.Reword(slug) {
+	// A check with no answer has no fix that an agent can make alone.
+	if !profile.Reword(slug) || source.Unanswered(evidence) {
 		return api.Answer
 	}
 	if slug == lint.BrokenLink {

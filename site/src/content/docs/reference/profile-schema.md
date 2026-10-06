@@ -20,6 +20,7 @@ This page lists each key that a profile file can hold. Speccy checks a profile a
 | `limits` | object |  | The size limits that lint checks. A key you leave out keeps its default. |
 | `links` | object |  | The links a doc of this type must have. |
 | `grounding` | object |  | The settings of the grounding stage. |
+| `coherence` | object |  | The settings of the coherence checks. |
 | `verify` | object |  | The post-build verification gate: the trace IDs it verifies, and the bounds of its repo scan. |
 | `trace` | object |  | The trace IDs of this doc type. |
 | `waivers` | object |  | Who approves a waiver, by the level of the check. |
@@ -115,6 +116,14 @@ Days a source of that tier stays usable. Zero is no limit.
 | `pattern` | string | yes | A heading path, with / between headings. A `*` segment matches one heading, and a trailing `**` matches the rest. The match ignores case. |
 | `class` | string | yes | The claim class of a section that matches the pattern. The name `unclassified` is not a valid class. |
 
+## `coherence`
+
+The settings of the coherence checks.
+
+| Key | Type | Required | Meaning |
+|---|---|---|---|
+| `upstream_pending` | one of `allow`, `block` |  | What an approved upstream request does to the verdict of the doc that asks for it. allow: the conflict waits on the linked doc and does not block. block: the conflict still blocks until the linked doc changes. The default is allow. |
+
 ## `verify`
 
 The post-build verification gate: the trace IDs it verifies, and the bounds of its repo scan.
@@ -193,5 +202,5 @@ The settings of the lint stage.
 | `pass_when` | string |  | What must hold for the check to pass. A finding gives it as the fix. |
 | `waiver` | one of `any_member`, `non_author`, `maintainer`, `forbidden` or object |  | Who approves a waiver of this check. It replaces `waivers.should` or `waivers.must` for this check. |
 | `sizes` | list of one of `feature`, `app`, `initiative` |  | The doc sizes this check applies to. An empty list applies at every size. |
-| `section` | string |  | The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, so an edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc, and the run notes say so. `profile validate` warns when no doc of the profile in the folder has the heading. The value `none` is reserved and names no heading: the check reads the whole doc on purpose, and `profile validate` and the run notes give no warning about its section. |
+| `section` | string |  | The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, and each section of the same doc that it links to by a heading anchor or names by a full heading title of two or more words. An edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc, and the run notes say so. `profile validate` warns when no doc of the profile in the folder has the heading. The value `none` is reserved and names no heading: the check reads the whole doc on purpose, and `profile validate` and the run notes give no warning about its section. |
 | `reads` | list of one of `upstream` |  | The other texts that a rubric check reads besides the doc. With upstream, the check also reads the spec doc of each implements or refines target, such as the PRD, and runs again when that doc changes. Use it for a check that compares the doc with its upstream doc. |

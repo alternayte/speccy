@@ -57,6 +57,7 @@ export const catalogSlugs: ReadonlySet<string> = new Set([
   "divergence.ambiguous",
   "divergence.gap",
   "coherence.contradiction",
+  "coherence.downstream-request",
   "coherence.external",
   "coherence.restatement",
   "links.code-drift",

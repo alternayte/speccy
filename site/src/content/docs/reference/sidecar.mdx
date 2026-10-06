@@ -1,6 +1,6 @@
 ---
 title: Sidecar
-description: The file that holds the approved waivers and acknowledgements of one spec doc, key by key.
+description: The file that holds the approved waivers, acknowledgements and upstream requests of one spec doc, key by key.
 sidebar:
   order: 7
 ---
@@ -40,13 +40,14 @@ A missing sidecar holds no decisions. Speccy writes an empty sidecar as an empty
 
 ## Keys
 
-The sidecar has three top-level keys. Each one is optional. In the tables, **Needed** marks a key without which Speccy ignores the entry.
+The sidecar has four top-level keys. Each one is optional. In the tables, **Needed** marks a key without which Speccy ignores the entry.
 
 | Key | Type | What it holds |
 |---|---|---|
 | `waivers` | list of waivers | The approved waivers of this doc. |
 | `trace` | list of trace acknowledgements | The upstream trace IDs that this doc does not cover, each with a reason. |
 | `standalone` | one standalone acknowledgement | The reason this doc has no upstream doc. |
+| `upstream_changes` | list of upstream requests | The conflicts with a linked doc that the linked doc must fix. |
 
 ### waivers
 
@@ -145,6 +146,43 @@ The standalone acknowledgement says that this doc has no upstream doc. With it, 
 
 This key lives in the sidecar only. Speccy ignores a `standalone` key in the [frontmatter](/reference/frontmatter/#standalone-is-not-a-frontmatter-key).
 
+### upstream_changes
+
+Each entry is an upstream request: the answer "The linked doc must change" to one `coherence.contradiction` finding. While the request is open, the finding reads "Waiting on" the linked doc, and it does not block the verdict of this doc. The review of the linked doc gives it the MUST finding `coherence.downstream-request`. [Upstream requests and send-backs](/concepts/waivers-and-the-sidecar/#upstream-requests-and-send-backs) explains the flow.
+
+| Key | Type | Needed | What it holds |
+|---|---|---|---|
+| `conflict` | one conflict | yes | The conflict, with `with`, `quote` and `with_quote`, as in [a waiver of a conflict](#a-waiver-of-a-conflict). |
+| `reason` | text | yes | Why the linked doc must change. Its author reads this. |
+| `requested_by` | text | no | The person who asked. |
+| `sent_back` | one send-back | no | The answer of the linked doc: this doc must change. |
+
+A `sent_back` entry has these keys:
+
+| Key | Type | Needed | What it holds |
+|---|---|---|---|
+| `reason` | text | yes | Why this doc must change. |
+| `by` | text | no | The person who asked for the send-back. |
+
+```yaml sidecar
+upstream_changes:
+  - conflict:
+      with: docs/prd-payments
+      quote: The worker pays each refund within 10 working days.
+      with_quote: The system MUST refund a card payment within 5 working days of the request.
+    reason: The card network allows 10 days, and the shipped worker uses that.
+    requested_by: Nathan
+    sent_back:
+      reason: Finance needs 5 days for the quarter close, so the worker must change.
+      by: Priya
+```
+
+A `sent_back` key ends the request. The conflict blocks this doc again, and the finding shows the reason of the send-back. After a send-back, the conflict takes an edit or a waiver, and no second upstream request.
+
+An entry also stops applying when an edit of either doc removes one of its quotes, because the conflict is gone. The entry stays in the file until a later decision about the same conflict writes over it.
+
+The profile key `coherence.upstream_pending: block` makes an open request block the verdict of this doc too.
+
 ## The section hash and the check hash
 
 `section_hash` is `sha256:` and the hex SHA-256 of the section's own text:
@@ -163,7 +201,7 @@ So an edit to the words of a section ends its waivers. A change to trailing spac
 
 | Writer | What it writes |
 |---|---|
-| The app | A waiver, a trace acknowledgement or a standalone acknowledgement, when the last approval that the profile's waiver policy needs arrives. A withdrawal of a trace or standalone acknowledgement takes the entry out, with no approval. For a folder on disk, the write makes no new version, because the doc text does not change. |
+| The app | A waiver, a trace acknowledgement, a standalone acknowledgement or an upstream request, when the last approval that the profile's waiver policy needs arrives. A send-back, and a waiver asked on the linked doc, go into the sidecar of the downstream doc. Speccy writes nothing into the sidecar of the linked doc. A withdrawal of a trace or standalone acknowledgement takes the entry out, with no approval. For a folder on disk, the write makes no new version, because the doc text does not change. |
 | The GitHub Action | A waiver, a trace acknowledgement or a standalone acknowledgement, from a [reply command](/reference/reply-commands/). The Action commits the sidecar to the pull request's branch. |
 | You | Any entry. Speccy treats an entry you write by hand in the same way as its own. |
 
@@ -173,7 +211,7 @@ A pull request from a fork gives the Action no write token. The Action then prin
 
 A verification waiver never goes in the sidecar. It excuses one trace ID in one code repo, and the sidecar travels with the doc into every build.
 
-When Speccy writes a waiver for a check and a section that the sidecar has already, the new entry replaces the old one. For `coherence.contradiction`, the conflict must match too, so one section can hold one waiver for each conflict. A trace acknowledgement replaces the one with the same `id`.
+When Speccy writes a waiver for a check and a section that the sidecar has already, the new entry replaces the old one. For `coherence.contradiction`, the conflict must match too, so one section can hold one waiver for each conflict. A trace acknowledgement replaces the one with the same `id`. An upstream request replaces the one with the same conflict.
 
 ## Errors
 

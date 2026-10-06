@@ -167,6 +167,21 @@ func (a *API) GetTrace(ctx context.Context, req api.GetTraceRequestObject) (api.
 		out.Links = append(out.Links, bl)
 	}
 	q := a.DB.Queries()
+	// A link rule target from an open pull request is what the last review read (#142). This
+	// view reads no pull request, so it shows the stored link.
+	stored, err := q.ListLinksFrom(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, l := range stored {
+		if l.PullNumber == 0 || slices.ContainsFunc(out.Links, func(x api.BundleLink) bool { return string(x.Kind) == l.Kind && x.TargetRef == l.TargetRef }) {
+			continue
+		}
+		removable := false
+		out.Links = append(out.Links, api.BundleLink{Kind: api.BundleLinkKind(l.Kind), Origin: api.BundleLinkOrigin(l.Origin),
+			TargetKind: api.BundleLinkTargetKind(l.TargetKind), TargetRef: l.TargetRef, Removable: &removable,
+			Pull: &api.LinkPull{Number: int(l.PullNumber), Sha: l.PullSha, Url: l.PullUrl}})
+	}
 	incoming, err := q.ListLinksTo(ctx, uuid.NullUUID{UUID: b.ID, Valid: true})
 	if err != nil {
 		return nil, err

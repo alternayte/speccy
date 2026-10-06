@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // Pull is one open pull request of a repo.
@@ -12,6 +13,8 @@ type Pull struct {
 	Draft   bool
 	HeadSHA string
 	URL     string
+	// UpdatedAt is the last change to the pull request: a push, a comment or an edit.
+	UpdatedAt time.Time
 }
 
 // OpenPulls lists the open pull requests of a repo.
@@ -19,10 +22,11 @@ func (c *Client) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
 	var out []Pull
 	for page := 1; ; page++ {
 		var batch []struct {
-			Number  int    `json:"number"`
-			Draft   bool   `json:"draft"`
-			HTMLURL string `json:"html_url"`
-			Head    struct {
+			Number    int       `json:"number"`
+			Draft     bool      `json:"draft"`
+			HTMLURL   string    `json:"html_url"`
+			UpdatedAt time.Time `json:"updated_at"`
+			Head      struct {
 				SHA string `json:"sha"`
 			} `json:"head"`
 		}
@@ -30,7 +34,7 @@ func (c *Client) OpenPulls(ctx context.Context, repo string) ([]Pull, error) {
 			return nil, err
 		}
 		for _, p := range batch {
-			out = append(out, Pull{Number: p.Number, Draft: p.Draft, HeadSHA: p.Head.SHA, URL: p.HTMLURL})
+			out = append(out, Pull{Number: p.Number, Draft: p.Draft, HeadSHA: p.Head.SHA, URL: p.HTMLURL, UpdatedAt: p.UpdatedAt})
 		}
 		if len(batch) < 100 || page >= 30 {
 			return out, nil

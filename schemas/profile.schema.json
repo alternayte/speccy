@@ -124,6 +124,14 @@
         }
       }
     },
+    "coherence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The settings of the coherence checks.",
+      "properties": {
+        "upstream_pending": { "enum": ["allow", "block"], "description": "What an approved upstream request does to the verdict of the doc that asks for it. allow: the conflict waits on the linked doc and does not block. block: the conflict still blocks until the linked doc changes. The default is allow." }
+      }
+    },
     "verify": {
       "type": "object",
       "additionalProperties": false,
@@ -217,7 +225,7 @@
             "items": { "enum": ["feature", "app", "initiative"] },
             "description": "The doc sizes this check applies to. An empty list applies at every size."
           },
-          "section": { "type": "string", "minLength": 1, "description": "The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, so an edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc, and the run notes say so. `profile validate` warns when no doc of the profile in the folder has the heading. The value `none` is reserved and names no heading: the check reads the whole doc on purpose, and `profile validate` and the run notes give no warning about its section." },
+          "section": { "type": "string", "minLength": 1, "description": "The heading that a rubric check is about, such as `Monitoring`. The check reads that section with its subsections, and each section of the same doc that it links to by a heading anchor or names by a full heading title of two or more words. An edit to another section does not change its answer, and a waiver of it ends when that section changes. In a doc with no such heading, the check reads the whole doc, and the run notes say so. `profile validate` warns when no doc of the profile in the folder has the heading. The value `none` is reserved and names no heading: the check reads the whole doc on purpose, and `profile validate` and the run notes give no warning about its section." },
           "reads": {
             "type": "array",
             "items": { "enum": ["upstream"] },

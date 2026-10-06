@@ -45,12 +45,17 @@ func validWaivers(in input) map[string]bool {
 // finding is waived (§8.7: a waived item counts as passed). One waiver covers every shortfall
 // of its check in its section. A waiver of coherence.contradiction that names a conflict
 // covers only the finding of that conflict (#136); one that names none, from before Speccy
-// recorded the conflict, covers each conflict in its section.
+// recorded the conflict, covers each conflict in its section. No waiver covers the finding of
+// a MUST check that the reviewer gave no answer for: only an answer clears it.
 func applyWaivers(in input, ev *evaluation) []bool {
 	valid := validWaivers(in)
 	waived := make([]bool, len(ev.findings))
 	open := map[string]bool{}
 	for i, f := range ev.findings {
+		if f.unanswered() {
+			open[f.slug] = true
+			continue
+		}
 		if b, ok := in.profile.Profile.Bind(f.slug, in.doc, in.main, f.anchor.HeadingPath); ok {
 			// A waiver of the whole doc text, from before the check named a section, still
 			// covers the check while the doc is the text it was approved for.
@@ -92,4 +97,10 @@ func (f pending) conflict() *source.Conflict {
 		return nil
 	}
 	return source.ConflictOf(f.slug, raw)
+}
+
+// unanswered reports whether f says the reviewer gave no answer for its check.
+func (f pending) unanswered() bool {
+	raw, err := json.Marshal(f.evidence)
+	return err == nil && source.Unanswered(raw)
 }

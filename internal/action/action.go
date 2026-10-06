@@ -51,6 +51,36 @@ type Bundle struct {
 	Checks        profile.Profile
 	// Report is a link to the full report, or "".
 	Report string
+	// Upstream are the linked docs that the review read from open pull requests (#142).
+	Upstream []Upstream
+}
+
+// Upstream is a linked doc that a review read at the head commit of an open pull request,
+// because the tree does not hold it (#142).
+type Upstream struct {
+	Path string
+	Pull int
+	SHA  string
+}
+
+// UpstreamOf returns the links whose target comes from an open pull request.
+func UpstreamOf(links []api.BundleLink) []Upstream {
+	var out []Upstream
+	for _, l := range links {
+		if l.Pull != nil {
+			out = append(out, Upstream{Path: l.TargetRef, Pull: l.Pull.Number, SHA: l.Pull.Sha})
+		}
+	}
+	return out
+}
+
+// upstreamText says which linked docs the review read from open pull requests, or "".
+func upstreamText(b Bundle) string {
+	var s strings.Builder
+	for _, u := range b.Upstream {
+		fmt.Fprintf(&s, " The upstream doc %s is from pull request #%d at %s. It is not merged.", u.Path, u.Pull, short(u.SHA))
+	}
+	return s.String()
 }
 
 // Options are the pull request and the settings.
@@ -299,6 +329,9 @@ func candidates(b Bundle, changed map[string]map[int]bool, levels []string, plai
 		f := b.Findings[i]
 		if f.Waived || (f.Anchor.Detached != nil && *f.Anchor.Detached) {
 			continue
+		}
+		if u := f.UpstreamChange; u != nil && !u.Blocks {
+			continue // the conflict waits on the linked doc, and its author does nothing here
 		}
 		src := b.Files[f.Anchor.File]
 		repoPath := path.Join(b.Dir, f.Anchor.File)
@@ -550,7 +583,7 @@ func bundleSummary(b Bundle) string {
 	if b.Kind == "lint" {
 		s += " Lint checks only."
 	}
-	return s
+	return s + upstreamText(b)
 }
 
 // isAre agrees the verb with the count, because the line is read by a person.
@@ -603,6 +636,11 @@ func summary(o Options, bundles []Bundle, rest map[string][]string, pending map[
 	}
 	if relaxed > 0 {
 		fmt.Fprintf(&b, "\nAdoption mode: %d check%s relaxed.\n", relaxed, plural(relaxed))
+	}
+	for _, x := range bundles {
+		if t := upstreamText(x); t != "" {
+			fmt.Fprintf(&b, "\n`%s`:%s\n", x.Slug, t)
+		}
 	}
 	for _, x := range bundles {
 		if n := pending[x.Slug]; n > 0 {

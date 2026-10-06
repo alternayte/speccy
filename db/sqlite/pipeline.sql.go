@@ -318,9 +318,11 @@ func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
 }
 
 const insertLink = `-- name: InsertLink :exec
-INSERT INTO link (id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url)
+INSERT INTO link (id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url,
+                  pull_number, pull_sha, pull_url)
 VALUES (?1, ?2, ?3, ?4, ?5,
-        ?6, ?7, ?8, ?9)
+        ?6, ?7, ?8, ?9,
+        ?10, ?11, ?12)
 `
 
 type InsertLinkParams struct {
@@ -333,6 +335,9 @@ type InsertLinkParams struct {
 	TargetRef       string
 	Origin          string
 	TargetUrl       string
+	PullNumber      int64
+	PullSha         string
+	PullUrl         string
 }
 
 func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
@@ -346,6 +351,9 @@ func (q *Queries) InsertLink(ctx context.Context, arg InsertLinkParams) error {
 		arg.TargetRef,
 		arg.Origin,
 		arg.TargetUrl,
+		arg.PullNumber,
+		arg.PullSha,
+		arg.PullUrl,
 	)
 	return err
 }
@@ -696,7 +704,7 @@ func (q *Queries) ListLinkStates(ctx context.Context, specDocID uuid.UUID) ([]Li
 }
 
 const listLinksFrom = `-- name: ListLinksFrom :many
-SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url FROM link WHERE from_spec_doc_id = ?1 ORDER BY kind, target_ref
+SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url, pull_number, pull_sha, pull_url FROM link WHERE from_spec_doc_id = ?1 ORDER BY kind, target_ref
 `
 
 func (q *Queries) ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([]Link, error) {
@@ -718,6 +726,9 @@ func (q *Queries) ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([
 			&i.TargetRef,
 			&i.Origin,
 			&i.TargetUrl,
+			&i.PullNumber,
+			&i.PullSha,
+			&i.PullUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -733,7 +744,7 @@ func (q *Queries) ListLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) ([
 }
 
 const listLinksTo = `-- name: ListLinksTo :many
-SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url FROM link WHERE target_spec_doc_id = ?1 ORDER BY kind, from_spec_doc_id
+SELECT id, workspace_id, from_spec_doc_id, kind, target_kind, target_spec_doc_id, target_ref, origin, target_url, pull_number, pull_sha, pull_url FROM link WHERE target_spec_doc_id = ?1 ORDER BY kind, from_spec_doc_id
 `
 
 func (q *Queries) ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID) ([]Link, error) {
@@ -755,6 +766,9 @@ func (q *Queries) ListLinksTo(ctx context.Context, targetSpecDocID uuid.NullUUID
 			&i.TargetRef,
 			&i.Origin,
 			&i.TargetUrl,
+			&i.PullNumber,
+			&i.PullSha,
+			&i.PullUrl,
 		); err != nil {
 			return nil, err
 		}

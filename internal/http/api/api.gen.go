@@ -1463,6 +1463,24 @@ func (e TraceCellState) Valid() bool {
 	}
 }
 
+// Defines values for UpstreamChangeState.
+const (
+	UpstreamChangeStateSentBack UpstreamChangeState = "sent_back"
+	UpstreamChangeStateWaiting  UpstreamChangeState = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the UpstreamChangeState enum.
+func (e UpstreamChangeState) Valid() bool {
+	switch e {
+	case UpstreamChangeStateSentBack:
+		return true
+	case UpstreamChangeStateWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UrlReviewConfigSource.
 const (
 	UrlReviewConfigSourceLocal UrlReviewConfigSource = "local"
@@ -1720,19 +1738,25 @@ func (e Visibility) Valid() bool {
 
 // Defines values for WaiverEndedBecause.
 const (
-	CheckChanged   WaiverEndedBecause = "check_changed"
-	CheckPassed    WaiverEndedBecause = "check_passed"
-	SectionChanged WaiverEndedBecause = "section_changed"
+	WaiverEndedBecauseCheckChanged   WaiverEndedBecause = "check_changed"
+	WaiverEndedBecauseCheckPassed    WaiverEndedBecause = "check_passed"
+	WaiverEndedBecauseConflictClosed WaiverEndedBecause = "conflict_closed"
+	WaiverEndedBecauseSectionChanged WaiverEndedBecause = "section_changed"
+	WaiverEndedBecauseSentBack       WaiverEndedBecause = "sent_back"
 )
 
 // Valid indicates whether the value is a known member of the WaiverEndedBecause enum.
 func (e WaiverEndedBecause) Valid() bool {
 	switch e {
-	case CheckChanged:
+	case WaiverEndedBecauseCheckChanged:
 		return true
-	case CheckPassed:
+	case WaiverEndedBecauseCheckPassed:
 		return true
-	case SectionChanged:
+	case WaiverEndedBecauseConflictClosed:
+		return true
+	case WaiverEndedBecauseSectionChanged:
+		return true
+	case WaiverEndedBecauseSentBack:
 		return true
 	default:
 		return false
@@ -2202,6 +2226,9 @@ type BundleLink struct {
 	Kind      BundleLinkKind   `json:"kind"`
 	Origin    BundleLinkOrigin `json:"origin"`
 
+	// Pull Set when the target of a link rule is not in the tree and an open pull request of the same repo holds it (#142). The review read the doc at that pull request's head commit. The doc is not merged.
+	Pull *LinkPull `json:"pull,omitempty"`
+
 	// Removable True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a frontmatter link of a doc Speccy writes. Absent on an incoming link.
 	Removable *bool `json:"removable,omitempty"`
 
@@ -2413,7 +2440,7 @@ type ConfirmedLink struct {
 	Target string `json:"target"`
 }
 
-// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section. On a coherence.downstream-request finding, it is the conflict as the downstream doc names it.
 type Conflict struct {
 	// Quote The text of this doc that conflicts.
 	Quote string `json:"quote"`
@@ -2440,14 +2467,17 @@ type ContentFileEncoding string
 
 // ContentReview defines model for ContentReview.
 type ContentReview struct {
-	CacheHits      *int               `json:"cache_hits,omitempty"`
-	CostEstimate   *float32           `json:"cost_estimate,omitempty"`
-	Findings       []Finding          `json:"findings"`
-	Id             openapi_types.UUID `json:"id"`
-	MainDoc        string             `json:"main_doc"`
-	Notes          []string           `json:"notes"`
-	ProfileKey     string             `json:"profile_key"`
-	ProfileVersion int64              `json:"profile_version"`
+	CacheHits    *int               `json:"cache_hits,omitempty"`
+	CostEstimate *float32           `json:"cost_estimate,omitempty"`
+	Findings     []Finding          `json:"findings"`
+	Id           openapi_types.UUID `json:"id"`
+
+	// Links The outgoing links of the doc, as this review resolved them. A link whose target comes from an open pull request has pull.
+	Links          *[]BundleLink `json:"links,omitempty"`
+	MainDoc        string        `json:"main_doc"`
+	Notes          []string      `json:"notes"`
+	ProfileKey     string        `json:"profile_key"`
+	ProfileVersion int64         `json:"profile_version"`
 
 	// ReportPath The app page of the report, relative to the server, such as /reviews/{id}.
 	ReportPath string `json:"report_path"`
@@ -2590,7 +2620,7 @@ type Finding struct {
 	Carried   *bool  `json:"carried,omitempty"`
 	CheckSlug string `json:"check_slug"`
 
-	// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+	// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section. On a coherence.downstream-request finding, it is the conflict as the downstream doc names it.
 	Conflict *Conflict `json:"conflict,omitempty"`
 
 	// EndLine The line where the text of the finding ends.
@@ -2627,6 +2657,12 @@ type Finding struct {
 
 	// TraceId For a coverage gap, the upstream trace ID it is about.
 	TraceId *string `json:"trace_id,omitempty"`
+
+	// Unanswered The reviewer gave no valid answer for this MUST check. A waiver cannot cover the finding. The next review asks for the check again, and only an answer clears it.
+	Unanswered *bool `json:"unanswered,omitempty"`
+
+	// UpstreamChange The upstream request of a coherence.contradiction finding: the answer "The linked doc must change". While it waits, the finding reads "Waiting on" the linked doc. A send-back ends it.
+	UpstreamChange *UpstreamChange `json:"upstream_change,omitempty"`
 
 	// VerifyTarget For a drifted code link, the commit URL a verification run reads to check the code still conforms.
 	VerifyTarget *string `json:"verify_target,omitempty"`
@@ -2888,6 +2924,18 @@ type LinkChoice struct {
 	Path    string `json:"path"`
 	Profile string `json:"profile"`
 	Title   string `json:"title"`
+}
+
+// LinkPull defines model for LinkPull.
+type LinkPull struct {
+	// Number The number of the open pull request.
+	Number int `json:"number"`
+
+	// Sha The head commit of the pull request that the review read.
+	Sha string `json:"sha"`
+
+	// Url The web page of the pull request.
+	Url string `json:"url"`
 }
 
 // LinkSuggestRequest defines model for LinkSuggestRequest.
@@ -3930,6 +3978,30 @@ type Trend struct {
 	SinceVersion int64 `json:"since_version"`
 }
 
+// UpstreamChange The upstream request of a coherence.contradiction finding: the answer "The linked doc must change". While it waits, the finding reads "Waiting on" the linked doc. A send-back ends it.
+type UpstreamChange struct {
+	// Blocks The finding counts in the verdict. A waiting finding blocks only when the profile sets coherence.upstream_pending to block.
+	Blocks bool `json:"blocks"`
+
+	// Reason Why the linked doc must change.
+	Reason      string  `json:"reason"`
+	RequestedBy *string `json:"requested_by,omitempty"`
+	SentBackBy  *string `json:"sent_back_by,omitempty"`
+
+	// SentBackReason The reason of the send-back.
+	SentBackReason *string `json:"sent_back_reason,omitempty"`
+
+	// State waiting while the linked doc must change; sent_back after the linked doc answered that this doc must change.
+	State UpstreamChangeState `json:"state"`
+
+	// Upstream The slug of the linked doc that must change.
+	Upstream      string  `json:"upstream"`
+	UpstreamTitle *string `json:"upstream_title,omitempty"`
+}
+
+// UpstreamChangeState waiting while the linked doc must change; sent_back after the linked doc answered that this doc must change.
+type UpstreamChangeState string
+
 // UrlReview defines model for UrlReview.
 type UrlReview struct {
 	// Commit The commit that Speccy read.
@@ -4179,7 +4251,7 @@ type Waiver struct {
 	CanApprove bool   `json:"can_approve"`
 	CheckSlug  string `json:"check_slug"`
 
-	// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section.
+	// Conflict One conflict between a doc and a linked doc, as a coherence.contradiction finding names it. A waiver of that check binds to it, and excuses no other conflict in the section. On a coherence.downstream-request finding, it is the conflict as the downstream doc names it.
 	Conflict  *Conflict `json:"conflict,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 
@@ -4187,7 +4259,10 @@ type Waiver struct {
 	DecisionReason *string            `json:"decision_reason,omitempty"`
 	DocId          openapi_types.UUID `json:"doc_id"`
 
-	// EndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+	// Downstream For a send-back, or a waiver of a coherence.downstream-request finding: the downstream doc. The approval writes to its sidecar, because Speccy writes nothing into the linked doc's sidecar.
+	Downstream *BundleRef `json:"downstream,omitempty"`
+
+	// EndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks. An upstream request ends when the linked doc sends it back, or when an edit removes a quote of its conflict.
 	EndedBecause *WaiverEndedBecause `json:"ended_because,omitempty"`
 	Id           openapi_types.UUID  `json:"id"`
 	Level        string              `json:"level"`
@@ -4204,6 +4279,9 @@ type Waiver struct {
 	// SectionRange The byte range of the waiver's section in the current main doc. Absent when the section is gone.
 	SectionRange *SectionRange `json:"section_range,omitempty"`
 
+	// SendBack True for a send-back, the answer "The downstream doc must change" to a coherence.downstream-request finding.
+	SendBack *bool `json:"send_back,omitempty"`
+
 	// Standalone True for a standalone Acknowledgement. On approval it goes in the sidecar under standalone.
 	Standalone *bool `json:"standalone,omitempty"`
 
@@ -4212,6 +4290,9 @@ type Waiver struct {
 
 	// Trace An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
 	Trace *TraceAck `json:"trace,omitempty"`
+
+	// UpstreamChange True for an upstream request, the answer "The linked doc must change". On approval it goes in the sidecar under upstream_changes.
+	UpstreamChange *bool `json:"upstream_change,omitempty"`
 
 	// Verification What a verification waiver excuses. It never goes in the sidecar.
 	Verification *VerificationExcuse `json:"verification,omitempty"`
@@ -4223,7 +4304,7 @@ type Waiver struct {
 	WithdrawnBy *string `json:"withdrawn_by,omitempty"`
 }
 
-// WaiverEndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks.
+// WaiverEndedBecause Why an ended waiver ended: an edit changed its section, a full review passed its whole-doc check, or the profile changed what the check asks. An upstream request ends when the linked doc sends it back, or when an edit removes a quote of its conflict.
 type WaiverEndedBecause string
 
 // WaiverStatus withdrawn is an approved Acknowledgement that a person took out of the sidecar.
@@ -4497,11 +4578,17 @@ type RequestWaiverJSONBody struct {
 	FindingId openapi_types.UUID `json:"finding_id"`
 	Reason    string             `json:"reason"`
 
+	// SendBack Answer a coherence.downstream-request finding with "The downstream doc must change": a send-back. Its approval ends the upstream request in the sidecar of the downstream doc, and the conflict blocks there again with this reason.
+	SendBack *bool `json:"send_back,omitempty"`
+
 	// Standalone Mark the doc standalone: the answer to a links.has-upstream finding. It is an Acknowledgement, and its approval writes standalone to the doc's sidecar.
 	Standalone *bool `json:"standalone,omitempty"`
 
 	// Trace The answer to a coverage gap that says the ID is intentionally absent from this doc. It is an Acknowledgement, and it follows the profile's waiver policy.
 	Trace *TraceAnswer `json:"trace,omitempty"`
+
+	// UpstreamChange Answer a coherence.contradiction finding with "The linked doc must change": an upstream request. Its approval writes the request to the doc's sidecar under upstream_changes. The conflict then waits on the linked doc, and the review of the linked doc reports it as coherence.downstream-request.
+	UpstreamChange *bool `json:"upstream_change,omitempty"`
 }
 
 // ResolveGithubUrlJSONBody defines parameters for ResolveGithubUrl.

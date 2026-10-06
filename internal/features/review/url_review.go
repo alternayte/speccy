@@ -294,6 +294,15 @@ func (s *Service) PlanURL(ctx context.Context, raw string) (URLPlan, error) {
 	if len(selected) > MaxURLDocs {
 		return plan, kernel.Invalid("too_many_docs", "%s names %d spec docs, and one review takes %d at most. Name a folder or a doc.", raw, len(selected), MaxURLDocs)
 	}
+	// A link rule target that the commit does not hold can be in an open pull request of the
+	// repo (#142). The docs of this review share one finder, so it lists them once.
+	inTree := map[string]bool{}
+	for _, e := range entries {
+		if e.Type == "blob" {
+			inTree[e.Path] = true
+		}
+	}
+	pulls := newPullFinder(clientOf(c), build.Repo, build.Pull, func(_ context.Context, _ *github.Client, p string) (bool, error) { return inTree[p], nil })
 	// Every spec doc of the scan can be the target of a link, so each one loads its files once.
 	loaded := map[string][]source.File{}
 	filesOf := func(b local.Bundle) ([]source.File, error) {
@@ -313,7 +322,7 @@ func (s *Service) PlanURL(ctx context.Context, raw string) (URLPlan, error) {
 			plan.Items = append(plan.Items, URLItem{Doc: doc})
 			continue
 		}
-		from := &FromRepo{Dir: b.Dir, Config: cfg, Refs: b.Refs}
+		from := &FromRepo{Dir: b.Dir, Config: cfg, Refs: b.Refs, pulls: pulls, Repo: build.Repo}
 		if rawDec, err := fs.ReadFile(tfs, source.SidecarPath(doc.Path)); err == nil {
 			if from.Decisions, err = source.ParseDecisions(rawDec); err != nil {
 				doc.Err = kernel.Invalid("bad_sidecar", "The sidecar of %s is not valid: %s.", doc.Path, err.Error())
@@ -329,8 +338,11 @@ func (s *Service) PlanURL(ctx context.Context, raw string) (URLPlan, error) {
 			if err != nil {
 				continue // a doc that does not load is no link target
 			}
-			from.Siblings = append(from.Siblings, Sibling{Slug: o.Slug, Dir: o.Dir, DocPath: o.Main.Path, Profile: o.Main.Frontmatter.Type,
-				Title: o.Main.Title, Files: files})
+			sib := Sibling{Slug: o.Slug, Dir: o.Dir, DocPath: o.Main.Path, Profile: o.Main.Frontmatter.Type, Title: o.Main.Title, Files: files}
+			if raw, err := fs.ReadFile(tfs, source.SidecarPath(path.Join(o.Dir, o.Main.Path))); err == nil {
+				sib.Decisions, _ = source.ParseDecisions(raw) // a sidecar that does not parse asks nothing
+			}
+			from.Siblings = append(from.Siblings, sib)
 		}
 		content := Content{Slug: b.Slug, Files: doc.Files, From: from}
 		if b.File != "" {

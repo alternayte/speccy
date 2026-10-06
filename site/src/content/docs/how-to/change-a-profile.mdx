@@ -142,6 +142,22 @@ checks: []
 
 The value is `SHOULD` or `MUST`. With `MUST`, a doc that a file of its bundle contradicts is Not Build Ready until you correct the claim or the file. Use it when your team keeps the reference docs of a bundle correct.
 
+### Make a conflict block while the linked doc must change
+
+An approved upstream request takes a conflict out of the verdict of the doc that asked. The conflict then waits on the linked doc. To keep the conflict blocking until the linked doc changes, set `coherence.upstream_pending`:
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+coherence:
+  upstream_pending: block
+# The other keys and checks of the profile stay as they are.
+checks: []
+```
+
+The value is `allow` or `block`. The default is `allow`. With `block`, the finding still reads "Waiting on" the linked doc, and the doc stays Not Build Ready. [Upstream requests and send-backs](/concepts/waivers-and-the-sidecar/#upstream-requests-and-send-backs) explains the request.
+
 <Aside>
 A check that fires on every doc of a repo you adopted does not need a new level. Relax it in `.speccy.yaml` with `adoption.relaxed` while the repo catches up. The check still reports, and it does not block. [Adopt a repo](/how-to/adopt-a-repo/) shows how.
 </Aside>
@@ -168,6 +184,7 @@ checks:
 - `slug` is lower case, with at least one dot, such as `sdd.rollback`. Each slug appears once in a profile.
 - `stage` is `rubric`, `grounding`, `divergence` or `coherence`.
 - `section` names the heading that the check is about. The check then reads only that section with its subsections, the doc title and the text assets. An edit to another section does not send the check to the model again. A waiver of the check ends when that section changes.
+- The check also reads each pointed-to section. That is a section of the same doc that the named section links to by its heading anchor. It can also be a section that the named section names by its full heading title. A title of one word counts only as a link. Thus a Security section that says "Governance and compliance records the deviation" can pass with the facts in Governance and compliance. Do not copy those facts into Security. An edit to a pointed-to section sends the check to the model again. You cannot list more sections in the profile. See [the rubric stage](/concepts/review-pipeline/#rubric).
 - The heading match is the match of [`lint.required-headings`](/reference/checks/#lint.required-headings): case, spaces and a section number make no difference. When the doc has no such heading, the check reads the whole doc.
 - `section` is for a check of the rubric stage. Do not use it with `scope: section`.
 - `scope` is `doc` or `section`. With `section`, the check runs once for each section. The default is `doc`.
@@ -176,7 +193,7 @@ checks:
 - `sizes` limits the check to the doc sizes you name. With no `sizes`, the check applies at every size.
 - `question` and `pass_when` are what the model reads. Write one binary question.
 
-A failed rubric check reports every shortfall, and each shortfall is one finding. The built-in PRD and SDD profiles name a section on each check that is about one section of the template.
+A failed rubric check reports every shortfall, and each shortfall is one finding. When the reviewer gives no valid answer for a MUST check after one more call, the check gets a MUST finding that says so. A waiver cannot cover that finding. Run the review again. A SHOULD or INFO check with no answer counts as not applicable. The built-in PRD and SDD profiles name a section on each check that is about one section of the template.
 
 ### Compare a doc with its upstream doc
 
