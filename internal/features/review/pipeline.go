@@ -502,7 +502,16 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 			return est, err
 		}
 	}
+	// A unit of checks with reads: [upstream] holds the upstream docs too.
+	upTokens := int64(0)
+	for _, l := range upstreamDocs(in) {
+		upTokens += int64(len(l.main)) / 4
+	}
 	for _, u := range units {
+		extra := int64(0)
+		if u.upstream {
+			extra = upTokens
+		}
 		switch {
 		case u.named:
 			// The call holds the section and the assets, not the bundle.
@@ -510,11 +519,11 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 			for _, f := range textAssets(in) {
 				assetTokens += int64(len(f.text)) / 4
 			}
-			rubricUnit(u.inputHash, u.checks, int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
+			rubricUnit(u.inputHash, u.checks, extra+int64(u.sec.End-u.sec.Start)/4+assetTokens-bundleTokens)
 		case u.sec != nil:
-			rubricUnit(u.inputHash, u.checks, int64(len(u.sec.Own(in.main)))/4)
+			rubricUnit(u.inputHash, u.checks, extra+int64(len(u.sec.Own(in.main)))/4)
 		default:
-			rubricUnit(u.inputHash, u.checks, 0)
+			rubricUnit(u.inputHash, u.checks, extra)
 		}
 	}
 	// Grounding: a claims call per uncached section, and about one label call per two sections.

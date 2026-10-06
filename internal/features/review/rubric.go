@@ -1,6 +1,7 @@
 package review
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
@@ -341,7 +343,9 @@ type scopeUnit struct {
 	// named says the checks name sec: the model reads sec with its child sections and the doc
 	// title, and no other doc text. Otherwise sec is one section of a scope: section check,
 	// which reads the bundle for context.
-	named     bool
+	named bool
+	// upstream says the checks read the upstream docs too (reads: [upstream]).
+	upstream  bool
 	inputHash string
 	checks    []rubricCheck
 	levels    map[string]kernel.Level
@@ -420,46 +424,110 @@ func namedHash(in input, sec *section.Section) string {
 
 // rubricUnits groups the rubric checks of the profile by what each reads: the whole bundle,
 // the section a check names, or every section for a check with scope section.
+//
+// A check with reads: [upstream] also reads the upstream docs, so it goes into a unit of its
+// own beside the checks that read the same text without them.
 func rubricUnits(in input) []scopeUnit {
 	levels := map[string]kernel.Level{}
-	var docChecks, sectionChecks []rubricCheck
-	named := map[*section.Section][]rubricCheck{}
-	var order []*section.Section
+	// The index is 1 for the checks that read the upstream docs.
+	var docChecks, sectionChecks [2][]rubricCheck
+	type namedKey struct {
+		sec *section.Section
+		up  int
+	}
+	named := map[namedKey][]rubricCheck{}
+	var order []namedKey
 	for _, c := range in.profile.Profile.Checks {
 		if c.Stage != StageRubric || !c.AppliesAt(in.size) {
 			continue
 		}
 		levels[c.Slug] = in.level(c.Slug, kernel.Level(c.Level))
 		rcheck := rubricCheck{Slug: c.Slug, Question: c.Question, PassWhen: c.PassWhen}
+		up := 0
+		if c.Upstream() {
+			up = 1
+		}
 		switch sec := c.Named(in.doc); {
 		case c.Scope == "section":
-			sectionChecks = append(sectionChecks, rcheck)
+			sectionChecks[up] = append(sectionChecks[up], rcheck)
 		case sec != nil:
-			if _, ok := named[sec]; !ok {
-				order = append(order, sec)
+			k := namedKey{sec, up}
+			if _, ok := named[k]; !ok {
+				order = append(order, k)
 			}
-			named[sec] = append(named[sec], rcheck)
+			named[k] = append(named[k], rcheck)
 		default:
-			docChecks = append(docChecks, rcheck)
+			docChecks[up] = append(docChecks[up], rcheck)
 		}
 	}
+	// withUp adds the upstream docs to the input hash of a unit whose checks read them.
+	withUp := func(hash string, up int) string {
+		if up == 0 {
+			return hash
+		}
+		return hashOf(append([]string{hash}, upstreamHash(in)...)...)
+	}
 	var units []scopeUnit
-	if len(docChecks) > 0 {
-		units = append(units, scopeUnit{inputHash: bundleHash(in), checks: docChecks, levels: levels})
+	for up, checks := range docChecks {
+		if len(checks) > 0 {
+			units = append(units, scopeUnit{upstream: up == 1, inputHash: withUp(bundleHash(in), up), checks: checks, levels: levels})
+		}
 	}
-	for _, sec := range order {
-		units = append(units, scopeUnit{sec: sec, named: true, inputHash: namedHash(in, sec), checks: named[sec], levels: levels})
+	for _, k := range order {
+		units = append(units, scopeUnit{sec: k.sec, named: true, upstream: k.up == 1, inputHash: withUp(namedHash(in, k.sec), k.up), checks: named[k], levels: levels})
 	}
-	if len(sectionChecks) > 0 {
+	for up, checks := range sectionChecks {
+		if len(checks) == 0 {
+			continue
+		}
 		for i := range in.doc.Sections {
 			sec := &in.doc.Sections[i]
 			if sec.Level == 0 || len(strings.Fields(section.Normalize(sec.Own(in.main)))) == 0 {
 				continue
 			}
-			units = append(units, scopeUnit{sec: sec, inputHash: sec.Hash, checks: sectionChecks, levels: levels})
+			units = append(units, scopeUnit{sec: sec, upstream: up == 1, inputHash: withUp(sec.Hash, up), checks: checks, levels: levels})
 		}
 	}
 	return units
+}
+
+// upstreamDocs returns the linked docs that a check with reads: [upstream] reads: the
+// implements and refines targets, the ones upstreamIDs reads.
+func upstreamDocs(in input) []linked {
+	var out []linked
+	for _, l := range in.linked {
+		if slices.Contains(restatementKinds, l.kind) && len(l.main) > 0 {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// upstreamHash names what the upstream docs add to the input of a check: each target and the
+// hash of its main text. The version ID is left out: an edit to the target's sidecar makes a
+// new version with the same text, and the answer holds.
+func upstreamHash(in input) []string {
+	parts := []string{"upstream"}
+	for _, l := range upstreamDocs(in) {
+		parts = append(parts, l.target.ID.String(), version.Hash(l.main))
+	}
+	return parts
+}
+
+// upstreamData is the main text of each upstream doc as data, and the line of the scope note
+// that says what the data holds: a check that compares the doc with its upstream doc must not
+// guess what a doc that is not there says.
+func upstreamData(in input) (note, text string) {
+	ups := upstreamDocs(in)
+	if len(ups) == 0 {
+		return "This doc links no upstream doc, so the data holds none.", ""
+	}
+	var b strings.Builder
+	for _, l := range ups {
+		b.WriteString("\n")
+		b.WriteString(data(fmt.Sprintf("Upstream doc %s (%s)", l.target.Slug, l.kind), string(l.main)))
+	}
+	return "The data also holds the upstream doc of this doc: the doc that it implements or refines. Use it to compare this doc with that doc. Do not review the upstream doc itself.", b.String()
 }
 
 // rubricStage answers every rubric check with the reviewer (SDD §8.3). Checks with scope
@@ -597,25 +665,52 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		scopeNote = fmt.Sprintf("Answer the checks for the section \"%s\" only. The whole bundle is below for context.", strings.Join(u.sec.Path, " > "))
 		bundle = data("Section "+strings.Join(u.sec.Path, " > "), string(u.sec.Own(in.main))) + "\n" + bundle
 	}
+	if u.upstream {
+		note, text := upstreamData(in)
+		scopeNote = strings.TrimSpace(scopeNote + " " + note)
+		bundle += text
+	}
+	// A call that fails for good does not stop the other batches: their answers go into the
+	// cache, so the next run asks only for the checks that have none (#134). The unit then
+	// reports the first failure.
+	var failed error
+	fail := func(err error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if failed == nil {
+			failed = err
+		}
+		return nil
+	}
 	for len(todo) > 0 {
 		n := min(rubricBatch, len(todo))
 		batch := todo[:n]
 		todo = todo[n:]
 		got, err := s.askRubric(ctx, rc, in, batch, scopeNote, bundle, files)
 		if err != nil {
-			return nil, err
+			if err := fail(err); err != nil {
+				return nil, err
+			}
+			progress(len(batch))
+			continue
 		}
-		// A check the reviewer skipped gets one more call on its own.
+		// A check the reviewer skipped, or whose answer does not match the schema, gets one more
+		// call with the other such checks of the batch.
 		var missing []rubricCheck
 		for _, c := range batch {
 			if _, ok := got[c.Slug]; !ok {
 				missing = append(missing, c)
 			}
 		}
+		asked := true
 		if len(missing) > 0 {
 			again, err := s.askRubric(ctx, rc, in, missing, scopeNote, bundle, files)
 			if err != nil {
-				return nil, err
+				if err := fail(err); err != nil {
+					return nil, err
+				}
+				asked = false
 			}
 			for k, v := range again {
 				got[k] = v
@@ -623,13 +718,23 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		}
 		for _, c := range batch {
 			a, ok := got[c.Slug]
-			if !ok {
+			switch {
+			case !ok && !asked:
+				continue // the run fails; the next run asks again
+			case !ok:
+				// The same rule as a check the reviewer left out: not applicable, with a run note,
+				// and not cached, so the next run asks again.
 				a = rubricAnswer{Slug: c.Slug, Result: "not_applicable", Reason: "The reviewer gave no answer for this check."}
-				rc.note(fmt.Sprintf("The reviewer gave no answer for %s; it counts as not applicable.", c.Slug))
-			} else {
-				if a, err = s.oneOfEach(ctx, rc, c, withPrior(a, c.Prior), fingerprint); err != nil {
-					return nil, err
+				rc.note(fmt.Sprintf("The reviewer gave no valid answer for %s; it counts as not applicable.", c.Slug))
+			default:
+				one, err := s.oneOfEach(ctx, rc, c, withPrior(a, c.Prior), fingerprint)
+				if err != nil {
+					if err := fail(err); err != nil {
+						return nil, err
+					}
+					continue
 				}
+				a = one
 				if err := s.putCache(ctx, key(c), a); err != nil {
 					return nil, err
 				}
@@ -638,7 +743,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		}
 		progress(len(batch))
 	}
-	return answers, nil
+	return answers, failed
 }
 
 func (s *Service) askRubric(ctx context.Context, rc *runCtx, in input, checks []rubricCheck, scopeNote, bundle string, files []model.File) (map[string]rubricAnswer, error) {
@@ -650,24 +755,70 @@ func (s *Service) askRubric(ctx context.Context, rc *runCtx, in input, checks []
 	res, err := rc.call(ctx, s.Gateway, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptRubric, System: systemPrompt,
 		Prompt: rubricPrompt(in.profile.Profile.Name, checks, scopeNote, bundle),
-		Schema: rubricSchema(slugs), Files: files,
+		Schema: rubricSchema(slugs), Accept: rubricAccept, Files: files,
 	})
 	if err != nil {
 		return nil, err
 	}
-	var out struct {
-		Results []rubricAnswer `json:"results"`
+	return rubricResults(res.JSON, slugs)
+}
+
+// rubricResults returns the answers of a rubric reply that match the schema of one answer, by
+// slug. An answer that does not match is left out, and answerChecks asks for its check again
+// (#134). A pass or not_applicable answer with no "shortfalls" has none.
+func rubricResults(reply []byte, slugs []string) (map[string]rubricAnswer, error) {
+	item, err := compileItem(slugs)
+	if err != nil {
+		return nil, err
 	}
-	if err := json.Unmarshal(res.JSON, &out); err != nil {
+	var out struct {
+		Results []map[string]any `json:"results"`
+	}
+	if err := json.Unmarshal(reply, &out); err != nil {
 		return nil, err
 	}
 	got := map[string]rubricAnswer{}
-	for _, a := range out.Results {
+	for _, r := range out.Results {
+		if _, ok := r["shortfalls"]; !ok && (r["result"] == "pass" || r["result"] == "not_applicable") {
+			r["shortfalls"] = []any{}
+		}
+		raw, err := json.Marshal(r)
+		if err != nil {
+			return nil, err
+		}
+		v, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+		if err != nil {
+			return nil, err
+		}
+		if item.Validate(v) != nil {
+			continue
+		}
+		var a rubricAnswer
+		if err := json.Unmarshal(raw, &a); err != nil {
+			return nil, err
+		}
 		if _, dup := got[a.Slug]; !dup {
 			got[a.Slug] = a
 		}
 	}
 	return got, nil
+}
+
+// compileItem compiles the schema of one rubric answer.
+func compileItem(slugs []string) (*jsonschema.Schema, error) {
+	raw, err := json.Marshal(rubricItem(slugs))
+	if err != nil {
+		return nil, err
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	c := jsonschema.NewCompiler()
+	if err := c.AddResource("item.json", doc); err != nil {
+		return nil, err
+	}
+	return c.Compile("item.json")
 }
 
 // quoteEvidence is one quote the reviewer gave, and whether it is in the doc.

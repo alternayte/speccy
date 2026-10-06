@@ -58,7 +58,8 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 	fmt.Fprintf(stdout, "%s is a valid profile: %s (%s), %d checks.\n", args[1], l.Profile.Key, l.Profile.Name, len(l.Profile.Checks))
 	// A check that is about one section and names none is valid, and it stops a review from
 	// converging, so the command says so (#108). The docs of the profile in this folder decide
-	// which heading to suggest, and show a section that no doc has (#138).
+	// which heading to suggest, and show a section that no doc has (#138). A check that names the
+	// upstream doc type and does not read the upstream docs fails on every doc (#143).
 	docs, err := profileDocs(l.Profile.Key)
 	if err != nil {
 		fmt.Fprintf(stdout, "Speccy did not read the docs of this folder, so the warnings do not check their headings: %v.\n", err)
@@ -71,6 +72,9 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 	}
 	for _, m := range profile.MissingSections(l.Profile, docs) {
 		warnings = append(warnings, m.String())
+	}
+	for _, h := range profile.UpstreamHints(l) {
+		warnings = append(warnings, h.String())
 	}
 	if len(warnings) > 0 {
 		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(warnings), pluralS(len(warnings)))

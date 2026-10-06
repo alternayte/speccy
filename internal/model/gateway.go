@@ -128,7 +128,11 @@ func (g *Gateway) Call(ctx context.Context, c Call) (Result, error) {
 // CallWith sends c to a given backend row and model: the role path above, and the admin's
 // "Test" button.
 func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model string, c Call) (Result, error) {
-	schema, err := compileSchema(c.Schema)
+	check := c.Schema
+	if c.Accept != nil {
+		check = c.Accept
+	}
+	schema, err := compileSchema(check)
 	if err != nil {
 		return Result{}, err
 	}

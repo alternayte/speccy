@@ -102,38 +102,45 @@ func rubricSchema(slugs []string) []byte {
 	s := map[string]any{
 		"type": "object", "additionalProperties": false, "required": []string{"results"},
 		"properties": map[string]any{
-			"results": map[string]any{
-				"type": "array",
-				"items": map[string]any{
-					"type": "object", "additionalProperties": false,
-					// "prior" is not required: an answer with none says nothing about the shortfalls
-					// of the last review, and they stay.
-					"required": []string{"slug", "result", "reason", "quotes", "shortfalls"},
-					"properties": map[string]any{
-						"slug":   map[string]any{"type": "string", "enum": slugs},
-						"result": map[string]any{"type": "string", "enum": []string{"pass", "fail", "not_applicable"}},
-						"reason": map[string]any{"type": "string"},
-						"quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-						// "analysis" sorts before "state", so the model reads the text before it
-						// decides. With no analysis it gives the state first, and calls a shortfall
-						// that stands fixed in about one answer of ten.
-						"prior": map[string]any{"type": "array", "items": map[string]any{
-							"type": "object", "additionalProperties": false, "required": []string{"analysis", "n", "state"},
-							"properties": map[string]any{"analysis": map[string]any{"type": "string"}, "n": map[string]any{"type": "integer"},
-								"state":    map[string]any{"type": "string", "enum": []string{"still_holds", "fixed"}},
-								"question": map[string]any{"type": "string"}},
-						}},
-						"shortfalls": map[string]any{"type": "array", "items": map[string]any{
-							"type": "object", "additionalProperties": false, "required": []string{"reason", "quote"},
-							"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}, "question": map[string]any{"type": "string"}},
-						}},
-					},
-				},
-			},
+			"results": map[string]any{"type": "array", "items": rubricItem(slugs)},
 		},
 	}
 	out, _ := json.Marshal(s)
 	return out
+}
+
+// rubricAccept is the shape the gateway checks a rubric answer against: an object with a list
+// of results. askRubric checks each result against rubricItem itself, so one result that does
+// not match costs that check one more call, and not the whole batch (#134).
+var rubricAccept = []byte(`{"type":"object","required":["results"],"properties":{"results":{"type":"array","items":{"type":"object"}}}}`)
+
+// rubricItem is the schema of one check's answer.
+func rubricItem(slugs []string) map[string]any {
+	return map[string]any{
+		"type": "object", "additionalProperties": false,
+		// "prior" is not required: an answer with none says nothing about the shortfalls
+		// of the last review, and they stay.
+		"required": []string{"slug", "result", "reason", "quotes", "shortfalls"},
+		"properties": map[string]any{
+			"slug":   map[string]any{"type": "string", "enum": slugs},
+			"result": map[string]any{"type": "string", "enum": []string{"pass", "fail", "not_applicable"}},
+			"reason": map[string]any{"type": "string"},
+			"quotes": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			// "analysis" sorts before "state", so the model reads the text before it
+			// decides. With no analysis it gives the state first, and calls a shortfall
+			// that stands fixed in about one answer of ten.
+			"prior": map[string]any{"type": "array", "items": map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"analysis", "n", "state"},
+				"properties": map[string]any{"analysis": map[string]any{"type": "string"}, "n": map[string]any{"type": "integer"},
+					"state":    map[string]any{"type": "string", "enum": []string{"still_holds", "fixed"}},
+					"question": map[string]any{"type": "string"}},
+			}},
+			"shortfalls": map[string]any{"type": "array", "items": map[string]any{
+				"type": "object", "additionalProperties": false, "required": []string{"reason", "quote"},
+				"properties": map[string]any{"reason": map[string]any{"type": "string"}, "quote": map[string]any{"type": "string"}, "question": map[string]any{"type": "string"}},
+			}},
+		},
+	}
 }
 
 // claimsPrompt asks for the factual claims in one section (REQ-030).
