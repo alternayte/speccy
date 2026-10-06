@@ -961,6 +961,20 @@ type ClientInterface interface {
 	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
 	DiscardPending(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RecordPendingWithBody Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+	RecordPendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RecordPending Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+	RecordPending(ctx context.Context, body RecordPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	//
 	// Corresponds with GET /people (the `ListPeople` operationId).
@@ -3634,6 +3648,40 @@ func (c *Client) DiscardPendingWithBody(ctx context.Context, contentType string,
 // Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
 func (c *Client) DiscardPending(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDiscardPendingRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RecordPendingWithBody Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+func (c *Client) RecordPendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRecordPendingRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RecordPending Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+func (c *Client) RecordPending(ctx context.Context, body RecordPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRecordPendingRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -8900,6 +8948,46 @@ func NewDiscardPendingRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
+// NewRecordPendingRequest calls the generic RecordPending builder with application/json body
+func NewRecordPendingRequest(server string, body RecordPendingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRecordPendingRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRecordPendingRequestWithBody constructs an http.Request for the RecordPending method, with any body, and a specified content type
+func NewRecordPendingRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/pending-reviews/marks")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListPeopleRequest constructs an http.Request for the ListPeople method
 func NewListPeopleRequest(server string) (*http.Request, error) {
 	var err error
@@ -11721,6 +11809,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
 	DiscardPendingWithResponse(ctx context.Context, body DiscardPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*DiscardPendingResponse, error)
+
+	// RecordPendingWithBodyWithResponse Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+	RecordPendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RecordPendingResponse, error)
+
+	// RecordPendingWithResponse Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+	RecordPendingWithResponse(ctx context.Context, body RecordPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*RecordPendingResponse, error)
 
 	// ListPeopleWithResponse The members of the workspace, for reviewers and mentions. Empty in local mode.
 	//
@@ -16976,6 +17078,47 @@ func (r DiscardPendingResponse) ContentType() string {
 	return ""
 }
 
+type RecordPendingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RecordPendingResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RecordPendingResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RecordPendingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RecordPendingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RecordPendingResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListPeopleResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -20950,6 +21093,32 @@ func (c *ClientWithResponses) DiscardPendingWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParseDiscardPendingResponse(rsp)
+}
+
+// RecordPendingWithBodyWithResponse Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+func (c *ClientWithResponses) RecordPendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RecordPendingResponse, error) {
+	rsp, err := c.RecordPendingWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRecordPendingResponse(rsp)
+}
+
+// RecordPendingWithResponse Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /pending-reviews/marks (the `RecordPending` operationId).
+func (c *ClientWithResponses) RecordPendingWithResponse(ctx context.Context, body RecordPendingJSONRequestBody, reqEditors ...RequestEditorFn) (*RecordPendingResponse, error) {
+	rsp, err := c.RecordPending(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRecordPendingResponse(rsp)
 }
 
 // ListPeopleWithResponse The members of the workspace, for reviewers and mentions. Empty in local mode.
@@ -25095,6 +25264,35 @@ func ParseDiscardPendingResponse(rsp *http.Response) (*DiscardPendingResponse, e
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRecordPendingResponse parses an HTTP response from a RecordPendingWithResponse call
+func ParseRecordPendingResponse(rsp *http.Response) (*RecordPendingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RecordPendingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem

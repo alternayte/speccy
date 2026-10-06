@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
@@ -105,6 +106,11 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		// token pasted in the app.
 		svc.GitHub = adminAPI.LocalGitHubClient
 		reviews.GitHub = adminAPI.LocalGitHubClient
+		// #131: a GitHub URL whose repo has no .speccy.yaml takes the served folder's.
+		reviews.LocalConfig = func() (source.RepoConfig, string, bool, error) {
+			cfg, found, err := source.FindRepoConfig(root.Dir())
+			return cfg, filepath.Join(root.Dir(), source.RepoConfigFile), found, err
+		}
 	}
 	if root == nil {
 		// REQ-123: hosted mode reads bundles from GitHub with the workspace token.

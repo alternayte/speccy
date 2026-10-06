@@ -23,7 +23,8 @@ SELECT * FROM pr_batch_item WHERE batch_id = sqlc.arg(batch_id) ORDER BY positio
 
 -- name: UpdatePrBatchItem :exec
 UPDATE pr_batch_item SET state = sqlc.arg(state), reason = sqlc.arg(reason), head_sha = sqlc.arg(head_sha), result = sqlc.arg(result),
-    comments = sqlc.arg(comments), removed = sqlc.arg(removed), review_url = sqlc.arg(review_url), updated_at = sqlc.arg(updated_at)
+    comments = sqlc.arg(comments), removed = sqlc.arg(removed), review_url = sqlc.arg(review_url), config = sqlc.arg(config),
+    updated_at = sqlc.arg(updated_at)
 WHERE batch_id = sqlc.arg(batch_id) AND position = sqlc.arg(position);
 
 -- name: StopPrBatchItems :exec
@@ -38,3 +39,21 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND repo = sqlc.arg(repo) AND pull =
 INSERT INTO pr_review (workspace_id, repo, pull, head_sha, batch_id, reviewed_at)
 VALUES (sqlc.arg(workspace_id), sqlc.arg(repo), sqlc.arg(pull), sqlc.arg(head_sha), sqlc.narg(batch_id), sqlc.arg(reviewed_at))
 ON CONFLICT (workspace_id, repo, pull, head_sha) DO UPDATE SET batch_id = excluded.batch_id, reviewed_at = excluded.reviewed_at;
+
+-- name: InsertPrReviewComment :exec
+INSERT INTO pr_review_comment (workspace_id, repo, pull, comment_id, kind, ref, body, created_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(repo), sqlc.arg(pull), sqlc.arg(comment_id), sqlc.arg(kind), sqlc.arg(ref), sqlc.arg(body),
+        sqlc.arg(created_at))
+ON CONFLICT (workspace_id, repo, pull, comment_id, kind, ref) DO UPDATE SET body = excluded.body;
+
+-- name: ListPrReviewComments :many
+SELECT * FROM pr_review_comment
+WHERE workspace_id = sqlc.arg(workspace_id) AND repo = sqlc.arg(repo) AND pull = sqlc.arg(pull)
+ORDER BY created_at, comment_id, kind, ref;
+
+-- name: DeletePrReviewComment :exec
+DELETE FROM pr_review_comment
+WHERE workspace_id = sqlc.arg(workspace_id) AND repo = sqlc.arg(repo) AND pull = sqlc.arg(pull) AND comment_id = sqlc.arg(comment_id);
+
+-- name: DeletePrReviewComments :exec
+DELETE FROM pr_review_comment WHERE workspace_id = sqlc.arg(workspace_id) AND repo = sqlc.arg(repo) AND pull = sqlc.arg(pull);

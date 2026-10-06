@@ -14,16 +14,19 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/internal/action"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/source"
 )
 
 const reviewPRsUsage = `Usage: speccy review-prs <pull request URL>... | --repo <owner/name> [--requested]
-                        [--parallel N] [--again] [--yes] [--stages …]
+                        [--parallel N] [--again] [--yes] [--stages …] [--levels must,should]
+                        [--no-attribution]
        speccy review-prs --batch <ID>    Show a batch until it ends.
        speccy review-prs --cancel <ID>   Start no new pull request of a batch.
 `
 
-const askUsage = `Usage: speccy ask <pull request URL> "<concern>" [--section "A › B"] [--force]
+const askUsage = `Usage: speccy ask <pull request URL> "<concern>" [--section "A › B"] [--force] [--no-attribution]
 `
 
 const pendingUsage = `Usage: speccy pending list <pull request URL>
@@ -45,6 +48,9 @@ type prFlags struct {
 	cancel    string
 	section   string
 	force     bool
+	levels    []string
+	// noAttribution keeps the name of Speccy out of the pending review (#140).
+	noAttribution bool
 }
 
 // parsePRFlags reads the flags that allowed names. A flag in no command's list is an error.
@@ -84,6 +90,15 @@ func parsePRFlags(cmd string, args []string, allowed ...string) (prFlags, error)
 			f.yes = true
 		case "force":
 			f.force = true
+		case "no-attribution":
+			f.noAttribution = true
+		case "levels":
+			var s string
+			if s, err = value(); err == nil {
+				if f.levels, err = source.ParseLevels(s); err != nil {
+					err = fmt.Errorf("speccy %s: --levels %w", cmd, err)
+				}
+			}
 		case "repo":
 			f.repo, err = value()
 		case "stages":
@@ -120,7 +135,7 @@ func prSession(ctx context.Context) (*session, error) {
 // runReviewPRs is speccy review-prs: a batch of pull request reviews, each posted as a pending
 // review that only the reviewer sees (docs/specs/pr-review-batch.md).
 func runReviewPRs(args []string, stdin io.Reader, interactive bool, stdout, stderr io.Writer) int {
-	f, err := parsePRFlags("review-prs", args, "repo", "requested", "parallel", "again", "yes", "stages", "batch", "cancel")
+	f, err := parsePRFlags("review-prs", args, "repo", "requested", "parallel", "again", "yes", "stages", "batch", "cancel", "levels", "no-attribution")
 	if err != nil {
 		fmt.Fprintf(stderr, "%v.\n\n%s", err, reviewPRsUsage)
 		return exitUsage
@@ -172,6 +187,17 @@ func runReviewPRs(args []string, stdin io.Reader, interactive bool, stdout, stde
 	}
 	if f.parallel != 0 {
 		body.Parallel = &f.parallel
+	}
+	if f.levels != nil {
+		levels := make([]api.PrBatchRequestLevels, len(f.levels))
+		for i, l := range f.levels {
+			levels[i] = api.PrBatchRequestLevels(l)
+		}
+		body.Levels = &levels
+	}
+	if f.noAttribution {
+		none := api.PrBatchRequestAttributionNone
+		body.Attribution = &none
 	}
 	if f.stagesSet {
 		st := []api.PrBatchRequestStages{}
@@ -326,13 +352,17 @@ func itemLine(it api.PrBatchItem) string {
 	if it.Removed > 0 {
 		changes += fmt.Sprintf(", %d removed because the finding is gone", it.Removed)
 	}
-	return fmt.Sprintf("posted   %s: %s. Your pending review: %s. %s", head, strings.Join(docs, "; "), changes, it.ReviewUrl)
+	line := fmt.Sprintf("posted   %s: %s. Your pending review: %s. %s", head, strings.Join(docs, "; "), changes, it.ReviewUrl)
+	if it.Config != nil {
+		line += "\n         " + action.ConfigLine(*it.Config, it.HeadSha)
+	}
+	return line
 }
 
 // runAsk is speccy ask: one concern of the reviewer becomes one question for the author, in
 // the reviewer's pending review.
 func runAsk(args []string, stdout, stderr io.Writer) int {
-	f, err := parsePRFlags("ask", args, "section", "force")
+	f, err := parsePRFlags("ask", args, "section", "force", "no-attribution")
 	if err != nil {
 		fmt.Fprintf(stderr, "%v.\n\n%s", err, askUsage)
 		return exitUsage
@@ -351,6 +381,10 @@ func runAsk(args []string, stdout, stderr io.Writer) int {
 	body := api.AskAuthorJSONRequestBody{Url: f.args[0], Concern: f.args[1]}
 	if f.force {
 		body.Force = &f.force
+	}
+	if f.noAttribution {
+		none := api.AskRequestAttributionNone
+		body.Attribution = &none
 	}
 	if f.section != "" {
 		parts := strings.Split(f.section, "›")

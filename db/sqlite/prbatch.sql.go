@@ -14,6 +14,43 @@ import (
 	"github.com/google/uuid"
 )
 
+const deletePrReviewComment = `-- name: DeletePrReviewComment :exec
+DELETE FROM pr_review_comment
+WHERE workspace_id = ?1 AND repo = ?2 AND pull = ?3 AND comment_id = ?4
+`
+
+type DeletePrReviewCommentParams struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+	CommentID   string
+}
+
+func (q *Queries) DeletePrReviewComment(ctx context.Context, arg DeletePrReviewCommentParams) error {
+	_, err := q.db.ExecContext(ctx, deletePrReviewComment,
+		arg.WorkspaceID,
+		arg.Repo,
+		arg.Pull,
+		arg.CommentID,
+	)
+	return err
+}
+
+const deletePrReviewComments = `-- name: DeletePrReviewComments :exec
+DELETE FROM pr_review_comment WHERE workspace_id = ?1 AND repo = ?2 AND pull = ?3
+`
+
+type DeletePrReviewCommentsParams struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+}
+
+func (q *Queries) DeletePrReviewComments(ctx context.Context, arg DeletePrReviewCommentsParams) error {
+	_, err := q.db.ExecContext(ctx, deletePrReviewComments, arg.WorkspaceID, arg.Repo, arg.Pull)
+	return err
+}
+
 const getPrBatch = `-- name: GetPrBatch :one
 SELECT id, workspace_id, status, parallel, stages, again, source, estimate, created_at, finished_at FROM pr_batch WHERE workspace_id = ?1 AND id = ?2
 `
@@ -137,6 +174,38 @@ func (q *Queries) InsertPrBatchItem(ctx context.Context, arg InsertPrBatchItemPa
 	return err
 }
 
+const insertPrReviewComment = `-- name: InsertPrReviewComment :exec
+INSERT INTO pr_review_comment (workspace_id, repo, pull, comment_id, kind, ref, body, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
+        ?8)
+ON CONFLICT (workspace_id, repo, pull, comment_id, kind, ref) DO UPDATE SET body = excluded.body
+`
+
+type InsertPrReviewCommentParams struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+	CommentID   string
+	Kind        string
+	Ref         string
+	Body        string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) InsertPrReviewComment(ctx context.Context, arg InsertPrReviewCommentParams) error {
+	_, err := q.db.ExecContext(ctx, insertPrReviewComment,
+		arg.WorkspaceID,
+		arg.Repo,
+		arg.Pull,
+		arg.CommentID,
+		arg.Kind,
+		arg.Ref,
+		arg.Body,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const listActivePrBatches = `-- name: ListActivePrBatches :many
 SELECT id, workspace_id, status, parallel, stages, again, source, estimate, created_at, finished_at FROM pr_batch WHERE workspace_id = ?1 AND status IN ('planned', 'running') ORDER BY created_at
 `
@@ -176,7 +245,7 @@ func (q *Queries) ListActivePrBatches(ctx context.Context, workspaceID uuid.UUID
 }
 
 const listPrBatchItems = `-- name: ListPrBatchItems :many
-SELECT batch_id, position, repo, pull, url, state, reason, head_sha, result, comments, review_url, updated_at, removed FROM pr_batch_item WHERE batch_id = ?1 ORDER BY position
+SELECT batch_id, position, repo, pull, url, state, reason, head_sha, result, comments, review_url, updated_at, removed, config FROM pr_batch_item WHERE batch_id = ?1 ORDER BY position
 `
 
 func (q *Queries) ListPrBatchItems(ctx context.Context, batchID uuid.UUID) ([]PrBatchItem, error) {
@@ -202,6 +271,51 @@ func (q *Queries) ListPrBatchItems(ctx context.Context, batchID uuid.UUID) ([]Pr
 			&i.ReviewUrl,
 			&i.UpdatedAt,
 			&i.Removed,
+			&i.Config,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPrReviewComments = `-- name: ListPrReviewComments :many
+SELECT workspace_id, repo, pull, comment_id, kind, ref, body, created_at FROM pr_review_comment
+WHERE workspace_id = ?1 AND repo = ?2 AND pull = ?3
+ORDER BY created_at, comment_id, kind, ref
+`
+
+type ListPrReviewCommentsParams struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+}
+
+func (q *Queries) ListPrReviewComments(ctx context.Context, arg ListPrReviewCommentsParams) ([]PrReviewComment, error) {
+	rows, err := q.db.QueryContext(ctx, listPrReviewComments, arg.WorkspaceID, arg.Repo, arg.Pull)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PrReviewComment
+	for rows.Next() {
+		var i PrReviewComment
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.Repo,
+			&i.Pull,
+			&i.CommentID,
+			&i.Kind,
+			&i.Ref,
+			&i.Body,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -289,8 +403,9 @@ func (q *Queries) StopPrBatchItems(ctx context.Context, arg StopPrBatchItemsPara
 
 const updatePrBatchItem = `-- name: UpdatePrBatchItem :exec
 UPDATE pr_batch_item SET state = ?1, reason = ?2, head_sha = ?3, result = ?4,
-    comments = ?5, removed = ?6, review_url = ?7, updated_at = ?8
-WHERE batch_id = ?9 AND position = ?10
+    comments = ?5, removed = ?6, review_url = ?7, config = ?8,
+    updated_at = ?9
+WHERE batch_id = ?10 AND position = ?11
 `
 
 type UpdatePrBatchItemParams struct {
@@ -301,6 +416,7 @@ type UpdatePrBatchItemParams struct {
 	Comments  int64
 	Removed   int64
 	ReviewUrl string
+	Config    dbtype.JSON
 	UpdatedAt time.Time
 	BatchID   uuid.UUID
 	Position  int64
@@ -315,6 +431,7 @@ func (q *Queries) UpdatePrBatchItem(ctx context.Context, arg UpdatePrBatchItemPa
 		arg.Comments,
 		arg.Removed,
 		arg.ReviewUrl,
+		arg.Config,
 		arg.UpdatedAt,
 		arg.BatchID,
 		arg.Position,

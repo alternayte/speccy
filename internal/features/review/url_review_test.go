@@ -13,6 +13,8 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/review"
+	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
@@ -118,5 +120,35 @@ func TestReviewURL_PullRequest(t *testing.T) {
 				t.Fatalf("a folder: %d docs, err %v; want 3", len(res.Docs), err)
 			}
 		})
+	}
+}
+
+// #131: a repo with no .speccy.yaml takes the .speccy.yaml of the served folder, so a map entry
+// there finds a spec doc that names no type. The repo's own file wins when it has one.
+func TestPlanURL_LocalConfigWhenTheRepoHasNone(t *testing.T) {
+	ctx := context.Background()
+	doc := "<!-- size: feature -->\n# Pay\n\n## Context\n\nText.\n"
+	local := func() (source.RepoConfig, string, bool, error) {
+		cfg, err := source.ParseRepoConfig([]byte("map:\n  - glob: \"**/SDD - *.md\"\n    profile: sdd\npr:\n  levels: [must, should]\n"))
+		return cfg, "/home/me/specs/.speccy.yaml", true, err
+	}
+	plan := func(files map[string]string) (review.URLPlan, error) {
+		gh := repoAtCommit(t, files, []string{"docs/SDD - Pay.md"})
+		s := &review.Service{LocalConfig: local, GitHub: func(context.Context, string) (*github.Client, error) {
+			return &github.Client{API: gh.URL, Token: "t"}, nil
+		}}
+		return s.PlanURL(ctx, "https://github.com/acme/specs/pull/7")
+	}
+	p, err := plan(map[string]string{"docs/SDD - Pay.md": doc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := p.Review.Config
+	if len(p.Items) != 1 || c.Source != review.ConfigLocal || c.Path != "/home/me/specs/.speccy.yaml" || len(c.PR.Levels) != 2 {
+		t.Fatalf("items %d, config %+v; want the doc, and the local file with its levels", len(p.Items), c)
+	}
+	_, err = plan(map[string]string{"docs/SDD - Pay.md": doc, ".speccy.yaml": "mode: standalone\n"})
+	if ke, ok := kernel.AsError(err); !ok || ke.Code != "no_spec_doc" {
+		t.Fatalf("with a repo .speccy.yaml: err %v; want no_spec_doc, because the repo's file wins", err)
 	}
 }

@@ -23,6 +23,7 @@ Turn the person's concern about a spec pull request into one precise question fo
 |---|---|---|---|
 | `concern` | string | yes | the person's concern, in their own words |
 | `force` | boolean |  | post the question although the doc already answers the concern |
+| `no_attribution` | boolean |  | post the question with no hidden marker that names Speccy |
 | `section` | null or array |  | the heading path of the section, when the concern fits more than one |
 | `url` | string | yes | the URL of the pull request |
 
@@ -203,6 +204,8 @@ Review many spec pull requests in one batch. Each pull request gets a pending re
 | Input | Type | Required | Meaning |
 |---|---|---|---|
 | `again` | boolean |  | review a pull request again although it was reviewed at its head commit |
+| `levels` | null or array |  | the finding levels that go inline as comments: must, should, or both. Absent means pr.levels of the .speccy.yaml: by default MUST findings, and SHOULD findings with a suggestion. |
+| `no_attribution` | boolean |  | keep the name of Speccy out of the pending reviews: no heading, no check catalog link, no hidden marker |
 | `parallel` | integer |  | how many pull requests run at the same time, 1 to 10. The default is 3. |
 | `repo` | string |  | a repo as owner/name, in place of urls |
 | `requested` | boolean |  | with repo: only the pull requests that ask for the person's review |

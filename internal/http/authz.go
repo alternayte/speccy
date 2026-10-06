@@ -69,6 +69,7 @@ var operations = map[string]access{
 	"listPending":    member,
 	"deletePending":  member,
 	"discardPending": member,
+	"recordPending":  member,
 	// The conflicts of a profile's checks: one model call, and no doc text.
 	"findCheckConflicts": member,
 	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.

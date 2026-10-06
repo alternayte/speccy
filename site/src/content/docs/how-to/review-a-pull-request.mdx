@@ -28,6 +28,8 @@ One review takes 20 spec docs at most. For more, name a folder or a doc.
 
 The review uses the `.speccy.yaml` and the sidecars of the repo at that commit, and the profiles of your Speccy. A link from a doc in the review resolves to another spec doc of the same commit, and then to the bundles that Speccy holds. Thus an SDD and its PRD in one pull request read each other.
 
+When the repo has no `.speccy.yaml` at that commit, the review uses the `.speccy.yaml` of the folder that Speccy serves. Use this to review a repo that you cannot change: put the `map` entries and the other keys for its docs in your local file. The repo's own file always wins. The answer names the file that the review used: `config.source` is `repo`, `local` or `none`, and `config.path` is the file.
+
 ## Review a URL with an agent
 
 The MCP tool `review_url` takes the URL:
@@ -52,13 +54,15 @@ A pending review shows only to you, until you submit it. Use it to check the fin
    speccy action --pr https://github.com/acme/specs/pull/42 --dry-run
    ```
 
-   The JSON has the commit, the body of the review, and each comment with its path and line.
+   The JSON has the commit, the body of the review, each comment with its path and line, and `config`, the `.speccy.yaml` that the review used.
 
 3. Post the pending review:
 
    ```sh
    speccy action --pr https://github.com/acme/specs/pull/42 --pending
    ```
+
+   The last line of the output names the `.speccy.yaml` that the review used.
 
 4. Open the pull request on GitHub. Edit or delete the comments, then submit the review, or discard it.
 
@@ -72,6 +76,11 @@ The comments follow the rules of the GitHub Action:
 - Each doc gets `pr.inline_limit` comments at most.
 - A waived finding gets no comment.
 - A MUST finding on a line outside the diff goes into the body of the review. GitHub takes a comment only on a line of the diff.
+
+Two flags change the review:
+
+- `--levels must,should` puts each SHOULD finding on a changed line into a comment, also when it has no fix. It wins over `pr.levels` in `.speccy.yaml`.
+- `--no-attribution` keeps the name of Speccy out of the review: no "Speccy reviewed" line, no check line with its catalog link, and no hidden marker. It wins over `pr.attribution`. Speccy keeps the ID of each comment in the local state. Thus a later `speccy review-prs` adds to the review and does not post a comment twice. [.speccy.yaml](/reference/speccy-yaml/#prattribution) has the details.
 
 <Aside>
 `--pr` makes no check run and no summary comment, and it reads no reply command. Those belong to the Action in CI. [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) shows the Action.
