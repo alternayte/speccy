@@ -27,11 +27,12 @@ func answerQuestion(slug, message, quote, written string, evidence []byte) strin
 	}
 	quote = strings.Join(strings.Fields(quote), " ")
 	var ev struct {
-		Question string `json:"question"`
-		Claim    string `json:"claim"`
-		ID       string `json:"id"`
-		Upstream string `json:"upstream"`
-		File     string `json:"file"`
+		Question   string `json:"question"`
+		Claim      string `json:"claim"`
+		ID         string `json:"id"`
+		Upstream   string `json:"upstream"`
+		File       string `json:"file"`
+		Downstream string `json:"downstream"`
 	}
 	_ = json.Unmarshal(evidence, &ev)
 	named := ""
@@ -85,6 +86,8 @@ func answerQuestion(slug, message, quote, written string, evidence []byte) strin
 		}
 	case ContradictionSlug, ExternalConflictSlug:
 		return "Which statement is right: the one in this doc, or the one in the linked doc?"
+	case DownstreamRequestSlug:
+		return fmt.Sprintf("Which statement is right: the one in this doc, or the one in %s?", ev.Downstream)
 	case RestatementSlug:
 		return fmt.Sprintf("What does this paragraph add to %s?", ev.Upstream)
 	}

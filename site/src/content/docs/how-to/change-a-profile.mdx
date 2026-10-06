@@ -142,6 +142,22 @@ checks: []
 
 The value is `SHOULD` or `MUST`. With `MUST`, a doc that a file of its bundle contradicts is Not Build Ready until you correct the claim or the file. Use it when your team keeps the reference docs of a bundle correct.
 
+### Make a conflict block while the linked doc must change
+
+An approved upstream request takes a conflict out of the verdict of the doc that asked. The conflict then waits on the linked doc. To keep the conflict blocking until the linked doc changes, set `coherence.upstream_pending`:
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+coherence:
+  upstream_pending: block
+# The other keys and checks of the profile stay as they are.
+checks: []
+```
+
+The value is `allow` or `block`. The default is `allow`. With `block`, the finding still reads "Waiting on" the linked doc, and the doc stays Not Build Ready. [Upstream requests and send-backs](/concepts/waivers-and-the-sidecar/#upstream-requests-and-send-backs) explains the request.
+
 <Aside>
 A check that fires on every doc of a repo you adopted does not need a new level. Relax it in `.speccy.yaml` with `adoption.relaxed` while the repo catches up. The check still reports, and it does not block. [Adopt a repo](/how-to/adopt-a-repo/) shows how.
 </Aside>

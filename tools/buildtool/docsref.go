@@ -122,7 +122,7 @@ func engineSlugs() []string {
 	for _, r := range lint.Rules {
 		out = append(out, r.Slug)
 	}
-	return append(out, review.FrontmatterReadableSlug, review.HasChildrenSlug, review.ContradictionSlug,
+	return append(out, review.FrontmatterReadableSlug, review.HasChildrenSlug, review.ContradictionSlug, review.DownstreamRequestSlug,
 		review.RestatementSlug, review.DivergenceAmbiguous, review.DivergenceGap,
 		review.GroundingContradicted, review.GroundingFileContradicts, review.GroundingUnverified)
 }

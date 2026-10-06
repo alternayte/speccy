@@ -30,7 +30,7 @@ type API struct {
 // decisionChecks are the MUST findings that need a human decision: divergence, contradiction,
 // and coherence (SDD §13.3).
 var decisionChecks = map[string]bool{
-	review.DivergenceAmbiguous: true, review.DivergenceGap: true, review.ContradictionSlug: true,
+	review.DivergenceAmbiguous: true, review.DivergenceGap: true, review.ContradictionSlug: true, review.DownstreamRequestSlug: true,
 	review.GroundingContradicted: true, review.GroundingFileContradicts: true, review.CoverageSlug: true, review.HasUpstreamSlug: true,
 }
 
@@ -217,6 +217,8 @@ func findingAsk(f api.Finding, e map[string]any) (ask, why string) {
 		return "Decide: " + str("question"), "The doc does not answer this. Answer it, or state that it is out of scope."
 	case review.ContradictionSlug:
 		return fmt.Sprintf("Decide which is right: this doc or %s.", str("upstream")), str("explanation")
+	case review.DownstreamRequestSlug:
+		return fmt.Sprintf("Decide which is right: this doc or %s.", str("downstream")), "Reason of " + str("downstream") + ": " + str("reason")
 	case review.GroundingContradicted:
 		return "Decide: correct this claim, or explain why the source does not apply.", f.Message
 	case review.GroundingFileContradicts:

@@ -62,6 +62,16 @@ function rowsOf(items: Finding[]): CheckRow[] {
 // upstreamSlug is the check a standalone Acknowledgement answers (SDD §9.4).
 const upstreamSlug = "links.has-upstream";
 
+// contradictionSlug is a conflict with a linked doc. It takes a second answer beside a waiver:
+// the linked doc must change. downstreamSlug is that request on the linked doc, and it takes
+// the answer that the downstream doc must change.
+const contradictionSlug = "coherence.contradiction";
+const downstreamSlug = "coherence.downstream-request";
+
+// Ask is what the waiver dialog asks for: a waiver, an upstream request, or a send-back.
+type AskKind = "waiver" | "upstream" | "send_back";
+type Ask = { finding: Finding; reason?: string; kind?: AskKind };
+
 // FindingsPanel lists the findings of a run. The MUST findings, which block Build Ready, show
 // as cards in document order. The SHOULD and INFO findings show as one row for each check with
 // a count, and a click opens a row to its cards. A click on a card opens the text the finding
@@ -97,7 +107,7 @@ export function FindingsPanel({
   // aiVersion is the version the AI review read, when it is older than the current version.
   aiVersion?: number;
 }) {
-  const [waiving, setWaiving] = useState<{ finding: Finding; reason?: string }>();
+  const [waiving, setWaiving] = useState<Ask>();
   // notice is the result of the last accepted fix or gap answer. It sits above the list,
   // because a fixed finding leaves the list with the next run.
   const [notice, setNotice] = useState<{ slug: string; text: string; bad?: boolean }>();
@@ -208,6 +218,7 @@ export function FindingsPanel({
           {f.anchor.heading_path.length ? (
             <p className="mt-1 truncate text-2xs text-ink-3">{f.anchor.heading_path.join(" › ")}</p>
           ) : null}
+          {f.upstream_change ? <UpstreamState finding={f} /> : null}
           {f.question ? <p className="mt-1 text-xs text-ink">Question: {f.question}</p> : null}
           {f.fix ? <p className="mt-1 text-xs text-ink-2">Fix: {f.fix}</p> : null}
           {/* A carried finding: the review that found it read an older version. */}
@@ -260,13 +271,34 @@ export function FindingsPanel({
                     Answer the gap
                   </button>
                 ) : !f.waived && f.level !== "INFO" && !f.trace_id && f.check_slug !== upstreamSlug ? (
-                  <button
-                    type="button"
-                    onClick={() => setWaiving({ finding: f })}
-                    className="text-ink-2 hover:text-ink"
-                  >
-                    Ask for a waiver
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setWaiving({ finding: f })}
+                      className="text-ink-2 hover:text-ink"
+                    >
+                      Ask for a waiver
+                    </button>
+                    {/* After a send-back, the conflict takes an edit or a waiver, and no other answer. */}
+                    {f.check_slug === contradictionSlug && !f.upstream_change && !pending(f) ? (
+                      <button
+                        type="button"
+                        onClick={() => setWaiving({ finding: f, kind: "upstream" })}
+                        className="text-ink-2 hover:text-ink"
+                      >
+                        The linked doc must change
+                      </button>
+                    ) : null}
+                    {f.check_slug === downstreamSlug && !pending(f) ? (
+                      <button
+                        type="button"
+                        onClick={() => setWaiving({ finding: f, kind: "send_back" })}
+                        className="text-ink-2 hover:text-ink"
+                      >
+                        The downstream doc must change
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -616,17 +648,54 @@ function fixAllText(r: AcceptedFixes): { text: string; bad?: boolean } {
   return { text: `Saved ${n}${where}. Lint gives no finding of this check there.` };
 }
 
-// WaiverDialog asks for a waiver of one finding, with a reason (REQ-072). An ended waiver
-// opens it with the old reason, because the edit often does not change what it was for.
-function WaiverDialog({
-  docId,
-  ask,
-  onClose,
-}: {
-  docId: string;
-  ask?: { finding: Finding; reason?: string };
-  onClose: () => void;
-}) {
+// UpstreamState says where the upstream request of a conflict stands: it waits on the linked
+// doc, or the linked doc sent it back with a reason.
+function UpstreamState({ finding: f }: { finding: Finding }) {
+  const u = f.upstream_change!;
+  const name = u.upstream_title || u.upstream;
+  if (u.state === "sent_back")
+    return (
+      <p className="mt-1.5 rounded-sm border-l-2 border-bad pl-2 text-xs text-ink">
+        <span className="font-semibold">{name} sent this back: this doc must change.</span>{" "}
+        {u.sent_back_reason ? <span className="text-ink-2">{u.sent_back_reason}</span> : null}
+      </p>
+    );
+  return (
+    <p className="mt-1.5 rounded-sm border-l-2 border-warn pl-2 text-xs text-ink">
+      <span className="font-semibold text-warn">Waiting on {name}</span> <span className="text-ink-2">{u.reason}</span>
+      {u.blocks ? (
+        <span className="block text-ink-3">It still blocks: the profile sets coherence.upstream_pending to block.</span>
+      ) : null}
+    </p>
+  );
+}
+
+// askText is the title, the description and the reason prompt of each answer the dialog asks for.
+const askText: Record<AskKind, { title: string; description: string; placeholder: string }> = {
+  waiver: {
+    title: "Ask for a waiver",
+    description:
+      "A waiver is an approved exception for this check. A waiver of a check about one section ends when that section changes. A waiver of a whole-doc check stays through edits, and ends when a review passes the check.",
+    placeholder: "Why this check does not apply here. At least 20 characters.",
+  },
+  upstream: {
+    title: "The linked doc must change",
+    description:
+      "This doc is right, and the linked doc must change. After approval, the conflict waits on the linked doc and does not block this doc. The review of the linked doc shows the request to its author. An edit that removes the conflict closes it on both docs.",
+    placeholder: "Why the linked doc is wrong. Its author reads this. At least 20 characters.",
+  },
+  send_back: {
+    title: "The downstream doc must change",
+    description:
+      "This doc is right, and the doc that asked must change. After approval, the request ends, and the conflict blocks the downstream doc again with your reason. After this answer, the conflict needs an edit or a waiver.",
+    placeholder: "Why this doc is right. The author of the downstream doc reads this. At least 20 characters.",
+  },
+};
+
+// WaiverDialog asks for a waiver of one finding, with a reason (REQ-072), or for one of the
+// other two answers to a conflict. An ended waiver opens it with the old reason, because the
+// edit often does not change what it was for.
+function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask; onClose: () => void }) {
   const qc = useQueryClient();
   const finding = ask?.finding;
   const [reason, setReason] = useState("");
@@ -648,15 +717,23 @@ function WaiverDialog({
           onClose();
         }
       }}
-      title="Ask for a waiver"
-      description="A waiver is an approved exception for this check. A waiver of a check about one section ends when that section changes. A waiver of a whole-doc check stays through edits, and ends when a review passes the check."
+      title={askText[ask?.kind ?? "waiver"].title}
+      description={askText[ask?.kind ?? "waiver"].description}
     >
       {finding ? (
         <form
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
-            request.mutate({ path: { docId }, body: { finding_id: finding.id, reason } });
+            request.mutate({
+              path: { docId },
+              body: {
+                finding_id: finding.id,
+                reason,
+                ...(ask?.kind === "upstream" ? { upstream_change: true } : {}),
+                ...(ask?.kind === "send_back" ? { send_back: true } : {}),
+              },
+            });
           }}
         >
           <p className="text-sm">
@@ -671,7 +748,7 @@ function WaiverDialog({
             className="font-sans text-sm"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Why this check does not apply here. At least 20 characters."
+            placeholder={askText[ask?.kind ?? "waiver"].placeholder}
             required
             autoFocus
           />
@@ -710,6 +787,10 @@ type Decide = ReturnType<typeof useDecide>;
 export function waiverCovers(w: Waiver, f: Finding): boolean {
   // An Acknowledgement is about one trace ID, and a doc has one coverage finding per ID.
   if (w.trace || f.trace_id) return w.check_slug === f.check_slug && w.trace?.id === f.trace_id;
+  // An answer to a request of a downstream doc binds to the conflict. A waiver of it binds to
+  // the section of the conflict in the downstream doc, so the section does not match here.
+  if (w.downstream || w.send_back)
+    return w.check_slug === f.check_slug && !!w.conflict && !!f.conflict && sameConflict(w.conflict, f.conflict);
   // A waiver of a contradiction excuses one conflict. One from before Speccy recorded the
   // conflict covers each conflict in its section.
   if (w.conflict && !(f.conflict && sameConflict(w.conflict, f.conflict))) return false;
@@ -732,6 +813,10 @@ function endedBecause(w: Waiver): string {
       return "Ended: a review passed this check, so nothing is left to excuse. It applies again if a later review fails the check.";
     case "check_changed":
       return "Ended: the profile changed what this check asks. Ask for it again.";
+    case "sent_back":
+      return "Ended: the linked doc answered that this doc must change. Edit this doc, or ask for a waiver of the conflict.";
+    case "conflict_closed":
+      return "Ended: an edit removed the text of the conflict from one of the docs. The conflict is closed.";
     default:
       return `Ended: someone edited ${sectionName(w)} after this was approved. Run the review again.`;
   }
@@ -797,7 +882,11 @@ function WaiverCard({
           ? `${w.trace.id} ${w.trace.status === "out_of_scope" ? "is out of scope" : `is covered by ${w.trace.target ?? "another doc"}`}: asked by ${w.requested_by}`
           : w.standalone
             ? `This doc is standalone: asked by ${w.requested_by}`
-            : `Waiver requested by ${w.requested_by}`}
+            : w.upstream_change
+              ? `${w.conflict?.with ?? "The linked doc"} must change: asked by ${w.requested_by}`
+              : w.send_back
+                ? `${w.downstream?.title || w.downstream?.slug || "The downstream doc"} must change: asked by ${w.requested_by}`
+                : `Waiver requested by ${w.requested_by}`}
       </p>
       <p className="mt-0.5 text-ink-2">{w.reason}</p>
       <p className="mt-0.5 text-ink-3">
@@ -828,7 +917,11 @@ function WaiverCard({
             ? "Approved. The gap is closed."
             : w.standalone
               ? "Approved. The sidecar says the doc is standalone."
-              : "Approved. This check no longer fails here."}
+              : w.upstream_change
+                ? `Approved. The conflict waits on ${w.conflict?.with ?? "the linked doc"}.`
+                : w.send_back
+                  ? `Approved. The conflict blocks ${w.downstream?.slug ?? "the downstream doc"} again.`
+                  : "Approved. This check no longer fails here."}
         </p>
       ) : null}
       {w.status === "rejected" ? (
@@ -923,7 +1016,7 @@ function WaiversList({
 }: {
   docId: string;
   findings: Finding[];
-  onAskAgain: (ask: { finding: Finding; reason?: string }) => void;
+  onAskAgain: (ask: Ask) => void;
 }) {
   const waivers = useQuery(listWaiversOptions({ path: { docId } }));
   const items = (waivers.data?.items ?? []).filter((w) => w.status !== "requested");
@@ -934,7 +1027,11 @@ function WaiversList({
       <ul className="divide-y divide-line">
         {items.map((w) => {
           // An ended waiver can be asked for again when the current run still has its finding.
-          const again = w.status === "invalidated" ? findings.find((f) => waiverCovers(w, f)) : undefined;
+          // An upstream request that the linked doc sent back takes no second request.
+          const again =
+            w.status === "invalidated" && !w.upstream_change && !w.send_back
+              ? findings.find((f) => waiverCovers(w, f))
+              : undefined;
           return (
             <li key={w.id} className="px-4 py-3.5 text-sm">
               <p className="flex items-center gap-1.5 text-2xs">
@@ -943,6 +1040,13 @@ function WaiversList({
                 </span>
                 <span className="font-mono text-ink-3">{w.check_slug}</span>
               </p>
+              {w.upstream_change || w.send_back ? (
+                <p className="mt-0.5 text-xs font-medium text-ink-2">
+                  {w.upstream_change
+                    ? `${w.conflict?.with ?? "The linked doc"} must change`
+                    : `${w.downstream?.slug ?? "The downstream doc"} must change`}
+                </p>
+              ) : null}
               <p className="mt-1 text-ink">{w.reason}</p>
               <p className="mt-0.5 text-xs text-ink-3">
                 {w.requested_by}

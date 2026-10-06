@@ -21,6 +21,10 @@ const keys: { key: string; text: string }[] = [
     key: "grounding",
     text: "Which domains a source may come from, their tier and freshness, and a section's claim class.",
   },
+  {
+    key: "coherence",
+    text: "Whether a conflict still blocks while an approved upstream request waits on the linked doc.",
+  },
   { key: "lint", text: "The level of a lint rule, or off, and extra slop phrases." },
   { key: "checks", text: "The rubric: each check's slug, level, stage and question." },
 ];

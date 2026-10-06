@@ -88,9 +88,12 @@ const usage = `Usage:
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
                 [--blocked | --note] [--section "A › B"] [--trace-id REQ-012]
   speccy waive <doc path> <finding ID> --reason "<reason>" [--approve]
-                                                         Ask for a waiver of one finding. The finding ID is
+                [--upstream-change | --send-back]       Ask for a waiver of one finding. The finding ID is
                                                          from speccy review --format json. --approve also
                                                          approves it, as the profile's waiver policy allows.
+                                                         --upstream-change answers a conflict: the linked
+                                                         doc must change. --send-back answers a downstream
+                                                         request: the downstream doc must change.
   speccy waivers list <doc path>                         List the waivers of a spec doc, with their status.
   speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
                                                          the repo the doc's implemented-by link names.

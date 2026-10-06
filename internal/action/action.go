@@ -300,6 +300,9 @@ func candidates(b Bundle, changed map[string]map[int]bool, levels []string, plai
 		if f.Waived || (f.Anchor.Detached != nil && *f.Anchor.Detached) {
 			continue
 		}
+		if u := f.UpstreamChange; u != nil && !u.Blocks {
+			continue // the conflict waits on the linked doc, and its author does nothing here
+		}
 		src := b.Files[f.Anchor.File]
 		repoPath := path.Join(b.Dir, f.Anchor.File)
 		line := lineOf(src, f.Anchor.Start)

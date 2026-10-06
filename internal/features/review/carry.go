@@ -22,6 +22,8 @@ import (
 type carriedFinding struct {
 	ID     uuid.UUID `json:"id"`
 	Waived bool      `json:"waived"`
+	// Upstream is the upstream request of a carried conflict, as the verdict read it.
+	Upstream *upstreamState `json:"upstream,omitempty"`
 }
 
 // aiFinding reports whether a finding came from a stage that calls a model. A lint run makes
@@ -135,7 +137,17 @@ func (s *Service) carry(ctx context.Context, b pgdb.SpecDoc, in input, ev *evalu
 		if err != nil {
 			return err
 		}
-		if !wholeDocFinding(in, was.doc, f) {
+		if f.CheckSlug == ContradictionSlug {
+			// A conflict stays while both of its quotes are in their docs, as in a full review
+			// (#132): only an edit that removes a quote ends it.
+			if !conflictHolds(in, f.Evidence) {
+				dropped[f.CheckSlug] = true
+				continue
+			}
+			if ts, te, ok := anchor.Find(in.main, an.Quote); ok {
+				an = anchor.New(in.bundle.DocPath, in.main, in.doc, ts, te)
+			}
+		} else if !wholeDocFinding(in, was.doc, f) {
 			before, ok1 := section.HashAt(was.doc, was.main, an.HeadingPath)
 			now, ok2 := section.HashAt(in.doc, in.main, an.HeadingPath)
 			if !ok1 || !ok2 || before != now {
@@ -170,6 +182,29 @@ func (s *Service) carry(ctx context.Context, b pgdb.SpecDoc, in input, ev *evalu
 	ev.carriedRun = full.ID
 	ev.sectionsChanged = changedSections(then.doc, then.main, in.doc, in.main)
 	return nil
+}
+
+// conflictHolds reports whether both quotes of a conflict finding are in the current version of
+// their docs: this doc, and the linked doc as this run reads it.
+func conflictHolds(in input, evidence []byte) bool {
+	var ev struct {
+		UpstreamID    uuid.UUID `json:"upstream_bundle_id"`
+		Quote         string    `json:"quote"`
+		UpstreamQuote string    `json:"upstream_quote"`
+	}
+	if json.Unmarshal(evidence, &ev) != nil {
+		return false
+	}
+	if _, _, ok := anchor.Find(in.main, ev.Quote); !ok {
+		return false
+	}
+	for _, l := range in.linked {
+		if l.target.ID == ev.UpstreamID {
+			_, _, ok := anchor.Find(l.main, ev.UpstreamQuote)
+			return ok
+		}
+	}
+	return false
 }
 
 // wholeDocFinding reports whether a finding is about the doc and not about one section's

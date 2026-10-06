@@ -124,6 +124,14 @@
         }
       }
     },
+    "coherence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The settings of the coherence checks.",
+      "properties": {
+        "upstream_pending": { "enum": ["allow", "block"], "description": "What an approved upstream request does to the verdict of the doc that asks for it. allow: the conflict waits on the linked doc and does not block. block: the conflict still blocks until the linked doc changes. The default is allow." }
+      }
+    },
     "verify": {
       "type": "object",
       "additionalProperties": false,

@@ -526,7 +526,7 @@ func TestWaiver_WholeDocCheckOutlivesAnEdit(t *testing.T) {
 	}
 	review1("pass")
 	settles("invalidated")
-	if w := waiver(); w.Status != "invalidated" || w.EndedBecause == nil || *w.EndedBecause != api.CheckPassed {
+	if w := waiver(); w.Status != "invalidated" || w.EndedBecause == nil || *w.EndedBecause != api.WaiverEndedBecauseCheckPassed {
 		t.Errorf("after a review that passes the check: the waiver is %s because %v, want ended because the check passed", w.Status, w.EndedBecause)
 	}
 	// A later review fails the check again: the sidecar entry applies, and so does the waiver.

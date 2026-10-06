@@ -12,15 +12,19 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 )
 
-const waiveUsage = "Usage: speccy waive <doc path> <finding ID> --reason \"<why the check does not apply>\" [--approve]\n" +
-	"The finding ID is the id of a finding in speccy review --format json.\n"
+const waiveUsage = "Usage: speccy waive <doc path> <finding ID> --reason \"<why the check does not apply>\" [--approve] [--upstream-change | --send-back]\n" +
+	"The finding ID is the id of a finding in speccy review --format json.\n" +
+	"--upstream-change answers a coherence.contradiction finding: the linked doc must change.\n" +
+	"--send-back answers a coherence.downstream-request finding: the downstream doc must change.\n"
 
 const waiversUsage = "Usage: speccy waivers list <doc path>\n"
 
 // runWaive asks for a waiver of one finding (REQ-072), and with --approve approves it under the
 // profile's waiver policy, as the app does (#135). The owner of the state folder decides both.
+// --upstream-change and --send-back ask for the two other answers to a conflict, which use the
+// waiver mechanism.
 func runWaive(args []string, stdout, stderr io.Writer) int {
-	reason, approve := "", false
+	reason, approve, upstream, sendBack := "", false, false, false
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -36,6 +40,10 @@ func runWaive(args []string, stdout, stderr io.Writer) int {
 			reason = strings.TrimPrefix(a, "--reason=")
 		case a == "--approve":
 			approve = true
+		case a == "--upstream-change":
+			upstream = true
+		case a == "--send-back":
+			sendBack = true
 		case strings.HasPrefix(a, "-"):
 			fmt.Fprintf(stderr, "speccy waive: unknown flag %s.\n\n%s", a, waiveUsage)
 			return exitUsage
@@ -51,6 +59,10 @@ func runWaive(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "speccy waive: give the reason with --reason. An approver reads it to judge the waiver.\n\n%s", waiveUsage)
 		return exitUsage
 	}
+	if upstream && sendBack {
+		fmt.Fprintf(stderr, "speccy waive: give one of --upstream-change and --send-back.\n\n%s", waiveUsage)
+		return exitUsage
+	}
 	findingID, err := parseUUID(rest[1])
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy waive: %q is not a finding ID. Find the id of the finding in speccy review --format json.\n", rest[1])
@@ -62,7 +74,14 @@ func runWaive(args []string, stdout, stderr io.Writer) int {
 	if code != exitOK {
 		return code
 	}
-	res, err := s.client.RequestWaiverWithResponse(ctx, doc.Id, api.RequestWaiverJSONRequestBody{FindingId: findingID, Reason: reason})
+	body := api.RequestWaiverJSONRequestBody{FindingId: findingID, Reason: reason}
+	if upstream {
+		body.UpstreamChange = &upstream
+	}
+	if sendBack {
+		body.SendBack = &sendBack
+	}
+	res, err := s.client.RequestWaiverWithResponse(ctx, doc.Id, body)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy waive: %s\n", sentence(err))
 		return exitRun
@@ -71,7 +90,14 @@ func runWaive(args []string, stdout, stderr io.Writer) int {
 		return commandProblem(stderr, "waive", res.ApplicationproblemJSONDefault)
 	}
 	w := *res.JSON200
-	fmt.Fprintf(stdout, "Asked for a waiver of %s in %s. Waiver ID %s.\n", w.CheckSlug, waiverWhere(w), w.Id)
+	what := "a waiver"
+	switch {
+	case upstream:
+		what = "a change of " + w.Conflict.With
+	case sendBack:
+		what = "a send-back to " + downstreamName(w)
+	}
+	fmt.Fprintf(stdout, "Asked for %s for %s in %s. Waiver ID %s.\n", what, w.CheckSlug, waiverWhere(w), w.Id)
 	if !approve {
 		fmt.Fprintf(stdout, "It needs %s under the policy %s. Approve it in the app, or run this command with --approve.\n", approvals(w.Needed), w.Policy)
 		return exitOK
@@ -87,7 +113,14 @@ func runWaive(args []string, stdout, stderr io.Writer) int {
 	}
 	w = *ar.JSON200
 	if w.Status == api.WaiverStatusApproved {
-		fmt.Fprintf(stdout, "Approved. Speccy wrote the waiver to the doc's sidecar, and the finding no longer counts in the verdict.\n")
+		switch {
+		case upstream:
+			fmt.Fprintf(stdout, "Approved. Speccy wrote the upstream request to the doc's sidecar. The finding waits on %s.\n", w.Conflict.With)
+		case sendBack:
+			fmt.Fprintf(stdout, "Approved. Speccy wrote the send-back to the sidecar of %s. The conflict blocks that doc again.\n", downstreamName(w))
+		default:
+			fmt.Fprintf(stdout, "Approved. Speccy wrote the waiver to the doc's sidecar, and the finding no longer counts in the verdict.\n")
+		}
 		return exitOK
 	}
 	fmt.Fprintf(stdout, "Approved: %d of %s. The waiver applies after the last approval.\n", len(w.Approvals), approvals(w.Needed))
@@ -124,6 +157,13 @@ func runWaivers(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintln(stdout)
 		}
 		status := string(w.Status)
+		kind := ""
+		switch {
+		case w.UpstreamChange != nil && *w.UpstreamChange:
+			kind = "  upstream request"
+		case w.SendBack != nil && *w.SendBack:
+			kind = "  send-back to " + downstreamName(w)
+		}
 		switch w.Status {
 		case api.WaiverStatusRequested:
 			status = fmt.Sprintf("requested, %d of %s", len(w.Approvals), approvals(w.Needed))
@@ -133,7 +173,7 @@ func runWaivers(args []string, stdout, stderr io.Writer) int {
 				status += ": " + strings.ReplaceAll(string(*w.EndedBecause), "_", " ")
 			}
 		}
-		fmt.Fprintf(stdout, "%s  %s  %s\n", w.Id, w.CheckSlug, status)
+		fmt.Fprintf(stdout, "%s  %s  %s%s\n", w.Id, w.CheckSlug, status, kind)
 		fmt.Fprintf(stdout, "  In %s. Asked by %s.\n", waiverWhere(w), w.RequestedBy)
 		if c := w.Conflict; c != nil {
 			fmt.Fprintf(stdout, "  Conflict with %s: %q against %q.\n", c.With, c.Quote, c.WithQuote)
@@ -144,6 +184,14 @@ func runWaivers(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	return exitOK
+}
+
+// downstreamName names the downstream doc of a send-back.
+func downstreamName(w api.Waiver) string {
+	if w.Downstream == nil {
+		return "the downstream doc"
+	}
+	return w.Downstream.Slug
 }
 
 // waiverWhere names what a waiver binds to: a trace ID, a section, or the whole doc.

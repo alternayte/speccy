@@ -112,11 +112,11 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 		ProfileKey: b.ProfileKey, ProfileVersion: p.Version, Kind: "full", Status: "queued", Stage: "queued", StartedAt: now,
 	}
 	if s.Decisions != nil {
-		dec, err := s.Decisions(ctx, b)
+		key, err := s.decisionsKey(ctx, b)
 		if err != nil {
 			return pgdb.ReviewRun{}, err
 		}
-		run.DecisionsHash = decisionsHash(dec)
+		run.DecisionsHash = key
 	}
 	repo, err := s.repoConfig(ctx, b)
 	if err != nil {

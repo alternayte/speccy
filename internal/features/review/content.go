@@ -46,6 +46,9 @@ type FromRepo struct {
 	Siblings []Sibling
 	// Refs are the links of the doc outside its folder, as the scan of the commit found them.
 	Refs []source.Ref
+	// Repo is the GitHub repo of the commit, as owner/name. A saved doc of a GitHub source of
+	// that repo at the same path is the same doc, so the docs that link to it reach this one.
+	Repo string
 
 	// docs and files are the siblings as the link resolver reads them.
 	docs  []pgdb.SpecDoc
@@ -60,6 +63,8 @@ type Sibling struct {
 	Profile string
 	Title   string
 	Files   []source.File
+	// Decisions is the sidecar of the sibling, so its upstream requests reach the doc they name.
+	Decisions source.Decisions
 }
 
 // prepare gives each sibling the row that the link resolver reads.
@@ -220,11 +225,12 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	// The verdict rule (SDD §8.6) on the findings, with the waivers in the sidecar. Content
 	// has no threads, so none blocks.
 	waived := applyWaivers(in, &ev)
+	upstream := upstreamStates(in, &ev)
 	vin := ev.in
 	vin.Items = ev.items
 	for i, f := range ev.findings {
 		id := kernel.NewID()
-		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i]})
+		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting()})
 		af := api.Finding{Id: id, CheckSlug: f.slug, Level: api.FindingLevel(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
 			Message: f.message, Waived: waived[i], Anchor: anchorAPI(f.anchor), FixKind: f.kind()}
 		af.Line, af.EndLine = lines(mainContent(c, f.anchor.File), f.anchor)
@@ -234,6 +240,9 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		}
 		evidence, _ := json.Marshal(f.evidence)
 		af.Conflict = conflictAPI(source.ConflictOf(f.slug, evidence))
+		if f.slug == ContradictionSlug {
+			af.UpstreamChange = upstreamAPI(withUpstream(evidence, upstream[i]))
+		}
 		if question := answerQuestion(f.slug, f.message, f.anchor.Quote, f.question, evidence); question != "" {
 			af.Question = &question
 		}
@@ -459,7 +468,7 @@ func contentVerdict(res ContentResult) api.ContentVerdict {
 		v.Radar[string(c)] = n
 	}
 	for _, f := range res.Findings {
-		if f.Waived {
+		if f.Waived || (f.UpstreamChange != nil && !f.UpstreamChange.Blocks) {
 			continue
 		}
 		switch f.Level {
