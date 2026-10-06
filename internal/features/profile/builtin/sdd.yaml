@@ -150,6 +150,7 @@ checks:
     sizes: [app, initiative]
     scope: doc
     section: Testing
+    reads: [upstream]
     question: Does the test strategy name what proves each MUST requirement?
     pass_when: The test strategy names what proves each MUST requirement.
   - slug: sdd.migration

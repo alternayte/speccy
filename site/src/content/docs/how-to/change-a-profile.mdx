@@ -63,6 +63,8 @@ In local mode, you can also write the files yourself.
 
    A valid file can also print warnings. A rubric check that asks about one section, and has no `section` key, runs again on the whole doc after each edit. An edit to another section can then change its answer, and a review of the doc does not converge. The warning names the check and the `section` to add. A profile from a release before 0.20.0 has no `section` keys, so read the warnings after an upgrade. The run report of a review shows the same warning as a note.
 
+   A rubric check whose `question` or `pass_when` names a doc type of `links.upstream`, such as "PRD", and has no `reads: [upstream]` also gets a warning. Such a check cannot see that doc, so it fails on every doc. [Compare a doc with its upstream doc](#compare-a-doc-with-its-upstream-doc) shows the fix.
+
 4. Optional: look for checks that pull against each other:
 
    ```sh
@@ -169,6 +171,34 @@ checks:
 - `question` and `pass_when` are what the model reads. Write one binary question.
 
 A failed rubric check reports every shortfall, and each shortfall is one finding. The built-in PRD and SDD profiles name a section on each check that is about one section of the template.
+
+### Compare a doc with its upstream doc
+
+A rubric check reads the doc and the text assets of its bundle. It does not read a linked doc. To let a check compare the doc with its PRD, add `reads: [upstream]`:
+
+```yaml profile
+key: sdd
+name: Software Design Document
+template: templates/sdd.md
+links:
+  upstream: { kinds: [implements], types: [prd], required: true }
+# The other keys and checks of the profile stay as they are.
+checks:
+  - slug: sdd.context-delta
+    level: SHOULD
+    stage: rubric
+    section: Context
+    reads: [upstream]
+    question: Does the Context section add to the PRD and not repeat it?
+    pass_when: The Context section states what this design adds, and does not reprint the PRD.
+```
+
+- The check also reads the spec doc of each `implements` or `refines` link target.
+- A change to the text of a target sends the check to the model again. An edit to the sidecar of the target does not.
+- When the doc links no such target, the model reads that the doc has no upstream doc.
+- `reads` is for a check of the rubric stage.
+
+The built-in SDD check [`sdd.testing`](/reference/checks/#sdd.testing) reads the PRD, because the MUST requirements are in the PRD.
 
 A finding of your own check has no "What this check means" link, because the Check catalog lists only the built-in checks.
 

@@ -56,11 +56,19 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "%s is a valid profile: %s (%s), %d checks.\n", args[1], l.Profile.Key, l.Profile.Name, len(l.Profile.Checks))
 	// A check that is about one section and names none is valid, and it stops a review from
-	// converging, so the command says so (#108).
-	if hints := profile.SectionHints(l); len(hints) > 0 {
-		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(hints), pluralS(len(hints)))
-		for _, h := range hints {
-			fmt.Fprintf(stdout, "  %s\n", h)
+	// converging, so the command says so (#108). A check that names the upstream doc type and
+	// does not read the upstream docs fails on every doc (#143).
+	var warnings []string
+	for _, h := range profile.SectionHints(l) {
+		warnings = append(warnings, h.String())
+	}
+	for _, h := range profile.UpstreamHints(l) {
+		warnings = append(warnings, h.String())
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(warnings), pluralS(len(warnings)))
+		for _, w := range warnings {
+			fmt.Fprintf(stdout, "  %s\n", w)
 		}
 	}
 	if conflicts {
