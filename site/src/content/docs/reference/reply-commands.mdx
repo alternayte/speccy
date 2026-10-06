@@ -46,6 +46,7 @@ waivers:
 - `section_hash` is the hash of the section text at that moment. The waiver ends when the section changes. For a check that names a section, the hash covers the subsections too.
 - For a whole-doc check, `section` is `[]`, and the entry has `check_hash` in place of `section_hash`. An edit does not end this waiver. It ends when a full review passes the check, or when the profile changes the `question` or the `pass_when` of the check.
 - For a check of another stage that reads the whole doc, or a finding with no heading, `section` is `[]`. `section_hash` then covers the whole doc, so any edit ends the waiver.
+- For `coherence.contradiction`, the entry also has `conflict`: the one conflict of the finding. The waiver covers no other conflict in the section.
 - `requested_by` is the GitHub login of the person who wrote the reply.
 
 [Sidecar format](/reference/sidecar/#waivers) shows each form.

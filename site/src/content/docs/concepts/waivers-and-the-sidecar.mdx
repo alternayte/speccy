@@ -23,6 +23,7 @@ What a waiver binds to depends on the check:
 - **A lint rule, or a check with `scope: section`.** The waiver binds to the section of the finding, without its subsections.
 - **A whole-doc check.** A rubric check that names no section, and does not have `scope: section`, is a whole-doc check. Its waiver binds to the check, not to the doc text. A check that names a heading the doc does not have is also a whole-doc check for that doc.
 - **A check of another stage that reads the whole doc**, such as `links.has-upstream`. The waiver binds to the whole doc body.
+- **`coherence.contradiction`.** The waiver binds to the section of the finding and to the one conflict that the finding names. The conflict is the linked doc, the quote in this doc, and the quote in the linked doc. A new conflict in the same section stays open, and it needs its own waiver. Speccy ignores case and extra spaces when it compares the quotes, so a small change in how the model quotes the text keeps the waiver. A conflict quoted in other words needs a new waiver.
 
 Two kinds of finding take no waiver. An INFO finding never changes the verdict, so it needs none. A coverage gap takes an answer instead: an acknowledgement, or a reference to the trace ID in the doc.
 

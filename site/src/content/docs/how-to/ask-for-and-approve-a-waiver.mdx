@@ -38,6 +38,39 @@ A waiver is for one check in one section. A failed rubric check can give several
 - A lint rule, or a check with `scope: section`: the section of the finding.
 - A whole-doc check, which is a rubric check with no section: the check itself. The card reads "whole doc".
 - A check of another stage that reads the whole doc, such as `links.has-upstream`: the whole doc text. The card reads "whole doc".
+- `coherence.contradiction`: the section of the finding and the one conflict it names. A new conflict in the same section needs its own waiver. When a later review quotes the same conflict in other words, ask again.
+
+### Ask from the terminal
+
+`speccy waive` asks for a waiver without the app. It uses the state of the folder, as the app does. When the app runs, the command sends its calls to the app.
+
+<Steps>
+
+1. Review the doc, and find the `id` of the finding in the JSON output:
+
+   ```sh
+   speccy review docs/sdd-payments.md --format json
+   ```
+
+   Each bundle in the output also has its `doc_id` and its `bundle_id`.
+
+2. Ask for the waiver, with the reason:
+
+   ```sh
+   speccy waive docs/sdd-payments.md 01a110a2-3aeb-719a-b706-5d03631f85a4 --reason "The card network sets this limit, and we cannot change it."
+   ```
+
+3. To approve it in the same step, add `--approve`. The profile's waiver policy applies, as in the app.
+
+4. List the waivers of the doc and their status:
+
+   ```sh
+   speccy waivers list docs/sdd-payments.md
+   ```
+
+</Steps>
+
+A coding agent uses the MCP tools `request_waiver`, `approve_waiver` and `list_waivers`. The reason comes from you. The agent asks you for it, and it approves only when you tell it to.
 
 ## Who approves
 

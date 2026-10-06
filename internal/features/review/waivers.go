@@ -1,15 +1,18 @@
 package review
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 
+	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 )
 
-// waiverKey is a check in a section.
-func waiverKey(check string, path []string) string {
-	return check + "\x00" + strings.Join(path, "\x00")
+// waiverKey is a check in a section, and for a waiver of coherence.contradiction the folded
+// key of the conflict it excuses. An empty conflict is a waiver of the check in the section.
+func waiverKey(check string, path []string, conflict string) string {
+	return check + "\x00" + strings.Join(path, "\x00") + "\x01" + conflict
 }
 
 // waiverHash is the hash a sidecar waiver recorded: of the check for a waiver of a whole-doc
@@ -22,8 +25,8 @@ func waiverHash(w source.Waiver) string {
 }
 
 // validWaivers returns the sidecar waivers that still hold: a reason, and a hash equal to the
-// hash now (REQ-074). A waiver of a section holds while the section is the same. A waiver of a
-// whole-doc check holds while the check asks the same thing, so an edit does not end it.
+// hash now (REQ-074). A waiver of a section holds while the section is the same. A waiver of
+// a whole-doc check holds while the check asks the same thing, so an edit does not end it.
 // DEC-009: a waiver written into the sidecar by hand is honoured the same way.
 func validWaivers(in input) map[string]bool {
 	out := map[string]bool{}
@@ -32,7 +35,7 @@ func validWaivers(in input) map[string]bool {
 			continue
 		}
 		if in.profile.Profile.Holds(w.Check, w.Section, waiverHash(w), in.doc, in.main) {
-			out[waiverKey(w.Check, w.Section)] = true
+			out[waiverKey(w.Check, w.Section, w.Conflict.Key())] = true
 		}
 	}
 	return out
@@ -40,7 +43,9 @@ func validWaivers(in input) map[string]bool {
 
 // applyWaivers marks the findings that a valid waiver covers, and the items whose every
 // finding is waived (§8.7: a waived item counts as passed). One waiver covers every shortfall
-// of its check in its section.
+// of its check in its section. A waiver of coherence.contradiction that names a conflict
+// covers only the finding of that conflict (#136); one that names none, from before Speccy
+// recorded the conflict, covers each conflict in its section.
 func applyWaivers(in input, ev *evaluation) []bool {
 	valid := validWaivers(in)
 	waived := make([]bool, len(ev.findings))
@@ -49,7 +54,10 @@ func applyWaivers(in input, ev *evaluation) []bool {
 		if b, ok := in.profile.Profile.Bind(f.slug, in.doc, in.main, f.anchor.HeadingPath); ok {
 			// A waiver of the whole doc text, from before the check named a section, still
 			// covers the check while the doc is the text it was approved for.
-			waived[i] = valid[waiverKey(f.slug, b.Path)] || valid[waiverKey(f.slug, nil)]
+			waived[i] = valid[waiverKey(f.slug, b.Path, "")] || valid[waiverKey(f.slug, nil, "")]
+			if !waived[i] && f.slug == ContradictionSlug {
+				waived[i] = valid[waiverKey(f.slug, b.Path, f.conflict().Key())]
+			}
 		}
 		if !waived[i] {
 			open[f.slug] = true
@@ -64,4 +72,24 @@ func applyWaivers(in input, ev *evaluation) []bool {
 		}
 	}
 	return waived
+}
+
+// conflictAPI is c in the API, or nil.
+func conflictAPI(c *source.Conflict) *api.Conflict {
+	if c == nil {
+		return nil
+	}
+	return &api.Conflict{With: c.With, Quote: c.Quote, WithQuote: c.WithQuote}
+}
+
+// conflict is the conflict a coherence.contradiction finding names, or nil.
+func (f pending) conflict() *source.Conflict {
+	if f.slug != ContradictionSlug {
+		return nil
+	}
+	raw, err := json.Marshal(f.evidence)
+	if err != nil {
+		return nil
+	}
+	return source.ConflictOf(f.slug, raw)
 }

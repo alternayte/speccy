@@ -243,3 +243,24 @@ func TestCoherence_Contradiction(t *testing.T) {
 		t.Errorf("the invented conflict is not noted: %s", run.Notes)
 	}
 }
+
+// The contradiction call is cached on the text the model reads (#132): this doc with its text
+// assets, and the other doc's main doc. A new version of the other doc that changes only an
+// asset, and a binary asset of this doc, keep the answer. An edit of the other doc's text does not.
+func TestCoherence_ContradictionCacheKeepsUnreadChanges(t *testing.T) {
+	body := "\n## Timing\n\nThe worker pays each refund within 10 working days.\n"
+	pe := newPipeline(t, storetest.Engines()[0], map[string]string{"refunds-prd/PRD.md": upstreamPRD, "refunds-sdd/SPEC.md": sdd("", body), ackPath("refunds-sdd/SPEC.md"): traceAck}, "fake-1")
+	pe.run(t, "refunds-sdd")
+	calls := pe.fake.count(review.PromptContradiction)
+	pe.write(t, "refunds-prd/notes.txt", "Notes of the product team.\n")
+	pe.write(t, "refunds-sdd/flow.png", "\x89PNG\x00\x01\x02")
+	pe.run(t, "refunds-sdd")
+	if n := pe.fake.count(review.PromptContradiction); n != calls || calls == 0 {
+		t.Errorf("%d contradiction calls, then %d after changes the model does not read", calls, n)
+	}
+	pe.write(t, "refunds-prd/PRD.md", strings.Replace(upstreamPRD, "5 working days", "3 working days", 1))
+	pe.run(t, "refunds-sdd")
+	if n := pe.fake.count(review.PromptContradiction); n != calls+1 {
+		t.Errorf("%d contradiction calls after an edit of the PRD text, want %d", n, calls+1)
+	}
+}

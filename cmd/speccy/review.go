@@ -32,7 +32,11 @@ const exitNotReady = 1
 
 // reviewed is the result of one bundle. The JSON output uses these field names.
 type reviewed struct {
-	Path     string        `json:"path"`
+	Path string `json:"path"`
+	// DocID and BundleID name the saved spec doc and its bundle, for the API and the waiver
+	// commands. A review of content that Speccy does not save has neither.
+	DocID    string        `json:"doc_id,omitempty"`
+	BundleID string        `json:"bundle_id,omitempty"`
 	Title    string        `json:"title"`
 	Profile  string        `json:"profile"`
 	MainDoc  string        `json:"main_doc"`
@@ -415,7 +419,7 @@ func reviewWith(ctx context.Context, s *session, fl reviewFlags, stages review.S
 			out = append(out, reviewed{Path: lb.Slug, Error: "Speccy did not load this bundle. Run speccy in the folder to see why."})
 			continue
 		}
-		r := reviewed{Path: b.Slug, Title: b.Title, Profile: b.ProfileKey, MainDoc: path.Join(lb.Dir, b.Path)}
+		r := reviewed{Path: b.Slug, DocID: b.Id.String(), BundleID: b.BundleId.String(), Title: b.Title, Profile: b.ProfileKey, MainDoc: path.Join(lb.Dir, b.Path)}
 		if b.RunError != nil && b.Verdict == nil {
 			r.Error = *b.RunError
 			out = append(out, r)

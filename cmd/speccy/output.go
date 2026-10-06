@@ -147,12 +147,14 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 
 // summaryRow is one bundle in the --summary table (REQ-134).
 type summaryRow struct {
-	Path    string   `json:"path"`
-	Profile string   `json:"profile"`
-	Verdict string   `json:"verdict"`
-	Score   int      `json:"score"`
-	Top     []string `json:"top_failing_checks"`
-	Error   string   `json:"error,omitempty"`
+	Path     string   `json:"path"`
+	DocID    string   `json:"doc_id,omitempty"`
+	BundleID string   `json:"bundle_id,omitempty"`
+	Profile  string   `json:"profile"`
+	Verdict  string   `json:"verdict"`
+	Score    int      `json:"score"`
+	Top      []string `json:"top_failing_checks"`
+	Error    string   `json:"error,omitempty"`
 }
 
 // topChecks returns the slugs of the failing checks, the most severe first, then by count.
@@ -194,7 +196,7 @@ func writeSummary(w io.Writer, format string, rs []reviewed) {
 	common := map[string]int{}
 	ready := 0
 	for _, r := range rs {
-		row := summaryRow{Path: r.Path, Profile: r.Profile, Verdict: r.Verdict, Score: r.Score, Top: topChecks(r, 3), Error: r.Error}
+		row := summaryRow{Path: r.Path, DocID: r.DocID, BundleID: r.BundleID, Profile: r.Profile, Verdict: r.Verdict, Score: r.Score, Top: topChecks(r, 3), Error: r.Error}
 		if row.Top == nil {
 			row.Top = []string{}
 		}

@@ -11,4 +11,4 @@ const FixLoop = `To fix the findings of a Speccy review, follow this loop:
 4. Write the answers into the doc, in the style of the doc.
 5. Call review_bundle one time, after all the edits. A section you edited has no AI result until this review.
 6. Report the trend: how many findings are fixed, how many are still open, and how many are new.
-Do not run a review between the edits. Do not ask for a waiver and do not decide one.`
+Do not run a review between the edits. Do not ask for a waiver or approve one on your own. When the person decides that a check does not apply, call request_waiver with their reason, and approve_waiver only when they tell you to.`
