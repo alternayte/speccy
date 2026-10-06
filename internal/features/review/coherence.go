@@ -221,6 +221,10 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 	}
 	lvl := in.level(ContradictionSlug, kernel.Must)
 	this := contradictionData(in)
+	earlier, err := s.priorConflicts(ctx, in)
+	if err != nil {
+		return err
+	}
 	for i, l := range targets {
 		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Comparing with " + l.target.Slug, Done: i, Total: len(targets)})
 		key := contradictionKey(this, l, in.profile.Version, fingerprint)
@@ -249,19 +253,33 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 				return err
 			}
 		}
-		kept, dropped := 0, 0
+		dropped := 0
+		var found []conflict
+		seen := map[string]bool{}
 		for _, c := range out.Conflicts {
 			if c.BothCanHold {
 				continue // the reviewer found that a builder can follow both
 			}
-			ts, te, ok1 := anchor.Find(in.main, c.ThisQuote)
-			os, oe, ok2 := anchor.Find(l.main, c.OtherQuote)
+			_, _, ok1 := anchor.Find(in.main, c.ThisQuote)
+			_, _, ok2 := anchor.Find(l.main, c.OtherQuote)
 			if !ok1 || !ok2 {
 				dropped++ // the REQ-043 rule: a quote that is not in the doc is not evidence
 				continue
 			}
-			kept++
-			ev.findings = append(ev.findings, pending{
+			if !seen[c.key()] {
+				seen[c.key()] = true
+				found = append(found, c)
+			}
+		}
+		kept, err := s.withPriorConflicts(ctx, rc, in, l, found, earlier[l.target.ID], fingerprint)
+		if err != nil {
+			return err
+		}
+		for _, k := range kept {
+			c := k.c
+			ts, te, _ := anchor.Find(in.main, c.ThisQuote)
+			os, oe, _ := anchor.Find(l.main, c.OtherQuote)
+			p := pending{
 				slug: ContradictionSlug, level: lvl, stage: StageCoherence,
 				anchor:  anchor.New(in.bundle.DocPath, in.main, in.doc, ts, te),
 				message: fmt.Sprintf("This conflicts with %s: %s", l.target.Slug, sentence(c.Explanation)),
@@ -269,12 +287,18 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 				evidence: map[string]any{"upstream": l.target.Slug, "upstream_bundle_id": l.target.ID, "explanation": c.Explanation,
 					"quote": c.ThisQuote, "upstream_quote": c.OtherQuote,
 					"upstream_anchor": anchor.New(l.target.DocPath, l.main, l.doc, os, oe)},
-			})
+			}
+			if k.carried != nil {
+				// The review did not find this conflict again, and both quotes are still in their
+				// docs: it stays as the finding of the review that found it.
+				p.carried, p.message, p.evidence = k.carried.ID, k.carried.Message, json.RawMessage(k.carried.Evidence)
+			}
+			ev.findings = append(ev.findings, p)
 		}
 		if dropped > 0 {
 			rc.note(fmt.Sprintf("%d possible conflicts with %s quoted text that is not in the docs, so they were dropped.", dropped, l.target.Slug))
 		}
-		ev.items = append(ev.items, verdict.Item{Slug: ContradictionSlug, Category: verdict.Coherence, Level: lvl, Passed: kept == 0, Applicable: true})
+		ev.items = append(ev.items, verdict.Item{Slug: ContradictionSlug, Category: verdict.Coherence, Level: lvl, Passed: len(kept) == 0, Applicable: true})
 	}
 	return nil
 }

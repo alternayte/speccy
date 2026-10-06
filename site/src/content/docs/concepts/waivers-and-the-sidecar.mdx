@@ -23,7 +23,7 @@ What a waiver binds to depends on the check:
 - **A lint rule, or a check with `scope: section`.** The waiver binds to the section of the finding, without its subsections.
 - **A whole-doc check.** A rubric check that names no section, and does not have `scope: section`, is a whole-doc check. Its waiver binds to the check, not to the doc text. A check that names a heading the doc does not have is also a whole-doc check for that doc.
 - **A check of another stage that reads the whole doc**, such as `links.has-upstream`. The waiver binds to the whole doc body.
-- **`coherence.contradiction`.** The waiver binds to the section of the finding and to the one conflict that the finding names. The conflict is the linked doc, the quote in this doc, and the quote in the linked doc. A new conflict in the same section stays open, and it needs its own waiver. Speccy ignores case and extra spaces when it compares the quotes, so a small change in how the model quotes the text keeps the waiver. A conflict quoted in other words needs a new waiver.
+- **`coherence.contradiction`.** The waiver binds to the section of the finding and to the one conflict that the finding names. The conflict is the linked doc, the quote in this doc, and the quote in the linked doc. A new conflict in the same section stays open, and it needs its own waiver. Speccy ignores case and extra spaces when it compares the quotes, so a small change in how the model quotes the text keeps the waiver. A conflict quoted in other words needs a new waiver. A later review keeps the quotes of a conflict that it finds again, so the waiver still matches. See [A conflict from run to run](#a-conflict-from-run-to-run).
 
 Three kinds of finding take no waiver. An INFO finding never changes the verdict, so it needs none. A coverage gap takes an answer instead: an acknowledgement, or a reference to the trace ID in the doc. A MUST rubric check that the reviewer gave no answer for takes another review: only an answer clears it.
 
@@ -126,6 +126,46 @@ In the app, **Mark it standalone** on a `links.has-upstream` finding, or on its 
 **Trace** answers a coverage gap for one upstream trace ID. Its status is `out_of_scope`, or `covered_by` with the `target` doc that covers the ID. It closes the `trace.coverage` gap, and the matrix shows the answer with its reason. In the app, a trace acknowledgement is a request that waits for approval under the policy of `trace.coverage`, as a waiver does.
 
 An acknowledgement is about the whole doc or an upstream ID, not a section of this doc. An edit of the doc does not end it. [Traceability](/concepts/traceability/) explains coverage and the matrix.
+
+## Upstream requests and send-backs
+
+A `coherence.contradiction` finding is a conflict between this doc and a doc it links to. A waiver says that the conflict is acceptable. Sometimes the conflict is not acceptable, and this doc is right. Then only the author of the linked doc can fix the conflict. For this case, the finding takes a second answer: **The linked doc must change**.
+
+This answer is an upstream request. It uses the waiver mechanism: a reason of 20 characters or more, and the waiver policy of `coherence.contradiction`. The approval writes the request into the sidecar of this doc, under `upstream_changes`:
+
+```yaml sidecar
+upstream_changes:
+  - conflict:
+      with: prd-payments
+      quote: The retry limit is 3.
+      with_quote: The retry limit is 5.
+    reason: The shipped code stops after 3 retries, and support agreed.
+    requested_by: nathan
+```
+
+After the approval, these things occur:
+
+- The finding stays on this doc and reads "Waiting on" the linked doc. It does not block the verdict, so this doc can be Build Ready. A coding agent follows this doc.
+- The review of the linked doc reads the sidecar of each spec doc that links to it. Each open upstream request gives the linked doc a MUST finding, `coherence.downstream-request`. The finding quotes both docs and gives the reason. A pull request review of the linked doc posts this finding on the quoted line, as it posts any MUST finding.
+- Speccy writes nothing into the linked doc, its sidecar or its repo.
+
+A team that wants the conflict to block until the linked doc changes sets `coherence.upstream_pending: block` in the profile. The default is `allow`.
+
+The author of the linked doc has three answers:
+
+- **Edit the linked doc.** When an edit of either doc removes a quote of the conflict, the conflict closes on both docs, and the upstream request ends.
+- **Ask for a waiver.** A waiver of the conflict on either doc says that the conflict is acceptable. It closes the conflict on both docs. A waiver asked on the linked doc goes into the sidecar of the downstream doc, as a waiver of `coherence.contradiction`.
+- **The downstream doc must change.** This answer is a send-back. It takes a reason and the same approval policy. The approval writes the send-back into the upstream request, in the sidecar of the downstream doc. The request ends, and the conflict blocks the downstream doc again. The finding there shows the reason of the send-back.
+
+After a send-back, the conflict takes no more answers of this kind. It needs an edit or a waiver.
+
+An ended request stays in the sidecar until a later decision about the same conflict writes over it, as an ended waiver does. The waiver list of the doc says why it ended: the linked doc sent it back, or an edit closed the conflict.
+
+## A conflict from run to run
+
+A conflict keeps its identity from one full review to the next. Its identity is the linked doc and the two quotes, as in the `conflict` key of a waiver. A waiver and an upstream request of a conflict match it by this identity.
+
+The model often words the same conflict in other ways. After each new answer, a separate small call matches each new conflict with the conflicts of the last full review. A conflict that matches keeps the earlier quotes. An earlier conflict that the review does not find again stays, as a carried finding, while both of its quotes are in their docs. A conflict ends only when an edit removes one of its quotes. A change in the answer of the model does not end it.
 
 ## Withdrawn acknowledgements
 

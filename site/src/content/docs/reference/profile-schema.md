@@ -20,6 +20,7 @@ This page lists each key that a profile file can hold. Speccy checks a profile a
 | `limits` | object |  | The size limits that lint checks. A key you leave out keeps its default. |
 | `links` | object |  | The links a doc of this type must have. |
 | `grounding` | object |  | The settings of the grounding stage. |
+| `coherence` | object |  | The settings of the coherence checks. |
 | `verify` | object |  | The post-build verification gate: the trace IDs it verifies, and the bounds of its repo scan. |
 | `trace` | object |  | The trace IDs of this doc type. |
 | `waivers` | object |  | Who approves a waiver, by the level of the check. |
@@ -114,6 +115,14 @@ Days a source of that tier stays usable. Zero is no limit.
 |---|---|---|---|
 | `pattern` | string | yes | A heading path, with / between headings. A `*` segment matches one heading, and a trailing `**` matches the rest. The match ignores case. |
 | `class` | string | yes | The claim class of a section that matches the pattern. The name `unclassified` is not a valid class. |
+
+## `coherence`
+
+The settings of the coherence checks.
+
+| Key | Type | Required | Meaning |
+|---|---|---|---|
+| `upstream_pending` | one of `allow`, `block` |  | What an approved upstream request does to the verdict of the doc that asks for it. allow: the conflict waits on the linked doc and does not block. block: the conflict still blocks until the linked doc changes. The default is allow. |
 
 ## `verify`
 

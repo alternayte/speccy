@@ -44,6 +44,7 @@ type Profile struct {
 	Approvals  Approvals  `yaml:"approvals" json:"approvals"`
 	Divergence Divergence `yaml:"divergence" json:"divergence"`
 	Grounding  Grounding  `yaml:"grounding" json:"grounding"`
+	Coherence  Coherence  `yaml:"coherence" json:"coherence"`
 	Verify     Verify     `yaml:"verify" json:"verify"`
 	Lint       Lint       `yaml:"lint" json:"lint"`
 	Checks     []Check    `yaml:"checks" json:"checks"`
@@ -85,6 +86,17 @@ type Grounding struct {
 	// when empty, or MUST for a team that wants such a claim to block.
 	FileContradiction string `yaml:"file_contradiction,omitempty" json:"file_contradiction,omitempty"`
 }
+
+// Coherence holds the settings of the coherence checks.
+type Coherence struct {
+	// UpstreamPending says what an approved upstream request does to the verdict: allow (the
+	// default) lets the doc reach Build Ready while the linked doc must change, and block keeps
+	// the conflict blocking.
+	UpstreamPending string `yaml:"upstream_pending,omitempty" json:"upstream_pending,omitempty"`
+}
+
+// UpstreamPendingBlocks reports whether an approved upstream request still blocks the verdict.
+func (c Coherence) UpstreamPendingBlocks() bool { return c.UpstreamPending == "block" }
 
 // Verify configures the post-build verification gate: which trace IDs it verifies, and the
 // bounds of its repo scan.
@@ -339,6 +351,9 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 	}
 	if l := p.Grounding.FileContradiction; l != "" && l != "SHOULD" && l != "MUST" {
 		problems = append(problems, fmt.Sprintf("/grounding/file_contradiction: %q is not SHOULD or MUST", l))
+	}
+	if v := p.Coherence.UpstreamPending; v != "" && v != "allow" && v != "block" {
+		problems = append(problems, fmt.Sprintf("/coherence/upstream_pending: %q is not allow or block", v))
 	}
 	tmpl, err := readTemplate(p.Template)
 	if err != nil {

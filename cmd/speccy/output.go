@@ -98,6 +98,9 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 			fmt.Fprint(w, "| Level | Check | Where | Finding |\n|---|---|---|---|\n")
 			for _, f := range fs {
 				msg := strings.ReplaceAll(f.Message, "|", `\|`)
+				if u := upstreamLine(f); u != "" {
+					msg += " " + strings.ReplaceAll(u, "|", `\|`)
+				}
 				if f.Question != nil {
 					msg += " Question: " + strings.ReplaceAll(*f.Question, "|", `\|`)
 				}
@@ -134,6 +137,9 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 			}
 			for _, f := range open(r) {
 				fmt.Fprintf(w, "  %-6s %s  %s\n         %s\n", f.Level, location(r, f), f.CheckSlug, f.Message)
+				if u := upstreamLine(f); u != "" {
+					fmt.Fprintf(w, "         %s\n", u)
+				}
 				if f.Question != nil {
 					fmt.Fprintf(w, "         Question: %s\n", *f.Question)
 				}
@@ -143,6 +149,31 @@ func writeResults(w io.Writer, format string, rs []reviewed) {
 			}
 		}
 	}
+}
+
+// upstreamLine says where the upstream request of a conflict stands: it waits on the linked
+// doc, or the linked doc sent it back. It is "" for a finding with no upstream request.
+func upstreamLine(f api.Finding) string {
+	u := f.UpstreamChange
+	if u == nil {
+		return ""
+	}
+	name := u.Upstream
+	if u.UpstreamTitle != nil && *u.UpstreamTitle != "" {
+		name = *u.UpstreamTitle
+	}
+	if u.State == api.UpstreamChangeStateSentBack {
+		line := name + " sent this back: this doc must change."
+		if u.SentBackReason != nil {
+			line += " Reason: " + *u.SentBackReason
+		}
+		return line
+	}
+	line := "Waiting on " + name + "."
+	if u.Blocks {
+		line += " It still blocks: the profile sets coherence.upstream_pending to block."
+	}
+	return line
 }
 
 // summaryRow is one bundle in the --summary table (REQ-134).

@@ -52,12 +52,24 @@ const MinReason = 20
 // or covered by another doc, and its approval writes the sidecar's trace entry. A standalone
 // waiver is an Acknowledgement that the doc has no upstream doc, and its approval writes the
 // sidecar's standalone entry (SDD §9.4).
+//
+// An upstream request is the answer "The linked doc must change" to one conflict: its approval
+// writes the doc's sidecar entry under upstream_changes. A send-back is the answer "The
+// downstream doc must change" to a coherence.downstream-request finding: it belongs to the
+// linked doc, and its approval ends the request in the downstream doc's sidecar. Neither one
+// is bound to a section: a conflict ends when an edit removes one of its quotes.
 const (
 	ScopeCheck      = "check"
 	ScopeVerify     = "verify"
 	ScopeTrace      = "trace"
 	ScopeStandalone = "standalone"
+	ScopeUpstream   = "upstream_change"
+	ScopeSendBack   = "send_back"
 )
+
+// conflictDecision reports whether a waiver of scope is an answer to a conflict that is not a
+// waiver: an upstream request or a send-back.
+func conflictDecision(scope string) bool { return scope == ScopeUpstream || scope == ScopeSendBack }
 
 // Acknowledgement reports whether a waiver of scope is an Acknowledgement. It is about the doc
 // as a whole or one upstream ID, not a section, so an edit to the doc does not end it, and a
@@ -83,17 +95,22 @@ type State struct {
 	RunID     uuid.UUID `json:"run_id,omitzero"`
 	AckStatus string    `json:"ack_status,omitempty"`
 	AckTarget string    `json:"ack_target,omitempty"`
-	// Conflict is the one conflict a waiver of coherence.contradiction excuses (#136).
-	Conflict    *source.Conflict `json:"conflict,omitempty"`
-	Level       kernel.Level     `json:"level"`
-	Section     []string         `json:"section"`
-	SectionHash string           `json:"section_hash"`
-	Reason      string           `json:"reason"`
-	Policy      profile.Policy   `json:"policy"`
-	Status      string           `json:"status"`
-	RequestedBy string           `json:"requested_by"`
-	Approvals   []string         `json:"approvals"`
-	DecidedBy   string           `json:"decided_by"`
+	// Conflict is the one conflict a waiver of coherence.contradiction excuses (#136), or the
+	// conflict of an upstream request or a send-back.
+	Conflict *source.Conflict `json:"conflict,omitempty"`
+	// Downstream is the doc whose sidecar the approval writes, when it is not this doc: the
+	// downstream doc of a send-back, or of a waiver of coherence.downstream-request. Speccy
+	// writes nothing into the linked doc's sidecar.
+	Downstream  uuid.UUID      `json:"downstream,omitzero"`
+	Level       kernel.Level   `json:"level"`
+	Section     []string       `json:"section"`
+	SectionHash string         `json:"section_hash"`
+	Reason      string         `json:"reason"`
+	Policy      profile.Policy `json:"policy"`
+	Status      string         `json:"status"`
+	RequestedBy string         `json:"requested_by"`
+	Approvals   []string       `json:"approvals"`
+	DecidedBy   string         `json:"decided_by"`
 	// DecisionReason is why the waiver is rejected. Only a rejection has one.
 	DecisionReason string `json:"decision_reason"`
 	// WithdrawnBy is who took an approved Acknowledgement out of the sidecar.
@@ -122,6 +139,7 @@ type Request struct {
 	AckStatus   string
 	AckTarget   string
 	Conflict    *source.Conflict `json:",omitempty"`
+	Downstream  uuid.UUID        `json:",omitzero"`
 	Level       kernel.Level
 	Section     []string
 	SectionHash string
@@ -224,6 +242,10 @@ const (
 	EndedSectionChanged = "section_changed" // an edit changed the section it covers
 	EndedCheckPassed    = "check_passed"    // a full review passed the whole-doc check
 	EndedCheckChanged   = "check_changed"   // the profile changed what the check asks
+	// An upstream request ends when the linked doc sends it back, or when an edit removes a
+	// quote of its conflict from either doc.
+	EndedSentBack       = "sent_back"
+	EndedConflictClosed = "conflict_closed"
 )
 
 // DecideInvalidate ends an approved waiver that no longer holds (REQ-074), and records why.
@@ -267,7 +289,7 @@ func Evolve(s State, e es.Event) State {
 			scope = ScopeCheck
 		}
 		return State{ID: r.ID, BundleID: r.BundleID, Check: r.Check, Scope: scope, TraceID: r.TraceID, Repo: r.Repo,
-			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget, Conflict: r.Conflict,
+			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget, Conflict: r.Conflict, Downstream: r.Downstream,
 			Level: r.Level, Section: r.Section, SectionHash: r.SectionHash,
 			Reason: strings.TrimSpace(r.Reason), Policy: r.Policy, Status: StatusRequested, RequestedBy: r.By, Approvals: []string{}}
 	case Approved:

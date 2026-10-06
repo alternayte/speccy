@@ -211,6 +211,8 @@ type input struct {
 	refs []source.Ref
 	// configHash is the hash of the parts of .speccy.yaml that apply to the doc.
 	configHash string
+	// incoming are the docs that link to this doc and ask it to change (upstream requests).
+	incoming []incoming
 }
 
 func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, p profile.Versioned) (input, error) {
@@ -258,6 +260,9 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 		}
 	}
 	if in.linked, err = s.loadLinked(ctx, in.links, from); err != nil {
+		return input{}, err
+	}
+	if in.incoming, err = s.loadIncoming(ctx, b, from); err != nil {
 		return input{}, err
 	}
 	repo, err := s.repoConfig(ctx, b)
@@ -405,6 +410,8 @@ func lintStage(in input) evaluation {
 	}
 	externalTargetCheck(in, &ev)
 	coherenceChecks(in, &ev)
+	// A doc reports the changes that its downstream docs ask of it, standalone or not.
+	downstreamRequests(in, &ev)
 	return ev
 }
 
@@ -450,7 +457,7 @@ func docAnchor(in input) anchor.Anchor {
 // relaxedCount is the number of relaxed slugs that are real checks of the profile.
 func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
 	known := map[string]bool{GroundingUnverified: true, GroundingContradicted: true, GroundingFileContradicts: true, DivergenceAmbiguous: true, DivergenceGap: true,
-		RestatementSlug: true, ContradictionSlug: true, ExternalTargetSlug: true, FrontmatterReadableSlug: true}
+		RestatementSlug: true, ContradictionSlug: true, DownstreamRequestSlug: true, ExternalTargetSlug: true, FrontmatterReadableSlug: true}
 	for _, r := range lint.Rules {
 		known[r.Slug] = true
 	}
@@ -472,6 +479,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	var rows []pgdb.InsertFindingParams
 	vin := ev.in
 	waived := applyWaivers(in, &ev)
+	upstream := upstreamStates(in, &ev)
 	// §8.6 rule 2: an open blocking thread blocks.
 	blocking, err := s.DB.Queries().CountOpenBlockingThreads(ctx, uuid.NullUUID{UUID: run.SpecDocID, Valid: true})
 	if err != nil {
@@ -487,9 +495,12 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			e, _ := json.Marshal(f.evidence)
 			evidence = e
 		}
+		if f.slug == ContradictionSlug {
+			evidence = withUpstream(evidence, upstream[i])
+		}
 		if f.carried != uuid.Nil {
-			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i]})
-			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i]})
+			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i], Upstream: upstream[i]})
+			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting()})
 			if counts(string(f.level), waived[i]) {
 				units[f.carried.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 			}
@@ -508,7 +519,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
 			Anchor: anchorJSON, Message: f.message, Evidence: evidence, Suggestion: sugg, Waived: waived[i],
 		})
-		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i]})
+		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting()})
 	}
 	vin.Items = ev.items
 	v := verdict.Decide(vin)
@@ -659,11 +670,11 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.S
 		}
 	}
 	if s.Decisions != nil {
-		dec, err := s.Decisions(ctx, b)
+		key, err := s.decisionsKey(ctx, b)
 		if err != nil {
 			return err
 		}
-		if decisionsHash(dec) != latest.DecisionsHash {
+		if key != latest.DecisionsHash {
 			_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
 			return err
 		}
@@ -821,7 +832,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 	if err != nil {
 		return run, err
 	}
-	run.DecisionsHash = decisionsHash(in.dec)
+	run.DecisionsHash = runDecisionsHash(in.dec, in.incoming)
 	run.ConfigHash = in.configHash
 	run.Status = "complete"
 	ev := lintStage(in)

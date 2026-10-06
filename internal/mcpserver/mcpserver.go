@@ -51,7 +51,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
 	add(s, t, "verify_build", "Verify one build against the bundle. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
-	add(s, t, "request_waiver", "Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs.", t.requestWaiver)
+	add(s, t, "request_waiver", "Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. With upstream_change, the answer to a coherence.contradiction finding is that the linked doc must change: after approval the conflict waits on that doc and does not block. With send_back, the answer to a coherence.downstream-request finding is that the downstream doc must change: after approval the conflict blocks that doc again. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs.", t.requestWaiver)
 	add(s, t, "approve_waiver", "Approve a requested waiver under the profile's waiver policy. Speccy refuses an approval that the policy does not allow to the person. The final approval writes the waiver to the doc's sidecar, and the finding no longer counts in the verdict. Approve only when the person tells you to approve this waiver.", t.approveWaiver)
 	add(s, t, "list_waivers", "List the waivers of a bundle, newest first: each with its check, section, reason, status, approvals, and for a contradiction the conflict it excuses.", t.listWaivers)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
@@ -592,9 +592,11 @@ func (tools) listThreads(ctx context.Context, c *api.ClientWithResponses, in bun
 }
 
 type waiverArg struct {
-	Bundle    string `json:"bundle" jsonschema:"the bundle's slug or ID"`
-	FindingID string `json:"finding_id" jsonschema:"the id of the finding, from get_findings"`
-	Reason    string `json:"reason" jsonschema:"why the check does not apply here, in the person's own words. At least 20 characters"`
+	Bundle         string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	FindingID      string `json:"finding_id" jsonschema:"the id of the finding, from get_findings"`
+	Reason         string `json:"reason" jsonschema:"why the check does not apply here, in the person's own words. At least 20 characters"`
+	UpstreamChange bool   `json:"upstream_change,omitempty" jsonschema:"answer a coherence.contradiction finding with: the linked doc must change. Only when the person says that the other doc is wrong"`
+	SendBack       bool   `json:"send_back,omitempty" jsonschema:"answer a coherence.downstream-request finding with: the downstream doc must change. Only when the person says that this doc is right"`
 }
 
 // requestWaiver asks for a waiver of one finding (REQ-072).
@@ -610,7 +612,14 @@ func (tools) requestWaiver(ctx context.Context, c *api.ClientWithResponses, in w
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.RequestWaiverWithResponse(ctx, b.Id, api.RequestWaiverJSONRequestBody{FindingId: id, Reason: in.Reason})
+	body := api.RequestWaiverJSONRequestBody{FindingId: id, Reason: in.Reason}
+	if in.UpstreamChange {
+		body.UpstreamChange = &in.UpstreamChange
+	}
+	if in.SendBack {
+		body.SendBack = &in.SendBack
+	}
+	res, err := c.RequestWaiverWithResponse(ctx, b.Id, body)
 	if err != nil {
 		return nil, err
 	}

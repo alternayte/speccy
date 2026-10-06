@@ -137,14 +137,15 @@ When fewer than two different models answer as readers, the run report says "Low
 
 ## Coherence
 
-The [coherence checks](/reference/checks/#coherence) read the doc against the docs and artifacts it links to. Two of them need no model, so they run on every save:
+The [coherence checks](/reference/checks/#coherence) read the doc against the docs and artifacts it links to. Three of them need no model, so they run on every save:
 
 - `trace.coverage` fails when an upstream trace ID is neither referenced nor acknowledged.
 - `coherence.restatement` fails when a paragraph repeats a paragraph of an upstream doc.
+- `coherence.downstream-request` fails for each open upstream request of a doc that links to this doc. It reads the sidecars of those docs. See [Upstream requests and send-backs](/concepts/waivers-and-the-sidecar/#upstream-requests-and-send-backs).
 
 A full review adds the checks that need the reviewer:
 
-- `coherence.contradiction` reads the doc against each doc it implements, refines or references. Speccy keeps a conflict only when both quotes are in their docs.
+- `coherence.contradiction` reads the doc against each doc it implements, refines or references. Speccy keeps a conflict only when both quotes are in their docs. A separate small call matches each conflict with the conflicts of the last full review, so a conflict keeps its quotes from run to run. An earlier conflict stays while both of its quotes are in their docs.
 - `coherence.external` reads the doc against the issues and pages it links to, through an MCP connection.
 
 `links.code-drift` reads GitHub, not a model, so it runs on every save and in a full review. A doc with a standalone acknowledgement has no upstream doc, so coverage, restatement and contradiction do not apply to it. [Traceability](/concepts/traceability/) explains each of these checks.

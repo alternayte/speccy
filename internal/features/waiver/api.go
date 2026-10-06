@@ -174,10 +174,13 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	}
 	// A waiver of a contradiction excuses the one conflict of the finding, not every conflict
 	// in its section (#136).
-	if f.CheckSlug == source.ContradictionCheck {
+	if f.CheckSlug == source.ContradictionCheck || f.CheckSlug == source.DownstreamRequestCheck {
 		if r.Conflict = source.ConflictOf(f.CheckSlug, f.Evidence); r.Conflict == nil {
 			return nil, kernel.Invalid("no_conflict", "This finding names no conflict. Run the review again.")
 		}
+	}
+	if err := a.conflictAnswer(ctx, b, p.Profile, f, req.Body, &r); err != nil {
+		return nil, err
 	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
@@ -224,6 +227,9 @@ func (a *API) ApproveWaiver(ctx context.Context, req api.ApproveWaiverRequestObj
 // writeSidecar writes the approved waiver to the doc's sidecar (DEC-009). The doc text does
 // not change, so no version of the doc is made here.
 func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approvedBy string) error {
+	if conflictDecision(s.Scope) || s.Downstream != uuid.Nil {
+		return a.writeConflictDecision(ctx, b, s, approvedBy)
+	}
 	// An Acknowledgement is about one upstream ID, not a section of this doc, so an edit to the
 	// doc does not end it.
 	if s.Scope == ScopeTrace {
@@ -437,6 +443,19 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 		yes := true
 		w.Standalone = &yes
 	}
+	if s.Scope == ScopeUpstream {
+		yes := true
+		w.UpstreamChange = &yes
+	}
+	if s.Scope == ScopeSendBack {
+		yes := true
+		w.SendBack = &yes
+	}
+	if s.Downstream != uuid.Nil {
+		if d, err := a.bundle(ctx, s.Downstream); err == nil {
+			w.Downstream = &api.BundleRef{Id: d.ID, BundleId: d.BundleID, Slug: d.Slug, Title: d.Title, ProfileKey: d.ProfileKey}
+		}
+	}
 	if s.WithdrawnBy != "" {
 		by := kernel.PersonByID(ctx, a.People, s.WithdrawnBy).Label()
 		w.WithdrawnBy = &by
@@ -484,6 +503,23 @@ func Invalidate(ctx context.Context, db *store.DB, st *es.Store, b pgdb.SpecDoc,
 	var passed map[string]bool
 	p := profiles()[b.ProfileKey].Profile
 	for _, r := range rows {
+		if r.Scope == ScopeUpstream {
+			if r.Status == StatusApproved {
+				if err := endUpstreamRequest(ctx, db, st, b, r, decisions); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if r.Scope == ScopeSendBack {
+			continue // a send-back is one answer; the request it ended records the end
+		}
+		if r.CheckSlug == source.DownstreamRequestCheck {
+			if err := invalidateDownstreamWaiver(ctx, db, st, b, r, decisions, profiles); err != nil {
+				return err
+			}
+			continue
+		}
 		ended := r.Status == StatusInvalidated && r.Scope == ScopeCheck
 		if r.Status != StatusApproved && !ended || Acknowledgement(r.Scope) {
 			continue

@@ -39,7 +39,7 @@ A waiver is for one check in one section. A failed rubric check can give several
 - A lint rule, or a check with `scope: section`: the section of the finding.
 - A whole-doc check, which is a rubric check with no section: the check itself. The card reads "whole doc".
 - A check of another stage that reads the whole doc, such as `links.has-upstream`: the whole doc text. The card reads "whole doc".
-- `coherence.contradiction`: the section of the finding and the one conflict it names. A new conflict in the same section needs its own waiver. When a later review quotes the same conflict in other words, ask again.
+- `coherence.contradiction`: the section of the finding and the one conflict it names. A new conflict in the same section needs its own waiver. A later review that finds the same conflict keeps its quotes, so the waiver still covers it.
 
 ### Ask from the terminal
 
@@ -72,6 +72,38 @@ A waiver is for one check in one section. A failed rubric check can give several
 </Steps>
 
 A coding agent uses the MCP tools `request_waiver`, `approve_waiver` and `list_waivers`. The reason comes from you. The agent asks you for it, and it approves only when you tell it to.
+
+## Answer a conflict that only the linked doc can fix
+
+A `coherence.contradiction` finding is a conflict with a doc that this doc links to. When this doc is right, a waiver is the wrong answer: the conflict is not acceptable. Answer that the linked doc must change.
+
+<Steps>
+
+1. Under the conflict, click **The linked doc must change**.
+
+2. Write the reason: why the linked doc is wrong. The author of the linked doc reads it. The reason needs at least 20 characters.
+
+3. Click **Ask**. The request waits for approval under the waiver policy of `coherence.contradiction`, as a waiver does.
+
+</Steps>
+
+After the approval, the finding reads **Waiting on** and the name of the linked doc. It does not block the verdict. The sidecar holds the request under `upstream_changes`. The linked doc gets the MUST finding `coherence.downstream-request`, which quotes both docs and gives your reason.
+
+The author of the linked doc answers in one of three ways:
+
+- An edit of the linked doc that removes its quote. The next reviews close the conflict on both docs.
+- **Ask for a waiver** on the `coherence.downstream-request` finding. The waiver says the conflict is acceptable, and it closes the conflict on both docs.
+- **The downstream doc must change** on the `coherence.downstream-request` finding, with a reason. After approval, the conflict blocks your doc again, and your finding shows that reason. Then edit your doc, or ask for a waiver. A second upstream request of the same conflict is not possible.
+
+From the terminal, add `--upstream-change` or `--send-back` to `speccy waive`:
+
+```sh
+speccy waive docs/sdd-payments.md 01a110a2-3aeb-719a-b706-5d03631f85a4 --upstream-change --reason "The shipped worker pays within 10 days, and support agreed."
+```
+
+The MCP tool `request_waiver` takes `upstream_change` or `send_back` in the same way.
+
+To keep a conflict blocking until the linked doc changes, set `coherence.upstream_pending: block` in the profile. [Upstream requests and send-backs](/concepts/waivers-and-the-sidecar/#upstream-requests-and-send-backs) explains the flow.
 
 ## Who approves
 
