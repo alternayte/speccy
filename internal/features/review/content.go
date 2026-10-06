@@ -376,7 +376,7 @@ func (a *API) ReviewUrl(ctx context.Context, req api.ReviewUrlRequestObject) (ap
 // URLReviewOut is the review of a URL as the API gives it. It stores the review of each doc,
 // so its report has a link.
 func (a *API) URLReviewOut(ctx context.Context, res URLReview) (api.UrlReview, error) {
-	out := api.UrlReview{Repo: res.Repo, Commit: res.Commit, Docs: []api.UrlReviewDoc{}}
+	out := api.UrlReview{Repo: res.Repo, Commit: res.Commit, Docs: []api.UrlReviewDoc{}, Config: ConfigOut(res.Config)}
 	if res.Pull > 0 {
 		out.Pull = &res.Pull
 	}
@@ -398,6 +398,22 @@ func (a *API) URLReviewOut(ctx context.Context, res URLReview) (api.UrlReview, e
 		out.Docs = append(out.Docs, doc)
 	}
 	return out, nil
+}
+
+// ConfigOut is the .speccy.yaml of a review of a URL as the API gives it.
+func ConfigOut(c URLConfig) api.UrlReviewConfig {
+	out := api.UrlReviewConfig{Source: api.UrlReviewConfigSource(c.Source), Path: c.Path,
+		Pr: api.PrSettings{InlineLimit: c.PR.InlineLimit, Levels: []api.PrSettingsLevels{}, Attribution: api.PrSettingsAttributionSpeccy}}
+	if out.Source == "" {
+		out.Source = api.UrlReviewConfigSourceNone
+	}
+	for _, l := range c.PR.Levels {
+		out.Pr.Levels = append(out.Pr.Levels, api.PrSettingsLevels(l))
+	}
+	if c.PR.Attribution == source.AttributionNone {
+		out.Pr.Attribution = api.PrSettingsAttributionNone
+	}
+	return out
 }
 
 // ContentReviewDays is how long the server keeps a content review for its report (SDD §15.3).

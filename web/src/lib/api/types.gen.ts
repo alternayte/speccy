@@ -1194,6 +1194,42 @@ export type UrlReview = {
      */
     pull?: number;
     docs: Array<UrlReviewDoc>;
+    config: UrlReviewConfig;
+};
+
+/**
+ * The .speccy.yaml that the review used.
+ */
+export type UrlReviewConfig = {
+    /**
+     * repo: the .speccy.yaml of the repo at the commit. local: the .speccy.yaml of the folder that this Speccy serves, because the repo has none at the commit. none: the repo and the folder have none.
+     *
+     */
+    source: 'repo' | 'local' | 'none';
+    /**
+     * With repo, the file in the repo. With local, the file on this machine. With none, empty.
+     */
+    path: string;
+    pr: PrSettings;
+};
+
+/**
+ * The pr section of the .speccy.yaml that the review used.
+ */
+export type PrSettings = {
+    /**
+     * The most inline comments per spec doc. 0 means the default of 15.
+     */
+    inline_limit: number;
+    /**
+     * The finding levels that go inline as comments. Empty means the default: MUST findings, and SHOULD findings with a suggestion.
+     *
+     */
+    levels: Array<'must' | 'should'>;
+    /**
+     * none keeps the name of Speccy out of a pending review.
+     */
+    attribution: 'speccy' | 'none';
 };
 
 /**
@@ -2193,6 +2229,16 @@ export type PrBatchRequest = {
      * False plans the batch and waits for startPrBatch. The default is true.
      */
     start?: boolean;
+    /**
+     * The finding levels that go inline as comments. Absent means pr.levels of the .speccy.yaml that each review uses.
+     *
+     */
+    levels?: Array<'must' | 'should'>;
+    /**
+     * none keeps the name of Speccy out of the pending reviews. Absent means pr.attribution of the .speccy.yaml that each review uses.
+     *
+     */
+    attribution?: 'speccy' | 'none';
 };
 
 export type PrBatch = {
@@ -2252,6 +2298,7 @@ export type PrBatchItem = {
     removed: number;
     review_url: string;
     docs: Array<PrBatchDoc>;
+    config?: UrlReviewConfig;
 };
 
 export type PrBatchDoc = {
@@ -2285,6 +2332,11 @@ export type AskRequest = {
      * Post the question although the doc already answers the concern.
      */
     force?: boolean;
+    /**
+     * none posts the question with no hidden marker. Absent means pr.attribution of the .speccy.yaml that the pull request review uses.
+     *
+     */
+    attribution?: 'speccy' | 'none';
 };
 
 export type AskResult = {
@@ -2348,6 +2400,29 @@ export type PendingComment = {
      * True when Speccy wrote the comment.
      */
     speccy: boolean;
+};
+
+/**
+ * What Speccy wrote in a pending review with no attribution, by GitHub ID.
+ */
+export type PendingMark = {
+    /**
+     * The GitHub node ID of the comment, or of the review for kind review and a question in the body.
+     */
+    comment_id: string;
+    /**
+     * finding: a comment of a finding. ask: a question of the reviewer. body: the comment that holds Speccy's part of the body. review: the review, whose body holds Speccy's part.
+     *
+     */
+    kind: 'finding' | 'ask' | 'body' | 'review';
+    /**
+     * The finding key, or the question ID. Empty for body and review.
+     */
+    key: string;
+    /**
+     * With review, the part of the review body that Speccy wrote.
+     */
+    body: string;
 };
 
 export type BatchId = string;
@@ -6608,3 +6683,34 @@ export type DiscardPendingResponses = {
 };
 
 export type DiscardPendingResponse = DiscardPendingResponses[keyof DiscardPendingResponses];
+
+export type RecordPendingData = {
+    body: {
+        /**
+         * The URL of the pull request.
+         */
+        url: string;
+        marks: Array<PendingMark>;
+    };
+    path?: never;
+    query?: never;
+    url: '/pending-reviews/marks';
+};
+
+export type RecordPendingErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type RecordPendingError = RecordPendingErrors[keyof RecordPendingErrors];
+
+export type RecordPendingResponses = {
+    /**
+     * Kept.
+     */
+    204: void;
+};
+
+export type RecordPendingResponse = RecordPendingResponses[keyof RecordPendingResponses];

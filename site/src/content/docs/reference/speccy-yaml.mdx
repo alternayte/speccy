@@ -27,6 +27,8 @@ mode: standalone
 enforcement: advisory
 pr:
   inline_limit: 15
+  levels: [must, should]
+  attribution: none
 ```
 
 ## Keys
@@ -47,6 +49,8 @@ pr:
 | `server` | URL | none | The Speccy server of connected mode. |
 | `enforcement` | `advisory` or `blocking` | `advisory` | Whether a Not Build Ready verdict fails `speccy review` and `speccy action`. |
 | `pr.inline_limit` | integer | 15 | The most inline comments that `speccy action` posts on one bundle. |
+| `pr.levels` | list of `must` and `should` | MUST findings, and SHOULD findings with a fix | The finding levels that go inline as comments. |
+| `pr.attribution` | `speccy` or `none` | `speccy` | With `none`, a pending review does not name Speccy. |
 
 ### bundles
 
@@ -137,6 +141,33 @@ An `--enforcement` flag wins over the file. The GitHub Action's `enforcement` in
 
 `speccy action` posts MUST findings, and findings with a fix for the line, as inline comments on changed lines. It posts at most `inline_limit` for each bundle, and the rest go into the summary comment. A value of 0 or less is 15.
 
+### pr.levels
+
+`pr.levels` names the finding levels that go inline as comments. It applies to `speccy action`, `speccy action --pr` and `speccy review-prs`.
+
+| Value | Inline comments on changed lines |
+|---|---|
+| No key | Each MUST finding. A SHOULD or INFO finding only with a fix for the line. |
+| `[must]` | The same as no key. |
+| `[must, should]` | Each MUST finding and each SHOULD finding. An INFO finding only with a fix. |
+| `[should]` | Each SHOULD finding. No MUST finding. An INFO finding only with a fix. |
+
+A finding of a named level on a line outside the diff goes into the summary comment, or into the body of a pending review. The `--levels` flag of `speccy action --pr` and `speccy review-prs` wins over the key.
+
+### pr.attribution
+
+With `pr.attribution: none`, a pending review does not name Speccy. Use it when you post the findings in your own name.
+
+- The body does not start with "Speccy reviewed", and it has no `<!-- speccy:body -->` markers.
+- A comment has no last line with the level, the check and the link to the check catalog.
+- A comment has no hidden `<!-- speccy:key:… -->` or `<!-- speccy:ask:… -->` marker.
+
+Speccy keeps the ID of each comment it posts in the local state instead. A later `speccy review-prs` uses these IDs to update the pending review, and `speccy pending list` uses them to show which comments Speccy wrote. Thus keep the same local state between the rounds of a review.
+
+The key applies to `speccy action --pr --pending`, `speccy review-prs` and `speccy ask`. The `--no-attribution` flag of these commands sets it for one run.
+
+The GitHub Action in CI ignores `pr.attribution: none` and prints a note. The Action posts as its own bot, and it keeps no state between runs. It needs its markers to find its comments on the next push.
+
 ## Where Speccy looks for the file
 
 | Command | The file it reads |
@@ -145,6 +176,7 @@ An `--enforcement` flag wins over the file. The GitHub Action's `enforcement` in
 | `speccy review`, `action`, `tui`, `mcp`, `add`, `export`, `handoff`, `report`, `verify` | The first `.speccy.yaml` from the current folder up. With none, these commands work on the current folder with no configuration. |
 | `speccy init`, `speccy init --github` | `.speccy.yaml` in the current folder. |
 | A GitHub source | `.speccy.yaml` at the root of the repo, on the source's branch. |
+| A review of a GitHub URL: `review_url`, `speccy action --pr`, `speccy review-prs`, `speccy ask` | `.speccy.yaml` at the root of the repo, at the commit that the review reads. When the repo has none, the `.speccy.yaml` of the folder that Speccy serves. The output names the file that the review used. |
 
 The folder that holds the file is the root. Every glob and path in the file is relative to it.
 
@@ -186,6 +218,9 @@ Speccy checks every entry, and it joins the problems with `;` after `.speccy.yam
 | A pattern that is not a web URL | `link_patterns: the pattern "ftp://x/{key}" is not an http or https URL` |
 | Another `mode` | `mode "remote" is not standalone or connected` |
 | Another `enforcement` | `enforcement "strict" is not advisory or blocking` |
+| Another level in `pr.levels` | `pr.levels "info" is not must or should` |
+| An empty `pr.levels` | `pr.levels names no level. Name must, should, or both` |
+| Another `pr.attribution` | `pr.attribution "anonymous" is not speccy or none` |
 
 What each command does with an error:
 

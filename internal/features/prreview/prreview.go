@@ -22,7 +22,6 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
-	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store"
 )
@@ -135,19 +134,6 @@ func detail(err error) string {
 		return "The monthly token budget is spent."
 	}
 	return strings.TrimRight(err.Error(), ".") + "."
-}
-
-// inlineLimit is the repo's own limit of inline comments, at the commit the review read.
-func inlineLimit(ctx context.Context, gh *github.Client, repo, commit string) int {
-	raw, ok, err := gh.FileAt(ctx, repo, commit, source.RepoConfigFile)
-	if err != nil || !ok {
-		return 0
-	}
-	cfg, err := source.ParseRepoConfig(raw)
-	if err != nil {
-		return 0
-	}
-	return cfg.PR.InlineLimit
 }
 
 func (a *API) checks(key string) (profile.Profile, bool) {

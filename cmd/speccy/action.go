@@ -56,6 +56,8 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	// --pr reviews a pull request from a laptop, and --pending or --dry-run says what to do with
 	// the findings (#91).
 	prURL, pending, dryRun, prMode := "", false, false, false
+	// --levels and --no-attribution shape the pending review of --pr (#131, #140).
+	var pf prFlagsAction
 	var kept []string
 	for i := 0; i < len(args); i++ {
 		switch a := args[i]; {
@@ -65,6 +67,15 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 			pending = true
 		case a == "--dry-run":
 			dryRun = true
+		case a == "--no-attribution":
+			pf.noAttribution = true
+		case a == "--levels" && i+1 < len(args):
+			i++
+			pf.levels, pf.levelsSet = args[i], true
+		case a == "--levels":
+			pf.levelsSet = true
+		case strings.HasPrefix(a, "--levels="):
+			pf.levels, pf.levelsSet = strings.TrimPrefix(a, "--levels="), true
 		case a == "--pr" && i+1 < len(args):
 			i++
 			prURL, prMode = args[i], true
@@ -79,12 +90,16 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	args = kept
 	fl, err := parseReviewFlags(append(args, "."))
 	if err != nil {
-		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]\n       speccy action --pr <pull request URL> --pending | --dry-run [--stages …]\n", err)
+		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]\n       %s", err, actionPRUsage)
 		return exitUsage
 	}
 	fl.paths = nil
 	if prMode || pending || dryRun {
-		return runActionPR(prURL, pending, dryRun, fl, stdout, stderr)
+		return runActionPR(prURL, pending, dryRun, fl, pf, stdout, stderr)
+	}
+	if pf.noAttribution || pf.levelsSet {
+		fmt.Fprintf(stderr, "speccy action: --levels and --no-attribution work with --pr only. In CI, set pr.levels in %s.\n", source.RepoConfigFile)
+		return exitUsage
 	}
 	getenv := os.Getenv
 	token, repo := getenv("GITHUB_TOKEN"), getenv("GITHUB_REPOSITORY")
@@ -237,7 +252,12 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		bundles = append(bundles, ab)
 	}
 
-	o := action.Options{GitHub: gh, Repo: repo, InlineLimit: cfg.PR.InlineLimit, Blocking: enforcement == "blocking", RunURL: runURL}
+	o := action.Options{GitHub: gh, Repo: repo, InlineLimit: cfg.PR.InlineLimit, Levels: cfg.PR.Levels, Blocking: enforcement == "blocking", RunURL: runURL}
+	// #140: attribution none is for a reviewer's pending review. The Action posts as its own
+	// bot, and its hidden markers find its threads on the next push, with no state between runs.
+	if cfg.PR.Attribution == source.AttributionNone {
+		fmt.Fprintf(stderr, "Note: pr.attribution: none in %s applies to pending reviews only. The Action posts as its own bot and keeps its markers.\n", source.RepoConfigFile)
+	}
 	// Adoption mode: which relaxed checks now pass on every mapped doc (REQ-133). The sweep
 	// lints the docs this pull request did not change, and makes no model call.
 	o.Relaxed = cfg.Adoption.Relaxed

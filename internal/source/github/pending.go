@@ -156,11 +156,33 @@ func (c *Client) Pending(ctx context.Context, repo string, number int) (*Pending
 	return nil, nil
 }
 
-// AddPendingComment adds a comment on a line of the new side of the diff to a pending review.
-func (c *Client) AddPendingComment(ctx context.Context, reviewID, path string, line int, body string) error {
-	var data any
-	q := `mutation($id:ID!,$path:String!,$line:Int!,$body:String!){addPullRequestReviewThread(input:{pullRequestReviewId:$id,path:$path,line:$line,side:RIGHT,body:$body}){thread{id}}}`
-	return c.graphql(ctx, q, map[string]any{"id": reviewID, "path": path, "line": line, "body": body}, &data)
+// threadAdded is the answer of addPullRequestReviewThread: the node ID of the new comment.
+type threadAdded struct {
+	Add struct {
+		Thread struct {
+			Comments struct {
+				Nodes []struct {
+					ID string `json:"id"`
+				} `json:"nodes"`
+			} `json:"comments"`
+		} `json:"thread"`
+	} `json:"addPullRequestReviewThread"`
+}
+
+func (t threadAdded) id() string {
+	if n := t.Add.Thread.Comments.Nodes; len(n) > 0 {
+		return n[0].ID
+	}
+	return ""
+}
+
+// AddPendingComment adds a comment on a line of the new side of the diff to a pending review,
+// and returns the node ID of the comment.
+func (c *Client) AddPendingComment(ctx context.Context, reviewID, path string, line int, body string) (string, error) {
+	var data threadAdded
+	q := `mutation($id:ID!,$path:String!,$line:Int!,$body:String!){addPullRequestReviewThread(input:{pullRequestReviewId:$id,path:$path,line:$line,side:RIGHT,body:$body}){thread{id comments(first:1){nodes{id}}}}}`
+	err := c.graphql(ctx, q, map[string]any{"id": reviewID, "path": path, "line": line, "body": body}, &data)
+	return data.id(), err
 }
 
 // SetPendingBody replaces the body of a pending review.
@@ -186,11 +208,12 @@ func (c *Client) DiscardPending(ctx context.Context, reviewID string) error {
 
 // AddPendingFileComment adds a comment on a whole file of the diff to a pending review. It holds
 // what has no line in the diff when the review's body cannot change: GitHub refuses to edit a
-// review body that started empty.
-func (c *Client) AddPendingFileComment(ctx context.Context, reviewID, path, body string) error {
-	var data any
-	q := `mutation($id:ID!,$path:String!,$body:String!){addPullRequestReviewThread(input:{pullRequestReviewId:$id,path:$path,subjectType:FILE,body:$body}){thread{id}}}`
-	return c.graphql(ctx, q, map[string]any{"id": reviewID, "path": path, "body": body}, &data)
+// review body that started empty. It returns the node ID of the comment.
+func (c *Client) AddPendingFileComment(ctx context.Context, reviewID, path, body string) (string, error) {
+	var data threadAdded
+	q := `mutation($id:ID!,$path:String!,$body:String!){addPullRequestReviewThread(input:{pullRequestReviewId:$id,path:$path,subjectType:FILE,body:$body}){thread{id comments(first:1){nodes{id}}}}}`
+	err := c.graphql(ctx, q, map[string]any{"id": reviewID, "path": path, "body": body}, &data)
+	return data.id(), err
 }
 
 // UpdatePendingComment replaces the text of one comment of a pending review.

@@ -613,7 +613,7 @@ func TestMerge_KeepsTheReviewersDraft(t *testing.T) {
 		{Path: "SPEC.md", Line: 3, Body: "Same finding\n\n" + keyMarker + "k1 -->"},
 		{Path: "SPEC.md", Line: 9, Body: "New finding\n\n" + keyMarker + "k2 -->"},
 	}}
-	add, body, _ := Merge(existing, next)
+	add, _, body, _ := Merge(existing, next, nil)
 	if len(add) != 1 || add[0].Line != 9 {
 		t.Errorf("added %+v, want only the comment of the new finding", add)
 	}
@@ -630,7 +630,7 @@ func TestMerge_KeepsTheReviewersDraft(t *testing.T) {
 func TestCommentBody_LeadsWithTheAsk(t *testing.T) {
 	q, fix := "What happens to a payment when the third retry fails?", "Write must in capitals."
 	answer := commentBody(api.Finding{CheckSlug: "divergence.gap", Level: api.FindingLevelMUST, Message: "No reader found an answer.",
-		Question: &q, FixKind: api.Answer}, "", false)
+		Question: &q, FixKind: api.Answer}, "", false, false)
 	if !strings.HasPrefix(answer, q) {
 		t.Errorf("the answer finding does not lead with its question: %q", answer)
 	}
@@ -638,11 +638,11 @@ func TestCommentBody_LeadsWithTheAsk(t *testing.T) {
 		t.Errorf("the last line is not the level and the linked check: %q", answer)
 	}
 	reword := commentBody(api.Finding{CheckSlug: "lint.rfc2119-case", Level: api.FindingLevelSHOULD, Message: "Lower-case must.",
-		Fix: &fix, FixKind: api.Reword}, "The service MUST retry.", true)
+		Fix: &fix, FixKind: api.Reword}, "The service MUST retry.", true, false)
 	if !strings.HasPrefix(reword, fix+"\n\n```suggestion\nThe service MUST retry.\n```") {
 		t.Errorf("the reword finding does not lead with its fix: %q", reword)
 	}
-	custom := commentBody(api.Finding{CheckSlug: "acme.owner", Level: api.FindingLevelMUST, Message: "No owner."}, "", false)
+	custom := commentBody(api.Finding{CheckSlug: "acme.owner", Level: api.FindingLevelMUST, Message: "No owner."}, "", false, false)
 	if !strings.HasSuffix(custom, "<sub>MUST · `acme.owner`</sub>") {
 		t.Errorf("a check with no catalog entry has a link: %q", custom)
 	}
@@ -660,11 +660,11 @@ func TestMerge_RemovesCommentsOfGoneFindings(t *testing.T) {
 		{ID: "live", Path: "docs/pay.md", Body: "x\n\n" + keyMarker + live + " -->"},
 		{ID: "gone", Path: "docs/pay.md", Body: "y\n\n" + keyMarker + "0000000000000000 -->"},
 		{ID: "other", Path: "specs/other.md", Body: "z\n\n" + keyMarker + "1111111111111111 -->"},
-		{ID: "ask", Path: "docs/pay.md", Body: AskComment("Who owns retries?", "abc")},
+		{ID: "ask", Path: "docs/pay.md", Body: AskComment("Who owns retries?", "abc", false)},
 		{ID: "mine", Path: "docs/pay.md", Body: "My own note."},
 	}}
 	stale := func(o Options, bundles ...Bundle) []string {
-		_, _, out := Merge(existing, Pending(o, bundles, nil))
+		_, _, _, out := Merge(existing, Pending(o, bundles, nil), nil)
 		var ids []string
 		for _, c := range out {
 			ids = append(ids, c.ID)
@@ -681,5 +681,54 @@ func TestMerge_RemovesCommentsOfGoneFindings(t *testing.T) {
 	failed.Error, failed.Findings = "The review failed.", nil
 	if got := stale(Options{Prune: true}, failed); len(got) != 0 {
 		t.Errorf("a failed review removed %v", got)
+	}
+}
+
+// #140: a pending review with no attribution names no tool, and a later round still finds its
+// comments and its part of the body through the marks that the local state keeps.
+func TestPending_PlainMergesByMarks(t *testing.T) {
+	src := doc()
+	b := Bundle{Slug: "docs/refunds", Dir: "docs/refunds", MainDoc: "PRD.md", Kind: "full", Verdict: "not_build_ready",
+		Findings: []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelMUST, "TBD")}, Files: map[string][]byte{"PRD.md": src}}
+	files := []github.PRFile{{Filename: "docs/refunds/PRD.md", Patch: patchFor(8)}}
+	o := Options{Repo: "acme/specs", PR: 7, HeadSHA: "aaaaaaa", Unattributed: true, Prune: true}
+	first := Pending(o, []Bundle{b}, files)
+	text := first.Body
+	for _, c := range first.Comments {
+		text += c.Body
+	}
+	if len(first.Comments) != 1 || strings.Contains(strings.ToLower(text), "speccy") || strings.Contains(text, "<!--") {
+		t.Fatalf("a plain review names the tool or holds a marker:\n%s", text)
+	}
+	posted := &github.PendingReview{ID: "R", Body: "My note.\n\n" + first.Body, Comments: []github.PendingComment{
+		{ID: "C1", Path: first.Comments[0].Path, Line: first.Comments[0].Line, Body: first.Comments[0].Body},
+		{ID: "C2", Path: "docs/refunds/PRD.md", Line: 9, Body: "Why a queue here?"},
+	}}
+	marks := Posted(posted, first)
+	o.HeadSHA = "bbbbbbb"
+	add, _, body, stale := Merge(posted, Pending(o, []Bundle{b}, files), marks)
+	if len(add) != 0 || len(stale) != 0 {
+		t.Errorf("added %d and removed %d comments; want none, the finding has its comment", len(add), len(stale))
+	}
+	if !strings.HasPrefix(body, "My note.") || !strings.Contains(body, "bbbbbbb") || strings.Contains(body, "aaaaaaa") {
+		t.Errorf("the earlier part of the body was not replaced: %q", body)
+	}
+	if BySpeccy(posted.Comments[1], marks) || !BySpeccy(posted.Comments[0], marks) {
+		t.Error("the marks do not tell the reviewer's comment from the finding's")
+	}
+}
+
+// #131: with should in the levels, a SHOULD finding on a changed line goes inline although it
+// has no suggestion. By default it stays in the report.
+func TestCandidates_ShouldLevel(t *testing.T) {
+	src := doc()
+	b := Bundle{Slug: "docs/refunds", Dir: "docs/refunds", MainDoc: "PRD.md",
+		Findings: []api.Finding{finding(src, 8, "lint.placeholder", api.FindingLevelSHOULD, "TBD")}, Files: map[string][]byte{"PRD.md": src}}
+	changed := map[string]map[int]bool{"docs/refunds/PRD.md": {8: true}}
+	if inline, _ := candidates(b, changed, nil, false); len(inline) != 0 {
+		t.Errorf("by default %d SHOULD comments went inline; want none", len(inline))
+	}
+	if inline, _ := candidates(b, changed, []string{"must", "should"}, false); len(inline) != 1 {
+		t.Errorf("with should, %d SHOULD comments went inline; want 1", len(inline))
 	}
 }

@@ -21,6 +21,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 )
 
 // ClientFor returns the API client for one tool call. header holds the HTTP headers of the
@@ -641,6 +642,9 @@ type batchArg struct {
 	Parallel  int      `json:"parallel,omitempty" jsonschema:"how many pull requests run at the same time, 1 to 10. The default is 3."`
 	Again     bool     `json:"again,omitempty" jsonschema:"review a pull request again although it was reviewed at its head commit"`
 	Stages    []string `json:"stages,omitempty" jsonschema:"the model stages to run: rubric, grounding, divergence, coherence. Absent means all."`
+	Levels    []string `json:"levels,omitempty" jsonschema:"the finding levels that go inline as comments: must, should, or both. Absent means pr.levels of the .speccy.yaml: by default MUST findings, and SHOULD findings with a suggestion."`
+	// NoAttribution keeps the name of Speccy out of the pending reviews (#140).
+	NoAttribution bool `json:"no_attribution,omitempty" jsonschema:"keep the name of Speccy out of the pending reviews: no heading, no check catalog link, no hidden marker"`
 }
 
 // reviewPRs starts a batch of pull request reviews (docs/specs/pr-review-batch.md).
@@ -660,6 +664,21 @@ func (tools) reviewPRs(ctx context.Context, c *api.ClientWithResponses, in batch
 	}
 	if in.Again {
 		body.Again = &in.Again
+	}
+	if in.Levels != nil {
+		levels, err := source.ParseLevels(strings.Join(in.Levels, ","))
+		if err != nil {
+			return nil, err
+		}
+		lv := make([]api.PrBatchRequestLevels, len(levels))
+		for i, l := range levels {
+			lv[i] = api.PrBatchRequestLevels(l)
+		}
+		body.Levels = &lv
+	}
+	if in.NoAttribution {
+		none := api.PrBatchRequestAttributionNone
+		body.Attribution = &none
 	}
 	if in.Stages != nil {
 		st := make([]api.PrBatchRequestStages, len(in.Stages))
@@ -725,6 +744,8 @@ type askArg struct {
 	Concern string   `json:"concern" jsonschema:"the person's concern, in their own words"`
 	Section []string `json:"section,omitempty" jsonschema:"the heading path of the section, when the concern fits more than one"`
 	Force   bool     `json:"force,omitempty" jsonschema:"post the question although the doc already answers the concern"`
+	// NoAttribution posts the question with no hidden marker (#140).
+	NoAttribution bool `json:"no_attribution,omitempty" jsonschema:"post the question with no hidden marker that names Speccy"`
 }
 
 // askAuthor turns a concern into a question for the author in the pending review.
@@ -735,6 +756,10 @@ func (tools) askAuthor(ctx context.Context, c *api.ClientWithResponses, in askAr
 	}
 	if in.Force {
 		body.Force = &in.Force
+	}
+	if in.NoAttribution {
+		none := api.AskRequestAttributionNone
+		body.Attribution = &none
 	}
 	res, err := c.AskAuthorWithResponse(ctx, body)
 	if err != nil {

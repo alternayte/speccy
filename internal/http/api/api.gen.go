@@ -41,6 +41,24 @@ func (e AcceptedFixResult) Valid() bool {
 	}
 }
 
+// Defines values for AskRequestAttribution.
+const (
+	AskRequestAttributionNone   AskRequestAttribution = "none"
+	AskRequestAttributionSpeccy AskRequestAttribution = "speccy"
+)
+
+// Valid indicates whether the value is a known member of the AskRequestAttribution enum.
+func (e AskRequestAttribution) Valid() bool {
+	switch e {
+	case AskRequestAttributionNone:
+		return true
+	case AskRequestAttributionSpeccy:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AskResultPlace.
 const (
 	AskResultPlaceBody AskResultPlace = "body"
@@ -863,6 +881,30 @@ func (e PacketQuestionResult) Valid() bool {
 	}
 }
 
+// Defines values for PendingMarkKind.
+const (
+	PendingMarkKindAsk     PendingMarkKind = "ask"
+	PendingMarkKindBody    PendingMarkKind = "body"
+	PendingMarkKindFinding PendingMarkKind = "finding"
+	PendingMarkKindReview  PendingMarkKind = "review"
+)
+
+// Valid indicates whether the value is a known member of the PendingMarkKind enum.
+func (e PendingMarkKind) Valid() bool {
+	switch e {
+	case PendingMarkKindAsk:
+		return true
+	case PendingMarkKindBody:
+		return true
+	case PendingMarkKindFinding:
+		return true
+	case PendingMarkKindReview:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PrBatchStatus.
 const (
 	PrBatchStatusCancelled PrBatchStatus = "cancelled"
@@ -917,6 +959,42 @@ func (e PrBatchItemState) Valid() bool {
 	}
 }
 
+// Defines values for PrBatchRequestAttribution.
+const (
+	PrBatchRequestAttributionNone   PrBatchRequestAttribution = "none"
+	PrBatchRequestAttributionSpeccy PrBatchRequestAttribution = "speccy"
+)
+
+// Valid indicates whether the value is a known member of the PrBatchRequestAttribution enum.
+func (e PrBatchRequestAttribution) Valid() bool {
+	switch e {
+	case PrBatchRequestAttributionNone:
+		return true
+	case PrBatchRequestAttributionSpeccy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrBatchRequestLevels.
+const (
+	PrBatchRequestLevelsMust   PrBatchRequestLevels = "must"
+	PrBatchRequestLevelsShould PrBatchRequestLevels = "should"
+)
+
+// Valid indicates whether the value is a known member of the PrBatchRequestLevels enum.
+func (e PrBatchRequestLevels) Valid() bool {
+	switch e {
+	case PrBatchRequestLevelsMust:
+		return true
+	case PrBatchRequestLevelsShould:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PrBatchRequestStages.
 const (
 	PrBatchRequestStagesCoherence  PrBatchRequestStages = "coherence"
@@ -935,6 +1013,42 @@ func (e PrBatchRequestStages) Valid() bool {
 	case PrBatchRequestStagesGrounding:
 		return true
 	case PrBatchRequestStagesRubric:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrSettingsAttribution.
+const (
+	PrSettingsAttributionNone   PrSettingsAttribution = "none"
+	PrSettingsAttributionSpeccy PrSettingsAttribution = "speccy"
+)
+
+// Valid indicates whether the value is a known member of the PrSettingsAttribution enum.
+func (e PrSettingsAttribution) Valid() bool {
+	switch e {
+	case PrSettingsAttributionNone:
+		return true
+	case PrSettingsAttributionSpeccy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PrSettingsLevels.
+const (
+	PrSettingsLevelsMust   PrSettingsLevels = "must"
+	PrSettingsLevelsShould PrSettingsLevels = "should"
+)
+
+// Valid indicates whether the value is a known member of the PrSettingsLevels enum.
+func (e PrSettingsLevels) Valid() bool {
+	switch e {
+	case PrSettingsLevelsMust:
+		return true
+	case PrSettingsLevelsShould:
 		return true
 	default:
 		return false
@@ -1343,6 +1457,27 @@ func (e TraceCellState) Valid() bool {
 	case TraceCellStateOutOfScope:
 		return true
 	case TraceCellStateReferenced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UrlReviewConfigSource.
+const (
+	UrlReviewConfigSourceLocal UrlReviewConfigSource = "local"
+	UrlReviewConfigSourceNone  UrlReviewConfigSource = "none"
+	UrlReviewConfigSourceRepo  UrlReviewConfigSource = "repo"
+)
+
+// Valid indicates whether the value is a known member of the UrlReviewConfigSource enum.
+func (e UrlReviewConfigSource) Valid() bool {
+	switch e {
+	case UrlReviewConfigSourceLocal:
+		return true
+	case UrlReviewConfigSourceNone:
+		return true
+	case UrlReviewConfigSourceRepo:
 		return true
 	default:
 		return false
@@ -1791,6 +1926,9 @@ type Anchor struct {
 
 // AskRequest defines model for AskRequest.
 type AskRequest struct {
+	// Attribution none posts the question with no hidden marker. Absent means pr.attribution of the .speccy.yaml that the pull request review uses.
+	Attribution *AskRequestAttribution `json:"attribution,omitempty"`
+
 	// Concern The reviewer's concern, in their own words.
 	Concern string `json:"concern"`
 
@@ -1803,6 +1941,9 @@ type AskRequest struct {
 	// Url The URL of the pull request.
 	Url string `json:"url"`
 }
+
+// AskRequestAttribution none posts the question with no hidden marker. Absent means pr.attribution of the .speccy.yaml that the pull request review uses.
+type AskRequestAttribution string
 
 // AskResult defines model for AskResult.
 type AskResult struct {
@@ -2935,6 +3076,24 @@ type PendingComment struct {
 	Speccy bool `json:"speccy"`
 }
 
+// PendingMark What Speccy wrote in a pending review with no attribution, by GitHub ID.
+type PendingMark struct {
+	// Body With review, the part of the review body that Speccy wrote.
+	Body string `json:"body"`
+
+	// CommentId The GitHub node ID of the comment, or of the review for kind review and a question in the body.
+	CommentId string `json:"comment_id"`
+
+	// Key The finding key, or the question ID. Empty for body and review.
+	Key string `json:"key"`
+
+	// Kind finding: a comment of a finding. ask: a question of the reviewer. body: the comment that holds Speccy's part of the body. review: the review, whose body holds Speccy's part.
+	Kind PendingMarkKind `json:"kind"`
+}
+
+// PendingMarkKind finding: a comment of a finding. ask: a question of the reviewer. body: the comment that holds Speccy's part of the body. review: the review, whose body holds Speccy's part.
+type PendingMarkKind string
+
 // PendingReview defines model for PendingReview.
 type PendingReview struct {
 	Body     *string          `json:"body,omitempty"`
@@ -3012,10 +3171,13 @@ type PrBatchEstimate struct {
 // PrBatchItem defines model for PrBatchItem.
 type PrBatchItem struct {
 	// Comments The comments Speccy added to the pending review.
-	Comments int          `json:"comments"`
-	Docs     []PrBatchDoc `json:"docs"`
-	HeadSha  string       `json:"head_sha"`
-	Pull     int          `json:"pull"`
+	Comments int `json:"comments"`
+
+	// Config The .speccy.yaml that the review used.
+	Config  *UrlReviewConfig `json:"config,omitempty"`
+	Docs    []PrBatchDoc     `json:"docs"`
+	HeadSha string           `json:"head_sha"`
+	Pull    int              `json:"pull"`
 
 	// Reason Why a pull request is skipped, or why it failed.
 	Reason string `json:"reason"`
@@ -3036,6 +3198,12 @@ type PrBatchRequest struct {
 	// Again Review a pull request again although it was reviewed at its head commit.
 	Again *bool `json:"again,omitempty"`
 
+	// Attribution none keeps the name of Speccy out of the pending reviews. Absent means pr.attribution of the .speccy.yaml that each review uses.
+	Attribution *PrBatchRequestAttribution `json:"attribution,omitempty"`
+
+	// Levels The finding levels that go inline as comments. Absent means pr.levels of the .speccy.yaml that each review uses.
+	Levels *[]PrBatchRequestLevels `json:"levels,omitempty"`
+
 	// Parallel How many pull requests run at the same time. The default is 3.
 	Parallel *int `json:"parallel,omitempty"`
 
@@ -3055,6 +3223,12 @@ type PrBatchRequest struct {
 	Urls *[]string `json:"urls,omitempty"`
 }
 
+// PrBatchRequestAttribution none keeps the name of Speccy out of the pending reviews. Absent means pr.attribution of the .speccy.yaml that each review uses.
+type PrBatchRequestAttribution string
+
+// PrBatchRequestLevels defines model for PrBatchRequest.Levels.
+type PrBatchRequestLevels string
+
 // PrBatchRequestStages defines model for PrBatchRequest.Stages.
 type PrBatchRequestStages string
 
@@ -3064,6 +3238,24 @@ type PrRef struct {
 	Repo string `json:"repo"`
 	Url  string `json:"url"`
 }
+
+// PrSettings The pr section of the .speccy.yaml that the review used.
+type PrSettings struct {
+	// Attribution none keeps the name of Speccy out of a pending review.
+	Attribution PrSettingsAttribution `json:"attribution"`
+
+	// InlineLimit The most inline comments per spec doc. 0 means the default of 15.
+	InlineLimit int `json:"inline_limit"`
+
+	// Levels The finding levels that go inline as comments. Empty means the default: MUST findings, and SHOULD findings with a suggestion.
+	Levels []PrSettingsLevels `json:"levels"`
+}
+
+// PrSettingsAttribution none keeps the name of Speccy out of a pending review.
+type PrSettingsAttribution string
+
+// PrSettingsLevels defines model for PrSettings.Levels.
+type PrSettingsLevels string
 
 // Preset defines model for Preset.
 type Preset struct {
@@ -3726,8 +3918,11 @@ type Trend struct {
 // UrlReview defines model for UrlReview.
 type UrlReview struct {
 	// Commit The commit that Speccy read.
-	Commit string         `json:"commit"`
-	Docs   []UrlReviewDoc `json:"docs"`
+	Commit string `json:"commit"`
+
+	// Config The .speccy.yaml that the review used.
+	Config UrlReviewConfig `json:"config"`
+	Docs   []UrlReviewDoc  `json:"docs"`
 
 	// Pull The number of the pull request, for a pull request URL.
 	Pull *int `json:"pull,omitempty"`
@@ -3735,6 +3930,21 @@ type UrlReview struct {
 	// Repo The repo, as owner/name.
 	Repo string `json:"repo"`
 }
+
+// UrlReviewConfig The .speccy.yaml that the review used.
+type UrlReviewConfig struct {
+	// Path With repo, the file in the repo. With local, the file on this machine. With none, empty.
+	Path string `json:"path"`
+
+	// Pr The pr section of the .speccy.yaml that the review used.
+	Pr PrSettings `json:"pr"`
+
+	// Source repo: the .speccy.yaml of the repo at the commit. local: the .speccy.yaml of the folder that this Speccy serves, because the repo has none at the commit. none: the repo and the folder have none.
+	Source UrlReviewConfigSource `json:"source"`
+}
+
+// UrlReviewConfigSource repo: the .speccy.yaml of the repo at the commit. local: the .speccy.yaml of the folder that this Speccy serves, because the repo has none at the commit. none: the repo and the folder have none.
+type UrlReviewConfigSource string
 
 // UrlReviewDoc One reviewed spec doc. It has its review, or the reason the review of this doc stopped.
 type UrlReviewDoc struct {
@@ -4328,6 +4538,14 @@ type DiscardPendingJSONBody struct {
 	Urls *[]string `json:"urls,omitempty"`
 }
 
+// RecordPendingJSONBody defines parameters for RecordPending.
+type RecordPendingJSONBody struct {
+	Marks []PendingMark `json:"marks"`
+
+	// Url The URL of the pull request.
+	Url string `json:"url"`
+}
+
 // CreateProfileJSONBody defines parameters for CreateProfile.
 type CreateProfileJSONBody struct {
 	Key      string `json:"key"`
@@ -4511,6 +4729,9 @@ type DeletePendingJSONRequestBody DeletePendingJSONBody
 
 // DiscardPendingJSONRequestBody defines body for DiscardPending for application/json ContentType.
 type DiscardPendingJSONRequestBody DiscardPendingJSONBody
+
+// RecordPendingJSONRequestBody defines body for RecordPending for application/json ContentType.
+type RecordPendingJSONRequestBody RecordPendingJSONBody
 
 // AskAuthorJSONRequestBody defines body for AskAuthor for application/json ContentType.
 type AskAuthorJSONRequestBody = AskRequest
@@ -4883,6 +5104,9 @@ type ServerInterface interface {
 	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
 	// (POST /pending-reviews/discard)
 	DiscardPending(w http.ResponseWriter, r *http.Request)
+	// RecordPending Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+	// (POST /pending-reviews/marks)
+	RecordPending(w http.ResponseWriter, r *http.Request)
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	// (GET /people)
 	ListPeople(w http.ResponseWriter, r *http.Request)
@@ -7605,6 +7829,20 @@ func (siw *ServerInterfaceWrapper) DiscardPending(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// RecordPending operation middleware
+func (siw *ServerInterfaceWrapper) RecordPending(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RecordPending(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPeople operation middleware
 func (siw *ServerInterfaceWrapper) ListPeople(w http.ResponseWriter, r *http.Request) {
 
@@ -8943,6 +9181,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/pending-reviews", wrapper.ListPending)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/delete", wrapper.DeletePending)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/discard", wrapper.DiscardPending)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/marks", wrapper.RecordPending)
 
 	return m
 }
@@ -12877,6 +13116,39 @@ func (response DiscardPendingdefaultApplicationProblemPlusJSONResponse) VisitDis
 	return err
 }
 
+type RecordPendingRequestObject struct {
+	Body *RecordPendingJSONRequestBody
+}
+
+type RecordPendingResponseObject interface {
+	VisitRecordPendingResponse(w http.ResponseWriter) error
+}
+
+type RecordPending204Response struct {
+}
+
+func (response RecordPending204Response) VisitRecordPendingResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RecordPendingdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response RecordPendingdefaultApplicationProblemPlusJSONResponse) VisitRecordPendingResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListPeopleRequestObject struct {
 }
 
@@ -15020,6 +15292,9 @@ type StrictServerInterface interface {
 	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
 	// (POST /pending-reviews/discard)
 	DiscardPending(ctx context.Context, request DiscardPendingRequestObject) (DiscardPendingResponseObject, error)
+	// RecordPending Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
+	// (POST /pending-reviews/marks)
+	RecordPending(ctx context.Context, request RecordPendingRequestObject) (RecordPendingResponseObject, error)
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	// (GET /people)
 	ListPeople(ctx context.Context, request ListPeopleRequestObject) (ListPeopleResponseObject, error)
@@ -18030,6 +18305,37 @@ func (sh *strictHandler) DiscardPending(w http.ResponseWriter, r *http.Request) 
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(DiscardPendingResponseObject); ok {
 		if err := validResponse.VisitDiscardPendingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RecordPending operation middleware
+func (sh *strictHandler) RecordPending(w http.ResponseWriter, r *http.Request) {
+	var request RecordPendingRequestObject
+
+	var body RecordPendingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RecordPending(ctx, request.(RecordPendingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RecordPending")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RecordPendingResponseObject); ok {
+		if err := validResponse.VisitRecordPendingResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

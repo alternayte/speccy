@@ -60,6 +60,10 @@ type Service struct {
 	// to a spec doc: its GitHub source's, or the served folder's.
 	Profiles func() map[string]profile.Versioned
 	Repo     func(context.Context, pgdb.SpecDoc) (source.RepoConfig, error)
+	// LocalConfig reads the .speccy.yaml of the served folder, for a review of a GitHub URL
+	// whose repo has none: the config, its path, and whether the file exists. Nil in hosted
+	// mode, which serves no folder.
+	LocalConfig func() (cfg source.RepoConfig, path string, found bool, err error)
 	// Decisions returns a bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 	Decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error)
 	// GitHub returns the client for a GitHub host: the gh token in local mode, the source's
