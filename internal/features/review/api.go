@@ -16,6 +16,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/store"
 )
 
@@ -327,6 +328,7 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 				af.TraceId = &ev.ID
 			}
 		}
+		af.Conflict = conflictAPI(source.ConflictOf(f.CheckSlug, f.Evidence))
 		if f.CheckSlug == HasUpstreamSlug {
 			var ev sourceEvidence
 			_ = json.Unmarshal(f.Evidence, &ev)

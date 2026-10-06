@@ -49,6 +49,8 @@ type Querier interface {
 	DeleteLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
 	DeleteOrphanBlobs(ctx context.Context) error
+	DeletePrReviewComment(ctx context.Context, arg DeletePrReviewCommentParams) error
+	DeletePrReviewComments(ctx context.Context, arg DeletePrReviewCommentsParams) error
 	DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error
 	DeleteProfileMaintainersOf(ctx context.Context, profileID uuid.UUID) error
 	DeleteProfileRow(ctx context.Context, arg DeleteProfileRowParams) error
@@ -132,6 +134,7 @@ type Querier interface {
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
 	InsertPrBatch(ctx context.Context, arg InsertPrBatchParams) error
 	InsertPrBatchItem(ctx context.Context, arg InsertPrBatchItemParams) error
+	InsertPrReviewComment(ctx context.Context, arg InsertPrReviewCommentParams) error
 	InsertProfile(ctx context.Context, arg InsertProfileParams) error
 	InsertProfileMaintainer(ctx context.Context, arg InsertProfileMaintainerParams) error
 	InsertProfileVersion(ctx context.Context, arg InsertProfileVersionParams) error
@@ -202,6 +205,7 @@ type Querier interface {
 	// Messages in threads of the workspace after a time, newest first, for the inbox.
 	ListMessagesSince(ctx context.Context, arg ListMessagesSinceParams) ([]ListMessagesSinceRow, error)
 	ListPrBatchItems(ctx context.Context, batchID uuid.UUID) ([]PrBatchItem, error)
+	ListPrReviewComments(ctx context.Context, arg ListPrReviewCommentsParams) ([]PrReviewComment, error)
 	ListProfileMaintainers(ctx context.Context, profileID uuid.UUID) ([]string, error)
 	ListProfileThreads(ctx context.Context, arg ListProfileThreadsParams) ([]ThreadView, error)
 	ListProfileVersions(ctx context.Context, profileID uuid.UUID) ([]ListProfileVersionsRow, error)

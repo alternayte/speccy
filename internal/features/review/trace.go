@@ -258,7 +258,11 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 	m := &api.TraceMatrix{Upstream: bundleRefAPI(up), Rows: []api.TraceRow{}, Columns: []api.BundleRef{}, Cells: [][]api.TraceCell{}, Editable: []bool{}}
 	q := a.DB.Queries()
 	actor := kernel.ActorFrom(ctx)
-	defs := lint.Definitions(upMain, prefixes)
+	// One row for each ID, at its first definition (#130).
+	var defs []lint.Definition
+	for _, g := range definedIDs(lint.Definitions(upMain, prefixes)) {
+		defs = append(defs, g.sites[0])
+	}
 	for _, d := range defs {
 		m.Rows = append(m.Rows, api.TraceRow{Id: d.ID, Text: strings.TrimSpace(d.Text), Anchor: anchorAPI(anchor.New(up.DocPath, upMain, upDoc, d.Start, d.End))})
 		m.Cells = append(m.Cells, []api.TraceCell{})

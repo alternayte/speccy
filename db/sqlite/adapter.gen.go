@@ -152,6 +152,14 @@ func (a Adapter) DeleteOrphanBlobs(ctx context.Context) error {
 	return a.q.DeleteOrphanBlobs(ctx)
 }
 
+func (a Adapter) DeletePrReviewComment(ctx context.Context, arg pgdb.DeletePrReviewCommentParams) error {
+	return a.q.DeletePrReviewComment(ctx, DeletePrReviewCommentParams(arg))
+}
+
+func (a Adapter) DeletePrReviewComments(ctx context.Context, arg pgdb.DeletePrReviewCommentsParams) error {
+	return a.q.DeletePrReviewComments(ctx, DeletePrReviewCommentsParams(arg))
+}
+
 func (a Adapter) DeleteProfileMaintainers(ctx context.Context, profileID uuid.UUID) error {
 	return a.q.DeleteProfileMaintainers(ctx, profileID)
 }
@@ -501,6 +509,10 @@ func (a Adapter) InsertPrBatch(ctx context.Context, arg pgdb.InsertPrBatchParams
 
 func (a Adapter) InsertPrBatchItem(ctx context.Context, arg pgdb.InsertPrBatchItemParams) error {
 	return a.q.InsertPrBatchItem(ctx, InsertPrBatchItemParams(arg))
+}
+
+func (a Adapter) InsertPrReviewComment(ctx context.Context, arg pgdb.InsertPrReviewCommentParams) error {
+	return a.q.InsertPrReviewComment(ctx, InsertPrReviewCommentParams(arg))
 }
 
 func (a Adapter) InsertProfile(ctx context.Context, arg pgdb.InsertProfileParams) error {
@@ -961,6 +973,18 @@ func (a Adapter) ListPrBatchItems(ctx context.Context, batchID uuid.UUID) ([]pgd
 	out := make([]pgdb.PrBatchItem, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.PrBatchItem(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListPrReviewComments(ctx context.Context, arg pgdb.ListPrReviewCommentsParams) ([]pgdb.PrReviewComment, error) {
+	rows, err := a.q.ListPrReviewComments(ctx, ListPrReviewCommentsParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.PrReviewComment, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.PrReviewComment(r)
 	}
 	return out, nil
 }

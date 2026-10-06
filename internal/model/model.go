@@ -52,7 +52,11 @@ type Call struct {
 	System string
 	Prompt string
 	// Schema is the JSON schema of the answer (DEC-014).
-	Schema    []byte
+	Schema []byte
+	// Accept is a looser schema that the gateway checks the answer against in place of Schema,
+	// or nil to check Schema. The backend still gets Schema. A caller sets it when it checks
+	// the parts of the answer itself, so that one bad part does not fail the whole call.
+	Accept    []byte
 	MaxTokens int64
 	Files     []File
 	// Search lets the model use its native web search (REQ-034). Only set it when

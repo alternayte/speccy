@@ -315,7 +315,7 @@ func (q *Queries) IsProfileMaintainer(ctx context.Context, arg IsProfileMaintain
 }
 
 const listAllRuns = `-- name: ListAllRuns :many
-SELECT r.id, r.workspace_id, r.spec_doc_id, r.version_id, r.profile_key, r.profile_version, r.kind, r.status, r.stage, r.roles, r.prompt_versions, r.tokens_in, r.tokens_out, r.cost_estimate, r.cache_hits, r.error, r.started_at, r.finished_at, r.notes, r.stages, r.decisions_hash, v.result AS verdict_result
+SELECT r.id, r.workspace_id, r.spec_doc_id, r.version_id, r.profile_key, r.profile_version, r.kind, r.status, r.stage, r.roles, r.prompt_versions, r.tokens_in, r.tokens_out, r.cost_estimate, r.cache_hits, r.error, r.started_at, r.finished_at, r.notes, r.stages, r.decisions_hash, r.config_hash, v.result AS verdict_result
 FROM review_run r LEFT JOIN verdict v ON v.run_id = r.id
 WHERE r.workspace_id = ?1 AND r.status = 'complete'
 ORDER BY r.started_at
@@ -343,6 +343,7 @@ type ListAllRunsRow struct {
 	Notes          dbtype.JSON
 	Stages         dbtype.JSON
 	DecisionsHash  string
+	ConfigHash     string
 	VerdictResult  sql.NullString
 }
 
@@ -378,6 +379,7 @@ func (q *Queries) ListAllRuns(ctx context.Context, workspaceID uuid.UUID) ([]Lis
 			&i.Notes,
 			&i.Stages,
 			&i.DecisionsHash,
+			&i.ConfigHash,
 			&i.VerdictResult,
 		); err != nil {
 			return nil, err
@@ -465,7 +467,7 @@ func (q *Queries) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) (
 }
 
 const listFullRunsSince = `-- name: ListFullRunsSince :many
-SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash FROM review_run WHERE workspace_id = ?1 AND kind = 'full' AND status IN ('complete', 'failed')
+SELECT id, workspace_id, spec_doc_id, version_id, profile_key, profile_version, kind, status, stage, roles, prompt_versions, tokens_in, tokens_out, cost_estimate, cache_hits, error, started_at, finished_at, notes, stages, decisions_hash, config_hash FROM review_run WHERE workspace_id = ?1 AND kind = 'full' AND status IN ('complete', 'failed')
   AND finished_at > ?2
 ORDER BY finished_at DESC LIMIT 200
 `
@@ -506,6 +508,7 @@ func (q *Queries) ListFullRunsSince(ctx context.Context, arg ListFullRunsSincePa
 			&i.Notes,
 			&i.Stages,
 			&i.DecisionsHash,
+			&i.ConfigHash,
 		); err != nil {
 			return nil, err
 		}

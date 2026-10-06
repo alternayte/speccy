@@ -42,6 +42,9 @@ What a check reads depends on the check:
 - A check that names a heading, such as `section: "Monitoring"`, reads that section with its subsections, the doc title and the text assets. An edit to another section does not send the check to the model again. When the doc has no such heading, the check reads the whole doc.
 - A check with `scope: section` runs once for each section.
 - Any other rubric check is a whole-doc check. It reads the whole bundle: the spec doc and its text assets. The model judges it again after any edit.
+- A check with `reads: [upstream]` also reads the spec doc of each `implements` or `refines` link target, such as the PRD. A change to the text of that doc sends the check to the model again.
+
+Sometimes the answer for one check does not match the schema. That check then gets one more call, and the review continues. When the second answer does not match either, the check counts as not applicable. The run report then has a note. When a call fails, the answers of the other calls stay in the cache. The next review asks only for the checks that have no answer.
 
 The built-in PRD and SDD profiles name a section on each check that is about one section of the template. The reviewer answers up to eight checks in one call.
 

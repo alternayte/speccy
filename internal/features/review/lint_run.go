@@ -60,6 +60,10 @@ type Service struct {
 	// to a spec doc: its GitHub source's, or the served folder's.
 	Profiles func() map[string]profile.Versioned
 	Repo     func(context.Context, pgdb.SpecDoc) (source.RepoConfig, error)
+	// LocalConfig reads the .speccy.yaml of the served folder, for a review of a GitHub URL
+	// whose repo has none: the config, its path, and whether the file exists. Nil in hosted
+	// mode, which serves no folder.
+	LocalConfig func() (cfg source.RepoConfig, path string, found bool, err error)
 	// Decisions returns a bundle's sidecar: its approved waivers and acknowledgements (DEC-009).
 	Decisions func(context.Context, pgdb.SpecDoc) (source.Decisions, error)
 	// GitHub returns the client for a GitHub host: the gh token in local mode, the source's
@@ -168,6 +172,8 @@ type evaluation struct {
 	// many sections changed since that run read the doc.
 	carriedRun      uuid.UUID
 	sectionsChanged int
+	// notes are the run notes of the deterministic checks.
+	notes []string
 }
 
 // input is what every stage reads: the bundle version, its main doc, and the profile.
@@ -197,6 +203,8 @@ type input struct {
 	addsSources bool
 	// refs are the links of the version outside its bundle folder, as the scan found them.
 	refs []source.Ref
+	// configHash is the hash of the parts of .speccy.yaml that apply to the doc.
+	configHash string
 }
 
 func (s *Service) load(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID, p profile.Versioned) (input, error) {
@@ -257,6 +265,7 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 		in.relaxed[slug] = true
 	}
 	in.size, _, in.sizeNote = DocSize(repo, mainDocPath(b, nil), in.main)
+	in.configHash = configHash(repo, mainDocPath(b, nil))
 	in.addsSources = s.AddSource != nil
 	return in, nil
 }
@@ -653,6 +662,11 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.S
 	if err != nil {
 		return err
 	}
+	// A change to .speccy.yaml makes no new version, but it changes what lint reports (#137).
+	if configHash(repo, mainDocPath(b, nil)) != latest.ConfigHash {
+		_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
+		return err
+	}
 	held, err := s.githubDocs(ctx)
 	if err != nil {
 		return err
@@ -662,12 +676,18 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.S
 	if err != nil {
 		return err
 	}
+	lintRun := latest.Kind == "lint" && latest.Status == "complete"
 	if !sameLinks(stored, links) {
+		// A lint verdict read the old links, so lint again; the run stores the new links.
+		if lintRun {
+			_, err = s.Lint(ctx, b, b.CurrentVersionID.UUID)
+			return err
+		}
 		if err := s.DB.InTx(ctx, func(tx store.Tx) error { return storeLinks(ctx, tx.Queries(), s.Workspace, b, links) }); err != nil {
 			return err
 		}
 	}
-	if latest.Kind != "lint" || latest.Status != "complete" {
+	if !lintRun {
 		return nil
 	}
 	used, err := q.ListRunLinks(ctx, latest.ID)
@@ -732,6 +752,30 @@ func decisionsHash(d source.Decisions) string {
 	return version.Hash(out)
 }
 
+// configHash is the hash of the parts of .speccy.yaml that apply to the doc at rel: the map
+// entry that covers it, the frontmatter keys, the link rules and patterns, and the relaxed
+// checks. A run records it, so a change to them lints the doc again although the doc has no
+// new version (#137). It is empty when none of them is set.
+func configHash(repo source.RepoConfig, rel string) string {
+	var applies struct {
+		Map      *source.Mapping   `json:"map,omitempty"`
+		Keys     map[string]string `json:"keys,omitempty"`
+		Rules    []string          `json:"link_rules,omitempty"`
+		Patterns map[string]string `json:"link_patterns,omitempty"`
+		Relaxed  []string          `json:"relaxed,omitempty"`
+	}
+	if m, ok := repo.MapEntry(rel); ok {
+		applies.Map = &m
+	}
+	applies.Keys, applies.Rules, applies.Patterns = repo.Frontmatter.Keys, repo.LinkRules, repo.LinkPatterns
+	applies.Relaxed = slices.Sorted(slices.Values(repo.Adoption.Relaxed))
+	out, err := json.Marshal(applies)
+	if err != nil || string(out) == "{}" {
+		return ""
+	}
+	return version.Hash(out)
+}
+
 // noProfile is the error of a run on a doc whose type has no profile.
 func (s *Service) noProfile(key string) string {
 	return fmt.Sprintf("No profile has the key %q, so Speccy cannot review this doc. Use a built-in type (%s), or add .speccy/profiles/%s.yaml.",
@@ -758,11 +802,16 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, err
 	}
 	run.DecisionsHash = decisionsHash(in.dec)
-	if in.sizeNote != "" {
-		run.Notes, _ = json.Marshal([]string{in.sizeNote})
-	}
+	run.ConfigHash = in.configHash
 	run.Status = "complete"
 	ev := lintStage(in)
+	var notes []string
+	if in.sizeNote != "" {
+		notes = append(notes, in.sizeNote)
+	}
+	if notes = append(notes, ev.notes...); len(notes) > 0 {
+		run.Notes, _ = json.Marshal(notes)
+	}
 	// Drift reads GitHub, not a model, so the lint pass carries it too (DEC-021).
 	if err := s.driftStage(ctx, nil, in, &ev); err != nil {
 		return run, err
@@ -782,7 +831,7 @@ func insertRun(ctx context.Context, q store.Querier, r pgdb.ReviewRun, finished 
 	return q.InsertRun(ctx, pgdb.InsertRunParams{
 		ID: r.ID, WorkspaceID: r.WorkspaceID, SpecDocID: r.SpecDocID, VersionID: r.VersionID, ProfileKey: r.ProfileKey,
 		ProfileVersion: r.ProfileVersion, Kind: r.Kind, Status: r.Status, Stage: r.Stage, Error: r.Error,
-		Notes: notes, DecisionsHash: r.DecisionsHash, StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
+		Notes: notes, DecisionsHash: r.DecisionsHash, ConfigHash: r.ConfigHash, StartedAt: r.StartedAt, FinishedAt: sql.NullTime{Time: finished, Valid: true},
 	})
 }
 

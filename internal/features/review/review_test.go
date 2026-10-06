@@ -149,9 +149,9 @@ func TestAdoption_RelaxedCheck(t *testing.T) {
 				t.Errorf("verdict = %s with %d relaxed, want build_ready with 3", v.Result, v.RelaxedCount)
 			}
 
-			// Removing a check from the list restores its level.
+			// Removing a check from the list restores its level. The doc does not change, so
+			// only the change to .speccy.yaml makes the lint run again (#137).
 			writeFile(t, en.dir, ".speccy.yaml", "adoption:\n  relaxed: [links.has-upstream, lint.required-headings]\n")
-			writeFile(t, en.dir, "pay/SPEC.md", sdd+"\nMore.\n")
 			if err := en.bundles.Sync(ctx); err != nil {
 				t.Fatal(err)
 			}

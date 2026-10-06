@@ -138,7 +138,7 @@ func Decide(cmds []Command, targets map[string]target) []Decision {
 					d.Refused = "its section is not in the doc any more, so nothing was written"
 					break
 				}
-				d.Waiver = &source.Waiver{Check: t.finding.CheckSlug, Section: bound.Path, Reason: reason, RequestedBy: c.By}
+				d.Waiver = &source.Waiver{Check: t.finding.CheckSlug, Section: bound.Path, Reason: reason, RequestedBy: c.By, Conflict: conflictOf(t.finding)}
 				if bound.Whole {
 					d.Waiver.CheckHash = bound.Hash
 				} else {
@@ -157,6 +157,15 @@ const (
 	coverageSlug = "trace.coverage"
 	upstreamSlug = "links.has-upstream"
 )
+
+// conflictOf is the one conflict a waiver of a contradiction finding excuses, as in the app
+// (#136), or nil for a finding of another check.
+func conflictOf(f api.Finding) *source.Conflict {
+	if f.Conflict == nil || f.CheckSlug != source.ContradictionCheck {
+		return nil
+	}
+	return &source.Conflict{With: f.Conflict.With, Quote: f.Conflict.Quote, WithQuote: f.Conflict.WithQuote}
+}
 
 // binding is what a waiver of the finding binds to, as in the app (§9.3): the section the
 // check names, the finding's section, or the check itself for a whole-doc check.

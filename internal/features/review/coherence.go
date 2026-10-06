@@ -1,6 +1,7 @@
 package review
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/coherence"
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/verdict"
+	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
@@ -20,7 +22,7 @@ import (
 const (
 	CoverageSlug      = "trace.coverage"
 	RestatementSlug   = "coherence.restatement"
-	ContradictionSlug = "coherence.contradiction"
+	ContradictionSlug = source.ContradictionCheck
 )
 
 // Link kinds that each coherence check reads.
@@ -79,35 +81,53 @@ func coherenceChecks(in input, ev *evaluation) {
 
 	for _, l := range in.linked {
 		if slices.Contains(coverageKinds, l.kind) && len(covered) > 0 {
-			defs := lint.Definitions(l.main, covered)
+			// A doc often defines one ID in a summary table and again in a heading: coverage
+			// checks each ID once, at its first definition (#130).
+			defined := definedIDs(lint.Definitions(l.main, covered))
 			// An upstream doc with no ID gives coverage nothing to check: the check does not
 			// apply, and it never passes on nothing.
-			if len(defs) == 0 {
+			if len(defined) == 0 {
 				ev.items = append(ev.items, verdict.Item{Slug: CoverageSlug, Category: verdict.Coherence, Level: coverLevel, Applicable: false})
 			}
-			ids := make([]string, len(defs))
-			byID := map[string]lint.Definition{}
-			for i, d := range defs {
-				ids[i] = d.ID
-				byID[d.ID] = d
+			ids := make([]string, len(defined))
+			for i, d := range defined {
+				ids[i] = d.id
 			}
-			for _, c := range coherence.Coverage(ids, referenced, acks) {
+			var gaps []string
+			for i, c := range coherence.Coverage(ids, referenced, acks) {
 				ev.items = append(ev.items, verdict.Item{Slug: CoverageSlug, Category: verdict.Coherence, Level: coverLevel, Passed: c.State != "gap", Applicable: true})
 				if c.State != "gap" {
 					continue
 				}
-				d := byID[c.ID]
+				gaps = append(gaps, c.ID)
+				sites := defined[i].sites
+				d := sites[0]
 				up := anchor.New(l.target.DocPath, l.main, l.doc, d.Start, d.End)
 				msg := fmt.Sprintf("%s of %s is not referenced in this doc, and not acknowledged.", c.ID, l.target.Slug)
 				if a, ok := acks[c.ID]; ok && !a.Valid() {
 					msg = fmt.Sprintf("%s of %s is not referenced, and its acknowledgement needs a status, a reason, and a target for covered_by.", c.ID, l.target.Slug)
 				}
+				evidence := map[string]any{"id": c.ID, "text": strings.TrimSpace(d.Text), "upstream": l.target.Slug,
+					"upstream_bundle_id": l.target.ID, "upstream_anchor": up}
+				if len(sites) > 1 {
+					anchors := make([]anchor.Anchor, len(sites))
+					places := make([]string, len(sites))
+					for j, s := range sites {
+						anchors[j] = anchor.New(l.target.DocPath, l.main, l.doc, s.Start, s.End)
+						places[j] = placeOf(l.main, anchors[j])
+					}
+					evidence["upstream_definitions"] = anchors
+					msg += fmt.Sprintf(" %s defines it in %d places: %s.", l.target.Slug, len(sites), strings.Join(places, "; "))
+				}
 				ev.findings = append(ev.findings, pending{
 					slug: CoverageSlug, level: coverLevel, stage: StageCoherence, anchor: docAnchor(in), message: msg,
-					fix: fmt.Sprintf("Answer the gap: name %s in the section that covers it, name the doc that covers it, or mark it out of scope with a reason.", c.ID),
-					evidence: map[string]any{"id": c.ID, "text": strings.TrimSpace(d.Text), "upstream": l.target.Slug,
-						"upstream_bundle_id": l.target.ID, "upstream_anchor": up},
+					fix:      fmt.Sprintf("Answer the gap: name %s in the section that covers it, name the doc that covers it, or mark it out of scope with a reason.", c.ID),
+					evidence: evidence,
 				})
+			}
+			if len(gaps) > 1 {
+				ev.notes = append(ev.notes, fmt.Sprintf("%d IDs of %s have no reference and no acknowledgement in this doc: %s. One coverage table that names each ID answers all of them.",
+					len(gaps), l.target.Slug, strings.Join(gaps, ", ")))
 			}
 		}
 		if slices.Contains(restatementKinds, l.kind) {
@@ -133,12 +153,57 @@ func coherenceChecks(in input, ev *evaluation) {
 	}
 }
 
+// definedID is one trace ID and each place that defines it, in doc order.
+type definedID struct {
+	id    string
+	sites []lint.Definition
+}
+
+// definedIDs groups definitions by ID, in the order of each ID's first definition.
+func definedIDs(defs []lint.Definition) []definedID {
+	at := map[string]int{}
+	var out []definedID
+	for _, d := range defs {
+		if i, ok := at[d.ID]; ok {
+			out[i].sites = append(out[i].sites, d)
+			continue
+		}
+		at[d.ID] = len(out)
+		out = append(out, definedID{id: d.ID, sites: []lint.Definition{d}})
+	}
+	return out
+}
+
+// placeOf names where an anchor is in src, for a message: the line and the heading path.
+func placeOf(src []byte, a anchor.Anchor) string {
+	line := bytes.Count(src[:min(a.Start, len(src))], []byte("\n")) + 1
+	if len(a.HeadingPath) == 0 {
+		return fmt.Sprintf("line %d", line)
+	}
+	return fmt.Sprintf("line %d, under %s", line, strings.Join(a.HeadingPath, " / "))
+}
+
 type conflict struct {
 	Analysis    string `json:"analysis"`
 	BothCanHold bool   `json:"both_can_hold"`
 	ThisQuote   string `json:"this_quote"`
 	OtherQuote  string `json:"other_quote"`
 	Explanation string `json:"explanation"`
+}
+
+// contradictionData is this doc as the contradiction call reads it: the main doc and its text
+// assets.
+func contradictionData(in input) string {
+	return bundleData(in.bundle.DocPath, in.main, textAssets(in))
+}
+
+// contradictionKey is the cache key of the contradiction call with one linked doc (#132). It
+// holds only what the model reads: this doc as data, and the other doc's main doc. An edit to a
+// binary asset, or a new version of the other doc that changes only its sidecar or its assets,
+// such as a waiver approved on it, keeps the answer.
+func contradictionKey(this string, l linked, profileVer int64, fingerprint string) cacheKey {
+	return cacheKey{Step: "contradiction", InputHash: hashOf(this, l.target.ID.String(), version.Hash(l.main)),
+		ProfileVer: profileVer, Fingerprint: fingerprint, PromptVersion: PromptContradiction, Extra: l.kind}
 }
 
 // contradictionStage asks the reviewer for conflicts between the doc and each linked doc
@@ -155,11 +220,10 @@ func (s *Service) contradictionStage(ctx context.Context, rc *runCtx, in input, 
 		}
 	}
 	lvl := in.level(ContradictionSlug, kernel.Must)
-	this := bundleData(in.bundle.DocPath, in.main, textAssets(in))
+	this := contradictionData(in)
 	for i, l := range targets {
 		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Comparing with " + l.target.Slug, Done: i, Total: len(targets)})
-		key := cacheKey{Step: "contradiction", InputHash: hashOf(bundleHash(in), l.target.ID.String(), l.version.String()),
-			ProfileVer: in.profile.Version, Fingerprint: fingerprint, PromptVersion: PromptContradiction, Extra: l.kind}
+		key := contradictionKey(this, l, in.profile.Version, fingerprint)
 		var out struct {
 			Conflicts []conflict `json:"conflicts"`
 		}

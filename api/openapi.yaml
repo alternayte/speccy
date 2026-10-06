@@ -3008,6 +3008,34 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /pending-reviews/marks:
+    post:
+      operationId: recordPending
+      summary: >
+        Keep what a pending review with no attribution holds: the finding key or the question ID
+        of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later
+        batch then finds these comments without a hidden marker. Local mode only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, marks]
+              properties:
+                url:
+                  type: string
+                  description: The URL of the pull request.
+                marks:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PendingMark"
+      responses:
+        "204":
+          description: Kept.
+        default:
+          $ref: "#/components/responses/Problem"
+
 components:
   parameters:
     BatchId:
@@ -4368,6 +4396,8 @@ components:
         trace_id:
           type: string
           description: For a coverage gap, the upstream trace ID it is about.
+        conflict:
+          $ref: "#/components/schemas/Conflict"
         source_url:
           type: string
           description: For a missing upstream link whose target is a doc on GitHub that Speccy does not hold, the URL to add as a GitHub source.
@@ -4818,7 +4848,7 @@ components:
 
     UrlReview:
       type: object
-      required: [repo, commit, docs]
+      required: [repo, commit, docs, config]
       properties:
         repo:
           type: string
@@ -4833,6 +4863,47 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/UrlReviewDoc"
+        config:
+          $ref: "#/components/schemas/UrlReviewConfig"
+
+    UrlReviewConfig:
+      type: object
+      description: The .speccy.yaml that the review used.
+      required: [source, path, pr]
+      properties:
+        source:
+          type: string
+          enum: [repo, local, none]
+          description: >
+            repo: the .speccy.yaml of the repo at the commit. local: the .speccy.yaml of the folder
+            that this Speccy serves, because the repo has none at the commit. none: the repo and
+            the folder have none.
+        path:
+          type: string
+          description: With repo, the file in the repo. With local, the file on this machine. With none, empty.
+        pr:
+          $ref: "#/components/schemas/PrSettings"
+
+    PrSettings:
+      type: object
+      description: The pr section of the .speccy.yaml that the review used.
+      required: [inline_limit, levels, attribution]
+      properties:
+        inline_limit:
+          type: integer
+          description: The most inline comments per spec doc. 0 means the default of 15.
+        levels:
+          type: array
+          description: >
+            The finding levels that go inline as comments. Empty means the default: MUST
+            findings, and SHOULD findings with a suggestion.
+          items:
+            type: string
+            enum: [must, should]
+        attribution:
+          type: string
+          enum: [speccy, none]
+          description: none keeps the name of Speccy out of a pending review.
 
     UrlReviewDoc:
       type: object
@@ -5281,6 +5352,8 @@ components:
           $ref: "#/components/schemas/SectionRange"
         trace:
           $ref: "#/components/schemas/TraceAck"
+        conflict:
+          $ref: "#/components/schemas/Conflict"
         verification:
           $ref: "#/components/schemas/VerificationExcuse"
         standalone:
@@ -5337,6 +5410,23 @@ components:
           enum: [out_of_scope, covered_by]
         target:
           type: string
+
+    Conflict:
+      type: object
+      description: >
+        One conflict between a doc and a linked doc, as a coherence.contradiction finding names it.
+        A waiver of that check binds to it, and excuses no other conflict in the section.
+      required: [with, quote, with_quote]
+      properties:
+        with:
+          type: string
+          description: The slug of the linked doc.
+        quote:
+          type: string
+          description: The text of this doc that conflicts.
+        with_quote:
+          type: string
+          description: The text of the linked doc that it conflicts with.
 
     HandoffRequest:
       type: object
@@ -6288,6 +6378,20 @@ components:
         start:
           type: boolean
           description: False plans the batch and waits for startPrBatch. The default is true.
+        levels:
+          type: array
+          description: >
+            The finding levels that go inline as comments. Absent means pr.levels of the
+            .speccy.yaml that each review uses.
+          items:
+            type: string
+            enum: [must, should]
+        attribution:
+          type: string
+          enum: [speccy, none]
+          description: >
+            none keeps the name of Speccy out of the pending reviews. Absent means pr.attribution
+            of the .speccy.yaml that each review uses.
 
     PrBatch:
       type: object
@@ -6374,6 +6478,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PrBatchDoc"
+        config:
+          $ref: "#/components/schemas/UrlReviewConfig"
 
     PrBatchDoc:
       type: object
@@ -6410,6 +6516,12 @@ components:
         force:
           type: boolean
           description: Post the question although the doc already answers the concern.
+        attribution:
+          type: string
+          enum: [speccy, none]
+          description: >
+            none posts the question with no hidden marker. Absent means pr.attribution of the
+            .speccy.yaml that the pull request review uses.
 
     AskResult:
       type: object
@@ -6500,3 +6612,24 @@ components:
         speccy:
           type: boolean
           description: True when Speccy wrote the comment.
+
+    PendingMark:
+      type: object
+      description: What Speccy wrote in a pending review with no attribution, by GitHub ID.
+      required: [comment_id, kind, key, body]
+      properties:
+        comment_id:
+          type: string
+          description: The GitHub node ID of the comment, or of the review for kind review and a question in the body.
+        kind:
+          type: string
+          enum: [finding, ask, body, review]
+          description: >
+            finding: a comment of a finding. ask: a question of the reviewer. body: the comment
+            that holds Speccy's part of the body. review: the review, whose body holds Speccy's part.
+        key:
+          type: string
+          description: The finding key, or the question ID. Empty for body and review.
+        body:
+          type: string
+          description: With review, the part of the review body that Speccy wrote.

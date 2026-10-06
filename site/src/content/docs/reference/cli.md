@@ -27,11 +27,15 @@ Usage:
                                                          changes, and comment on it. --verify runs the
                                                          verification gate instead of the review.
   speccy action --pr <pull request URL> --pending | --dry-run [--stages …]
+                [--levels must,should] [--no-attribution]
                                                          Review a pull request from this machine. --pending
                                                          posts one review that only you see; --dry-run prints
-                                                         it and posts nothing.
+                                                         it and posts nothing. --levels names the levels that
+                                                         go inline. --no-attribution keeps the name of Speccy
+                                                         out of the review.
   speccy review-prs <pull request URL>... | --repo <owner/name> [--requested]
-                [--parallel N] [--again] [--yes] [--stages …]
+                [--parallel N] [--again] [--yes] [--stages …] [--levels must,should]
+                [--no-attribution]
                                                          Review many pull requests. Each one gets a pending
                                                          review that only you see. --repo takes each open
                                                          pull request that is not a draft and changes a spec
@@ -40,7 +44,7 @@ Usage:
                                                          is skipped, unless --again.
   speccy review-prs --batch <ID> | --cancel <ID>         Show a batch until it ends, or start no new pull
                                                          request of it.
-  speccy ask <pull request URL> "<concern>" [--section "A › B"] [--force]
+  speccy ask <pull request URL> "<concern>" [--section "A › B"] [--force] [--no-attribution]
                                                          Turn your concern into one question for the author,
                                                          on its section, in your pending review.
   speccy pending list <pull request URL>                 List the comments of your pending review.
@@ -56,6 +60,11 @@ Usage:
                 [--label <name>] [--acknowledged]
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
                 [--blocked | --note] [--section "A › B"] [--trace-id REQ-012]
+  speccy waive <doc path> <finding ID> --reason "<reason>" [--approve]
+                                                         Ask for a waiver of one finding. The finding ID is
+                                                         from speccy review --format json. --approve also
+                                                         approves it, as the profile's waiver policy allows.
+  speccy waivers list <doc path>                         List the waivers of a spec doc, with their status.
   speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
                                                          the repo the doc's implemented-by link names.
   speccy admin invite --role admin|member                Print an invite link (hosted).

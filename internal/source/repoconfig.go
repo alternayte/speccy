@@ -45,12 +45,55 @@ type RepoConfig struct {
 		// Relaxed lists check slugs that report at level INFO (REQ-133).
 		Relaxed []string `yaml:"relaxed"`
 	} `yaml:"adoption"`
-	Mode        string `yaml:"mode"`
-	Server      string `yaml:"server"`
-	Enforcement string `yaml:"enforcement"`
-	PR          struct {
-		InlineLimit int `yaml:"inline_limit"`
-	} `yaml:"pr"`
+	Mode        string   `yaml:"mode"`
+	Server      string   `yaml:"server"`
+	Enforcement string   `yaml:"enforcement"`
+	PR          PRConfig `yaml:"pr"`
+}
+
+// PRConfig is the pr section of .speccy.yaml: how Speccy comments on a pull request.
+type PRConfig struct {
+	InlineLimit int `yaml:"inline_limit"`
+	// Levels are the finding levels that go inline as comments: must, should, or both. With
+	// none, MUST findings go inline, and a SHOULD finding only with a suggestion.
+	Levels []string `yaml:"levels"`
+	// Attribution none keeps the name of Speccy out of a pending review: no heading, no
+	// catalog link and no hidden marker. The default is speccy.
+	Attribution string `yaml:"attribution"`
+}
+
+// Finding levels that pr.levels takes, and the values of pr.attribution.
+const (
+	LevelMust         = "must"
+	LevelShould       = "should"
+	AttributionSpeccy = "speccy"
+	AttributionNone   = "none"
+)
+
+// ParseLevels reads a list of levels, such as "must,should".
+func ParseLevels(s string) ([]string, error) {
+	var out []string
+	for _, l := range strings.Split(s, ",") {
+		if l = strings.ToLower(strings.TrimSpace(l)); l != "" {
+			out = append(out, l)
+		}
+	}
+	if p := levelsProblem(out); p != "" {
+		return nil, errors.New(p)
+	}
+	return out, nil
+}
+
+func levelsProblem(levels []string) string {
+	if levels != nil && len(levels) == 0 {
+		return "names no level. Name must, should, or both"
+	}
+	for _, l := range levels {
+		if l != LevelMust && l != LevelShould {
+			return fmt.Sprintf("%q is not must or should", l)
+		}
+	}
+	return ""
 }
 
 // Mapping maps a glob of markdown files to a profile key, and optionally to a size, for a doc
@@ -72,6 +115,19 @@ func LoadRepoConfig(root string) (RepoConfig, error) {
 		return c, err
 	}
 	return ParseRepoConfig(src)
+}
+
+// FindRepoConfig reads root/.speccy.yaml, and reports whether the file exists.
+func FindRepoConfig(root string) (cfg RepoConfig, found bool, err error) {
+	src, err := os.ReadFile(filepath.Join(root, RepoConfigFile))
+	if errors.Is(err, fs.ErrNotExist) {
+		return cfg, false, nil
+	}
+	if err != nil {
+		return cfg, true, err
+	}
+	cfg, err = ParseRepoConfig(src)
+	return cfg, true, err
 }
 
 // ParseRepoConfig parses .speccy.yaml. An unknown key is an error, so a typo does not pass
@@ -127,6 +183,16 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 	default:
 		problems = append(problems, fmt.Sprintf("enforcement %q is not advisory or blocking", c.Enforcement))
 	}
+	if c.PR.Levels != nil {
+		if p := levelsProblem(c.PR.Levels); p != "" {
+			problems = append(problems, "pr.levels "+p)
+		}
+	}
+	switch c.PR.Attribution {
+	case "", AttributionSpeccy, AttributionNone:
+	default:
+		problems = append(problems, fmt.Sprintf("pr.attribution %q is not speccy or none", c.PR.Attribution))
+	}
 	if len(problems) > 0 {
 		return c, fmt.Errorf("%s: %s", RepoConfigFile, strings.Join(problems, "; "))
 	}
@@ -135,12 +201,19 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 
 // MappedProfile returns the profile that a mapping gives the file at rel, if any.
 func (c RepoConfig) MappedProfile(rel string) (string, bool) {
+	m, ok := c.MapEntry(rel)
+	return m.Profile, ok
+}
+
+// MapEntry returns the first map entry that covers the file at rel, if any. Only that entry
+// applies to the file.
+func (c RepoConfig) MapEntry(rel string) (Mapping, bool) {
 	for _, m := range c.Map {
 		if ok, _ := doublestar.Match(m.Glob, rel); ok {
-			return m.Profile, true
+			return m, true
 		}
 	}
-	return "", false
+	return Mapping{}, false
 }
 
 // NamedSize is one place that names the size of a doc, and the value it names there.
@@ -166,11 +239,8 @@ func (c RepoConfig) NamedSizes(rel string, content []byte) []NamedSize {
 	if key := strings.TrimSpace(c.Frontmatter.Keys["size"]); key != "" && key != "size" {
 		add(FrontmatterValue(content, key), "the frontmatter key "+key)
 	}
-	for _, m := range c.Map {
-		if ok, _ := doublestar.Match(m.Glob, rel); ok {
-			add(m.Size, "the map entry for "+m.Glob+" in "+RepoConfigFile)
-			break
-		}
+	if m, ok := c.MapEntry(rel); ok {
+		add(m.Size, "the map entry for "+m.Glob+" in "+RepoConfigFile)
 	}
 	return out
 }

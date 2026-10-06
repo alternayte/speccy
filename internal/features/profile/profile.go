@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -163,9 +164,30 @@ type Check struct {
 	Sizes []string `yaml:"sizes,omitempty" json:"sizes,omitempty"`
 	// Section is the heading a rubric check is about. The check then reads that section only,
 	// so an edit to another section does not change its answer. A doc with no such heading
-	// gets the check as a whole-doc check.
+	// gets the check as a whole-doc check. SectionNone says that the check reads the whole doc
+	// on purpose.
 	Section string `yaml:"section,omitempty" json:"section,omitempty"`
+	// Reads are the other texts a rubric check reads besides the doc. "upstream" adds the main
+	// text of each implements and refines target, so a check can compare the doc with its PRD.
+	Reads []string `yaml:"reads,omitempty" json:"reads,omitempty"`
 }
+
+// SectionNone is the reserved section value of a rubric check that reads the whole doc on
+// purpose, such as a check that compares two sections. It names no heading, and the section
+// hints and notes leave the check out (#138).
+const SectionNone = "none"
+
+// NamesSection reports whether the check names a heading: a section that is not SectionNone.
+func (c Check) NamesSection() bool {
+	s := strings.TrimSpace(c.Section)
+	return s != "" && !strings.EqualFold(s, SectionNone)
+}
+
+// ReadsUpstream is the value of reads that adds the upstream docs.
+const ReadsUpstream = "upstream"
+
+// Upstream reports whether the check reads the upstream docs.
+func (c Check) Upstream() bool { return slices.Contains(c.Reads, ReadsUpstream) }
 
 // Hash identifies what the check asks: its question and its pass condition. A waiver of a
 // whole-doc check holds while this hash stays.
@@ -176,9 +198,9 @@ func (c Check) Hash() string {
 
 // Named returns the section of doc that the check names, or nil: the check names none, or the
 // doc has no heading with that title. The match is the one lint.required-headings uses, so
-// "## 5. Monitoring" has the section "Monitoring".
+// "## 5. Monitoring" has the section "Monitoring". SectionNone names no section.
 func (c Check) Named(doc section.Doc) *section.Section {
-	if c.Section == "" {
+	if !c.NamesSection() {
 		return nil
 	}
 	want := lint.NormTitle(c.Section)
@@ -294,6 +316,9 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 		}
 		if c.Section != "" && c.Scope == "section" {
 			problems = append(problems, fmt.Sprintf("/checks/%d/section: a check with scope section runs on every section, so it names none", i))
+		}
+		if len(c.Reads) > 0 && c.Stage != "rubric" {
+			problems = append(problems, fmt.Sprintf("/checks/%d/reads: only a rubric check reads other texts", i))
 		}
 	}
 	if p.Divergence.Questions.Min > p.Divergence.Questions.Max {

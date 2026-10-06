@@ -225,6 +225,10 @@ type Waiver struct {
 	// holds while the check asks the same question, whatever the doc text is.
 	CheckHash   string `yaml:"check_hash,omitempty"`
 	RequestedBy string `yaml:"requested_by,omitempty"`
+	// Conflict binds a waiver of coherence.contradiction to one conflict, so it excuses no
+	// other conflict in its section (#136). A waiver with no conflict, written before Speccy
+	// recorded one, still covers each conflict in its section.
+	Conflict *Conflict `yaml:"conflict,omitempty"`
 }
 
 // TraceAck acknowledges in the sidecar that an upstream trace ID is intentionally not covered

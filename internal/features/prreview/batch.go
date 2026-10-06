@@ -17,6 +17,7 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 )
 
@@ -44,6 +45,10 @@ type batchConfig struct {
 	// Stages is nil for every stage, and empty for lint only.
 	Stages review.Stages `json:"stages"`
 	Lint   bool          `json:"lint"`
+	// Levels and Attribution are the request's, and win over the .speccy.yaml of each review.
+	// Empty means the .speccy.yaml decides.
+	Levels      []string `json:"levels,omitempty"`
+	Attribution string   `json:"attribution,omitempty"`
 }
 
 // CreatePrBatch is POST /pr-batches.
@@ -68,6 +73,25 @@ func (a *API) CreatePrBatch(ctx context.Context, req api.CreatePrBatchRequestObj
 		return nil, kernel.Invalid("bad_parallel", "parallel is from 1 to %d.", MaxParallel)
 	}
 	cfg := batchConfig{}
+	if in.Levels != nil {
+		var names []string
+		for _, l := range *in.Levels {
+			names = append(names, string(l))
+		}
+		levels, err := source.ParseLevels(strings.Join(names, ","))
+		if err != nil {
+			return nil, kernel.Invalid("bad_levels", "levels %s.", err.Error())
+		}
+		cfg.Levels = levels
+	}
+	if in.Attribution != nil {
+		switch a := string(*in.Attribution); a {
+		case source.AttributionSpeccy, source.AttributionNone:
+			cfg.Attribution = a
+		default:
+			return nil, kernel.Invalid("bad_attribution", "attribution %q is not speccy or none.", a)
+		}
+	}
 	if in.Stages != nil {
 		cfg.Stages = review.Stages{}
 		for _, st := range *in.Stages {
@@ -420,7 +444,8 @@ func (a *API) budgetSpent(ctx context.Context) (bool, error) {
 
 func (a *API) update(ctx context.Context, it pgdb.PrBatchItem) {
 	err := a.DB.Queries().UpdatePrBatchItem(ctx, pgdb.UpdatePrBatchItemParams{BatchID: it.BatchID, Position: it.Position, State: it.State,
-		Reason: it.Reason, HeadSha: it.HeadSha, Result: it.Result, Comments: it.Comments, Removed: it.Removed, ReviewUrl: it.ReviewUrl, UpdatedAt: now()})
+		Reason: it.Reason, HeadSha: it.HeadSha, Result: it.Result, Comments: it.Comments, Removed: it.Removed, ReviewUrl: it.ReviewUrl,
+		Config: it.Config, UpdatedAt: now()})
 	if err != nil {
 		slog.Error("update of a batch pull request failed", "batch", it.BatchID, "pull", it.Pull, "err", err)
 	}
@@ -458,6 +483,8 @@ func (a *API) reviewItem(ctx context.Context, b pgdb.PrBatch, cfg batchConfig, i
 		return
 	}
 	it.HeadSha = rev.Commit
+	config, _ := json.Marshal(rev.Config)
+	it.Config = dbtype.JSON(config)
 	var docs []api.PrBatchDoc
 	for _, d := range rev.Docs {
 		doc := api.PrBatchDoc{Path: d.Path}
@@ -486,10 +513,10 @@ func (a *API) reviewItem(ctx context.Context, b pgdb.PrBatch, cfg batchConfig, i
 		fail(err)
 		return
 	}
-	o := action.Options{GitHub: gh, Repo: rev.Repo, PR: p.build.Pull, HeadSHA: rev.Commit, InlineLimit: inlineLimit(ctx, gh, rev.Repo, rev.Commit),
-		Prune: cfg.Stages == nil}
+	o := action.Options{GitHub: gh, Repo: rev.Repo, PR: p.build.Pull, HeadSHA: rev.Commit, Prune: cfg.Stages == nil}
+	action.PROptions(&o, rev.Config, cfg.Levels, cfg.Attribution)
 	pending := action.Pending(o, bundles, files)
-	url, n, removed, err := post(ctx, gh, pending)
+	url, n, removed, err := a.post(ctx, gh, pending)
 	if err != nil {
 		fail(fmt.Errorf("GitHub did not take the pending review: %w", err))
 		return
@@ -505,26 +532,51 @@ func (a *API) reviewItem(ctx context.Context, b pgdb.PrBatch, cfg batchConfig, i
 
 // post puts a pending review on GitHub: a new one, or what changed for the reviewer's pending
 // review. It returns the review's address, the count of comments it added, and the count of
-// Speccy's comments it removed because their finding is gone.
-func post(ctx context.Context, gh *github.Client, pr action.PendingReview) (url string, added, removed int, err error) {
+// Speccy's comments it removed because their finding is gone. A review with no attribution
+// keeps its marks in the local state, so the next batch finds Speccy's comments in it.
+func (a *API) post(ctx context.Context, gh *github.Client, pr action.PendingReview) (url string, added, removed int, err error) {
 	existing, err := gh.Pending(ctx, pr.Repo, pr.Pull)
 	if err != nil {
 		return "", 0, 0, err
 	}
 	if existing == nil {
+		// The marks of an earlier pending review belong to a review that is submitted or gone.
+		if err := a.forget(ctx, pr.Repo, pr.Pull); err != nil {
+			return "", 0, 0, err
+		}
 		url, err := gh.CreatePendingReview(ctx, pr.Repo, pr.Pull, pr.CommitID, pr.Body, pr.Comments)
+		if err == nil && pr.Plain() {
+			err = a.keepNew(ctx, gh, pr.Repo, pr.Pull, func(r *github.PendingReview) action.Marks { return action.Posted(r, pr) })
+		}
 		return url, len(pr.Comments), 0, err
 	}
-	add, body, stale := action.Merge(existing, pr)
+	marks, err := a.marks(ctx, pr.Repo, pr.Pull)
+	if err != nil {
+		return existing.URL, 0, 0, err
+	}
+	var kept action.Marks
+	defer func() {
+		if kerr := a.keep(ctx, pr.Repo, pr.Pull, kept); err == nil {
+			err = kerr
+		}
+	}()
+	add, keys, body, stale := action.Merge(existing, pr, marks)
 	for _, c := range stale {
 		if err := gh.DeletePendingComment(ctx, c.ID); err != nil {
 			return existing.URL, 0, removed, err
 		}
+		if err := a.unmark(ctx, pr.Repo, pr.Pull, c.ID); err != nil {
+			return existing.URL, 0, removed, err
+		}
 		removed++
 	}
-	for _, c := range add {
-		if err := gh.AddPendingComment(ctx, existing.ID, c.Path, c.Line, c.Body); err != nil {
+	for i, c := range add {
+		id, err := gh.AddPendingComment(ctx, existing.ID, c.Path, c.Line, c.Body)
+		if err != nil {
 			return existing.URL, added, removed, err
+		}
+		if pr.Plain() {
+			kept = append(kept, api.PendingMark{CommentId: id, Kind: api.PendingMarkKindFinding, Key: keys[i]})
 		}
 		added++
 	}
@@ -534,13 +586,20 @@ func post(ctx context.Context, gh *github.Client, pr action.PendingReview) (url 
 	// GitHub does not let anyone edit a review body that started empty, such as the body of a
 	// review the reviewer started from a line in the GitHub page. Speccy's part then goes in
 	// one comment on a spec doc of the pull request.
-	switch c := action.BodyComment(existing); {
+	switch c := action.BodyComment(existing, marks); {
 	case strings.TrimSpace(existing.Body) != "":
 		err = gh.SetPendingBody(ctx, existing.ID, body)
+		if err == nil && pr.Plain() {
+			kept = append(kept, api.PendingMark{CommentId: existing.ID, Kind: api.PendingMarkKindReview, Body: pr.Body})
+		}
 	case c != nil && c.Body != pr.Body:
 		err = gh.UpdatePendingComment(ctx, c.ID, pr.Body)
 	case c == nil && pr.File != "":
-		err = gh.AddPendingFileComment(ctx, existing.ID, pr.File, pr.Body)
+		var id string
+		id, err = gh.AddPendingFileComment(ctx, existing.ID, pr.File, pr.Body)
+		if pr.Plain() {
+			kept = append(kept, api.PendingMark{CommentId: id, Kind: api.PendingMarkKindBody})
+		}
 	}
 	return existing.URL, added, removed, err
 }
@@ -589,6 +648,13 @@ func (a *API) batch(ctx context.Context, id uuid.UUID) (api.PrBatch, error) {
 			HeadSha: it.HeadSha, Comments: int(it.Comments), Removed: int(it.Removed), ReviewUrl: it.ReviewUrl, Docs: []api.PrBatchDoc{}}
 		if err := json.Unmarshal(it.Result, &item.Docs); err != nil {
 			return out, err
+		}
+		var cfg api.UrlReviewConfig
+		if err := json.Unmarshal(it.Config, &cfg); err != nil {
+			return out, err
+		}
+		if cfg.Source != "" {
+			item.Config = &cfg
 		}
 		out.Items = append(out.Items, item)
 	}

@@ -281,6 +281,7 @@ type PrBatchItem struct {
 	ReviewUrl string
 	UpdatedAt time.Time
 	Removed   int64
+	Config    dbtype.JSON
 }
 
 type PrReview struct {
@@ -290,6 +291,17 @@ type PrReview struct {
 	HeadSha     string
 	BatchID     uuid.NullUUID
 	ReviewedAt  time.Time
+}
+
+type PrReviewComment struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+	CommentID   string
+	Kind        string
+	Ref         string
+	Body        string
+	CreatedAt   time.Time
 }
 
 type Profile struct {
@@ -369,6 +381,7 @@ type ReviewRun struct {
 	Notes          dbtype.JSON
 	Stages         dbtype.JSON
 	DecisionsHash  string
+	ConfigHash     string
 }
 
 type RoleAssignment struct {

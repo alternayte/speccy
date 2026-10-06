@@ -32,9 +32,13 @@ func (a *API) ListPending(ctx context.Context, req api.ListPendingRequestObject)
 	if r == nil {
 		return api.ListPending200JSONResponse(out), nil
 	}
+	marks, err := a.marks(ctx, p.build.Repo, p.build.Pull)
+	if err != nil {
+		return nil, err
+	}
 	out.Exists, out.ReviewUrl, out.Body = true, &r.URL, &r.Body
 	for _, c := range r.Comments {
-		pc := api.PendingComment{Id: c.DatabaseID, Path: c.Path, Excerpt: excerpt(c.Body), Speccy: action.BySpeccy(c.Body)}
+		pc := api.PendingComment{Id: c.DatabaseID, Path: c.Path, Excerpt: excerpt(c.Body), Speccy: action.BySpeccy(c, marks)}
 		if c.Line > 0 {
 			line := c.Line
 			pc.Line = &line
@@ -81,6 +85,9 @@ func (a *API) DeletePending(ctx context.Context, req api.DeletePendingRequestObj
 			continue
 		}
 		if err := gh.DeletePendingComment(ctx, node); err != nil {
+			return nil, err
+		}
+		if err := a.unmark(ctx, p.build.Repo, p.build.Pull, node); err != nil {
 			return nil, err
 		}
 		out.Deleted = append(out.Deleted, id)
@@ -168,6 +175,9 @@ func (a *API) DiscardPending(ctx context.Context, req api.DiscardPendingRequestO
 			continue
 		}
 		if err := gh.DiscardPending(ctx, r.ID); err != nil {
+			return nil, err
+		}
+		if err := a.forget(ctx, p.build.Repo, p.build.Pull); err != nil {
 			return nil, err
 		}
 		out.Discarded = append(out.Discarded, ref)

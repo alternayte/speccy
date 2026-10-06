@@ -10,6 +10,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 )
 
@@ -99,30 +100,70 @@ func (a *API) AskAuthor(ctx context.Context, req api.AskAuthorRequestObject) (ap
 	if err != nil {
 		return nil, err
 	}
+	// A plain question has no marker, so the local state keeps its mark (#140).
+	repo, pull := plan.Review.Repo, p.build.Pull
+	attribution := plan.Review.Config.PR.Attribution
+	if req.Body.Attribution != nil {
+		attribution = string(*req.Body.Attribution)
+	}
+	plain := attribution == source.AttributionNone
+	var marks action.Marks
+	if existing != nil {
+		if marks, err = a.marks(ctx, repo, pull); err != nil {
+			return nil, err
+		}
+	} else if err := a.forget(ctx, repo, pull); err != nil {
+		return nil, err
+	}
+	ask := func(commentID string) action.Marks {
+		return action.Marks{{CommentId: commentID, Kind: api.PendingMarkKindAsk, Key: id}}
+	}
 	var url string
+	var kept action.Marks
 	at := api.AskResultPlaceLine
 	if !inDiff {
 		at = api.AskResultPlaceBody
 	}
 	switch {
-	case existing != nil && action.Asked(existing, id):
+	case existing != nil && action.Asked(existing, id, marks):
 		url = existing.URL
 	case existing == nil && inDiff:
-		c := github.ReviewComment{Path: doc, Line: draft.Line, Side: "RIGHT", Body: action.AskComment(draft.Question, id)}
-		url, err = gh.CreatePendingReview(ctx, plan.Review.Repo, p.build.Pull, plan.Review.Commit, action.AskBody(), []github.ReviewComment{c})
+		c := github.ReviewComment{Path: doc, Line: draft.Line, Side: "RIGHT", Body: action.AskComment(draft.Question, id, plain)}
+		body := action.AskBody(plain)
+		url, err = gh.CreatePendingReview(ctx, repo, pull, plan.Review.Commit, body, []github.ReviewComment{c})
+		if err == nil && plain {
+			err = a.keepNew(ctx, gh, repo, pull, func(r *github.PendingReview) action.Marks {
+				return append(action.Marks{{CommentId: r.ID, Kind: api.PendingMarkKindReview, Body: body}},
+					action.Added(r, []github.ReviewComment{c}, []string{id}, api.PendingMarkKindAsk)...)
+			})
+		}
 	case existing == nil:
-		url, err = gh.CreatePendingReview(ctx, plan.Review.Repo, p.build.Pull, plan.Review.Commit, action.AskInBody("", where, draft.Question, id), nil)
+		url, err = gh.CreatePendingReview(ctx, repo, pull, plan.Review.Commit, action.AskInBody("", where, draft.Question, id, plain), nil)
+		if err == nil && plain {
+			err = a.keepNew(ctx, gh, repo, pull, func(r *github.PendingReview) action.Marks { return ask(r.ID) })
+		}
 	case inDiff:
-		url, err = existing.URL, gh.AddPendingComment(ctx, existing.ID, doc, draft.Line, action.AskComment(draft.Question, id))
+		var cid string
+		url = existing.URL
+		cid, err = gh.AddPendingComment(ctx, existing.ID, doc, draft.Line, action.AskComment(draft.Question, id, plain))
+		kept = ask(cid)
 	case strings.TrimSpace(existing.Body) != "":
-		url, err = existing.URL, gh.SetPendingBody(ctx, existing.ID, action.AskInBody(existing.Body, where, draft.Question, id))
+		url, err = existing.URL, gh.SetPendingBody(ctx, existing.ID, action.AskInBody(existing.Body, where, draft.Question, id, plain))
+		kept = ask(existing.ID)
 	default:
 		// GitHub does not let anyone edit a review body that started empty.
-		at = api.AskResultPlaceFile
-		url, err = existing.URL, gh.AddPendingFileComment(ctx, existing.ID, doc, action.AskOnFile(where, draft.Question, id))
+		var cid string
+		at, url = api.AskResultPlaceFile, existing.URL
+		cid, err = gh.AddPendingFileComment(ctx, existing.ID, doc, action.AskOnFile(where, draft.Question, id, plain))
+		kept = ask(cid)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("GitHub did not take the question: %w", err)
+	}
+	if plain {
+		if err := a.keep(ctx, repo, pull, kept); err != nil {
+			return nil, err
+		}
 	}
 	out.Status, out.ReviewUrl, out.Place = api.AskResultStatusPosted, &url, &at
 	if inDiff {

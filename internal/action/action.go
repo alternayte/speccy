@@ -82,6 +82,13 @@ type Options struct {
 	// Prune lets a pending review lose Speccy's comments whose finding is gone. Set it only for
 	// a review that ran every stage: a finding of a stage that did not run is not gone.
 	Prune bool
+	// Levels are the finding levels that go inline: source.LevelMust, source.LevelShould, or
+	// both. With none, MUST findings go inline, and other findings only with a suggestion.
+	Levels []string
+	// Unattributed keeps the name of Speccy out of a pending review: no heading, no catalog
+	// link and no hidden marker. Only a pending review takes it: the Action posts as its own
+	// bot, and its markers find its threads on the next push.
+	Unattributed bool
 }
 
 // Result is what the command prints and returns.
@@ -267,10 +274,20 @@ func relPath(from, to string) string {
 
 func suggestion(line string) string { return "\n\n```suggestion\n" + line + "\n```" }
 
-// candidates builds the inline comments of a bundle: MUST findings and findings with a
-// deterministic fix, on changed lines of the files of the bundle, MUST first. The rest go to
-// the summary.
-func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, rest []candidate) {
+// levelSet reads Options.Levels: which levels go inline whether or not they have a fix.
+func levelSet(levels []string) (must, should bool) {
+	if len(levels) == 0 {
+		return true, false
+	}
+	return slices.Contains(levels, source.LevelMust), slices.Contains(levels, source.LevelShould)
+}
+
+// candidates builds the inline comments of a bundle on changed lines of the files of the
+// bundle, MUST first: the findings of the levels, and the other findings that have a
+// deterministic fix. A finding of the levels that is not on a changed line goes to the
+// summary. Each comment ends with the level, the check and a hidden key marker, unless plain.
+func candidates(b Bundle, changed map[string]map[int]bool, levels []string, plain bool) (inline []candidate, rest []candidate) {
+	must, should := levelSet(levels)
 	rank := map[api.FindingLevel]int{api.FindingLevelMUST: 0, api.FindingLevelSHOULD: 1, api.FindingLevelINFO: 2}
 	keys := findingKeys(b)
 	order := make([]int, len(b.Findings))
@@ -297,16 +314,20 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 				fix, fixOK = fixBrokenLink(b, f, text)
 			}
 		}
-		if f.Level != api.FindingLevelMUST && !fixOK {
-			continue // SHOULD and INFO findings stay in the report
+		wanted := (f.Level == api.FindingLevelMUST && must) || (f.Level == api.FindingLevelSHOULD && should)
+		if !wanted && (!fixOK || f.Level == api.FindingLevelMUST) {
+			continue // the other findings stay in the report
 		}
 		k := keys[i]
-		body := commentBody(f, fix, fixOK) + "\n\n" + keyMarker + k + " -->"
+		body := commentBody(f, fix, fixOK, plain)
+		if !plain {
+			body += "\n\n" + keyMarker + k + " -->"
+		}
 		c := candidate{key: k, path: repoPath, line: line, level: f.Level, body: body,
 			summary: fmt.Sprintf("- **%s** `%s` %s:%d: %s", f.Level, f.CheckSlug, repoPath, line, f.Message)}
 		if changed[repoPath][line] {
 			inline = append(inline, c)
-		} else if f.Level == api.FindingLevelMUST {
+		} else if wanted {
 			rest = append(rest, c)
 		}
 	}
@@ -327,8 +348,11 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 				continue
 			}
 			k := key(b.Slug, "trace.id", s.ID, text)
-			body := fmt.Sprintf("Give this item the trace ID `%s`, so that other docs and tests can point at it (REQ-052).%s\n\n%s%s -->",
-				s.ID, suggestion(text[:start]+"**"+s.ID+":** "+text[start:]), keyMarker, k)
+			body := fmt.Sprintf("Give this item the trace ID `%s`, so that other docs and tests can point at it.%s",
+				s.ID, suggestion(text[:start]+"**"+s.ID+":** "+text[start:]))
+			if !plain {
+				body += "\n\n" + keyMarker + k + " -->"
+			}
 			inline = append(inline, candidate{key: k, path: repoPath, line: line, level: api.FindingLevelSHOULD, body: body})
 		}
 	}
@@ -339,8 +363,8 @@ func candidates(b Bundle, changed map[string]map[int]bool) (inline []candidate, 
 // commentBody is the text of one inline comment, written for the author. An answer finding
 // leads with its question, a reword finding with its fix, and any other finding with its
 // message. The level and the check go on a last small line, with a link to the check's entry
-// in the Check catalog.
-func commentBody(f api.Finding, fix string, fixOK bool) string {
+// in the Check catalog, unless plain: a plain comment names no tool.
+func commentBody(f api.Finding, fix string, fixOK, plain bool) string {
 	var b strings.Builder
 	switch {
 	case f.Question != nil && *f.Question != "":
@@ -358,6 +382,9 @@ func commentBody(f api.Finding, fix string, fixOK bool) string {
 	}
 	if fixOK {
 		b.WriteString(suggestion(fix))
+	}
+	if plain {
+		return b.String()
 	}
 	check := "`" + f.CheckSlug + "`"
 	if profile.InCatalog(f.CheckSlug) {
@@ -411,7 +438,7 @@ func Run(ctx context.Context, o Options, bundles []Bundle, files []github.PRFile
 	current := map[string]bool{}
 	summaries := map[string][]string{}
 	for _, b := range bundles {
-		inline, rest := candidates(b, changed)
+		inline, rest := candidates(b, changed, o.Levels, false)
 		for i, c := range inline {
 			current[c.key] = true
 			if i >= o.InlineLimit {

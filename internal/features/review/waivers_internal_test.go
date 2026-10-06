@@ -39,3 +39,36 @@ func TestWaiver_DocScopeCoversWholeDoc(t *testing.T) {
 		t.Errorf("waived %v, want %v", got, want)
 	}
 }
+
+// A waiver of coherence.contradiction that names a conflict covers that conflict only, with the
+// quotes folded for case and spaces. A new conflict in the same section stays open (#136). A
+// waiver from before Speccy recorded the conflict still covers each conflict in its section.
+func TestWaiver_ContradictionBindsToTheConflict(t *testing.T) {
+	body := "# Doc\n\n## Timing\n\nPaid in 10 days. Paid in 7 days.\n\n## Legacy\n\nPaid in 3 days.\n"
+	doc := section.Parse([]byte(body))
+	timing, _ := section.HashAt(doc, []byte(body), []string{"Doc", "Timing"})
+	legacy, _ := section.HashAt(doc, []byte(body), []string{"Doc", "Legacy"})
+	sidecar := fmt.Sprintf("waivers:\n"+
+		"  - check: coherence.contradiction\n    section: [Doc, Timing]\n    reason: The PRD changes next week.\n    section_hash: %s\n"+
+		"    conflict:\n      with: prd\n      quote: \"paid in  10 DAYS.\"\n      with_quote: Paid in 5 days.\n"+
+		"  - check: coherence.contradiction\n    section: [Doc, Legacy]\n    reason: An old waiver of the section.\n    section_hash: %s\n", timing, legacy)
+	main := []byte("---\ntype: sdd\n---\n" + body)
+	in := input{main: main, doc: section.Parse(main)}
+	var err error
+	if in.dec, err = source.ParseDecisions([]byte(sidecar)); err != nil {
+		t.Fatal(err)
+	}
+	conflict := func(quote string, path ...string) pending {
+		return pending{slug: ContradictionSlug, level: kernel.Must, anchor: anchor.Anchor{File: "SPEC.md", HeadingPath: path},
+			evidence: map[string]any{"upstream": "prd", "quote": quote, "upstream_quote": "Paid in 5 days."}}
+	}
+	ev := &evaluation{findings: []pending{
+		conflict("Paid in 10 days.", "Doc", "Timing"),
+		conflict("Paid in 7 days.", "Doc", "Timing"),
+		conflict("Paid in 3 days.", "Doc", "Legacy"),
+	}}
+	got := applyWaivers(in, ev)
+	if want := []bool{true, false, true}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("waived %v, want %v", got, want)
+	}
+}

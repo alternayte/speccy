@@ -32,13 +32,24 @@ These commands and MCP tools run in local mode only. A pending review belongs to
 
 2. Read the plan. Speccy prints the count of pull requests and spec docs, each pull request it skips with the reason, and the cost estimate. Type `y` to start. `--yes` starts the batch with no question.
 
-3. Read each line as its pull request finishes. A posted line gives the verdict of each spec doc, the count of comments, and the link to your pending review.
+3. Read each line as its pull request finishes. A posted line gives the verdict of each spec doc, the count of comments, and the link to your pending review. The next line names the `.speccy.yaml` that the review used.
 
 4. Open each pending review on GitHub. Edit or delete the comments, then submit the review.
 
 </Steps>
 
 `--parallel N` sets how many pull requests run at the same time. The default is 3. The spec docs of one pull request also review in parallel, under the same limit.
+
+### Which .speccy.yaml a review uses
+
+Each review uses the `.speccy.yaml` of its repo at the head commit. When the repo has none, the review uses the `.speccy.yaml` of the folder where Speccy has its state. Thus you can review a repo that you cannot change: put the `map` entries for its docs in your local file. The repo's own file always wins.
+
+### Choose the levels and the attribution
+
+- `--levels must,should` puts each SHOULD finding on a changed line into a comment. By default, a SHOULD finding gets a comment only when it has a fix. The flag wins over `pr.levels` in `.speccy.yaml`.
+- `--no-attribution` keeps the name of Speccy out of the pending reviews: no "Speccy reviewed" line, no check line with its catalog link, and no hidden marker. The flag wins over `pr.attribution`.
+
+With no attribution, Speccy keeps the ID of each comment it posts in the local state. A later batch uses these IDs to add to the review, and `speccy pending list` uses them to show which comments Speccy wrote. Run each round in the same folder, so that the batch finds this state. `speccy ask --no-attribution` posts a question with no hidden marker.
 
 ### What a second batch does
 
@@ -69,7 +80,7 @@ Each comment leads with what the author must do:
 - A finding that changes only the words starts with its fix, and with a suggested change when Speccy can make one.
 - Any other finding starts with its message.
 
-The last line gives the level and the check. The check links to its entry in the [Check catalog](/reference/checks/). The GitHub Action in CI writes its comments in the same form.
+The last line gives the level and the check. The check links to its entry in the [Check catalog](/reference/checks/). The GitHub Action in CI writes its comments in the same form. A review with no attribution has no such last line.
 
 ## Ask the author a question
 

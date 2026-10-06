@@ -15,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
@@ -56,17 +57,69 @@ func runProfile(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "%s is a valid profile: %s (%s), %d checks.\n", args[1], l.Profile.Key, l.Profile.Name, len(l.Profile.Checks))
 	// A check that is about one section and names none is valid, and it stops a review from
-	// converging, so the command says so (#108).
-	if hints := profile.SectionHints(l); len(hints) > 0 {
-		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(hints), pluralS(len(hints)))
-		for _, h := range hints {
-			fmt.Fprintf(stdout, "  %s\n", h)
+	// converging, so the command says so (#108). The docs of the profile in this folder decide
+	// which heading to suggest, and show a section that no doc has (#138). A check that names the
+	// upstream doc type and does not read the upstream docs fails on every doc (#143).
+	docs, err := profileDocs(l.Profile.Key)
+	if err != nil {
+		fmt.Fprintf(stdout, "Speccy did not read the docs of this folder, so the warnings do not check their headings: %v.\n", err)
+	} else {
+		fmt.Fprintf(stdout, "Docs in this folder with the profile %s: %d.\n", l.Profile.Key, len(docs))
+	}
+	var warnings []string
+	for _, h := range profile.SectionHints(l, docs) {
+		warnings = append(warnings, h.String())
+	}
+	for _, m := range profile.MissingSections(l.Profile, docs) {
+		warnings = append(warnings, m.String())
+	}
+	for _, h := range profile.UpstreamHints(l) {
+		warnings = append(warnings, h.String())
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintf(stdout, "\n%d warning%s:\n", len(warnings), pluralS(len(warnings)))
+		for _, w := range warnings {
+			fmt.Fprintf(stdout, "  %s\n", w)
 		}
 	}
 	if conflicts {
 		return profileConflicts(l, stdout, stderr)
 	}
 	return exitOK
+}
+
+// profileDocs parses the spec docs with the profile key in the folder of the command: the
+// folder with .speccy.yaml, from the current folder up.
+func profileDocs(key string) ([]section.Doc, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	rootDir := findRoot(cwd)
+	cfg, err := source.LoadRepoConfig(rootDir)
+	if err != nil {
+		return nil, err
+	}
+	root, err := local.Open(rootDir)
+	if err != nil {
+		return nil, err
+	}
+	scan, err := root.Scan(cfg)
+	if err != nil {
+		return nil, err
+	}
+	var out []section.Doc
+	for _, b := range scan.Bundles {
+		if b.Main.Frontmatter.Type != key {
+			continue
+		}
+		for _, f := range b.Files {
+			if f.Path == b.Main.Path {
+				out = append(out, section.Parse(f.Content))
+			}
+		}
+	}
+	return out, nil
 }
 
 // runExport is speccy export <path> --format zip|html (REQ-008). It writes the file into the
@@ -383,7 +436,7 @@ func profileConflicts(l profile.Loaded, stdout, stderr io.Writer) int {
 			Section  *string `json:"section,omitempty"`
 			Slug     string  `json:"slug"`
 		}{PassWhen: c.PassWhen, Question: c.Question, Slug: c.Slug}
-		if c.Section != "" {
+		if c.NamesSection() {
 			check.Section = &c.Section
 		}
 		body.Checks = append(body.Checks, check)

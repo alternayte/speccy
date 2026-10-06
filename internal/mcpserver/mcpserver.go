@@ -21,6 +21,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source"
 )
 
 // ClientFor returns the API client for one tool call. header holds the HTTP headers of the
@@ -50,6 +51,9 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
 	add(s, t, "verify_build", "Verify one build against the bundle. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
+	add(s, t, "request_waiver", "Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs.", t.requestWaiver)
+	add(s, t, "approve_waiver", "Approve a requested waiver under the profile's waiver policy. Speccy refuses an approval that the policy does not allow to the person. The final approval writes the waiver to the doc's sidecar, and the finding no longer counts in the verdict. Approve only when the person tells you to approve this waiver.", t.approveWaiver)
+	add(s, t, "list_waivers", "List the waivers of a bundle, newest first: each with its check, section, reason, status, approvals, and for a contradiction the conflict it excuses.", t.listWaivers)
 	add(s, t, "post_message", "Post a message to a thread, or open a thread on a bundle when no thread_id is given.", t.postMessage)
 	add(s, t, "review_prs", "Review many spec pull requests in one batch. Each pull request gets a pending review that only the person sees until they submit it on GitHub: each comment leads with a question or a fix for the author. Name the pull requests by their URLs, or name a repo: then the batch takes each open pull request that is not a draft and changes a spec doc, and requested keeps the ones that ask for the person's review. A pull request already reviewed at its head commit is skipped, unless again. The call returns at once with the batch ID and the cost estimate; the batch runs on in Speccy. Call get_batch for its progress, and cancel_batch to stop it. Local mode only.", t.reviewPRs)
 	add(s, t, "get_batch", "Get the state of a batch of pull request reviews: for each pull request, waiting, reviewing, posted, skipped with the reason, or failed with the error, and for a posted one the verdict of each spec doc, the count of comments, and the link to the pending review.", t.getBatch)
@@ -587,6 +591,70 @@ func (tools) listThreads(ctx context.Context, c *api.ClientWithResponses, in bun
 	return res.JSON200, nil
 }
 
+type waiverArg struct {
+	Bundle    string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	FindingID string `json:"finding_id" jsonschema:"the id of the finding, from get_findings"`
+	Reason    string `json:"reason" jsonschema:"why the check does not apply here, in the person's own words. At least 20 characters"`
+}
+
+// requestWaiver asks for a waiver of one finding (REQ-072).
+func (tools) requestWaiver(ctx context.Context, c *api.ClientWithResponses, in waiverArg) (any, error) {
+	if strings.TrimSpace(in.Reason) == "" {
+		return nil, errors.New("give the reason the person gave for the waiver; ask them why the check does not apply here")
+	}
+	id, err := uuid.Parse(strings.TrimSpace(in.FindingID))
+	if err != nil {
+		return nil, fmt.Errorf("finding_id must be the id of a finding from get_findings")
+	}
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.RequestWaiverWithResponse(ctx, b.Id, api.RequestWaiverJSONRequestBody{FindingId: id, Reason: in.Reason})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type waiverIDArg struct {
+	WaiverID string `json:"waiver_id" jsonschema:"the id of the waiver, from request_waiver or list_waivers"`
+}
+
+// approveWaiver approves a waiver under the profile's policy (REQ-073).
+func (tools) approveWaiver(ctx context.Context, c *api.ClientWithResponses, in waiverIDArg) (any, error) {
+	id, err := uuid.Parse(strings.TrimSpace(in.WaiverID))
+	if err != nil {
+		return nil, fmt.Errorf("waiver_id must be the id of a waiver from request_waiver or list_waivers")
+	}
+	res, err := c.ApproveWaiverWithResponse(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+func (tools) listWaivers(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.ListWaiversWithResponse(ctx, b.Id)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
 type messageArg struct {
 	ThreadID string `json:"thread_id,omitempty" jsonschema:"the thread to post to"`
 	Bundle   string `json:"bundle,omitempty" jsonschema:"with no thread_id: the bundle to open a new thread on, by slug or ID"`
@@ -641,6 +709,9 @@ type batchArg struct {
 	Parallel  int      `json:"parallel,omitempty" jsonschema:"how many pull requests run at the same time, 1 to 10. The default is 3."`
 	Again     bool     `json:"again,omitempty" jsonschema:"review a pull request again although it was reviewed at its head commit"`
 	Stages    []string `json:"stages,omitempty" jsonschema:"the model stages to run: rubric, grounding, divergence, coherence. Absent means all."`
+	Levels    []string `json:"levels,omitempty" jsonschema:"the finding levels that go inline as comments: must, should, or both. Absent means pr.levels of the .speccy.yaml: by default MUST findings, and SHOULD findings with a suggestion."`
+	// NoAttribution keeps the name of Speccy out of the pending reviews (#140).
+	NoAttribution bool `json:"no_attribution,omitempty" jsonschema:"keep the name of Speccy out of the pending reviews: no heading, no check catalog link, no hidden marker"`
 }
 
 // reviewPRs starts a batch of pull request reviews (docs/specs/pr-review-batch.md).
@@ -660,6 +731,21 @@ func (tools) reviewPRs(ctx context.Context, c *api.ClientWithResponses, in batch
 	}
 	if in.Again {
 		body.Again = &in.Again
+	}
+	if in.Levels != nil {
+		levels, err := source.ParseLevels(strings.Join(in.Levels, ","))
+		if err != nil {
+			return nil, err
+		}
+		lv := make([]api.PrBatchRequestLevels, len(levels))
+		for i, l := range levels {
+			lv[i] = api.PrBatchRequestLevels(l)
+		}
+		body.Levels = &lv
+	}
+	if in.NoAttribution {
+		none := api.PrBatchRequestAttributionNone
+		body.Attribution = &none
 	}
 	if in.Stages != nil {
 		st := make([]api.PrBatchRequestStages, len(in.Stages))
@@ -725,6 +811,8 @@ type askArg struct {
 	Concern string   `json:"concern" jsonschema:"the person's concern, in their own words"`
 	Section []string `json:"section,omitempty" jsonschema:"the heading path of the section, when the concern fits more than one"`
 	Force   bool     `json:"force,omitempty" jsonschema:"post the question although the doc already answers the concern"`
+	// NoAttribution posts the question with no hidden marker (#140).
+	NoAttribution bool `json:"no_attribution,omitempty" jsonschema:"post the question with no hidden marker that names Speccy"`
 }
 
 // askAuthor turns a concern into a question for the author in the pending review.
@@ -735,6 +823,10 @@ func (tools) askAuthor(ctx context.Context, c *api.ClientWithResponses, in askAr
 	}
 	if in.Force {
 		body.Force = &in.Force
+	}
+	if in.NoAttribution {
+		none := api.AskRequestAttributionNone
+		body.Attribution = &none
 	}
 	res, err := c.AskAuthorWithResponse(ctx, body)
 	if err != nil {

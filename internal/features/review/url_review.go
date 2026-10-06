@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"path"
 	"strings"
@@ -25,7 +26,25 @@ type URLReview struct {
 	// Pull is the number of the pull request, for a pull request URL.
 	Pull int
 	Docs []URLDoc
+	// Config is the .speccy.yaml that the review used.
+	Config URLConfig
 }
+
+// URLConfig is the .speccy.yaml that a review of a URL used: the repo's own at the commit, or,
+// when the repo has none, the one of the folder that this Speccy serves (#131).
+type URLConfig struct {
+	Source string // ConfigRepo, ConfigLocal or ConfigNone
+	// Path is the file: in the repo, or on this machine.
+	Path string
+	PR   source.PRConfig
+}
+
+// The places a review of a URL takes its .speccy.yaml from.
+const (
+	ConfigRepo  = "repo"
+	ConfigLocal = "local"
+	ConfigNone  = "none"
+)
 
 // URLDoc is one reviewed spec doc: where it is in the repo, its files, and its result, or the
 // reason the review of this doc stopped.
@@ -205,12 +224,29 @@ func (s *Service) PlanURL(ctx context.Context, raw string) (URLPlan, error) {
 		return false
 	}
 	tfs := github.NewTreeFS(entries, keep, load)
+	// The repo's own .speccy.yaml wins. A repo with none takes the .speccy.yaml of the served
+	// folder, so a reviewer can review a repo that they cannot change (#131).
 	cfg := source.RepoConfig{}
-	if rawCfg, err := fs.ReadFile(tfs, source.RepoConfigFile); err == nil {
+	out.Config = URLConfig{Source: ConfigNone}
+	rawCfg, err := fs.ReadFile(tfs, source.RepoConfigFile)
+	switch {
+	case err == nil:
 		if cfg, err = source.ParseRepoConfig(rawCfg); err != nil {
 			return plan, kernel.Invalid("bad_repo_config", "%s in the repo is not valid: %s.", source.RepoConfigFile, err.Error())
 		}
+		out.Config = URLConfig{Source: ConfigRepo, Path: source.RepoConfigFile}
+	case !errors.Is(err, fs.ErrNotExist):
+		return plan, github.UnreadableRepo(build.Repo, err)
+	case s.LocalConfig != nil:
+		local, file, found, err := s.LocalConfig()
+		if err != nil {
+			return plan, kernel.Invalid("bad_local_config", "%s is not valid: %s.", file, err.Error())
+		}
+		if found {
+			cfg, out.Config = local, URLConfig{Source: ConfigLocal, Path: file}
+		}
 	}
+	out.Config.PR = cfg.PR
 	var root *local.Root
 	var scan *local.Scan
 	var selected []local.Bundle

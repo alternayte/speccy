@@ -6,7 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { AcceptedFix, AcceptedFixes, Finding, FixSuggestion, SectionFixes, Trend, Waiver } from "@/lib/api";
+import type {
+  AcceptedFix,
+  AcceptedFixes,
+  Conflict,
+  Finding,
+  FixSuggestion,
+  SectionFixes,
+  Trend,
+  Waiver,
+} from "@/lib/api";
 import {
   acceptFixMutation,
   acceptFixesMutation,
@@ -701,7 +710,19 @@ type Decide = ReturnType<typeof useDecide>;
 export function waiverCovers(w: Waiver, f: Finding): boolean {
   // An Acknowledgement is about one trace ID, and a doc has one coverage finding per ID.
   if (w.trace || f.trace_id) return w.check_slug === f.check_slug && w.trace?.id === f.trace_id;
+  // A waiver of a contradiction excuses one conflict. One from before Speccy recorded the
+  // conflict covers each conflict in its section.
+  if (w.conflict && !(f.conflict && sameConflict(w.conflict, f.conflict))) return false;
   return w.check_slug === f.check_slug && w.section.every((title, i) => f.anchor.heading_path[i] === title);
+}
+
+// sameConflict matches two conflicts as the server does: the quotes with case and runs of
+// white space folded.
+function sameConflict(a: Conflict, b: Conflict): boolean {
+  const fold = (s: string) => s.trim().split(/\s+/).join(" ").toLowerCase();
+  return (
+    a.with.trim() === b.with.trim() && fold(a.quote) === fold(b.quote) && fold(a.with_quote) === fold(b.with_quote)
+  );
 }
 
 // endedBecause says why an ended waiver ended, in words.
