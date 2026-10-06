@@ -46,6 +46,10 @@ type link struct {
 	external *source.ExternalTarget
 	// problem says why an external target does not parse. The lint stage reports it.
 	problem string
+	// pull is set for a rule target that only an open pull request holds (#142), and files
+	// are that doc at the pull request's head commit.
+	pull  *pullRef
+	files []source.File
 }
 
 // linked is a link to a bundle, with the target's current version loaded.
@@ -147,11 +151,13 @@ func (s *Service) places(ctx context.Context) (docPlace, error) {
 	}
 }
 
-// resolveLinks returns the links of b whose main doc is main.
-func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte, from *FromRepo) ([]link, error) {
+// resolveLinks returns the links of b whose main doc is main. In a review that knows its GitHub
+// repo, a link rule whose target is not in the tree finds it in an open pull request (#142);
+// notes are the run notes about those targets.
+func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte, from *FromRepo) (links []link, notes []string, err error) {
 	all, err := s.allBundles(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if from != nil {
 		// The spec docs of the same commit come first, so a link finds them before a saved bundle.
@@ -159,24 +165,27 @@ func (s *Service) resolveLinks(ctx context.Context, b pgdb.SpecDoc, main []byte,
 	}
 	place, err := s.places(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	adopted, err := s.adopted(ctx, b, place)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	repo, err := s.repoConfig(ctx, b)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if from != nil {
 		repo = from.Config
 	}
 	held, err := s.githubDocs(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b), held), nil
+	rules := linkRules(repo)
+	pulled, notes := s.pullTargets(ctx, s.pullFinderFor(ctx, b, from, held), all, place, b, rules, repo)
+	links = resolveLinksIn(all, place, b, main, adopted, rules, repo.LinkPatterns, s.accepts(b), held, pulled)
+	return links, append(notes, pullNotes(links)...), nil
 }
 
 // githubDocs is the GitHub sources of the workspace, by ID: where each one reads its docs. A
@@ -272,7 +281,8 @@ func linkRules(repo source.RepoConfig) []source.LinkRule {
 // link to the same spec doc with the same kind appears once. accepts says which spec docs a
 // target that names a bundle may resolve to; nil accepts any.
 func resolveLinksIn(all []pgdb.SpecDoc, place docPlace, b pgdb.SpecDoc, main []byte, adopted []adoptedLink,
-	rules []source.LinkRule, patterns map[string]string, accepts func(kind, profileKey string) bool, held githubDocs) []link {
+	rules []source.LinkRule, patterns map[string]string, accepts func(kind, profileKey string) bool, held githubDocs,
+	pulled map[string]*pulledTarget) []link {
 	if accepts == nil {
 		accepts = func(string, string) bool { return true }
 	}
@@ -345,11 +355,19 @@ func resolveLinksIn(all []pgdb.SpecDoc, place docPlace, b pgdb.SpecDoc, main []b
 		if !ok {
 			continue
 		}
+		found := false
 		for i := range all {
 			if bundlePath(all[i], place) == to && !all[i].ArchivedAt.Valid {
 				add(link{kind: rule.Kind, targetKind: "bundle", ref: to, origin: originRule, target: &all[i]})
+				found = true
 				break
 			}
+		}
+		// A doc in the tree wins. Only a rule target that no spec doc holds comes from an open
+		// pull request (#142).
+		if t := pulled[to]; !found && t != nil {
+			pull := t.pull
+			add(link{kind: rule.Kind, targetKind: "bundle", ref: to, origin: originRule, target: &t.doc, pull: &pull, files: t.files})
 		}
 	}
 	return out
@@ -413,7 +431,10 @@ func (s *Service) loadLinked(ctx context.Context, links []link, from *FromRepo) 
 			continue
 		}
 		var files []source.File
-		if from != nil && from.files[l.target.ID] != nil {
+		if l.pull != nil {
+			// The doc at the head commit of an open pull request, which no version holds.
+			files = l.files
+		} else if from != nil && from.files[l.target.ID] != nil {
 			// A spec doc of the same commit, which no version holds.
 			files = from.files[l.target.ID]
 		} else if !l.target.CurrentVersionID.Valid {
@@ -448,7 +469,11 @@ func storeLinks(ctx context.Context, q store.Querier, workspace uuid.UUID, b pgd
 		if l.external != nil {
 			p.TargetUrl = l.external.URL
 		}
-		if l.target != nil {
+		switch {
+		case l.pull != nil:
+			// The doc is in no store: the link keeps the pull request and its commit.
+			p.PullNumber, p.PullSha, p.PullUrl = int64(l.pull.Number), l.pull.SHA, l.pull.URL
+		case l.target != nil:
 			p.TargetSpecDocID = uuid.NullUUID{UUID: l.target.ID, Valid: true}
 		}
 		if err := q.InsertLink(ctx, p); err != nil {
@@ -467,13 +492,13 @@ type Linked struct {
 // LinkedBundles returns the bundles that b links to, in the order the links appear. It serves
 // the build packet, which carries the main doc of each linked bundle (REQ-136).
 func (s *Service) LinkedBundles(ctx context.Context, b pgdb.SpecDoc, main []byte) ([]Linked, error) {
-	links, err := s.resolveLinks(ctx, b, main, nil)
+	links, _, err := s.resolveLinks(ctx, b, main, nil)
 	if err != nil {
 		return nil, err
 	}
 	var out []Linked
 	for _, l := range links {
-		if l.target != nil {
+		if l.target != nil && l.pull == nil {
 			out = append(out, Linked{Kind: l.kind, Bundle: *l.target})
 		}
 	}

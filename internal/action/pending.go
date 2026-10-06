@@ -342,6 +342,9 @@ func BundlesOf(ctx context.Context, gh *github.Client, rev *api.UrlReview, check
 		}
 		ab.Verdict, ab.Score, ab.Must, ab.Should = string(v.Verdict.Result), v.Verdict.Score, v.Verdict.Must, v.Verdict.Should
 		ab.Waivers, ab.Relaxed, ab.Findings = v.Verdict.WaiverCount, v.Verdict.RelaxedCount, v.Findings
+		if v.Links != nil {
+			ab.Upstream = UpstreamOf(*v.Links)
+		}
 		for _, f := range append([]api.Finding{{Anchor: api.Anchor{File: v.MainDoc}}}, v.Findings...) {
 			if _, done := ab.Files[f.Anchor.File]; done || f.Anchor.File == "" {
 				continue

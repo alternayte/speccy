@@ -216,6 +216,9 @@ type Link struct {
 	TargetRef       string
 	Origin          string
 	TargetUrl       string
+	PullNumber      int64
+	PullSha         string
+	PullUrl         string
 }
 
 type LinkState struct {

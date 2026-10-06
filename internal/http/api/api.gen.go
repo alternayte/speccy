@@ -2202,6 +2202,9 @@ type BundleLink struct {
 	Kind      BundleLinkKind   `json:"kind"`
 	Origin    BundleLinkOrigin `json:"origin"`
 
+	// Pull Set when the target of a link rule is not in the tree and an open pull request of the same repo holds it (#142). The review read the doc at that pull request's head commit. The doc is not merged.
+	Pull *LinkPull `json:"pull,omitempty"`
+
 	// Removable True when DELETE /docs/{docId}/links can remove the link: an adopted link, or a frontmatter link of a doc Speccy writes. Absent on an incoming link.
 	Removable *bool `json:"removable,omitempty"`
 
@@ -2440,14 +2443,17 @@ type ContentFileEncoding string
 
 // ContentReview defines model for ContentReview.
 type ContentReview struct {
-	CacheHits      *int               `json:"cache_hits,omitempty"`
-	CostEstimate   *float32           `json:"cost_estimate,omitempty"`
-	Findings       []Finding          `json:"findings"`
-	Id             openapi_types.UUID `json:"id"`
-	MainDoc        string             `json:"main_doc"`
-	Notes          []string           `json:"notes"`
-	ProfileKey     string             `json:"profile_key"`
-	ProfileVersion int64              `json:"profile_version"`
+	CacheHits    *int               `json:"cache_hits,omitempty"`
+	CostEstimate *float32           `json:"cost_estimate,omitempty"`
+	Findings     []Finding          `json:"findings"`
+	Id           openapi_types.UUID `json:"id"`
+
+	// Links The outgoing links of the doc, as this review resolved them. A link whose target comes from an open pull request has pull.
+	Links          *[]BundleLink `json:"links,omitempty"`
+	MainDoc        string        `json:"main_doc"`
+	Notes          []string      `json:"notes"`
+	ProfileKey     string        `json:"profile_key"`
+	ProfileVersion int64         `json:"profile_version"`
 
 	// ReportPath The app page of the report, relative to the server, such as /reviews/{id}.
 	ReportPath string `json:"report_path"`
@@ -2888,6 +2894,18 @@ type LinkChoice struct {
 	Path    string `json:"path"`
 	Profile string `json:"profile"`
 	Title   string `json:"title"`
+}
+
+// LinkPull defines model for LinkPull.
+type LinkPull struct {
+	// Number The number of the open pull request.
+	Number int `json:"number"`
+
+	// Sha The head commit of the pull request that the review read.
+	Sha string `json:"sha"`
+
+	// Url The web page of the pull request.
+	Url string `json:"url"`
 }
 
 // LinkSuggestRequest defines model for LinkSuggestRequest.

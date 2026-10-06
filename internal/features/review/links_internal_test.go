@@ -34,13 +34,13 @@ func TestAdoptedLinkStandsUntilTheDocNamesItsOwn(t *testing.T) {
 	all := []pgdb.SpecDoc{prd, other, sdd}
 	adopted := []adoptedLink{{kind: "implements", target: "docs/PRD.md"}}
 
-	links := resolveLinksIn(all, nil, sdd, []byte("# SDD\n"), adopted, nil, nil, nil, nil)
+	links := resolveLinksIn(all, nil, sdd, []byte("# SDD\n"), adopted, nil, nil, nil, nil, nil)
 	if len(links) != 1 || links[0].origin != originAdopted || links[0].target == nil || links[0].target.ID != prd.ID {
 		t.Fatalf("links = %+v, want one adopted link to the PRD", links)
 	}
 
 	own := []byte("---\ntype: sdd\nlinks:\n  - kind: implements\n    target: OTHER.md\n---\n# SDD\n")
-	links = resolveLinksIn(all, nil, sdd, own, adopted, nil, nil, nil, nil)
+	links = resolveLinksIn(all, nil, sdd, own, adopted, nil, nil, nil, nil, nil)
 	if len(links) != 1 || links[0].origin != originFrontmatter || links[0].target.ID != other.ID {
 		t.Fatalf("links = %+v, want only the doc's own link", links)
 	}
@@ -88,7 +88,7 @@ func TestGitHubDocLinkResolvesToTheSourceDoc(t *testing.T) {
 		{"https://github.com/other/specs/blob/feature/pay/docs/prd/PRD%20-%20Pay.md", false},
 	} {
 		main := []byte("---\ntype: sdd\nlinks:\n  - kind: implements\n    target: \"" + c.target + "\"\n---\n# SDD\n")
-		links := resolveLinksIn(all, nil, sdd, main, nil, nil, nil, nil, held)
+		links := resolveLinksIn(all, nil, sdd, main, nil, nil, nil, nil, held, nil)
 		if len(links) != 1 {
 			t.Fatalf("%s: %d links", c.target, len(links))
 		}

@@ -92,6 +92,10 @@ type Service struct {
 	// AddSource adds a GitHub URL as a source, for the upstream doc of a link (#97). It is set in
 	// local mode only: in hosted mode an admin adds a source.
 	AddSource func(ctx context.Context, url string) error
+	// FolderRepo is the GitHub repo that the served folder is a checkout of, in the CI Action.
+	// A review of a doc of the folder then finds a link rule target that is not in the tree in
+	// the open pull requests of that repo (#142). Nil everywhere else.
+	FolderRepo *FolderRepo
 	// AfterReview runs after a full review of a doc ends with a verdict. The app ends the
 	// waivers of the whole-doc checks that the review passed.
 	AfterReview func(ctx context.Context, b pgdb.SpecDoc) error
@@ -195,6 +199,8 @@ type input struct {
 	// links are the version's links; linked are the bundle targets, at their current version.
 	links  []link
 	linked []linked
+	// linkNotes are the run notes about link targets from open pull requests (#142).
+	linkNotes []string
 	// upstreams are the slugs of the bundles whose profile this doc may link up to, so a link
 	// that does not resolve can name what would.
 	upstreams []string
@@ -237,7 +243,7 @@ func (s *Service) loadFiles(ctx context.Context, b pgdb.SpecDoc, versionID uuid.
 			return input{}, err
 		}
 	}
-	if in.links, err = s.resolveLinks(ctx, b, in.main, from); err != nil {
+	if in.links, in.linkNotes, err = s.resolveLinks(ctx, b, in.main, from); err != nil {
 		return input{}, err
 	}
 	if up := p.Profile.Links.Upstream; up != nil && len(up.Types) > 0 {
@@ -506,6 +512,9 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 	}
 	vin.Items = ev.items
 	v := verdict.Decide(vin)
+	if n := readyOnPullNote(in.links, v.Result); n != "" {
+		run.Notes = appendNote(run.Notes, n)
+	}
 	finished := time.Now().UTC()
 	// A full review says what it fixed, left open and found new since the one before it.
 	trendJSON := dbtype.JSON(`{}`)
@@ -546,6 +555,9 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		}
 		// REQ-056: the linked versions this run used.
 		for _, l := range in.linked {
+			if l.pull != nil {
+				continue // a doc of an open pull request has no version in the store
+			}
 			if err := q.InsertRunLink(ctx, pgdb.InsertRunLinkParams{RunID: run.ID, SpecDocID: l.target.ID, VersionID: l.version}); err != nil {
 				return err
 			}
@@ -593,6 +605,8 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 func (s *Service) EnsureLinted(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// One pass lists the open pull requests of a repo once, for all the docs it lints (#142).
+	ctx = withPulls(ctx)
 	all, err := s.allBundles(ctx)
 	if err != nil {
 		return err
@@ -671,7 +685,7 @@ func (s *Service) lintIfNeeded(ctx context.Context, b pgdb.SpecDoc, all []pgdb.S
 	if err != nil {
 		return err
 	}
-	links := resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b), held)
+	links := resolveLinksIn(all, place, b, main, adopted, linkRules(repo), repo.LinkPatterns, s.accepts(b), held, nil)
 	stored, err := q.ListLinksFrom(ctx, b.ID)
 	if err != nil {
 		return err
@@ -708,6 +722,11 @@ func sameLinks(stored []pgdb.Link, links []link) bool {
 	}
 	a := make([]string, 0, len(stored))
 	for _, l := range stored {
+		if l.PullNumber != 0 {
+			// Only a review reads open pull requests (#142). Here the target is still missing
+			// from the tree, so the link the last review found stands.
+			continue
+		}
 		a = append(a, key(l.Kind, l.TargetRef, l.Origin, l.TargetKind, l.TargetSpecDocID))
 	}
 	b := make([]string, 0, len(links))
@@ -797,7 +816,8 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 		return run, insertRun(ctx, s.DB.Queries(), run, now)
 	}
 	run.ProfileVersion = p.Version
-	in, err := s.load(ctx, b, versionID, p)
+	// A lint run is a review: a link rule target may come from an open pull request (#142).
+	in, err := s.load(withPulls(ctx), b, versionID, p)
 	if err != nil {
 		return run, err
 	}
@@ -809,6 +829,7 @@ func (s *Service) Lint(ctx context.Context, b pgdb.SpecDoc, versionID uuid.UUID)
 	if in.sizeNote != "" {
 		notes = append(notes, in.sizeNote)
 	}
+	notes = append(notes, in.linkNotes...)
 	if notes = append(notes, ev.notes...); len(notes) > 0 {
 		run.Notes, _ = json.Marshal(notes)
 	}

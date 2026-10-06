@@ -629,6 +629,26 @@ export type BundleLink = {
      *
      */
     removable?: boolean;
+    /**
+     * Set when the target of a link rule is not in the tree and an open pull request of the same repo holds it (#142). The review read the doc at that pull request's head commit. The doc is not merged.
+     *
+     */
+    pull?: LinkPull;
+};
+
+export type LinkPull = {
+    /**
+     * The number of the open pull request.
+     */
+    number: number;
+    /**
+     * The head commit of the pull request that the review read.
+     */
+    sha: string;
+    /**
+     * The web page of the pull request.
+     */
+    url: string;
 };
 
 export type RemovedLink = {
@@ -1266,6 +1286,11 @@ export type ContentReview = {
     verdict: ContentVerdict;
     findings: Array<Finding>;
     notes: Array<string>;
+    /**
+     * The outgoing links of the doc, as this review resolved them. A link whose target comes from an open pull request has pull.
+     *
+     */
+    links?: Array<BundleLink>;
     tokens_in?: number;
     tokens_out?: number;
     cost_estimate?: number;

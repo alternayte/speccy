@@ -304,12 +304,16 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	_ = json.Unmarshal(assigned.Backend.Config, &preset)
 	native := model.SearchCapable(assigned.Backend.Kind, preset.Preset, assigned.Model)
 
-	in, err := s.load(ctx, b, run.VersionID, p)
+	// A link rule target may come from an open pull request; this run reads it again (#142).
+	in, err := s.load(withPulls(ctx), b, run.VersionID, p)
 	if err != nil {
 		return fail(err)
 	}
 	if in.sizeNote != "" {
 		rc.note(in.sizeNote)
+	}
+	for _, n := range in.linkNotes {
+		rc.note(n)
 	}
 	if stages.has(StageRubric) {
 		for _, note := range sectionNotes(p, in) {
@@ -673,7 +677,7 @@ func (s *Service) addUpstreamSources(ctx context.Context, b pgdb.SpecDoc, p prof
 			main = f.Content
 		}
 	}
-	links, err := s.resolveLinks(ctx, b, main, nil)
+	links, _, err := s.resolveLinks(ctx, b, main, nil)
 	if err != nil {
 		return
 	}
