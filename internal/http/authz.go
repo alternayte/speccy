@@ -91,7 +91,7 @@ var operations = map[string]access{
 	"listClaims":      bundleRead,
 	"listQuestions":   bundleRead,
 	"getBundleAccess": bundleRead,
-	"getTour":         bundleRead,
+	"getQuestions":    bundleRead,
 	"getRunReport":    bundleRead,
 
 	"startRun":    bundleAI,

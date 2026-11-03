@@ -3,7 +3,6 @@ import { clsx } from "clsx";
 import {
   ChevronDown,
   CircleAlert,
-  Compass,
   Download,
   FileText,
   FolderTree,
@@ -14,7 +13,6 @@ import {
   Play,
   Printer,
   Trash2,
-  Wrench,
   Tags,
 } from "lucide-react";
 import { useState } from "react";
@@ -26,8 +24,6 @@ import { verdictLabel } from "./verdict";
 const kindIcon: Record<NextAction["kind"], React.ReactNode> = {
   waiver: <MessageSquarePlus className="size-3.5" />,
   questions: <ListTodo className="size-3.5" />,
-  decide: <Compass className="size-3.5" />,
-  fix: <Wrench className="size-3.5" />,
   review: <Play className="size-3.5" />,
   adopt: <FileText className="size-3.5" />,
   request_review: <MessageSquarePlus className="size-3.5" />,
@@ -164,10 +160,10 @@ export function ControlRow({
           Files
         </MenuItem>
         <MenuItem
-          icon={<Compass className="size-3.5" />}
-          onSelect={() => go("/bundles/$bundleId/docs/$docId/tour", { docId: bundle.id })}
+          icon={<ListTodo className="size-3.5" />}
+          onSelect={() => go("/bundles/$bundleId/docs/$docId/questions", { docId: bundle.id })}
         >
-          Tour
+          Questions
         </MenuItem>
         <MenuItem
           icon={<Network className="size-3.5" />}

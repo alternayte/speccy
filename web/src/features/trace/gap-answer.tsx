@@ -41,7 +41,7 @@ export function GapAnswer({
   traceId: string;
   onDone: (message: string) => void;
   className?: string;
-  // question shows "Does this doc cover …?". The tour asks it in its heading already.
+  // question shows "Does this doc cover …?". The questions screen asks it in its heading already.
   question?: boolean;
 }) {
   const qc = useQueryClient();

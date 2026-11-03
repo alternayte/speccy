@@ -45,7 +45,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_verdict", "Get the current verdict of a bundle.", t.getVerdict)
 	add(s, t, "get_findings", "Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person: the finding has the question to ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.", t.getFindings)
 	add(s, t, "save_file", "Save one file of a bundle that Speccy stores, as a new version. Give the version your edit is based on. Speccy lints the save. For a local or a GitHub bundle this tool writes nothing and says where the file is: edit that file yourself.", t.saveFile)
-	add(s, t, "get_tour", "Get the points of a bundle that need a human decision, in order.", t.getTour)
+	add(s, t, "get_questions", "Get everything that blocks Build Ready and needs a person, in doc order: material gaps with two options and a suggested pick, blocking threads, and blocking findings.", t.getQuestions)
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
@@ -546,12 +546,12 @@ func (tools) saveFile(ctx context.Context, c *api.ClientWithResponses, in saveAr
 		"next": "Speccy linted the save. Call get_findings for the lint result, and review_bundle one time when all your edits are saved."}, nil
 }
 
-func (tools) getTour(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {
+func (tools) getQuestions(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {
 	b, err := bundle(ctx, c, in.Bundle)
 	if err != nil {
 		return nil, err
 	}
-	res, err := c.GetTourWithResponse(ctx, b.Id)
+	res, err := c.GetQuestionsWithResponse(ctx, b.Id)
 	if err != nil {
 		return nil, err
 	}

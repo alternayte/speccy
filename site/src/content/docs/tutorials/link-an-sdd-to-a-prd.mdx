@@ -161,19 +161,19 @@ Your SDD names no PRD ID yet, so the matrix shows three gaps. When a PRD defines
 
 ## 5. Close each gap
 
-Each gap is a MUST finding [`trace.coverage`](/reference/checks/#trace.coverage) on the SDD. Open the SDD. Its next action asks about the first gap: "Decide: does this doc cover REQ-001?"
+Each gap is a MUST finding [`trace.coverage`](/reference/checks/#trace.coverage) on the SDD. Open the SDD. Its next action reads "Answer 3 questions".
 
 <Steps>
 
-1. Click the next action. The tour opens on the gap.
+1. Click the next action. The questions screen opens. It shows the three gaps on one page, in doc order.
 
-2. Press `d`. Speccy offers three answers: **This doc covers it**, **Another doc covers it** and **Out of scope**.
+2. Find the REQ-001 gap. Speccy offers three answers: **This doc covers it**, **Another doc covers it** and **Out of scope**.
 
 3. For REQ-001, pick **This doc covers it**. Pick the **Design** section, and click **Add the line**.
 
 </Steps>
 
-![The three answers to a gap in the tour](../../../assets/shots/linked-gap.png)
+![The three answers to a gap on the questions screen](../../../assets/shots/linked-gap.png)
 
 Speccy adds the line `Covers REQ-001.` at the end of the Design section, as a new version. The ID is now in the doc, where a builder reads it. You can also name an ID anywhere in the SDD by hand.
 
@@ -186,13 +186,13 @@ Close the other two gaps:
 
 <Steps>
 
-1. Go to the REQ-002 gap. `j` and `k` move between points. Press `d`, pick **Out of scope**, and give the reason "The mail service sends every customer email." Click **Ask for approval**.
+1. Go to the REQ-002 gap. Pick **Out of scope**, and give the reason "The mail service sends every customer email." Click **Ask for approval**.
 
-2. Go to the REQ-003 gap. Press `d`, pick **This doc covers it**, pick **Design**, and click **Add the line**.
+2. Go to the REQ-003 gap. Pick **This doc covers it**, pick **Design**, and click **Add the line**.
 
 </Steps>
 
-An acknowledgement follows the profile's waiver policy, so a maintainer approves a MUST gap. The request waits in the approver's inbox and in the tour. In local mode you are the admin, so the tour shows **Approve** on the request. Click it.
+An acknowledgement follows the profile's waiver policy, so a maintainer approves a MUST gap. The request waits in the approver's inbox and at the top of the questions screen, under **Waiting for your decision**. In local mode you are the admin, so the questions screen shows **Approve** on the request. Click it.
 
 On approval, Speccy writes the acknowledgement into the SDD's sidecar, `.speccy/decisions/<doc path>.yaml`. The SDD text does not change:
 
@@ -204,7 +204,7 @@ trace:
     acknowledged_by: nathan
 ```
 
-An acknowledgement is about the ID, not a section. An edit to the SDD does not end it. The matrix shows each answer, with its reason. **Withdraw** in the cell takes the acknowledgement back at once, and the gap opens again. A gap cell has **Answer**, which opens the same three answers as the tour.
+An acknowledgement is about the ID, not a section. An edit to the SDD does not end it. The matrix shows each answer, with its reason. **Withdraw** in the cell takes the acknowledgement back at once, and the gap opens again. A gap cell has **Answer**, which opens the same three answers as the questions screen.
 
 ![The matrix after the answers: referenced, out of scope, and covered by another doc](../../../assets/shots/linked-ack.png)
 

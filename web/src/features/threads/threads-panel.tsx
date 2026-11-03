@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import type { Anchor, Thread, ThreadDetail } from "@/lib/api";
 import {
+  getQuestionsQueryKey,
   getSpecDocOptions,
   getThreadOptions,
   getThreadQueryKey,
@@ -275,7 +276,9 @@ export function ThreadView({
   threadId: string;
   docId?: string;
   member: boolean;
-  onBack: () => void;
+  // onBack is absent where the thread sits inside an item that already shows its title, as on
+  // the questions screen.
+  onBack?: () => void;
   onOpenAnchor?: (a: Anchor) => void;
 }) {
   const qc = useQueryClient();
@@ -290,6 +293,7 @@ export function ThreadView({
     if (docId) {
       qc.invalidateQueries({ queryKey: listBundleThreadsQueryKey({ path: { docId } }) });
       qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
+      qc.invalidateQueries({ queryKey: getQuestionsQueryKey({ path: { docId } }) });
     } else if (t.profile_key) {
       qc.invalidateQueries({ queryKey: listProfileThreadsQueryKey({ path: { key: t.profile_key } }) });
     }
@@ -319,14 +323,16 @@ export function ThreadView({
   return (
     <div className="flex min-h-full flex-col">
       <div className="space-y-2 border-b border-line p-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
-        >
-          <ArrowLeft aria-hidden className="size-3.5" /> Threads
-        </button>
-        <p className="text-sm font-medium">{t.title}</p>
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
+          >
+            <ArrowLeft aria-hidden className="size-3.5" /> Threads
+          </button>
+        ) : null}
+        {onBack ? <p className="text-sm font-medium">{t.title}</p> : null}
         {textAnchor?.detached ? (
           <div className="border-l-2 border-warn pl-2 text-xs">
             <p className="font-medium text-warn">Detached: the text changed, and Speccy cannot find this quote.</p>

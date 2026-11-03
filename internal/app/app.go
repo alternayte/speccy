@@ -20,10 +20,10 @@ import (
 	"github.com/alternayte/speccy/internal/features/insights"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/prreview"
+	"github.com/alternayte/speccy/internal/features/questions"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
-	"github.com/alternayte/speccy/internal/features/tour"
 	"github.com/alternayte/speccy/internal/features/verify"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
@@ -169,7 +169,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions}
 	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people}
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
-	tourAPI := &tour.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
+	questionsAPI := &questions.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
 	verifyAPI := &verify.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway,
 		GitHub: reviews.GitHub, Threads: threadAPI, Progress: reviews.Progress, Wake: reviews.Wake, Local: root != nil}
 	// SDD §7.2: one worker runs queued reviews, and the queued verification runs with them.
@@ -183,12 +183,10 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}
 	go reviews.Work(ctx)
 	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
-		Waiting:       waiverAPI.Waiting,
-		FirstPoint:    tourAPI.FirstPoint,
-		FirstMust:     reviewAPI.FirstMust,
-		OpenQuestions: reviewAPI.OpenQuestions,
-		Approvals:     approvalAPI.ApprovalCount,
-		Handoffs:      handoffAPI.CountForVersion,
+		Waiting:   waiverAPI.Waiting,
+		Questions: questionsAPI.List,
+		Approvals: approvalAPI.ApprovalCount,
+		Handoffs:  handoffAPI.CountForVersion,
 	}}
 	addSource = func(ctx context.Context, url string) error {
 		_, err := bundleAPI.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: url}})
@@ -211,22 +209,22 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 				}
 				return version.CarriedPaths(v)
 			}},
-			BundleAPI:   bundleAPI,
-			VersionAPI:  &version.API{DB: db, Workspace: ws},
-			ExportAPI:   &export.API{DB: db, Workspace: ws, Reviews: reviewAPI},
-			ProfileAPI:  &profile.API{Registry: profiles, People: people},
-			ReviewAPI:   reviewAPI,
-			AdminAPI:    adminAPI,
-			ShareAPI:    shareAPI,
-			ThreadAPI:   threadAPI,
-			WaiverAPI:   waiverAPI,
-			ApprovalAPI: approvalAPI,
-			InboxAPI:    &inbox.API{DB: db, Workspace: ws, People: people, Waivers: waiverAPI},
-			InsightsAPI: &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current, Decisions: svc.Decisions},
-			TourAPI:     tourAPI,
-			HandoffAPI:  handoffAPI,
-			VerifyAPI:   verifyAPI,
-			PrReviewAPI: prs,
+			BundleAPI:    bundleAPI,
+			VersionAPI:   &version.API{DB: db, Workspace: ws},
+			ExportAPI:    &export.API{DB: db, Workspace: ws, Reviews: reviewAPI},
+			ProfileAPI:   &profile.API{Registry: profiles, People: people},
+			ReviewAPI:    reviewAPI,
+			AdminAPI:     adminAPI,
+			ShareAPI:     shareAPI,
+			ThreadAPI:    threadAPI,
+			WaiverAPI:    waiverAPI,
+			ApprovalAPI:  approvalAPI,
+			InboxAPI:     &inbox.API{DB: db, Workspace: ws, People: people, Waivers: waiverAPI},
+			InsightsAPI:  &insights.API{DB: db, Workspace: ws, Profiles: profiles.Current, Decisions: svc.Decisions},
+			QuestionsAPI: questionsAPI,
+			HandoffAPI:   handoffAPI,
+			VerifyAPI:    verifyAPI,
+			PrReviewAPI:  prs,
 		},
 	}, nil
 }

@@ -218,19 +218,6 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
       case "questions":
         navigate({ to: "/bundles/$bundleId/docs/$docId/questions", params: { bundleId, docId } });
         return;
-      case "decide":
-        navigate({ to: "/bundles/$bundleId/docs/$docId/tour", params: { bundleId, docId } });
-        return;
-      case "fix": {
-        setTab("findings");
-        setPanel("rail");
-        const f = (findings.data?.items ?? []).find((x) => x.id === next.finding_id);
-        if (f) {
-          setSelectedFinding(f.id);
-          openFinding(f);
-        }
-        return;
-      }
       case "review":
         runReview.current?.();
         return;

@@ -607,6 +607,11 @@ type ClientInterface interface {
 	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 	PublishBundle(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetQuestions Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
+	//
+	// Corresponds with GET /docs/{docId}/questions (the `GetQuestions` operationId).
+	GetQuestions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// FreshQuestions Ask for a fresh set of build questions at the next full review.
 	//
 	// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
@@ -675,11 +680,6 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
 	OpenBundleThread(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	//
-	// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
-	GetTour(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	//
@@ -2758,6 +2758,21 @@ func (c *Client) PublishBundle(ctx context.Context, docId DocId, body PublishBun
 	return c.Client.Do(req)
 }
 
+// GetQuestions Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
+//
+// Corresponds with GET /docs/{docId}/questions (the `GetQuestions` operationId).
+func (c *Client) GetQuestions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetQuestionsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // FreshQuestions Ask for a fresh set of build questions at the next full review.
 //
 // A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
@@ -2927,21 +2942,6 @@ func (c *Client) OpenBundleThreadWithBody(ctx context.Context, docId DocId, cont
 // Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
 func (c *Client) OpenBundleThread(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewOpenBundleThreadRequest(c.Server, docId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-//
-// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
-func (c *Client) GetTour(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetTourRequest(c.Server, docId)
 	if err != nil {
 		return nil, err
 	}
@@ -7405,6 +7405,40 @@ func NewPublishBundleRequestWithBody(server string, docId DocId, contentType str
 	return req, nil
 }
 
+// NewGetQuestionsRequest constructs an http.Request for the GetQuestions method
+func NewGetQuestionsRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/questions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewFreshQuestionsRequest constructs an http.Request for the FreshQuestions method
 func NewFreshQuestionsRequest(server string, docId DocId) (*http.Request, error) {
 	var err error
@@ -7739,40 +7773,6 @@ func NewOpenBundleThreadRequestWithBody(server string, docId DocId, contentType 
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetTourRequest constructs an http.Request for the GetTour method
-func NewGetTourRequest(server string, docId DocId) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/docs/%s/tour", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -11507,6 +11507,13 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /docs/{docId}/publish (the `PublishBundle` operationId).
 	PublishBundleWithResponse(ctx context.Context, docId DocId, body PublishBundleJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishBundleResponse, error)
 
+	// GetQuestionsWithResponse Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/questions (the `GetQuestions` operationId).
+	GetQuestionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetQuestionsResponse, error)
+
 	// FreshQuestionsWithResponse Ask for a fresh set of build questions at the next full review.
 	//
 	// A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
@@ -11585,13 +11592,6 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /docs/{docId}/threads (the `OpenBundleThread` operationId).
 	OpenBundleThreadWithResponse(ctx context.Context, docId DocId, body OpenBundleThreadJSONRequestBody, reqEditors ...RequestEditorFn) (*OpenBundleThreadResponse, error)
-
-	// GetTourWithResponse The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	//
-	// Returns a wrapper object for the known response body format(s).
-	//
-	// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
-	GetTourWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTourResponse, error)
 
 	// GetTraceWithResponse The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	//
@@ -15303,6 +15303,54 @@ func (r PublishBundleResponse) ContentType() string {
 	return ""
 }
 
+type GetQuestionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Questions
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetQuestionsResponse) GetJSON200() *Questions {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetQuestionsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetQuestionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetQuestionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetQuestionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetQuestionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type FreshQuestionsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -15678,54 +15726,6 @@ func (r OpenBundleThreadResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r OpenBundleThreadResponse) ContentType() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Header.Get("Content-Type")
-	}
-	return ""
-}
-
-type GetTourResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Tour
-	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
-	ApplicationproblemJSONDefault *Problem
-}
-
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r GetTourResponse) GetJSON200() *Tour {
-	return r.JSON200
-}
-
-// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
-func (r GetTourResponse) GetApplicationproblemJSONDefault() *Problem {
-	return r.ApplicationproblemJSONDefault
-}
-
-// GetBody returns the raw response body bytes
-func (r GetTourResponse) GetBody() []byte {
-	return r.Body
-}
-
-// Status returns HTTPResponse.Status
-func (r GetTourResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetTourResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r GetTourResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -20518,6 +20518,19 @@ func (c *ClientWithResponses) PublishBundleWithResponse(ctx context.Context, doc
 	return ParsePublishBundleResponse(rsp)
 }
 
+// GetQuestionsWithResponse Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/questions (the `GetQuestions` operationId).
+func (c *ClientWithResponses) GetQuestionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetQuestionsResponse, error) {
+	rsp, err := c.GetQuestions(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetQuestionsResponse(rsp)
+}
+
 // FreshQuestionsWithResponse Ask for a fresh set of build questions at the next full review.
 //
 // A doc keeps its build questions from one version to the next. This retires every one of them, so the next full review writes a new set. It is the only way the whole set changes. It calls no model. Only a person who can edit the doc may do it.
@@ -20661,19 +20674,6 @@ func (c *ClientWithResponses) OpenBundleThreadWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseOpenBundleThreadResponse(rsp)
-}
-
-// GetTourWithResponse The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-//
-// Returns a wrapper object for the known response body format(s).
-//
-// Corresponds with GET /docs/{docId}/tour (the `GetTour` operationId).
-func (c *ClientWithResponses) GetTourWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetTourResponse, error) {
-	rsp, err := c.GetTour(ctx, docId, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetTourResponse(rsp)
 }
 
 // GetTraceWithResponse The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
@@ -24169,6 +24169,39 @@ func ParsePublishBundleResponse(rsp *http.Response) (*PublishBundleResponse, err
 	return response, nil
 }
 
+// ParseGetQuestionsResponse parses an HTTP response from a GetQuestionsWithResponse call
+func ParseGetQuestionsResponse(rsp *http.Response) (*GetQuestionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetQuestionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Questions
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseFreshQuestionsResponse parses an HTTP response from a FreshQuestionsWithResponse call
 func ParseFreshQuestionsResponse(rsp *http.Response) (*FreshQuestionsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -24414,39 +24447,6 @@ func ParseOpenBundleThreadResponse(rsp *http.Response) (*OpenBundleThreadRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest ThreadDetail
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
-		var dest Problem
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.ApplicationproblemJSONDefault = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetTourResponse parses an HTTP response from a GetTourWithResponse call
-func ParseGetTourResponse(rsp *http.Response) (*GetTourResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetTourResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Tour
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

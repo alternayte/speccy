@@ -108,7 +108,7 @@ func (s *server) models(model string) error {
 }
 
 // specDoc is one spec doc, as the list of bundles names it. A bundle is a folder; the
-// screens, the reviews and the tour belong to one spec doc in it.
+// screens, the reviews and the questions belong to one spec doc in it.
 type specDoc struct {
 	ID       string `json:"id"`
 	BundleID string `json:"bundle_id"`
@@ -229,7 +229,7 @@ func (d *shots) png(name, url string, prep func() error) error {
 }
 
 // gif records act and writes site/src/assets/shots/<name>.gif. A GIF carries what the prose cannot:
-// the review running, the click-to-edit, and the tour moving point to point.
+// the review running, the click-to-edit, and the questions screen.
 func (d *shots) gif(name, url string, speed int, act func() error) error {
 	if _, err := d.ab("open", url); err != nil {
 		return err
@@ -412,18 +412,8 @@ func (d *shots) guide(s *server, dir, model string) error {
 		return err
 	}
 
-	// 4. The tour, point to point.
-	if err := d.gif("guide-tour", u(draft.page()+"/tour"), 1, func() error {
-		for i := 0; i < 3; i++ {
-			if _, err := d.ab("press", "j"); err != nil {
-				return err
-			}
-			if _, err := d.ab("wait", "1400"); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
+	// 4. The questions screen: everything that blocks Build Ready, on one page.
+	if err := d.png("guide-questions-screen", u(draft.page()+"/questions"), nil); err != nil {
 		return err
 	}
 
@@ -443,7 +433,7 @@ func (d *shots) guide(s *server, dir, model string) error {
 	if err := d.png("guide-reviewer", u(draft.page()+"?as=reviewer"), nil); err != nil {
 		return err
 	}
-	if err := d.png("guide-reviewer-questions", u(draft.page()+"/tour?as=reviewer"), nil); err != nil {
+	if err := d.png("guide-reviewer-questions", u(draft.page()+"/questions?as=reviewer"), nil); err != nil {
 		return err
 	}
 
@@ -597,7 +587,7 @@ func (d *shots) linked(s *server, dir string) error {
 		return err
 	}
 
-	// 5. The three answers to a gap, in the tour.
+	// 5. The three answers to a gap, on the questions screen.
 	var trace struct{ Sections [][]string }
 	if err := s.call("GET", "/docs/"+sdd.ID+"/trace", nil, &trace); err != nil {
 		return err
@@ -611,20 +601,14 @@ func (d *shots) linked(s *server, dir string) error {
 	if design < 0 {
 		return errors.New("the SDD has no Design section")
 	}
-	if err := d.png("linked-gap", u(sdd.page()+"/tour"), func() error {
-		if _, err := d.ab("press", "d"); err != nil {
-			return err
-		}
-		if _, err := d.ab("wait", "500"); err != nil {
-			return err
-		}
+	if err := d.png("linked-gap", u(sdd.page()+"/questions"), func() error {
 		if _, err := d.ab("find", "role", "radio", "click", "--name", "This doc covers it"); err != nil {
 			return err
 		}
 		if _, err := d.ab("wait", "800"); err != nil {
 			return err
 		}
-		if _, err := d.ab("select", "aside select, select", fmt.Sprint(design)); err != nil {
+		if _, err := d.ab("select", "select", fmt.Sprint(design)); err != nil {
 			return err
 		}
 		_, err := d.ab("wait", "500")

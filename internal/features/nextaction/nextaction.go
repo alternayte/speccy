@@ -11,7 +11,7 @@ import (
 )
 
 // Inputs are the signals the rule reads. The bundles list fills the cheap ones. One bundle
-// fills the rest, so its next action also carries a target.
+// fills the rest, so its next action counts the questions screen exactly.
 type Inputs struct {
 	// WaiverWaiting is a waiver that waits for this person's decision, if there is one.
 	WaiverWaiting *api.Waiver
@@ -22,13 +22,12 @@ type Inputs struct {
 	Status         api.ReviewStatus
 	// Adopt is the frontmatter the main doc does not name. One bundle only.
 	Adopt *api.Adopt
-	// Point is the first tour point. One bundle only.
-	Point *api.TourPoint
-	// Finding is the first MUST finding that is not waived. One bundle only.
-	Finding *api.Finding
-	// Questions is the count of open blocking build questions: the material gaps of the
-	// verdict's run that no waiver covers. One bundle only.
+	// Questions is the count of items on the questions screen: everything that blocks Build
+	// Ready and needs the author. The list counts the verdict's MUST findings and blocking
+	// threads instead.
 	Questions int
+	// Recheck is true when a MUST check of the verdict's run has no answer. One bundle only.
+	Recheck bool
 	// CanEdit is false for a person who only reads the bundle: they get no author action.
 	CanEdit bool
 	// Hosted is true when a team uses this server. Local mode has one person, so it asks for
@@ -38,6 +37,17 @@ type Inputs struct {
 	ApprovalsNeeded, ApprovalsGiven int
 	// Handoffs is how many builders took the packet of the current version.
 	Handoffs int
+}
+
+// ListQuestions is the count of the questions screen that a list row can name without building
+// the screen: the verdict's open MUST findings that have an answer, and its blocking threads.
+// recheck is true when a MUST check came back with no answer.
+func ListQuestions(v *api.BundleVerdict) (n int, recheck bool) {
+	if v == nil {
+		return 0, false
+	}
+	u := deref(v.Unanswered)
+	return v.Must - u + deref(v.BlockingThreads), u > 0
 }
 
 // Of names the next action, or nil when nothing is open. The order runs from what blocks other
@@ -61,48 +71,17 @@ func Of(in Inputs) *api.NextAction {
 	if !in.CanEdit {
 		return nil
 	}
-	// The questions screen answers every material gap in one pass, so it comes before the tour.
-	if in.Questions > 0 && (in.Verdict == nil || !stale(in.Verdict, in.CurrentVersion)) {
-		return &api.NextAction{Kind: api.NextActionKindQuestions, Sentence: fmt.Sprintf("Answer %d question%s", in.Questions, plural(in.Questions))}
-	}
-	if p := in.Point; p != nil {
-		key := p.Key
-		out := &api.NextAction{Kind: api.NextActionKindDecide, Sentence: short(p.Ask, 80), TourKey: &key}
-		if p.FindingId != nil {
-			out.FindingId = p.FindingId
-		}
-		return out
-	}
 	v := in.Verdict
-	// The list has no tour. The verdict's counts name the same work in the same order.
-	if in.Point == nil && in.Finding == nil && v != nil && !stale(v, in.CurrentVersion) {
-		if n := deref(v.BlockingThreads); n > 0 {
-			return &api.NextAction{
-				Kind:     api.NextActionKindDecide,
-				Sentence: fmt.Sprintf("Answer %d blocking thread%s", n, plural(n)),
-			}
-		}
-	}
-	// A MUST check with no answer needs another review, not an edit.
-	if f := in.Finding; f != nil && f.Unanswered != nil && *f.Unanswered {
-		return &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc again"}
-	}
-	if f := in.Finding; f != nil {
-		id := f.Id
-		return &api.NextAction{
-			Kind:      api.NextActionKindFix,
-			Sentence:  "Fix: " + short(f.Message, 80),
-			FindingId: &id,
-		}
-	}
 	if v == nil || in.RunError != nil || stale(v, in.CurrentVersion) {
 		return &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc"}
 	}
-	if v.Must > 0 {
-		return &api.NextAction{
-			Kind:     api.NextActionKindFix,
-			Sentence: fmt.Sprintf("Fix %d blocking finding%s", v.Must, plural(v.Must)),
-		}
+	// The questions screen holds every blocker the author can act on, in one pass.
+	if in.Questions > 0 {
+		return &api.NextAction{Kind: api.NextActionKindQuestions, Sentence: fmt.Sprintf("Answer %d question%s", in.Questions, plural(in.Questions))}
+	}
+	// A MUST check with no answer needs another review, not an edit.
+	if in.Recheck {
+		return &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc again"}
 	}
 	if a := in.Adopt; a != nil && (a.Type != nil || a.Size != nil) {
 		return &api.NextAction{Kind: api.NextActionKindAdopt, Sentence: "Write the type and the size into the doc"}
@@ -139,15 +118,6 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
-}
-
-// short cuts a sentence to fit a button or a status line.
-func short(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n-1]) + "…"
 }
 
 // WaiverFor returns the waiver of this bundle that waits for the caller, if there is one.

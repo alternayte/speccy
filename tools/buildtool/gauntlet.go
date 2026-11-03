@@ -344,7 +344,7 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 		return err
 	}
 
-	// Verdict bar: running, then a full review of the draft PRD for the overlay and the tour.
+	// Verdict bar: running, then a full review of the draft PRD for the overlay and the questions.
 	draft := bs["draft-prd"]
 	var started struct{ ID string }
 	if err := s.call("POST", "/docs/"+draft.ID+"/runs", nil, &started); err != nil {
@@ -445,32 +445,12 @@ func (g *gauntlet) local(bin, fixtures, dir, model string) error {
 		return err
 	}
 
-	// Tour: the first point, a middle point, and the last point.
-	var tour struct{ Points []any }
-	if err := s.call("GET", "/docs/"+draft.ID+"/tour", nil, &tour); err != nil {
+	// The questions screen, for the author and for a reviewer.
+	if err := g.shot("questions", u(draft.page()+"/questions"), nil); err != nil {
 		return err
 	}
-	if len(tour.Points) < 3 {
-		return fmt.Errorf("the draft PRD tour has %d points; the gauntlet needs 3", len(tour.Points))
-	}
-	press := func(n int) func() error {
-		return func() error {
-			for i := 0; i < n; i++ {
-				if _, err := g.ab("press", "j"); err != nil {
-					return err
-				}
-			}
-			_, err := g.ab("wait", "900")
-			return err
-		}
-	}
-	for _, p := range []struct {
-		name string
-		n    int
-	}{{"tour-first", 0}, {"tour-middle", len(tour.Points) / 2}, {"tour-last", len(tour.Points) - 1}} {
-		if err := g.shot(p.name, u(draft.page()+"/tour"), press(p.n)); err != nil {
-			return err
-		}
+	if err := g.shot("questions-reviewer", u(draft.page()+"/questions?as=reviewer"), nil); err != nil {
+		return err
 	}
 
 	if err := g.shot("trace-matrix", u(bs["payments-prd"].page()+"/trace"), nil); err != nil {

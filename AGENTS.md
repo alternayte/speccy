@@ -36,7 +36,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Acknowledgement: an author statement that a link or trace item is intentionally absent. It uses the waiver mechanism.
 - Link: a typed relation between two bundles.
 - Trace ID: a stable ID in a doc, such as REQ-012 or DEC-004.
-- Tour: the ordered list of points that need a human decision.
 - Section: the text under one heading, down to the next heading of the same or higher level.
 - Control bar: the one row of markdown and profile controls above the preview. Avoid: toolbar, ribbon.
 - Editable preview: the rendered preview that a click makes editable in place, writing back the markdown range. Avoid: WYSIWYG, rich text editor.
@@ -95,4 +94,4 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Pointed-to section: a section of the same doc that a check's section links to or names by its full heading title, read by the check as context. Avoid: referenced section, linked section, related section.
 - Material gap: a point where a builder who cannot ask the author must guess, and a wrong guess changes the data model, a public interface, security or what the user sees. Only a material gap blocks Build Ready. Avoid: major finding, blocker, critical gap.
 - Consequence class: the one of data model, interface, security or user-visible that a material gap's two options differ in. Avoid: severity, impact, category.
-- Questions screen: the one screen where the author answers every open blocking build question with an option, Other or Not needed. Avoid: quiz, wizard, answer form.
+- Questions screen: the one screen that lists everything that blocks Build Ready and needs a person: material gaps, blocking threads and blocking findings. The author answers each item there, and a reviewer comments on it. Avoid: quiz, wizard, answer form, tour.

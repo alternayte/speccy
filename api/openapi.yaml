@@ -1321,19 +1321,19 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
-  /docs/{docId}/tour:
+  /docs/{docId}/questions:
     parameters:
       - $ref: "#/components/parameters/DocId"
     get:
-      operationId: getTour
-      summary: The ordered points of the bundle's current review that need a human decision (SDD §13.3).
+      operationId: getQuestions
+      summary: Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
       responses:
         "200":
-          description: The tour.
+          description: The questions.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Tour"
+                $ref: "#/components/schemas/Questions"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3477,20 +3477,14 @@ components:
       properties:
         kind:
           type: string
-          enum: [waiver, questions, decide, fix, review, adopt, request_review, handoff]
-          description: questions opens the questions screen, with every open blocking build question of the doc.
+          enum: [waiver, questions, review, adopt, request_review, handoff]
+          description: questions opens the questions screen, with everything that blocks Build Ready and needs the author.
         sentence:
           type: string
           description: What to do, in words, for a button label or a status line.
         waiver_id:
           type: string
           format: uuid
-        finding_id:
-          type: string
-          format: uuid
-        tour_key:
-          type: string
-          description: The key of the tour point to open.
 
     BundleVerdict:
       type: object
@@ -3523,6 +3517,9 @@ components:
         must:
           type: integer
           description: Open MUST findings that block the verdict. A MUST finding that the materiality judge called no material gap counts as SHOULD, because it is advice.
+        unanswered:
+          type: integer
+          description: The MUST findings of checks that came back with no answer. They count in must. Another review answers them, so they are not questions.
         should:
           type: integer
         info:
@@ -4537,56 +4534,56 @@ components:
           type: string
           description: The question that asks the author to choose.
 
-    Tour:
+    Questions:
       type: object
-      required: [points]
+      description: Everything that blocks Build Ready and needs a person, from the run behind the verdict.
+      required: [items, recheck, waivers]
       properties:
         run_id:
           type: string
           format: uuid
-          description: The run whose findings the tour uses. Absent before the first review.
-        points:
+          description: The run whose findings the list uses. Absent before the first review.
+        recheck:
+          type: boolean
+          description: A MUST check of the run has no answer. Another review answers it, not the author.
+        items:
           type: array
+          description: The items in doc order. An item with no anchor comes first.
           items:
-            $ref: "#/components/schemas/TourPoint"
+            $ref: "#/components/schemas/QuestionItem"
+        waivers:
+          type: array
+          description: The waiver requests of this doc that wait for the caller's decision.
+          items:
+            $ref: "#/components/schemas/Waiver"
 
-    TourPoint:
+    QuestionItem:
       type: object
-      description: One point that needs a human decision. The ask states one explicit decision.
-      required: [key, kind, ask, context]
+      description: >
+        One thing that blocks Build Ready. material_gap is a build question with two options.
+        blocking_thread is an open blocking thread. decision is a finding that needs a human
+        answer with no options: a coverage gap, a send-back or a missing upstream link. finding
+        is any other open MUST finding.
+      required: [key, kind, ask]
       properties:
         key:
           type: string
+          description: Stable across reviews for a material gap (its fork), else the finding or thread ID.
         kind:
           type: string
-          enum: [blocking_thread, finding, waiver, open_decision]
+          enum: [material_gap, blocking_thread, decision, finding]
         ask:
           type: string
+          description: The one thing the person must decide or do, in words.
         context:
           type: string
-          description: Why the point needs a decision, in one or two sentences.
-        level:
-          type: string
-          enum: [MUST, SHOULD, INFO]
-        check_slug:
-          type: string
+          description: Why it blocks, in one or two sentences.
         anchor:
           $ref: "#/components/schemas/Anchor"
-        finding_id:
-          type: string
-          format: uuid
-        thread_id:
-          type: string
-          format: uuid
-        waiver_id:
-          type: string
-          format: uuid
-        can_approve:
-          type: boolean
-          description: For a waiver, the caller can approve or reject it now.
-        trace_id:
-          type: string
-          description: For a coverage gap, the upstream trace ID it is about.
+        finding:
+          $ref: "#/components/schemas/Finding"
+        thread:
+          $ref: "#/components/schemas/Thread"
 
     RunReport:
       type: object

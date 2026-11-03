@@ -26,7 +26,6 @@ import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bund
 import { Route as BundlesBundleIdDocsDocIdIndexRouteImport } from './routes/bundles/$bundleId/docs/$docId/index'
 import { Route as BundlesBundleIdDocsDocIdDiffRouteImport } from './routes/bundles/$bundleId/docs/$docId/diff'
 import { Route as BundlesBundleIdDocsDocIdQuestionsRouteImport } from './routes/bundles/$bundleId/docs/$docId/questions'
-import { Route as BundlesBundleIdDocsDocIdTourRouteImport } from './routes/bundles/$bundleId/docs/$docId/tour'
 import { Route as BundlesBundleIdDocsDocIdTraceRouteImport } from './routes/bundles/$bundleId/docs/$docId/trace'
 import { Route as BundlesBundleIdDocsDocIdRunsRunIdRouteImport } from './routes/bundles/$bundleId/docs/$docId/runs/$runId'
 
@@ -118,12 +117,6 @@ const BundlesBundleIdDocsDocIdQuestionsRoute =
     path: '/bundles/$bundleId/docs/$docId/questions',
     getParentRoute: () => rootRouteImport,
   } as any)
-const BundlesBundleIdDocsDocIdTourRoute =
-  BundlesBundleIdDocsDocIdTourRouteImport.update({
-    id: '/bundles/$bundleId/docs/$docId/tour',
-    path: '/bundles/$bundleId/docs/$docId/tour',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const BundlesBundleIdDocsDocIdTraceRoute =
   BundlesBundleIdDocsDocIdTraceRouteImport.update({
     id: '/bundles/$bundleId/docs/$docId/trace',
@@ -154,7 +147,6 @@ export interface FileRoutesByFullPath {
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
   '/bundles/$bundleId/docs/$docId/diff': typeof BundlesBundleIdDocsDocIdDiffRoute
   '/bundles/$bundleId/docs/$docId/questions': typeof BundlesBundleIdDocsDocIdQuestionsRoute
-  '/bundles/$bundleId/docs/$docId/tour': typeof BundlesBundleIdDocsDocIdTourRoute
   '/bundles/$bundleId/docs/$docId/trace': typeof BundlesBundleIdDocsDocIdTraceRoute
   '/bundles/$bundleId/docs/$docId/': typeof BundlesBundleIdDocsDocIdIndexRoute
   '/bundles/$bundleId/docs/$docId/runs/$runId': typeof BundlesBundleIdDocsDocIdRunsRunIdRoute
@@ -176,7 +168,6 @@ export interface FileRoutesByTo {
   '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
   '/bundles/$bundleId/docs/$docId/diff': typeof BundlesBundleIdDocsDocIdDiffRoute
   '/bundles/$bundleId/docs/$docId/questions': typeof BundlesBundleIdDocsDocIdQuestionsRoute
-  '/bundles/$bundleId/docs/$docId/tour': typeof BundlesBundleIdDocsDocIdTourRoute
   '/bundles/$bundleId/docs/$docId/trace': typeof BundlesBundleIdDocsDocIdTraceRoute
   '/bundles/$bundleId/docs/$docId': typeof BundlesBundleIdDocsDocIdIndexRoute
   '/bundles/$bundleId/docs/$docId/runs/$runId': typeof BundlesBundleIdDocsDocIdRunsRunIdRoute
@@ -199,7 +190,6 @@ export interface FileRoutesById {
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
   '/bundles/$bundleId/docs/$docId/diff': typeof BundlesBundleIdDocsDocIdDiffRoute
   '/bundles/$bundleId/docs/$docId/questions': typeof BundlesBundleIdDocsDocIdQuestionsRoute
-  '/bundles/$bundleId/docs/$docId/tour': typeof BundlesBundleIdDocsDocIdTourRoute
   '/bundles/$bundleId/docs/$docId/trace': typeof BundlesBundleIdDocsDocIdTraceRoute
   '/bundles/$bundleId/docs/$docId/': typeof BundlesBundleIdDocsDocIdIndexRoute
   '/bundles/$bundleId/docs/$docId/runs/$runId': typeof BundlesBundleIdDocsDocIdRunsRunIdRoute
@@ -223,7 +213,6 @@ export interface FileRouteTypes {
     | '/bundles/$bundleId/'
     | '/bundles/$bundleId/docs/$docId/diff'
     | '/bundles/$bundleId/docs/$docId/questions'
-    | '/bundles/$bundleId/docs/$docId/tour'
     | '/bundles/$bundleId/docs/$docId/trace'
     | '/bundles/$bundleId/docs/$docId/'
     | '/bundles/$bundleId/docs/$docId/runs/$runId'
@@ -245,7 +234,6 @@ export interface FileRouteTypes {
     | '/bundles/$bundleId'
     | '/bundles/$bundleId/docs/$docId/diff'
     | '/bundles/$bundleId/docs/$docId/questions'
-    | '/bundles/$bundleId/docs/$docId/tour'
     | '/bundles/$bundleId/docs/$docId/trace'
     | '/bundles/$bundleId/docs/$docId'
     | '/bundles/$bundleId/docs/$docId/runs/$runId'
@@ -267,7 +255,6 @@ export interface FileRouteTypes {
     | '/bundles/$bundleId/'
     | '/bundles/$bundleId/docs/$docId/diff'
     | '/bundles/$bundleId/docs/$docId/questions'
-    | '/bundles/$bundleId/docs/$docId/tour'
     | '/bundles/$bundleId/docs/$docId/trace'
     | '/bundles/$bundleId/docs/$docId/'
     | '/bundles/$bundleId/docs/$docId/runs/$runId'
@@ -290,7 +277,6 @@ export interface RootRouteChildren {
   BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
   BundlesBundleIdDocsDocIdDiffRoute: typeof BundlesBundleIdDocsDocIdDiffRoute
   BundlesBundleIdDocsDocIdQuestionsRoute: typeof BundlesBundleIdDocsDocIdQuestionsRoute
-  BundlesBundleIdDocsDocIdTourRoute: typeof BundlesBundleIdDocsDocIdTourRoute
   BundlesBundleIdDocsDocIdTraceRoute: typeof BundlesBundleIdDocsDocIdTraceRoute
   BundlesBundleIdDocsDocIdIndexRoute: typeof BundlesBundleIdDocsDocIdIndexRoute
   BundlesBundleIdDocsDocIdRunsRunIdRoute: typeof BundlesBundleIdDocsDocIdRunsRunIdRoute
@@ -417,13 +403,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BundlesBundleIdDocsDocIdQuestionsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/bundles/$bundleId/docs/$docId/tour': {
-      id: '/bundles/$bundleId/docs/$docId/tour'
-      path: '/bundles/$bundleId/docs/$docId/tour'
-      fullPath: '/bundles/$bundleId/docs/$docId/tour'
-      preLoaderRoute: typeof BundlesBundleIdDocsDocIdTourRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/bundles/$bundleId/docs/$docId/trace': {
       id: '/bundles/$bundleId/docs/$docId/trace'
       path: '/bundles/$bundleId/docs/$docId/trace'
@@ -459,7 +438,6 @@ const rootRouteChildren: RootRouteChildren = {
   BundlesBundleIdDocsDocIdDiffRoute: BundlesBundleIdDocsDocIdDiffRoute,
   BundlesBundleIdDocsDocIdQuestionsRoute:
     BundlesBundleIdDocsDocIdQuestionsRoute,
-  BundlesBundleIdDocsDocIdTourRoute: BundlesBundleIdDocsDocIdTourRoute,
   BundlesBundleIdDocsDocIdTraceRoute: BundlesBundleIdDocsDocIdTraceRoute,
   BundlesBundleIdDocsDocIdIndexRoute: BundlesBundleIdDocsDocIdIndexRoute,
   BundlesBundleIdDocsDocIdRunsRunIdRoute:

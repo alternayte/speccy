@@ -1,7 +1,7 @@
 import { useBundleId } from "@/features/bundle/params";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Compass, MessageSquarePlus, Paperclip } from "lucide-react";
+import { ListTodo, MessageSquarePlus, Paperclip } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Loading } from "@/components/ui/states";
@@ -93,11 +93,12 @@ export function ReviewerPage({ docId }: { docId: string }) {
           Comment
         </Button>
         <Link
-          to="/bundles/$bundleId/docs/$docId/tour"
+          to="/bundles/$bundleId/docs/$docId/questions"
           params={{ bundleId, docId }}
+          search={true}
           className="inline-flex h-7 items-center gap-1.5 rounded-md border border-accent bg-accent px-2.5 text-xs font-medium text-accent-ink hover:brightness-110"
         >
-          <Compass aria-hidden className="size-3.5" />
+          <ListTodo aria-hidden className="size-3.5" />
           Answer the questions
         </Link>
       </div>

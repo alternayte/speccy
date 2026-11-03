@@ -41,7 +41,7 @@ The profile says who may approve a waiver. `waivers.should` applies to a SHOULD 
 
 The built-in profiles use `non_author` for SHOULD and `maintainer` for MUST.
 
-A person who can approve a waiver can also reject it. To reject it, the approver gives a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and in the tour. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
+A person who can approve a waiver can also reject it. To reject it, the approver gives a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and at the top of the questions screen. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
 
 A waiver that people approve again and again points at a limit that is wrong. Change the limit in the profile instead.
 
@@ -121,7 +121,7 @@ standalone:
   acknowledged_by: nathan
 ```
 
-In the app, **Mark it standalone** on a `links.has-upstream` finding, or on its tour point, asks for a standalone acknowledgement. It takes a reason of at least 20 characters. The request waits for approval under the policy of `links.has-upstream` at the level of the finding, as a waiver does. The approval writes `standalone:` to the sidecar. A standalone acknowledgement also comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
+In the app, **Mark it standalone** on a `links.has-upstream` finding, or on its item on the questions screen, asks for a standalone acknowledgement. It takes a reason of at least 20 characters. The request waits for approval under the policy of `links.has-upstream` at the level of the finding, as a waiver does. The approval writes `standalone:` to the sidecar. A standalone acknowledgement also comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
 
 **Trace** answers a coverage gap for one upstream trace ID. Its status is `out_of_scope`, or `covered_by` with the `target` doc that covers the ID. It closes the `trace.coverage` gap, and the matrix shows the answer with its reason. In the app, a trace acknowledgement is a request that waits for approval under the policy of `trace.coverage`, as a waiver does.
 

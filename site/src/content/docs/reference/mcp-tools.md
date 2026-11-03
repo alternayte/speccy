@@ -79,9 +79,11 @@ Get the fix list of a bundle: the findings of its current verdict, MUST first. E
 | `bundle` | string | yes | the bundle's slug or ID |
 | `level` | string |  | only findings at this level: MUST, SHOULD, or INFO |
 
-## `get_tour`
+## `get_questions`
 
-Get the points of a bundle that need a human decision, in order.
+Get everything that blocks Build Ready and needs a person, in doc order: material gaps with two options and a suggested pick, blocking threads, and blocking findings.
+
+The answer holds `run_id` when a run exists, `recheck`, `items` and `waivers`. Each item has a `key`, a `kind` and an `ask`. It can also have a `context`, an `anchor`, a `finding` and a `thread`. `recheck` is true when a MUST check came back with no answer. `waivers` holds the waiver requests that wait for your decision.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
