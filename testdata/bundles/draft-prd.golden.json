@@ -4,7 +4,7 @@
   "findings": [
     {
       "check": "lint.required-headings",
-      "level": "MUST",
+      "level": "SHOULD",
       "quote": "# Loyalty points"
     },
     {
@@ -38,7 +38,7 @@
       "quote": "etc."
     },
     {
-      "check": "lint.placeholder",
+      "check": "divergence.gap",
       "level": "MUST",
       "quote": "TBD"
     },
@@ -54,7 +54,7 @@
     },
     {
       "check": "lint.duplicate-id",
-      "level": "MUST",
+      "level": "SHOULD",
       "quote": "REQ-001"
     },
     {
@@ -68,7 +68,7 @@
       "quote": "CRM"
     },
     {
-      "check": "lint.placeholder",
+      "check": "divergence.gap",
       "level": "MUST",
       "quote": "\u003cOwner for each question\u003e"
     }

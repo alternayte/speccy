@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -426,7 +427,7 @@ func (s *Service) parallel(ctx context.Context) int {
 			return n
 		}
 	}
-	return 4
+	return 8
 }
 
 // Estimate is the expected cost of a full run (REQ-104). It counts the steps the cache
@@ -537,7 +538,7 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 	sections := 0
 	for i := range in.doc.Sections {
 		sec := in.doc.Sections[i]
-		if !stages.has(StageGrounding) || len(strings.Fields(section.Normalize(sec.Own(in.main)))) < minClaimWords {
+		if !stages.has(StageGrounding) || !stageHasWork(in, StageGrounding) || len(strings.Fields(section.Normalize(sec.Own(in.main)))) < minClaimWords {
 			continue
 		}
 		k := cacheKey{Step: "claims", InputHash: sec.Hash, ProfileVer: p.Version, Fingerprint: fp, PromptVersion: PromptClaims}
@@ -577,7 +578,7 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 		}
 		nq := len(pinned)
 		if nq == 0 {
-			nq = p.Profile.Divergence.Questions.Max
+			nq = questionCap(in, p.Profile.Divergence.Questions.Max)
 			add(model.RoleReviewer, 1, bundleTokens+1500, 3000)
 		} else {
 			est.CachedHits++
@@ -593,7 +594,7 @@ func (s *Service) estimate(ctx context.Context, in input, p profile.Versioned, d
 	}
 
 	// Coherence: one call per linked doc that the contradiction check reads.
-	if stages.has(StageCoherence) && !standalone(in.dec) {
+	if stages.has(StageCoherence) && stageHasWork(in, StageCoherence) && !standalone(in.dec) {
 		this := contradictionData(in)
 		for _, l := range in.linked {
 			if !slices.Contains(contradictionKinds, l.kind) {
@@ -630,8 +631,12 @@ func uuidOf(s string) uuid.UUID {
 	return id
 }
 
-// runStages runs lint and the chosen model stages in REQ-020 order. enter is told of each
-// stage before it starts.
+// runStages runs lint, then the chosen model stages at the same time (material gate). Each stage
+// writes its own evaluation, and one merge joins them in REQ-020 order, so the findings keep
+// their order. The coherence steps share the state of the external links, so they run in turn
+// in one group. The materiality judge reads the MUST findings of each stage as soon as the stage
+// ends, and the questions it finds stream to live views. enter is told of each stage as it
+// starts.
 func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages Stages, fingerprint string, native bool, enter func(string)) (evaluation, error) {
 	enter(StageLint)
 	rc.enter(StageLint)
@@ -639,28 +644,88 @@ func (s *Service) runStages(ctx context.Context, rc *runCtx, in input, stages St
 	for _, n := range ev.notes {
 		rc.note(n)
 	}
-	steps := []struct {
+	type step func(*evaluation) error
+	groups := []struct {
 		stage string
-		run   func() error
+		steps []step
 	}{
-		{StageRubric, func() error { return s.rubricStage(ctx, rc, in, &ev, fingerprint) }},
-		{StageGrounding, func() error { return s.groundingStage(ctx, rc, in, &ev, fingerprint, native) }},
-		{StageDivergence, func() error { return s.divergenceStage(ctx, rc, in, &ev, fingerprint) }},
-		{StageCoherence, func() error { return s.contradictionStage(ctx, rc, in, &ev, fingerprint) }},
-		{StageCoherence, func() error { return s.driftStage(ctx, rc, in, &ev) }},
-		{StageCoherence, func() error { return s.conflictStage(ctx, rc, in, &ev, fingerprint) }},
+		{StageRubric, []step{func(e *evaluation) error { return s.rubricStage(ctx, rc, in, e, fingerprint) }}},
+		{StageGrounding, []step{func(e *evaluation) error { return s.groundingStage(ctx, rc, in, e, fingerprint, native) }}},
+		{StageDivergence, []step{func(e *evaluation) error { return s.divergenceStage(ctx, rc, in, e, fingerprint) }}},
+		{StageCoherence, []step{
+			func(e *evaluation) error { return s.contradictionStage(ctx, rc, in, e, fingerprint) },
+			func(e *evaluation) error { return s.driftStage(ctx, rc, in, e) },
+			func(e *evaluation) error { return s.conflictStage(ctx, rc, in, e, fingerprint) },
+		}},
 	}
-	for _, st := range steps {
-		if !stages.has(st.stage) {
+	// The lint stage's findings get their judgement first: a placeholder's build question is
+	// on the questions screen before the readers end.
+	if err := s.judgeMaterial(ctx, rc, in, &ev, true); err != nil {
+		return ev, err
+	}
+	rc.endAll() // the lint stage; the model stages time themselves below
+	parts := make([]evaluation, len(groups))
+	errs := make([]error, len(groups))
+	var enterMu sync.Mutex
+	var wg sync.WaitGroup
+	for gi, g := range groups {
+		if !stages.has(g.stage) || !stageHasWork(in, g.stage) {
 			continue
 		}
-		enter(st.stage)
-		rc.enter(st.stage)
-		if err := st.run(); err != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			enterMu.Lock()
+			enter(g.stage)
+			enterMu.Unlock()
+			rc.begin(g.stage)
+			defer rc.end(g.stage)
+			part := evaluation{relaxed: ev.relaxed}
+			for _, st := range g.steps {
+				if err := st(&part); err != nil {
+					errs[gi] = err
+					return
+				}
+			}
+			errs[gi] = s.judgeMaterial(ctx, rc, in, &part, true)
+			parts[gi] = part
+		}()
+	}
+	wg.Wait()
+	for gi, err := range errs {
+		if err != nil {
+			// The run names the stage that failed: the first one in REQ-020 order.
+			enter(groups[gi].stage)
 			return ev, err
 		}
 	}
+	for _, part := range parts {
+		ev.findings = append(ev.findings, part.findings...)
+		ev.items = append(ev.items, part.items...)
+		ev.claims = append(ev.claims, part.claims...)
+		if part.questions != nil {
+			ev.questions = part.questions
+		}
+		for _, st := range part.external {
+			ev.setExternal(st)
+		}
+		ev.notes = append(ev.notes, part.notes...)
+	}
 	return ev, nil
+}
+
+// stageHasWork reports whether a model stage has something to read in this doc (material gate).
+// Grounding runs only when the profile turns it on, and coherence only when the doc has links
+// or a linked doc asks it to change. The rubric and the readers always run. A stage with no
+// work costs no call, and its findings of an earlier review do not carry.
+func stageHasWork(in input, stage string) bool {
+	switch stage {
+	case StageGrounding:
+		return in.profile.Profile.Grounding.Enabled
+	case StageCoherence:
+		return len(in.links) > 0 || len(in.incoming) > 0
+	}
+	return true
 }
 
 // addUpstreamSources adds a GitHub source for each link of an upstream kind whose target is a

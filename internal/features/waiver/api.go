@@ -182,6 +182,24 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	if err := a.conflictAnswer(ctx, b, p.Profile, f, req.Body, &r); err != nil {
 		return nil, err
 	}
+	if req.Body.NotNeeded != nil && *req.Body.NotNeeded {
+		if r.Scope != "" {
+			return nil, kernel.Invalid("two_answers", "Give one answer: Not needed, or a waiver of another kind.")
+		}
+		r.Scope, r.Fork = ScopeNotNeeded, source.ForkOf(f.CheckSlug, f.Evidence, f.Message)
+		// The answer needs no approval, so it goes in the sidecar first, as an approval does.
+		events, err := DecideRequest(State{}, r)
+		if err != nil {
+			return nil, err
+		}
+		s := State{}
+		for _, e := range events {
+			s = Evolve(s, e)
+		}
+		if err := a.writeSidecar(ctx, b, s, r.By); err != nil {
+			return nil, err
+		}
+	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
 	}
@@ -267,11 +285,15 @@ func (a *API) writeSidecar(ctx context.Context, b pgdb.SpecDoc, s State, approve
 		return err
 	}
 	w := source.Waiver{Check: s.Check, Section: s.Section, Reason: s.Reason, SectionHash: s.SectionHash,
-		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(), Conflict: s.Conflict}
+		RequestedBy: kernel.PersonByID(ctx, a.People, s.RequestedBy).Label(), Conflict: s.Conflict,
+		Fork: s.Fork, NotNeeded: s.Scope == ScopeNotNeeded}
 	if profile.IsCheckHash(s.SectionHash) {
 		w.SectionHash, w.CheckHash = "", s.SectionHash
 	}
 	dec = dec.WithWaiver(w)
+	if s.Scope == ScopeNotNeeded {
+		return a.SetDecisions(ctx, b, dec, approvedBy, "Answered Not needed for "+s.Check)
+	}
 	return a.SetDecisions(ctx, b, dec, approvedBy, "Approved a waiver for "+s.Check)
 }
 
@@ -450,6 +472,10 @@ func (a *API) waiver(ctx context.Context, id uuid.UUID) (api.Waiver, error) {
 	if s.Scope == ScopeSendBack {
 		yes := true
 		w.SendBack = &yes
+	}
+	if s.Scope == ScopeNotNeeded {
+		yes := true
+		w.NotNeeded = &yes
 	}
 	if s.Downstream != uuid.Nil {
 		if d, err := a.bundle(ctx, s.Downstream); err == nil {

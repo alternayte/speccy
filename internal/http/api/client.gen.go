@@ -1198,6 +1198,20 @@ type ClientInterface interface {
 	// Corresponds with GET /runs/{runId} (the `GetRun` operationId).
 	GetRun(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SuggestAnswersWithBody Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+	SuggestAnswersWithBody(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SuggestAnswers Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+	SuggestAnswers(ctx context.Context, runId RunId, body SuggestAnswersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListClaims List a run's factual claims and their labels (REQ-031).
 	//
 	// Corresponds with GET /runs/{runId}/claims (the `ListClaims` operationId).
@@ -4255,6 +4269,40 @@ func (c *Client) GetContentReviewReport(ctx context.Context, reviewId openapi_ty
 // Corresponds with GET /runs/{runId} (the `GetRun` operationId).
 func (c *Client) GetRun(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRunRequest(c.Server, runId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestAnswersWithBody Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+func (c *Client) SuggestAnswersWithBody(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestAnswersRequestWithBody(c.Server, runId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SuggestAnswers Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+func (c *Client) SuggestAnswers(ctx context.Context, runId RunId, body SuggestAnswersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSuggestAnswersRequest(c.Server, runId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -9887,6 +9935,53 @@ func NewGetRunRequest(server string, runId RunId) (*http.Request, error) {
 	return req, nil
 }
 
+// NewSuggestAnswersRequest calls the generic SuggestAnswers builder with application/json body
+func NewSuggestAnswersRequest(server string, runId RunId, body SuggestAnswersJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSuggestAnswersRequestWithBody(server, runId, "application/json", bodyReader)
+}
+
+// NewSuggestAnswersRequestWithBody constructs an http.Request for the SuggestAnswers method, with any body, and a specified content type
+func NewSuggestAnswersRequestWithBody(server string, runId RunId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/runs/%s/answers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListClaimsRequest constructs an http.Request for the ListClaims method
 func NewListClaimsRequest(server string, runId RunId) (*http.Request, error) {
 	var err error
@@ -12068,6 +12163,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /runs/{runId} (the `GetRun` operationId).
 	GetRunWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetRunResponse, error)
+
+	// SuggestAnswersWithBodyWithResponse Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+	SuggestAnswersWithBodyWithResponse(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestAnswersResponse, error)
+
+	// SuggestAnswersWithResponse Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+	SuggestAnswersWithResponse(ctx context.Context, runId RunId, body SuggestAnswersJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestAnswersResponse, error)
 
 	// ListClaimsWithResponse List a run's factual claims and their labels (REQ-031).
 	//
@@ -18221,6 +18330,54 @@ func (r GetRunResponse) ContentType() string {
 	return ""
 }
 
+type SuggestAnswersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AnswerPatches
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SuggestAnswersResponse) GetJSON200() *AnswerPatches {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SuggestAnswersResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SuggestAnswersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SuggestAnswersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SuggestAnswersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SuggestAnswersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListClaimsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -21574,6 +21731,32 @@ func (c *ClientWithResponses) GetRunWithResponse(ctx context.Context, runId RunI
 		return nil, err
 	}
 	return ParseGetRunResponse(rsp)
+}
+
+// SuggestAnswersWithBodyWithResponse Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+func (c *ClientWithResponses) SuggestAnswersWithBodyWithResponse(ctx context.Context, runId RunId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SuggestAnswersResponse, error) {
+	rsp, err := c.SuggestAnswersWithBody(ctx, runId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestAnswersResponse(rsp)
+}
+
+// SuggestAnswersWithResponse Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /runs/{runId}/answers (the `SuggestAnswers` operationId).
+func (c *ClientWithResponses) SuggestAnswersWithResponse(ctx context.Context, runId RunId, body SuggestAnswersJSONRequestBody, reqEditors ...RequestEditorFn) (*SuggestAnswersResponse, error) {
+	rsp, err := c.SuggestAnswers(ctx, runId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSuggestAnswersResponse(rsp)
 }
 
 // ListClaimsWithResponse List a run's factual claims and their labels (REQ-031).
@@ -26043,6 +26226,39 @@ func ParseGetRunResponse(rsp *http.Response) (*GetRunResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Run
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSuggestAnswersResponse parses an HTTP response from a SuggestAnswersWithResponse call
+func ParseSuggestAnswersResponse(rsp *http.Response) (*SuggestAnswersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SuggestAnswersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AnswerPatches
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

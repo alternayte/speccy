@@ -115,7 +115,7 @@ func TestCLI_SummaryNoSetup(t *testing.T) {
 	if code != exitOK {
 		t.Fatalf("exit %d\n%s\n%s", code, out, errOut)
 	}
-	for _, want := range []string{"PATH", "draft-prd", "payments-prd", "payments-sdd", "3 bundles, 2 Build Ready.", "Most common failing checks:", "lint.placeholder"} {
+	for _, want := range []string{"PATH", "draft-prd", "payments-prd", "payments-sdd", "3 bundles, 2 Build Ready.", "Most common failing checks:", "divergence.gap"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the summary has no %q:\n%s", want, out)
 		}

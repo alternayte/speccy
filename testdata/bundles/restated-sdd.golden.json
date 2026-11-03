@@ -1,10 +1,10 @@
 {
-  "verdict": "not_build_ready",
+  "verdict": "build_ready",
   "score": 89,
   "findings": [
     {
       "check": "lint.required-headings",
-      "level": "MUST",
+      "level": "SHOULD",
       "quote": "# Payment retries — restated design"
     },
     {

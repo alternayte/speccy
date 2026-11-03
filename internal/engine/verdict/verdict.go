@@ -42,6 +42,9 @@ type Finding struct {
 	// Waiting is a conflict whose approved upstream request says the linked doc must change.
 	// It does not block, and it is no waiver: the conflict is still open on the linked doc.
 	Waiting bool
+	// Advice is a MUST finding that the materiality judge read and found no material gap in:
+	// every plausible guess of a builder builds the same thing. It never blocks.
+	Advice bool
 }
 
 // Item is one scored item: a check result, a build question, or a coherence item.
@@ -76,7 +79,8 @@ type Verdict struct {
 	BlockingFindingIDs []string
 }
 
-// Decide applies §8.6: Build Ready if and only if no open MUST finding, no open blocking
+// Decide applies §8.6 with the material gate: Build Ready if and only if no open MUST finding
+// that is a material gap (a finding the judge called advice does not block), no open blocking
 // thread, and the required upstream link or acknowledgement exists. SHOULD and INFO findings
 // never change the result. A verdict that read a linked bundle version that is no longer
 // current is stale; the review API says so when it shows the verdict (For).
@@ -87,7 +91,7 @@ func Decide(in Input) Verdict {
 			v.WaiverCount++
 			continue
 		}
-		if f.Level == kernel.Must && !f.Waiting {
+		if f.Level == kernel.Must && !f.Waiting && !f.Advice {
 			v.BlockingFindingIDs = append(v.BlockingFindingIDs, f.ID)
 		}
 	}

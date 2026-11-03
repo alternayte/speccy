@@ -93,3 +93,6 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Upstream request: an approved answer to a coherence conflict saying the linked upstream doc must change. It sits in the downstream doc's sidecar and does not block the downstream verdict. Avoid: escalation, upstream waiver, push upstream.
 - Send-back: the answer on the upstream doc that ends an upstream request and blocks the downstream doc again. Avoid: rejection, bounce, counter-request.
 - Pointed-to section: a section of the same doc that a check's section links to or names by its full heading title, read by the check as context. Avoid: referenced section, linked section, related section.
+- Material gap: a point where a builder who cannot ask the author must guess, and a wrong guess changes the data model, a public interface, security or what the user sees. Only a material gap blocks Build Ready. Avoid: major finding, blocker, critical gap.
+- Consequence class: the one of data model, interface, security or user-visible that a material gap's two options differ in. Avoid: severity, impact, category.
+- Questions screen: the one screen where the author answers every open blocking build question with an option, Other or Not needed. Avoid: quiz, wizard, answer form.

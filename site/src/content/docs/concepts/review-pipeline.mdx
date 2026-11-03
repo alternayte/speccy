@@ -15,7 +15,15 @@ This page explains the five stages of a review, what each stage reads and return
 
 Speccy lints each new version of a spec doc at once. Lint needs no model, so it costs nothing and gives a verdict in under a second. The save also runs the checks that read linked docs without a model: coverage, restatement and code drift.
 
-A full review runs lint, then the four model stages in a fixed order: rubric, grounding, divergence and coherence. Then it decides the verdict. You start a full review in the app, with `speccy review`, or with the MCP tool `review_bundle`.
+A full review runs lint, then the model stages at the same time: rubric, grounding, divergence and coherence. When a stage ends, the judge reads its MUST findings and finds the material gaps. Then the review decides the verdict. You start a full review in the app, with `speccy review`, or with the MCP tool `review_bundle`.
+
+A model stage runs only when the doc gives it work:
+
+- The rubric and the divergence stage always run.
+- Grounding runs only when the profile sets `grounding.enabled: true`. The built-in profiles leave it off.
+- Coherence runs only when the doc has links, or a linked doc asks it to change.
+
+At most 8 model calls of one review run at the same time. An admin changes the number under **Admin → Workspace settings**.
 
 A run can take fewer stages. `speccy review --stages rubric,coherence` runs lint and those two stages. The run report then says "Stages in this run: lint, rubric, coherence. The findings of the other stages stay from the last review that ran them."
 
@@ -27,7 +35,7 @@ Each stage returns findings. A finding is one failed check, with an anchor to th
 
 ## Lint
 
-[Lint checks](/reference/checks/#lint) read the text and the structure, and never call a model. They find placeholders, missing required headings, broken links, duplicate and dangling trace IDs, long sentences, weasel words, undefined acronyms and slop phrases. The template of the profile decides the required headings, and the size of the doc decides which of them apply.
+[Lint checks](/reference/checks/#lint) read the text and the structure, and never call a model. They find placeholders, missing required headings, broken links, duplicate and dangling trace IDs, long sentences, weasel words, undefined acronyms and slop phrases. The template of the profile decides the required headings, and the size of the doc decides which of them apply. A lint check about the format never blocks: a missing heading, a broken link and a duplicate ID report at SHOULD. Each placeholder becomes a build question, and the judge decides whether it blocks.
 
 Lint also checks the frontmatter and the links. `frontmatter.readable` fails when Speccy cannot read the block. `links.has-upstream` fails when the profile requires an upstream link and the doc has none.
 
@@ -61,6 +69,8 @@ In both cases the run does not fail, and Speccy does not cache the missing answe
 The built-in PRD and SDD profiles name a section on each check that is about one section of the template. The reviewer answers up to eight checks in one call.
 
 A failed check reports every shortfall. A shortfall is one thing that a failed check found wrong. Each shortfall is one finding at the level of the check, with its own message and quote. Speccy sets no limit on their number.
+
+A whole-doc check reports a new shortfall only in text that changed since the last full review. Before the first full review, and after a request for a fresh review, it reports every shortfall.
 
 A later full review does not find the shortfalls of a check afresh. It gives the model each shortfall of the last review, and the model answers "still holds" or "fixed" for each one. Then the model lists any other shortfall. A shortfall of the last review leaves in three cases only:
 
@@ -111,7 +121,7 @@ A claim takes its class from the heading path of its section. Speccy decides the
 
 The [divergence stage](/reference/checks/#divergence) tests whether different readers get one meaning from the doc. It works on build questions: the questions an implementer must answer to build the thing.
 
-1. The reviewer writes build questions on the themes of the profile. `divergence.questions` sets how many: 10 to 20 in the built-in profiles. Each question must cite a section or a trace ID of the doc. Speccy drops a question that cites nothing.
+1. The reviewer writes build questions on the themes of the profile, only where it sees a real choice. `divergence.questions.max` sets the most questions: 20 in the built-in profiles. The doc lowers that number: each section with text allows two questions, and a doc of size feature gets at most half. The built-in profiles set no minimum. Each question must cite a section or a trace ID of the doc. Speccy drops a question that cites nothing.
 2. The doc keeps its questions from one version to the next, so a later review asks the same questions. Speccy drops a question when the text it cites is gone from the doc. The reviewer writes new questions only for the sections that are new since it wrote the questions.
 3. Each reader answers each question alone, from the bundle only. A reader never sees the rubric or the answers of another reader. Each answer quotes the doc, or says `NOT SPECIFIED`.
 4. Speccy looks for each quote in the bundle. An answer whose quotes are not in the bundle counts as `NOT SPECIFIED`.
@@ -125,7 +135,7 @@ Each question gets one result:
 | Divergence | The readers gave different meanings, or some readers answered and some did not. | `divergence.ambiguous` |
 | Gap | Every reader answered `NOT SPECIFIED`. | `divergence.gap` |
 
-A finding of this stage is a MUST when its question cites a trace ID whose definition says MUST, or a section the template requires. Otherwise it is a SHOULD.
+A finding of this stage is a MUST when its question cites a trace ID whose definition says MUST, or a section the template requires. Otherwise it is a SHOULD. A MUST finding blocks only when the judge finds a material gap. See [Material gaps](/concepts/verdict/#material-gaps).
 
 In a later full review, the readers do not answer every question again. They answer a question that was a gap or a divergence. A question that the readers agreed on keeps its answers while each quote that the readers gave is still in the doc. An edit elsewhere in the cited section does not send the question back to the readers. When a quote is gone, the readers answer the question again.
 

@@ -7,6 +7,7 @@ import {
   Download,
   FileText,
   FolderTree,
+  ListTodo,
   MessageSquarePlus,
   Network,
   PackageCheck,
@@ -24,6 +25,7 @@ import { verdictLabel } from "./verdict";
 
 const kindIcon: Record<NextAction["kind"], React.ReactNode> = {
   waiver: <MessageSquarePlus className="size-3.5" />,
+  questions: <ListTodo className="size-3.5" />,
   decide: <Compass className="size-3.5" />,
   fix: <Wrench className="size-3.5" />,
   review: <Play className="size-3.5" />,

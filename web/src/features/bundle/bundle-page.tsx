@@ -215,6 +215,9 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         if (w) openWaiver(w);
         return;
       }
+      case "questions":
+        navigate({ to: "/bundles/$bundleId/docs/$docId/questions", params: { bundleId, docId } });
+        return;
       case "decide":
         navigate({ to: "/bundles/$bundleId/docs/$docId/tour", params: { bundleId, docId } });
         return;

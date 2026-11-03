@@ -160,7 +160,8 @@ func TestAnchors(t *testing.T) {
 		fmt.Sprint(a.HeadingPath) != "[Pay Retries]" || a.File != "SPEC.md" {
 		t.Errorf("anchor = %+v", a)
 	}
-	if f[0].Level != kernel.Must {
+	// A placeholder reports at SHOULD; the review turns it into a build question (material gate).
+	if f[0].Level != kernel.Should {
 		t.Errorf("level = %s", f[0].Level)
 	}
 }
@@ -262,8 +263,8 @@ func TestRequiredHeadings_Size(t *testing.T) {
 		size kernel.Size
 		want map[string]kernel.Level
 	}{
-		{kernel.Feature, map[string]kernel.Level{"Context": kernel.Must, "Data model": kernel.Info}},
-		{kernel.App, map[string]kernel.Level{"Context": kernel.Must, "Data model": kernel.Must}},
+		{kernel.Feature, map[string]kernel.Level{"Context": kernel.Should, "Data model": kernel.Info}},
+		{kernel.App, map[string]kernel.Level{"Context": kernel.Should, "Data model": kernel.Should}},
 	} {
 		cfg.Size = tc.size
 		got := map[string]kernel.Level{}

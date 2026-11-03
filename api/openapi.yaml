@@ -1450,6 +1450,31 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /runs/{runId}/answers:
+    parameters:
+      - $ref: "#/components/parameters/RunId"
+    post:
+      operationId: suggestAnswers
+      summary: >
+        Write the answers of the questions screen into the doc as patches. The doc does not
+        change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for
+        the same answer on the current version is reused.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnswersRequest"
+      responses:
+        "200":
+          description: The patches.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnswerPatches"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /runs/{runId}/fixes/accept:
     parameters:
       - $ref: "#/components/parameters/RunId"
@@ -1828,6 +1853,12 @@ paths:
                     Answer a coherence.downstream-request finding with "The downstream doc must
                     change": a send-back. Its approval ends the upstream request in the sidecar of
                     the downstream doc, and the conflict blocks there again with this reason.
+                not_needed:
+                  type: boolean
+                  description: >
+                    Answer a finding with "Not needed": the author says the fork does not matter,
+                    with a reason. It needs no approval. Speccy writes it to the sidecar at once,
+                    bound to the one fork of the finding, and it ends when the section changes.
       responses:
         "200":
           description: The waiver.
@@ -3446,7 +3477,8 @@ components:
       properties:
         kind:
           type: string
-          enum: [waiver, decide, fix, review, adopt, request_review, handoff]
+          enum: [waiver, questions, decide, fix, review, adopt, request_review, handoff]
+          description: questions opens the questions screen, with every open blocking build question of the doc.
         sentence:
           type: string
           description: What to do, in words, for a button label or a status line.
@@ -3490,7 +3522,7 @@ components:
           description: Checks in adoption mode (REQ-133).
         must:
           type: integer
-          description: Open MUST findings.
+          description: Open MUST findings that block the verdict. A MUST finding that the materiality judge called no material gap counts as SHOULD, because it is advice.
         should:
           type: integer
         info:
@@ -3622,7 +3654,8 @@ components:
       properties:
         type:
           type: string
-          enum: [stage, progress, done, failed]
+          enum: [stage, progress, question, done, failed]
+          description: question is a material gap that the judge found while the review runs, before its finding is saved.
         stage:
           type: string
         message:
@@ -3633,6 +3666,26 @@ components:
           type: integer
         cache_hits:
           type: integer
+        question:
+          $ref: "#/components/schemas/StreamedQuestion"
+
+    StreamedQuestion:
+      type: object
+      description: A blocking build question as the judge finds it during a review. The fork key matches the finding that the review saves, so an option picked before the review ends carries over.
+      required: [fork, check_slug, question, material]
+      properties:
+        fork:
+          type: string
+        check_slug:
+          type: string
+        question:
+          type: string
+        heading_path:
+          type: array
+          items:
+            type: string
+        material:
+          $ref: "#/components/schemas/Material"
 
     ProfileDiff:
       type: object
@@ -4444,6 +4497,45 @@ components:
         anchor:
           $ref: "#/components/schemas/Anchor"
           description: The anchor in the bundle's current version, re-anchored when the run read an older version.
+        material:
+          $ref: "#/components/schemas/Material"
+        fork:
+          type: string
+          description: Names the one fork the finding asks about. A "Not needed" answer binds to it.
+        answer:
+          type: string
+          description: The answer the author gave on the questions screen, while its patch waits or after the author accepted it.
+        option:
+          type: integer
+          description: The option the author picked for the answer, 1 or 2, or 0 for an answer in the author's own words.
+        not_needed:
+          type: boolean
+          description: The author answered "Not needed", with a reason. The waiver of the answer covers this finding.
+
+    Material:
+      type: object
+      description: >
+        The materiality judge's decision on a MUST finding. A material gap is a place where a
+        builder who cannot ask the author must guess, and two plausible guesses differ in the
+        data model, an interface, security or what the user sees. It blocks Build Ready. A MUST
+        finding with class none is advice. A MUST finding with no judgement blocks.
+      required: [class]
+      properties:
+        class:
+          type: string
+          enum: [data_model, interface, security, user_visible, none]
+          description: The consequence class.
+        options:
+          type: array
+          description: The two answers a builder could pick. Empty for none.
+          items:
+            type: string
+        pick:
+          type: integer
+          description: The option that fits the rest of the doc better, 1 or 2. 0 for none.
+        question:
+          type: string
+          description: The question that asks the author to choose.
 
     Tour:
       type: object
@@ -4565,6 +4657,45 @@ components:
         answer:
           type: string
           description: For an answer finding, the fact the author gives. Speccy writes it into the doc in the doc's style.
+        option:
+          type: integer
+          minimum: 0
+          maximum: 2
+          description: The option of a material gap that the answer is, 1 or 2, or 0 for the author's own words.
+
+    AnswersRequest:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/QuestionAnswer"
+
+    QuestionAnswer:
+      type: object
+      required: [finding_id, answer]
+      properties:
+        finding_id:
+          type: string
+          format: uuid
+        answer:
+          type: string
+        option:
+          type: integer
+          minimum: 0
+          maximum: 2
+
+    AnswerPatches:
+      type: object
+      required: [patches]
+      properties:
+        patches:
+          type: array
+          description: One patch for each part of the doc. Two answers about one paragraph share a patch. Accept them with acceptFixes, by the finding_id of each patch.
+          items:
+            $ref: "#/components/schemas/FixSuggestion"
 
     SuggestFixesRequest:
       type: object
@@ -4699,6 +4830,12 @@ components:
           type: string
           format: uuid
           description: The version the patch was written for.
+        answers:
+          type: array
+          description: For a patch from the questions screen, every finding whose answer it writes. finding_id is the first.
+          items:
+            type: string
+            format: uuid
         link_choices:
           type: array
           description: For a missing upstream link, the docs the link can name. The patch is empty; the person picks one, and Speccy writes the link (#75).
@@ -5412,6 +5549,9 @@ components:
         send_back:
           type: boolean
           description: True for a send-back, the answer "The downstream doc must change" to a coherence.downstream-request finding.
+        not_needed:
+          type: boolean
+          description: True for the answer "Not needed" to one finding. The author gives it, and it needs no approval.
         downstream:
           $ref: "#/components/schemas/BundleRef"
           description: >

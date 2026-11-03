@@ -31,7 +31,7 @@ type Settings struct {
 func (s Settings) ResolveSourcesOn() bool { return s.ResolveSources == nil || *s.ResolveSources }
 
 // DefaultSettings are the SDD defaults.
-var DefaultSettings = Settings{MaxFileMB: 10, MaxBundleMB: 50, InviteTTLDays: 7, ParallelCalls: 4}
+var DefaultSettings = Settings{MaxFileMB: 10, MaxBundleMB: 50, InviteTTLDays: 7, ParallelCalls: 8}
 
 // LoadSettings reads the settings; a missing value takes its default.
 func LoadSettings(ctx context.Context, q store.Querier, workspace uuid.UUID) (Settings, error) {

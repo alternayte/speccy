@@ -13,7 +13,7 @@ waivers: { should: non_author, must: maintainer }
 approvals: { required: 1 }
 divergence:
   readers: 3
-  questions: { min: 10, max: 20 }
+  questions: { min: 0, max: 20 }
   themes: [users, scope, acceptance, priorities, dependencies, edge cases]
 checks:
   - slug: links.external-target
@@ -35,7 +35,7 @@ checks:
     question: Does this doc agree with the issues and pages it links to?
     pass_when: No statement in this doc conflicts with a linked issue or page.
   - slug: prd.problem.evidence
-    level: MUST
+    level: SHOULD
     stage: rubric
     scope: doc
     section: Problem
@@ -49,7 +49,7 @@ checks:
     question: Does the doc name who has the problem?
     pass_when: The doc names the people or the role that has the problem.
   - slug: prd.goals.measurable
-    level: MUST
+    level: SHOULD
     stage: rubric
     scope: doc
     section: Goals
@@ -64,14 +64,14 @@ checks:
     question: Does each metric have a baseline?
     pass_when: Each metric has a current baseline value.
   - slug: prd.non-goals
-    level: MUST
+    level: SHOULD
     stage: rubric
     scope: doc
     section: Non-goals
     question: Does the doc list what the product will not do?
     pass_when: A section lists at least one thing the product will not do.
   - slug: prd.req.ids
-    level: MUST
+    level: SHOULD
     stage: rubric
     scope: doc
     section: Requirements
@@ -131,7 +131,7 @@ checks:
     question: Does the doc state what ships first?
     pass_when: The doc states what ships first.
   - slug: prd.open-questions
-    level: MUST
+    level: SHOULD
     stage: rubric
     sizes: [app, initiative]
     scope: doc

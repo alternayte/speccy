@@ -14,6 +14,18 @@ type Event struct {
 	Done      int    `json:"done,omitempty"`
 	Total     int    `json:"total,omitempty"`
 	CacheHits int    `json:"cache_hits,omitempty"`
+	// Question is a material gap the judge found while the run goes on (type question).
+	Question *StreamedQuestion `json:"question,omitempty"`
+}
+
+// StreamedQuestion is a blocking build question before its finding is saved. Its fork matches
+// the saved finding, so a pick made during the review carries over.
+type StreamedQuestion struct {
+	Fork        string   `json:"fork"`
+	CheckSlug   string   `json:"check_slug"`
+	Question    string   `json:"question"`
+	HeadingPath []string `json:"heading_path,omitempty"`
+	Material    material `json:"material"`
 }
 
 // Broker fans run events out to live listeners. It keeps each run's events, so a listener that

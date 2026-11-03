@@ -65,7 +65,15 @@ const (
 	ScopeStandalone = "standalone"
 	ScopeUpstream   = "upstream_change"
 	ScopeSendBack   = "send_back"
+	// ScopeNotNeeded is the answer "Not needed" to one finding (material gate): the author says
+	// the fork does not matter, with a reason. It needs no approval, and it binds to the one
+	// fork of the finding, so it excuses no other finding of the check.
+	ScopeNotNeeded = "not_needed"
 )
+
+// MinNotNeededReason is the shortest reason for "Not needed". It is shorter than a waiver's,
+// because nobody else has to judge it: it says why the fork does not matter.
+const MinNotNeededReason = 10
 
 // conflictDecision reports whether a waiver of scope is an answer to a conflict that is not a
 // waiver: an upstream request or a send-back.
@@ -98,6 +106,8 @@ type State struct {
 	// Conflict is the one conflict a waiver of coherence.contradiction excuses (#136), or the
 	// conflict of an upstream request or a send-back.
 	Conflict *source.Conflict `json:"conflict,omitempty"`
+	// Fork is the one fork that a "Not needed" answer closes (source.ForkOf).
+	Fork string `json:"fork,omitempty"`
 	// Downstream is the doc whose sidecar the approval writes, when it is not this doc: the
 	// downstream doc of a send-back, or of a waiver of coherence.downstream-request. Speccy
 	// writes nothing into the linked doc's sidecar.
@@ -139,6 +149,7 @@ type Request struct {
 	AckStatus   string
 	AckTarget   string
 	Conflict    *source.Conflict `json:",omitempty"`
+	Fork        string           `json:",omitempty"`
 	Downstream  uuid.UUID        `json:",omitzero"`
 	Level       kernel.Level
 	Section     []string
@@ -171,11 +182,22 @@ func DecideRequest(s State, r Request) ([]es.Event, error) {
 	if s.Status != "" {
 		return nil, kernel.Conflict("waiver_exists", "This waiver exists already.")
 	}
-	if len([]rune(strings.TrimSpace(r.Reason))) < MinReason {
-		return nil, kernel.Invalid("reason_too_short", "Give a reason of at least %d characters, so a reviewer can judge it.", MinReason)
-	}
 	if r.Policy.Name == "forbidden" {
 		return nil, kernel.Forbidden("waiver_forbidden", "The profile does not allow a waiver for %s. Fix the doc instead.", r.Check)
+	}
+	if r.Scope == ScopeNotNeeded {
+		if r.Fork == "" {
+			return nil, kernel.Invalid("no_fork", "This finding names no fork. Run the review again.")
+		}
+		if len([]rune(strings.TrimSpace(r.Reason))) < MinNotNeededReason {
+			return nil, kernel.Invalid("reason_too_short", "Say in at least %d characters why this does not matter.", MinNotNeededReason)
+		}
+		// The author decides alone: the request is approved by its requester in the same step.
+		return []es.Event{es.NewEvent(Requested, requestedV1{V: 1, Request: r}),
+			es.NewEvent(Approved, approvedV1{V: 1, By: r.By, Final: true})}, nil
+	}
+	if len([]rune(strings.TrimSpace(r.Reason))) < MinReason {
+		return nil, kernel.Invalid("reason_too_short", "Give a reason of at least %d characters, so a reviewer can judge it.", MinReason)
 	}
 	return []es.Event{es.NewEvent(Requested, requestedV1{V: 1, Request: r})}, nil
 }
@@ -289,7 +311,7 @@ func Evolve(s State, e es.Event) State {
 			scope = ScopeCheck
 		}
 		return State{ID: r.ID, BundleID: r.BundleID, Check: r.Check, Scope: scope, TraceID: r.TraceID, Repo: r.Repo,
-			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget, Conflict: r.Conflict, Downstream: r.Downstream,
+			RunID: r.RunID, AckStatus: r.AckStatus, AckTarget: r.AckTarget, Conflict: r.Conflict, Fork: r.Fork, Downstream: r.Downstream,
 			Level: r.Level, Section: r.Section, SectionHash: r.SectionHash,
 			Reason: strings.TrimSpace(r.Reason), Policy: r.Policy, Status: StatusRequested, RequestedBy: r.By, Approvals: []string{}}
 	case Approved:

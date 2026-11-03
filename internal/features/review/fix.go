@@ -134,9 +134,18 @@ func applyEdits(src []byte, edits []edit) ([]byte, []edit, bool) {
 // suggestion is the finding's suggestion column: the fix text from the review, and the patch.
 type suggestion struct {
 	Fix string `json:"fix,omitempty"`
-	// Question is the question the reviewer wrote for the shortfall of a rubric check.
+	// Question is the question the reviewer wrote for the shortfall of a rubric check, or the
+	// question of a material gap.
 	Question string `json:"question,omitempty"`
 	Patch    *patch `json:"patch,omitempty"`
+	// Answer is the author's answer to the finding, and Option the option of a material gap it
+	// is: 1 or 2, or 0 for the author's own words. A later patch for the same answer reuses
+	// the stored one.
+	Answer string `json:"answer,omitempty"`
+	Option int    `json:"option,omitempty"`
+	// Answers are the other findings whose answers the stored patch writes too: two answers
+	// about one paragraph share one patch.
+	Answers []uuid.UUID `json:"answers,omitempty"`
 }
 
 func (a *API) finding(ctx context.Context, runID, id uuid.UUID) (pgdb.ReviewRun, pgdb.SpecDoc, pgdb.Finding, error) {
@@ -323,7 +332,7 @@ func fixError(err error) error {
 func placeholders(ps []pending) int {
 	n := 0
 	for _, p := range ps {
-		if p.slug == lint.Placeholder {
+		if p.placeholder {
 			n++
 		}
 	}
@@ -358,9 +367,12 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 	if !utf8.Valid(src) {
 		return nil, kernel.Invalid("not_text", "The file %s is not text, so Speccy cannot suggest a fix for it.", an.File)
 	}
-	answer := ""
+	answer, option := "", 0
 	if req.Body != nil && req.Body.Answer != nil {
 		answer = strings.TrimSpace(*req.Body.Answer)
+	}
+	if req.Body != nil && req.Body.Option != nil {
+		option = *req.Body.Option
 	}
 	needsAnswer := fixKind(f.CheckSlug, f.Evidence) == api.Answer
 	if needsAnswer && answer == "" {
@@ -370,24 +382,55 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 	if err != nil {
 		return nil, err
 	}
+	var sugg suggestion
+	_ = json.Unmarshal(f.Suggestion, &sugg)
+	var qas []answered
+	if answer != "" {
+		qas = []answered{{finding: f, anchor: an, question: answerQuestion(f.CheckSlug, f.Message, an.Quote, sugg.Question, f.Evidence), answer: answer}}
+	}
+	t := a.Service.fixTarget(b, f, an, src)
+	pt := patch{File: an.File, Start: t.start, End: t.end, Old: string(src[t.start:t.end]), Insert: t.insert, Before: t.before, Version: cur.ID}
+	pt, err = a.writePatch(ctx, b, f, an, src, files, t, pt, sugg.Fix, qas)
+	if err != nil {
+		return nil, err
+	}
+	sugg.Patch, sugg.Answer, sugg.Option, sugg.Answers = &pt, answer, option, nil
+	raw, _ := json.Marshal(sugg)
+	if err := a.DB.Queries().SetFindingSuggestion(ctx, pgdb.SetFindingSuggestionParams{ID: f.ID, Suggestion: raw}); err != nil {
+		return nil, err
+	}
+	return api.SuggestFix200JSONResponse(pt.suggestion(f.ID, src)), nil
+}
+
+// answered is one finding with the author's answer to it.
+type answered struct {
+	finding  pgdb.Finding
+	anchor   anchor.Anchor
+	question string
+	answer   string
+}
+
+// writePatch asks the writer for the new text of pt, which fixes f. With answers, the new text
+// states each fact the author gave, and nothing else new. Speccy lints each patch: a patch that
+// leaves a lint finding as it was, or adds a placeholder, gets one more try with the reason.
+func (a *API) writePatch(ctx context.Context, b pgdb.SpecDoc, f pgdb.Finding, an anchor.Anchor, src []byte, files []source.File,
+	t fixTarget, pt patch, direction string, qas []answered) (patch, error) {
 	// A lint finding is one the lint gives on the current text. Speccy lints each patch for it,
 	// so it never offers a fix that it knows does not work.
 	before, err := a.Service.lintFiles(ctx, b, files)
 	if err != nil {
-		return nil, err
+		return pt, err
 	}
 	_, isLint := sameFinding(f, an, before)
-	var sugg suggestion
-	_ = json.Unmarshal(f.Suggestion, &sugg)
-	t := a.Service.fixTarget(b, f, an, src)
-	pt := patch{File: an.File, Start: t.start, End: t.end, Old: string(src[t.start:t.end]), Insert: t.insert, Before: t.before, Version: cur.ID}
-
 	var p strings.Builder
 	p.WriteString("Fix the finding below. Speccy picked one part of the file, and replaces that part with the text you write in \"new\". Write only the new text of that part. Do not copy the rest of the file.\n")
 	p.WriteString("Keep the author's words, style and markdown where they are not the problem. Keep every fact, number, name, trace ID and link target that the finding does not ask you to change.\n")
-	if answer != "" {
+	switch {
+	case len(qas) > 1:
+		p.WriteString("The author answered several questions about this part. State each fact that the author gave, in the style of the doc. Add no fact that the author did not give. Do not write a placeholder, a question, or a note to the author.\n")
+	case len(qas) == 1:
 		p.WriteString("The author gave the fact that the doc needs. State that fact in the text, in the style of the doc. Add no fact that the author did not give. Do not write a placeholder, a question, or a note to the author.\n")
-	} else {
+	default:
 		p.WriteString("Change the words and no fact. Do not add a fact, and do not write a placeholder or a question.\n")
 	}
 	if t.heading != "" {
@@ -402,18 +445,22 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 		p.WriteString(frontmatterFormat)
 	}
 	fmt.Fprintf(&p, "Finding: %s (%s, level %s)\n", f.Message, f.CheckSlug, f.Level)
-	if sugg.Fix != "" {
-		fmt.Fprintf(&p, "Suggested direction: %s\n", sugg.Fix)
+	if direction != "" && len(qas) <= 1 {
+		fmt.Fprintf(&p, "Suggested direction: %s\n", direction)
 	}
 	if len(an.HeadingPath) > 0 {
 		fmt.Fprintf(&p, "Section: %s\n", strings.Join(an.HeadingPath, " > "))
 	}
 	p.WriteString("\n")
-	if answer != "" {
-		if q := answerQuestion(f.CheckSlug, f.Message, an.Quote, sugg.Question, f.Evidence); q != "" {
-			p.WriteString(data("The question the author answered", q))
+	for i, qa := range qas {
+		label := ""
+		if len(qas) > 1 {
+			label = fmt.Sprintf(" %d", i+1)
 		}
-		p.WriteString(data("The author's answer", answer))
+		if qa.question != "" {
+			p.WriteString(data("The question"+label+" the author answered", qa.question))
+		}
+		p.WriteString(data("The author's answer"+label, qa.answer))
 	}
 	if strings.TrimSpace(an.Quote) != "" && an.Quote != pt.Old && len(an.Quote) < len(src) {
 		p.WriteString(data("The text the finding points at", an.Quote))
@@ -423,22 +470,25 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 	}
 	p.WriteString(data("File "+an.File+", for context", string(src)))
 
-	// The new text is as long as the part it replaces, plus the answer. A model that reasons
+	// The new text is as long as the part it replaces, plus the answers. A model that reasons
 	// spends tokens on its thinking too; the gateway raises the limit once when it cuts off.
-	limit := int64(4000 + (len(pt.Old)+len(answer))/2)
+	answers := 0
+	for _, qa := range qas {
+		answers += len(qa.answer)
+	}
+	limit := int64(4000 + (len(pt.Old)+answers)/2)
 	call := model.Call{Role: model.RoleWriter, PromptVersion: PromptFix, System: systemPrompt, Prompt: p.String(), Schema: fixSchema, MaxTokens: limit}
-	var next []byte
 	for attempt := 0; ; attempt++ {
 		res, err := a.Service.Gateway.Call(ctx, call)
 		if err != nil {
-			return nil, fixError(err)
+			return pt, fixError(err)
 		}
 		var out struct {
 			New         string `json:"new"`
 			Explanation string `json:"explanation"`
 		}
 		if err := json.Unmarshal(res.JSON, &out); err != nil {
-			return nil, err
+			return pt, err
 		}
 		pt.New, pt.Explanation = strings.Trim(out.New, "\r\n"), out.Explanation
 		var why string
@@ -446,10 +496,10 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 		if strings.TrimSpace(pt.New) == "" || pt.New == pt.Old {
 			why = "\"new\" must hold the new text of the part, and it must differ from the text it replaces."
 		} else {
-			next, _, _ = applyEdits(src, []edit{e})
+			next, _, _ := applyEdits(src, []edit{e})
 			after, err := a.Service.lintFiles(ctx, b, withFile(files, an.File, next))
 			if err != nil {
-				return nil, err
+				return pt, err
 			}
 			if still, ok := stillFails(f.CheckSlug, before, after); isLint && ok {
 				why = "the file still fails the check after the change: " + still.message
@@ -458,26 +508,20 @@ func (a *API) SuggestFix(ctx context.Context, req api.SuggestFixRequestObject) (
 			}
 		}
 		if why == "" {
-			break
+			return pt, nil
 		}
 		if attempt == 1 {
 			if strings.HasPrefix(why, "the file still fails") {
-				return nil, kernel.Invalid("fix_failed", "The AI could not write a change that passes the check: %s Fix the finding by hand.", strings.TrimPrefix(why, "the file still fails the check after the change: "))
+				return pt, kernel.Invalid("fix_failed", "The AI could not write a change that passes the check: %s Fix the finding by hand.", strings.TrimPrefix(why, "the file still fails the check after the change: "))
 			}
 			if strings.HasPrefix(why, "the new text has a placeholder") {
-				return nil, kernel.Invalid("fix_failed", "The AI wrote a placeholder, because the answer does not hold the fact the finding asks for. Give a fuller answer, or fix the finding by hand.")
+				return pt, kernel.Invalid("fix_failed", "The AI wrote a placeholder, because the answer does not hold the fact the finding asks for. Give a fuller answer, or fix the finding by hand.")
 			}
-			return nil, kernel.Invalid("fix_failed", "The AI gave no new text for this finding. Fix the finding by hand.")
+			return pt, kernel.Invalid("fix_failed", "The AI gave no new text for this finding. Fix the finding by hand.")
 		}
 		// One more try, with the reason (DEC-014 allows one retry).
 		call.Prompt = p.String() + "\nYour last answer did not work: " + why + "\n"
 	}
-	sugg.Patch = &pt
-	raw, _ := json.Marshal(sugg)
-	if err := a.DB.Queries().SetFindingSuggestion(ctx, pgdb.SetFindingSuggestionParams{ID: f.ID, Suggestion: raw}); err != nil {
-		return nil, err
-	}
-	return api.SuggestFix200JSONResponse(pt.suggestion(f.ID, src)), nil
 }
 
 // suggestion is the patch as the API shows it, with the lines it changes in src.
