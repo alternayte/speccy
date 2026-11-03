@@ -82,7 +82,7 @@ type Service struct {
 	ResolveSources func(context.Context) bool
 	// Progress receives stage events for live views (REQ-026).
 	Progress *Broker
-	// Parallel returns the bound on the model calls of one run (REQ-105). Nil means 4.
+	// Parallel returns the bound on the model calls of one run (REQ-105). Nil means 8.
 	Parallel func(context.Context) int
 	// ES stores thread events; the AI posts its answers there (REQ-088).
 	ES *es.Store
@@ -143,7 +143,9 @@ type pending struct {
 	fix     string
 	// question is the question the reviewer wrote for a shortfall: what the author must answer.
 	question string
-	evidence any
+	// placeholder marks the build question of a placeholder in the text.
+	placeholder bool
+	evidence    any
 }
 
 // pendingClaim is a labelled claim before it is stored (REQ-031).
@@ -328,6 +330,13 @@ func lintStage(in input) evaluation {
 	res := lint.Run(in.main, cfg)
 	failed := map[string]bool{}
 	for _, f := range res.Findings {
+		if f.Slug == lint.Placeholder && f.Level != kernel.Info {
+			// A placeholder is a gap the author admits to. It becomes a build question, and the
+			// materiality judge decides whether it blocks.
+			ev.findings = append(ev.findings, placeholderGap(in, f))
+			failed[f.Slug] = true
+			continue
+		}
 		p := pending{slug: f.Slug, level: f.Level, stage: StageLint, anchor: f.Anchor, message: f.Message, fix: f.Fix}
 		if f.Candidate != "" {
 			p.evidence = candidateEvidence{Candidate: f.Candidate}
@@ -415,6 +424,37 @@ func lintStage(in input) evaluation {
 	return ev
 }
 
+// placeholderGap is the build question that a placeholder stands for: a gap at MUST, so the
+// materiality judge decides whether a builder must guess there. Lint finds it on every run, so it
+// stays in the lint stage and never carries.
+func placeholderGap(in input, f lint.Finding) pending {
+	quote := strings.Join(strings.Fields(f.Anchor.Quote), " ")
+	// The line of the placeholder names it: two placeholders in one section are two questions.
+	start, end := f.Anchor.Start, f.Anchor.End
+	if start >= 0 && end <= len(in.main) && start <= end {
+		for start > 0 && in.main[start-1] != '\n' {
+			start--
+		}
+		for end < len(in.main) && in.main[end] != '\n' {
+			end++
+		}
+	}
+	line := strings.Join(strings.Fields(string(in.main[start:end])), " ")
+	q := fmt.Sprintf("What is the real content in place of %q?", quote)
+	if line != "" && line != quote && len(line) <= 300 {
+		q = fmt.Sprintf("What is the real content in place of %q in %q?", quote, line)
+	} else if len(f.Anchor.HeadingPath) > 0 {
+		q = fmt.Sprintf("What is the real content in place of %q in %s?", quote, strings.Join(f.Anchor.HeadingPath, " > "))
+	}
+	return pending{
+		slug: DivergenceGap, level: in.level(DivergenceGap, kernel.Must), stage: StageLint, anchor: f.Anchor,
+		message:  "The doc holds a placeholder, so it does not answer this build question: " + q,
+		fix:      "Write the text that the placeholder holds a place for, or delete the placeholder.",
+		question: q, placeholder: true,
+		evidence: map[string]any{"question": q, "placeholder": quote, "line": line, "result": "gap"},
+	}
+}
+
 // externalTargetCheck reports an external target that does not parse: an unknown scheme, a
 // scheme with no pattern, or a malformed repo target. The author fixes it in one edit.
 func externalTargetCheck(in input, ev *evaluation) {
@@ -478,6 +518,11 @@ func relaxedCount(p profile.Profile, relaxed map[string]bool) int {
 func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev evaluation, p profile.Profile, existing bool) error {
 	var rows []pgdb.InsertFindingParams
 	vin := ev.in
+	// A lint run calls no model, but a judgement in the cache still applies: the build question
+	// of a placeholder that a full review judged keeps its judgement on every save.
+	if err := s.judgeMaterial(ctx, nil, in, &ev, false); err != nil {
+		return err
+	}
 	waived := applyWaivers(in, &ev)
 	upstream := upstreamStates(in, &ev)
 	// §8.6 rule 2: an open blocking thread blocks.
@@ -500,7 +545,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 		}
 		if f.carried != uuid.Nil {
 			carried = append(carried, carriedFinding{ID: f.carried, Waived: waived[i], Upstream: upstream[i]})
-			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting()})
+			vin.Findings = append(vin.Findings, verdict.Finding{ID: f.carried.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting(), Advice: advice(evidence)})
 			if counts(string(f.level), waived[i]) {
 				units[f.carried.String()] = unit(p, in.doc, in.main, f.slug, f.stage, f.anchor, evidence)
 			}
@@ -519,7 +564,7 @@ func (s *Service) save(ctx context.Context, run pgdb.ReviewRun, in input, ev eva
 			ID: id, RunID: run.ID, CheckSlug: f.slug, Level: string(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
 			Anchor: anchorJSON, Message: f.message, Evidence: evidence, Suggestion: sugg, Waived: waived[i],
 		})
-		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting()})
+		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting(), Advice: advice(evidence)})
 	}
 	vin.Items = ev.items
 	v := verdict.Decide(vin)

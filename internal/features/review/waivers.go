@@ -34,9 +34,14 @@ func validWaivers(in input) map[string]bool {
 		if strings.TrimSpace(w.Reason) == "" || w.Check == "" {
 			continue
 		}
-		if in.profile.Profile.Holds(w.Check, w.Section, waiverHash(w), in.doc, in.main) {
-			out[waiverKey(w.Check, w.Section, w.Conflict.Key())] = true
+		if !in.profile.Profile.Holds(w.Check, w.Section, waiverHash(w), in.doc, in.main) {
+			continue
 		}
+		if w.Fork != "" {
+			out[waiverKey(w.Check, w.Section, forkSlot(w.Fork))] = true
+			continue
+		}
+		out[waiverKey(w.Check, w.Section, w.Conflict.Key())] = true
 	}
 	return out
 }
@@ -63,6 +68,10 @@ func applyWaivers(in input, ev *evaluation) []bool {
 			if !waived[i] && f.slug == ContradictionSlug {
 				waived[i] = valid[waiverKey(f.slug, b.Path, f.conflict().Key())]
 			}
+			// "Not needed" closes the one fork of this finding.
+			if !waived[i] {
+				waived[i] = valid[waiverKey(f.slug, b.Path, forkSlot(f.fork()))]
+			}
 		}
 		if !waived[i] {
 			open[f.slug] = true
@@ -77,6 +86,18 @@ func applyWaivers(in input, ev *evaluation) []bool {
 		}
 	}
 	return waived
+}
+
+// forkSlot is the conflict slot of waiverKey for a "Not needed" answer, which binds to one fork.
+func forkSlot(fork string) string { return "fork\x00" + fork }
+
+// fork names the one fork the finding asks about (source.ForkOf).
+func (f pending) fork() string {
+	raw, err := json.Marshal(f.evidence)
+	if err != nil {
+		return ""
+	}
+	return source.ForkOf(f.slug, raw, f.message)
 }
 
 // conflictAPI is c in the API, or nil.

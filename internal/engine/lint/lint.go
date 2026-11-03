@@ -48,10 +48,10 @@ var Rules = []struct {
 	Off   bool
 }{
 	{RequirementGrammar, kernel.Should, true},
-	{Placeholder, kernel.Must, false},
-	{RequiredHeadings, kernel.Must, false},
-	{BrokenLink, kernel.Must, false},
-	{DuplicateID, kernel.Must, false},
+	{Placeholder, kernel.Should, false},
+	{RequiredHeadings, kernel.Should, false},
+	{BrokenLink, kernel.Should, false},
+	{DuplicateID, kernel.Should, false},
 	{DanglingRef, kernel.Should, false},
 	{SlopPhrase, kernel.Should, false},
 	{SentenceLength, kernel.Should, false},
@@ -190,7 +190,7 @@ func Run(src []byte, cfg Config) Result {
 		}
 		// A rule may report one finding below the rule's level. It never raises it, so a
 		// relaxed or disabled rule stays relaxed or off.
-		if len(at) > 0 && lvl == kernel.Must {
+		if len(at) > 0 && lvl != kernel.Info && (lvl == kernel.Must || at[0] == kernel.Info) {
 			lvl = at[0]
 		}
 		out = append(out, Finding{Slug: slug, Level: lvl, Message: msg, Fix: fix,

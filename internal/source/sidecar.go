@@ -2,6 +2,8 @@ package source
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -127,13 +129,51 @@ func (d Decisions) WithWaiver(w Waiver) Decisions {
 	out := d
 	out.Waivers = slices.Clone(d.Waivers)
 	for i, old := range out.Waivers {
-		if old.Check == w.Check && slices.Equal(old.Section, w.Section) && old.Conflict.Same(w.Conflict) {
+		if old.Check == w.Check && slices.Equal(old.Section, w.Section) && old.Conflict.Same(w.Conflict) && old.Fork == w.Fork {
 			out.Waivers[i] = w
 			return out
 		}
 	}
 	out.Waivers = append(out.Waivers, w)
 	return out
+}
+
+// ForkOf names the one fork a finding asks about, so that the answer "Not needed" closes that
+// finding and no other finding of its check. A build question is its number; the question of a
+// placeholder is the placeholder with its line; a shortfall of a check is its reason with its
+// quote. The key holds from one review to the next while the shortfall reads the same.
+func ForkOf(check string, evidence []byte, message string) string {
+	var ev struct {
+		Number      int    `json:"number"`
+		Placeholder string `json:"placeholder"`
+		Line        string `json:"line"`
+		Reason      string `json:"reason"`
+		Quotes      []struct {
+			Text  string `json:"text"`
+			Found bool   `json:"found"`
+		} `json:"quotes"`
+	}
+	_ = json.Unmarshal(evidence, &ev)
+	short := func(parts ...string) string {
+		sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+		return hex.EncodeToString(sum[:8])
+	}
+	switch {
+	case ev.Number > 0 && (check == "divergence.gap" || check == "divergence.ambiguous"):
+		return fmt.Sprintf("q%d", ev.Number)
+	case ev.Placeholder != "":
+		return "p" + short(foldQuote(ev.Placeholder), foldQuote(ev.Line))
+	case ev.Reason != "":
+		quote := ""
+		for _, q := range ev.Quotes {
+			if q.Found {
+				quote = q.Text
+				break
+			}
+		}
+		return "s" + short(foldQuote(ev.Reason), foldQuote(quote))
+	}
+	return "m" + short(foldQuote(message))
 }
 
 // ContradictionCheck is the coherence check whose finding names one conflict with a linked doc.

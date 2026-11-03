@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -239,6 +240,9 @@ func TestConflict_KeepsItsIdentity(t *testing.T) {
 		if c.PromptVersion == review.PromptContradiction {
 			return model.Raw{Text: `{"conflicts":[` + conflicts + `]}`}, nil
 		}
+		if c.PromptVersion == review.PromptMaterial {
+			return model.Raw{Text: materialAnswer(c.Prompt)}, nil
+		}
 		sameCalls++
 		return model.Raw{Text: `{"matches":[{"analysis":"Both are about the request limit.","earlier":1,"new":1}]}`}, nil
 	})
@@ -305,4 +309,17 @@ func TestConflict_KeepsItsIdentity(t *testing.T) {
 	if got := quotes(); len(got) != 0 {
 		t.Fatalf("after the edit that removes the quote: %q, want no conflict", got)
 	}
+}
+
+var problemRe = regexp.MustCompile(`(?m)^Problem (\d+):$`)
+
+// materialAnswer is the judge's answer to a materiality prompt: every problem is a material
+// gap about the data model, with two options.
+func materialAnswer(prompt string) string {
+	var results []string
+	for _, m := range problemRe.FindAllStringSubmatch(prompt, -1) {
+		results = append(results, `{"analysis":"Two guesses differ.","class":"data_model","n":`+m[1]+
+			`,"options":["The service keeps it.","The client keeps it."],"pick":1,"question":"Which side keeps it?"}`)
+	}
+	return `{"results":[` + strings.Join(results, ",") + `]}`
 }

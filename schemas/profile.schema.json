@@ -75,6 +75,7 @@
       "additionalProperties": false,
       "description": "The settings of the grounding stage.",
       "properties": {
+        "enabled": { "type": "boolean", "description": "Turns the grounding stage on. It is off by default: a review then makes no claim calls." },
         "file_contradiction": { "enum": ["SHOULD", "MUST"], "description": "The level of grounding.file-contradicts-claim: a claim that a file of the bundle contradicts. The default is SHOULD." },
         "sources": {
           "type": "object",
@@ -178,7 +179,7 @@
           "additionalProperties": false,
           "description": "How many build questions the stage writes.",
           "properties": {
-            "min": { "type": "integer", "minimum": 1, "description": "The fewest build questions. Default 10. It cannot be larger than max." },
+            "min": { "type": "integer", "minimum": 0, "description": "The fewest build questions. Default 0: the reviewer writes a question only where it sees a real choice. It cannot be larger than max." },
             "max": { "type": "integer", "minimum": 1, "description": "The most build questions. Default 20." }
           }
         },
@@ -214,7 +215,7 @@
         "required": ["slug", "level", "stage"],
         "properties": {
           "slug": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$", "description": "The ID of the check: lower-case words with dots between them, such as `sdd.data-model`. It is unique in the profile." },
-          "level": { "enum": ["MUST", "SHOULD", "INFO"], "description": "The level of a finding. An open MUST finding makes the verdict Not Build Ready." },
+          "level": { "enum": ["MUST", "SHOULD", "INFO"], "description": "The level of a finding. MUST blocks when material: an open MUST finding of an AI stage makes the verdict Not Build Ready only when the judge finds a material gap, where two plausible builder guesses differ in the data model, an interface, security or what the user sees. A deterministic MUST finding always blocks. SHOULD never blocks." },
           "stage": { "enum": ["rubric", "grounding", "divergence", "coherence"], "description": "The review stage that runs the check." },
           "scope": { "enum": ["doc", "section"], "description": "What the check reads. With doc, the check reads the whole doc, or the one section that `section` names. With section, the check runs on every section, and a waiver covers one section. Default doc." },
           "question": { "type": "string", "description": "The question the check asks about the doc." },

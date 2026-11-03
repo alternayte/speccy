@@ -713,6 +713,33 @@ func (e MCPConnectionInputTransport) Valid() bool {
 	}
 }
 
+// Defines values for MaterialClass.
+const (
+	MaterialClassDataModel   MaterialClass = "data_model"
+	MaterialClassInterface   MaterialClass = "interface"
+	MaterialClassNone        MaterialClass = "none"
+	MaterialClassSecurity    MaterialClass = "security"
+	MaterialClassUserVisible MaterialClass = "user_visible"
+)
+
+// Valid indicates whether the value is a known member of the MaterialClass enum.
+func (e MaterialClass) Valid() bool {
+	switch e {
+	case MaterialClassDataModel:
+		return true
+	case MaterialClassInterface:
+		return true
+	case MaterialClassNone:
+		return true
+	case MaterialClassSecurity:
+		return true
+	case MaterialClassUserVisible:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MeMode.
 const (
 	MeModeHosted MeMode = "hosted"
@@ -791,6 +818,7 @@ const (
 	NextActionKindDecide        NextActionKind = "decide"
 	NextActionKindFix           NextActionKind = "fix"
 	NextActionKindHandoff       NextActionKind = "handoff"
+	NextActionKindQuestions     NextActionKind = "questions"
 	NextActionKindRequestReview NextActionKind = "request_review"
 	NextActionKindReview        NextActionKind = "review"
 	NextActionKindWaiver        NextActionKind = "waiver"
@@ -806,6 +834,8 @@ func (e NextActionKind) Valid() bool {
 	case NextActionKindFix:
 		return true
 	case NextActionKindHandoff:
+		return true
+	case NextActionKindQuestions:
 		return true
 	case NextActionKindRequestReview:
 		return true
@@ -1948,6 +1978,17 @@ type Anchor struct {
 	Suffix string `json:"suffix"`
 }
 
+// AnswerPatches defines model for AnswerPatches.
+type AnswerPatches struct {
+	// Patches One patch for each part of the doc. Two answers about one paragraph share a patch. Accept them with acceptFixes, by the finding_id of each patch.
+	Patches []FixSuggestion `json:"patches"`
+}
+
+// AnswersRequest defines model for AnswersRequest.
+type AnswersRequest struct {
+	Answers []QuestionAnswer `json:"answers"`
+}
+
 // AskRequest defines model for AskRequest.
 type AskRequest struct {
 	// Attribution none posts the question with no hidden marker. Absent means pr.attribution of the .speccy.yaml that the pull request review uses.
@@ -2318,7 +2359,7 @@ type BundleVerdict struct {
 	// Kind lint means only the lint stage ran.
 	Kind BundleVerdictKind `json:"kind"`
 
-	// Must Open MUST findings.
+	// Must Open MUST findings that block the verdict. A MUST finding that the materiality judge called no material gap counts as SHOULD, because it is advice.
 	Must  int            `json:"must"`
 	Radar map[string]int `json:"radar"`
 
@@ -2616,6 +2657,9 @@ type Finding struct {
 	// Anchor The anchor in the bundle's current version, re-anchored when the run read an older version.
 	Anchor Anchor `json:"anchor"`
 
+	// Answer The answer the author gave on the questions screen, while its patch waits or after the author accepted it.
+	Answer *string `json:"answer,omitempty"`
+
 	// Carried An AI finding of the last full review, which read an older version. Its section has not changed since.
 	Carried   *bool  `json:"carried,omitempty"`
 	CheckSlug string `json:"check_slug"`
@@ -2628,19 +2672,31 @@ type Finding struct {
 	Fix     *string `json:"fix,omitempty"`
 
 	// FixKind reword: the fix changes the words and no fact, so the bulk fix or an agent may fix the finding alone. answer: the fix needs a fact from the author.
-	FixKind FixKind            `json:"fix_kind"`
-	Id      openapi_types.UUID `json:"id"`
+	FixKind FixKind `json:"fix_kind"`
+
+	// Fork Names the one fork the finding asks about. A "Not needed" answer binds to it.
+	Fork *string            `json:"fork,omitempty"`
+	Id   openapi_types.UUID `json:"id"`
 
 	// Layer The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
 	Layer *FindingLayer `json:"layer,omitempty"`
 	Level FindingLevel  `json:"level"`
 
 	// Line The line of the file where the text of the finding starts, from 1, in the current version. 0 when the anchor is detached.
-	Line    int    `json:"line"`
-	Message string `json:"message"`
+	Line int `json:"line"`
+
+	// Material The materiality judge's decision on a MUST finding. A material gap is a place where a builder who cannot ask the author must guess, and two plausible guesses differ in the data model, an interface, security or what the user sees. It blocks Build Ready. A MUST finding with class none is advice. A MUST finding with no judgement blocks.
+	Material *Material `json:"material,omitempty"`
+	Message  string    `json:"message"`
 
 	// New The last full review found this, and the full review before it did not. See Trend.
 	New *bool `json:"new,omitempty"`
+
+	// NotNeeded The author answered "Not needed", with a reason. The waiver of the answer covers this finding.
+	NotNeeded *bool `json:"not_needed,omitempty"`
+
+	// Option The option the author picked for the answer, 1 or 2, or 0 for an answer in the author's own words.
+	Option *int `json:"option,omitempty"`
 
 	// Question For an answer finding, the question that the author must answer to fix it. It names the subject and asks only for the missing fact. A finding of the divergence stage has its build question here, and one of the grounding stage has its claim.
 	Question *string `json:"question,omitempty"`
@@ -2702,10 +2758,12 @@ type FixPrompt struct {
 
 // FixSuggestion A patch that replaces one text in one file (REQ-025). Speccy picks the text: the paragraph or the section of the finding, or no text when the fix adds a section. The model writes only the new text.
 type FixSuggestion struct {
-	EndLine     int                `json:"end_line"`
-	Explanation string             `json:"explanation"`
-	File        string             `json:"file"`
-	FindingId   openapi_types.UUID `json:"finding_id"`
+	// Answers For a patch from the questions screen, every finding whose answer it writes. finding_id is the first.
+	Answers     *[]openapi_types.UUID `json:"answers,omitempty"`
+	EndLine     int                   `json:"end_line"`
+	Explanation string                `json:"explanation"`
+	File        string                `json:"file"`
+	FindingId   openapi_types.UUID    `json:"finding_id"`
 
 	// Line The line where the replaced text starts, or where the new text goes, from 1.
 	Line int `json:"line"`
@@ -3004,6 +3062,24 @@ type MCPTool struct {
 	ReadOnly    bool   `json:"read_only"`
 }
 
+// Material The materiality judge's decision on a MUST finding. A material gap is a place where a builder who cannot ask the author must guess, and two plausible guesses differ in the data model, an interface, security or what the user sees. It blocks Build Ready. A MUST finding with class none is advice. A MUST finding with no judgement blocks.
+type Material struct {
+	// Class The consequence class.
+	Class MaterialClass `json:"class"`
+
+	// Options The two answers a builder could pick. Empty for none.
+	Options *[]string `json:"options,omitempty"`
+
+	// Pick The option that fits the rest of the doc better, 1 or 2. 0 for none.
+	Pick *int `json:"pick,omitempty"`
+
+	// Question The question that asks the author to choose.
+	Question *string `json:"question,omitempty"`
+}
+
+// MaterialClass The consequence class.
+type MaterialClass string
+
 // Me defines model for Me.
 type Me struct {
 	Email *string `json:"email,omitempty"`
@@ -3047,7 +3123,9 @@ type MetaSignInProviders string
 // NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
 type NextAction struct {
 	FindingId *openapi_types.UUID `json:"finding_id,omitempty"`
-	Kind      NextActionKind      `json:"kind"`
+
+	// Kind questions opens the questions screen, with every open blocking build question of the doc.
+	Kind NextActionKind `json:"kind"`
 
 	// Sentence What to do, in words, for a button label or a status line.
 	Sentence string `json:"sentence"`
@@ -3057,7 +3135,7 @@ type NextAction struct {
 	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
-// NextActionKind defines model for NextAction.Kind.
+// NextActionKind questions opens the questions screen, with every open blocking build question of the doc.
 type NextActionKind string
 
 // OpenThread defines model for OpenThread.
@@ -3442,6 +3520,13 @@ type ProfileList struct {
 	Problems []string `json:"problems"`
 }
 
+// QuestionAnswer defines model for QuestionAnswer.
+type QuestionAnswer struct {
+	Answer    string             `json:"answer"`
+	FindingId openapi_types.UUID `json:"finding_id"`
+	Option    *int               `json:"option,omitempty"`
+}
+
 // QuoteCheck defines model for QuoteCheck.
 type QuoteCheck struct {
 	Found bool   `json:"found"`
@@ -3751,6 +3836,9 @@ type StartRunRequestStages string
 type SuggestFixRequest struct {
 	// Answer For an answer finding, the fact the author gives. Speccy writes it into the doc in the doc's style.
 	Answer *string `json:"answer,omitempty"`
+
+	// Option The option of a material gap that the answer is, 1 or 2, or 0 for the author's own words.
+	Option *int `json:"option,omitempty"`
 }
 
 // SuggestFixesRequest defines model for SuggestFixesRequest.
@@ -4270,6 +4358,9 @@ type Waiver struct {
 	// Needed The approvals the policy needs.
 	Needed int `json:"needed"`
 
+	// NotNeeded True for the answer "Not needed" to one finding. The author gives it, and it needs no approval.
+	NotNeeded *bool `json:"not_needed,omitempty"`
+
 	// Policy The waiver policy (§9.1).
 	Policy      string   `json:"policy"`
 	Reason      string   `json:"reason"`
@@ -4576,7 +4667,10 @@ type ListVersionsParams struct {
 // RequestWaiverJSONBody defines parameters for RequestWaiver.
 type RequestWaiverJSONBody struct {
 	FindingId openapi_types.UUID `json:"finding_id"`
-	Reason    string             `json:"reason"`
+
+	// NotNeeded Answer a finding with "Not needed": the author says the fork does not matter, with a reason. It needs no approval. Speccy writes it to the sidecar at once, bound to the one fork of the finding, and it ends when the section changes.
+	NotNeeded *bool  `json:"not_needed,omitempty"`
+	Reason    string `json:"reason"`
 
 	// SendBack Answer a coherence.downstream-request finding with "The downstream doc must change": a send-back. Its approval ends the upstream request in the sidecar of the downstream doc, and the conflict blocks there again with this reason.
 	SendBack *bool `json:"send_back,omitempty"`
@@ -4873,6 +4967,9 @@ type ReviewContentJSONRequestBody = ContentReviewRequest
 
 // ReviewUrlJSONRequestBody defines body for ReviewUrl for application/json ContentType.
 type ReviewUrlJSONRequestBody = UrlReviewRequest
+
+// SuggestAnswersJSONRequestBody defines body for SuggestAnswers for application/json ContentType.
+type SuggestAnswersJSONRequestBody = AnswersRequest
 
 // SuggestFixJSONRequestBody defines body for SuggestFix for application/json ContentType.
 type SuggestFixJSONRequestBody = SuggestFixRequest
@@ -5281,6 +5378,9 @@ type ServerInterface interface {
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(w http.ResponseWriter, r *http.Request, runId RunId)
+	// SuggestAnswers Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+	// (POST /runs/{runId}/answers)
+	SuggestAnswers(w http.ResponseWriter, r *http.Request, runId RunId)
 	// ListClaims List a run's factual claims and their labels (REQ-031).
 	// (GET /runs/{runId}/claims)
 	ListClaims(w http.ResponseWriter, r *http.Request, runId RunId)
@@ -8455,6 +8555,32 @@ func (siw *ServerInterfaceWrapper) GetRun(w http.ResponseWriter, r *http.Request
 	handler.ServeHTTP(w, r)
 }
 
+// SuggestAnswers operation middleware
+func (siw *ServerInterfaceWrapper) SuggestAnswers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "runId" -------------
+	var runId RunId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "runId", r.PathValue("runId"), &runId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "runId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SuggestAnswers(w, r, runId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListClaims operation middleware
 func (siw *ServerInterfaceWrapper) ListClaims(w http.ResponseWriter, r *http.Request) {
 
@@ -9211,6 +9337,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix", wrapper.SuggestFix)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix/accept", wrapper.AcceptFix)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/fixes", wrapper.SuggestFixes)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/answers", wrapper.SuggestAnswers)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/fixes/accept", wrapper.AcceptFixes)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/fix-prompt", wrapper.GetFixPrompt)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/findings", wrapper.ListFindings)
@@ -14160,6 +14287,46 @@ func (response GetRundefaultApplicationProblemPlusJSONResponse) VisitGetRunRespo
 	return err
 }
 
+type SuggestAnswersRequestObject struct {
+	RunId RunId `json:"runId"`
+	Body  *SuggestAnswersJSONRequestBody
+}
+
+type SuggestAnswersResponseObject interface {
+	VisitSuggestAnswersResponse(w http.ResponseWriter) error
+}
+
+type SuggestAnswers200JSONResponse AnswerPatches
+
+func (response SuggestAnswers200JSONResponse) VisitSuggestAnswersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SuggestAnswersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SuggestAnswersdefaultApplicationProblemPlusJSONResponse) VisitSuggestAnswersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListClaimsRequestObject struct {
 	RunId RunId `json:"runId"`
 }
@@ -15469,6 +15636,9 @@ type StrictServerInterface interface {
 	// GetRun Get one review run and its verdict.
 	// (GET /runs/{runId})
 	GetRun(ctx context.Context, request GetRunRequestObject) (GetRunResponseObject, error)
+	// SuggestAnswers Write the answers of the questions screen into the doc as patches. The doc does not change. Answers whose text overlaps share one patch. A patch that suggestFix wrote for the same answer on the current version is reused.
+	// (POST /runs/{runId}/answers)
+	SuggestAnswers(ctx context.Context, request SuggestAnswersRequestObject) (SuggestAnswersResponseObject, error)
 	// ListClaims List a run's factual claims and their labels (REQ-031).
 	// (GET /runs/{runId}/claims)
 	ListClaims(ctx context.Context, request ListClaimsRequestObject) (ListClaimsResponseObject, error)
@@ -19104,6 +19274,39 @@ func (sh *strictHandler) GetRun(w http.ResponseWriter, r *http.Request, runId Ru
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRunResponseObject); ok {
 		if err := validResponse.VisitGetRunResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SuggestAnswers operation middleware
+func (sh *strictHandler) SuggestAnswers(w http.ResponseWriter, r *http.Request, runId RunId) {
+	var request SuggestAnswersRequestObject
+
+	request.RunId = runId
+
+	var body SuggestAnswersJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SuggestAnswers(ctx, request.(SuggestAnswersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SuggestAnswers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SuggestAnswersResponseObject); ok {
+		if err := validResponse.VisitSuggestAnswersResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

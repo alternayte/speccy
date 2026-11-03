@@ -65,12 +65,48 @@ type stageTiming struct {
 func (rc *runCtx) enter(stage string) {
 	now := time.Now().UTC()
 	rc.mu.Lock()
-	if n := len(rc.stages); n > 0 && rc.stages[n-1].FinishedAt == nil {
-		rc.stages[n-1].FinishedAt = &now
+	for i := range rc.stages {
+		if rc.stages[i].FinishedAt == nil {
+			rc.stages[i].FinishedAt = &now
+		}
 	}
 	rc.stages = append(rc.stages, stageTiming{Stage: stage, StartedAt: now})
 	rc.mu.Unlock()
 	rc.publish(Event{Type: "stage", Stage: stage})
+}
+
+// begin starts the timing of a stage that runs beside others, and tells live views.
+func (rc *runCtx) begin(stage string) {
+	now := time.Now().UTC()
+	rc.mu.Lock()
+	rc.stages = append(rc.stages, stageTiming{Stage: stage, StartedAt: now})
+	rc.mu.Unlock()
+	rc.publish(Event{Type: "stage", Stage: stage})
+}
+
+// end ends the timing of a stage that begin started.
+func (rc *runCtx) end(stage string) {
+	now := time.Now().UTC()
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	for i := len(rc.stages) - 1; i >= 0; i-- {
+		if rc.stages[i].Stage == stage && rc.stages[i].FinishedAt == nil {
+			rc.stages[i].FinishedAt = &now
+			return
+		}
+	}
+}
+
+// endAll ends every open stage timing.
+func (rc *runCtx) endAll() {
+	now := time.Now().UTC()
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	for i := range rc.stages {
+		if rc.stages[i].FinishedAt == nil {
+			rc.stages[i].FinishedAt = &now
+		}
+	}
 }
 
 func (rc *runCtx) call(ctx context.Context, g *model.Gateway, c model.Call) (model.Result, error) {
@@ -235,35 +271,35 @@ func withPrior(a rubricAnswer, prior []shortfall) rubricAnswer {
 //
 // fresh marks the cache entries of the doc since the last request for a fresh review, or is
 // empty when nobody asked for one: a fresh review reads no answer of a review before it.
-func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[string][]shortfall, fresh string, err error) {
+func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[string][]shortfall, fresh string, since uuid.UUID, err error) {
 	if in.version == uuid.Nil || in.bundle.ID == uuid.Nil {
-		return nil, "", nil // content that is not saved has no review before it
+		return nil, "", uuid.Nil, nil // content that is not saved has no review before it
 	}
 	q := s.DB.Queries()
 	doc, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: s.Workspace, ID: in.bundle.ID})
 	if err != nil {
-		return nil, "", err
+		return nil, "", uuid.Nil, err
 	}
 	if doc.FreshAt.Valid {
 		fresh = fmt.Sprintf(":fresh:%d", doc.FreshAt.Time.UnixNano())
 	}
 	full, err := q.LatestFullReview(ctx, in.bundle.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, fresh, nil
+		return nil, fresh, uuid.Nil, nil
 	}
 	if err != nil {
-		return nil, "", err
+		return nil, "", uuid.Nil, err
 	}
 	if doc.FreshAt.Valid && !full.StartedAt.After(doc.FreshAt.Time) {
-		return nil, fresh, nil
+		return nil, fresh, uuid.Nil, nil
 	}
 	rows, err := q.ListFindings(ctx, full.ID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", uuid.Nil, err
 	}
 	carried, err := carriedRows(ctx, q, full.ID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", uuid.Nil, err
 	}
 	out := map[string][]shortfall{}
 	for _, f := range append(rows, carried...) {
@@ -297,19 +333,26 @@ func (s *Service) priorShortfalls(ctx context.Context, in input) (prior map[stri
 		key := priorKey(f.CheckSlug, ev.Section, ev.Named)
 		out[key] = append(out[key], sf)
 	}
-	return out, fresh, nil
+	return out, fresh, full.VersionID, nil
 }
 
 // unitsWithPrior returns the rubric units of the doc, each check with the shortfalls of the
 // last full review that it judges again, one by one.
 func (s *Service) unitsWithPrior(ctx context.Context, in input) ([]scopeUnit, error) {
 	units := rubricUnits(in)
-	prior, fresh, err := s.priorShortfalls(ctx, in)
+	prior, fresh, since, err := s.priorShortfalls(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	changed, err := s.changedSince(ctx, in, since)
 	if err != nil {
 		return nil, err
 	}
 	for i := range units {
 		u := &units[i]
+		if u.sec == nil {
+			u.changed = changed
+		}
 		// A check whose text did not change keeps its cached answer, with the shortfalls it
 		// had. After a request for a fresh review, the answers before it do not count.
 		u.inputHash += fresh
@@ -359,6 +402,77 @@ type scopeUnit struct {
 	inputHash string
 	checks    []rubricCheck
 	levels    map[string]kernel.Level
+	// changed reports whether a quote is in text that changed since the last full review. It
+	// is set for a whole-doc unit after a full review, and nil before the first one and after a
+	// request for a fresh review. A whole-doc check then raises a new shortfall only in changed
+	// text, so each round of review ends with fewer findings (material gate).
+	changed func(quote string) bool
+}
+
+// changedSince returns a test of whether a quote is in a section of the doc that is new or
+// changed since the version since. It returns nil when since is Nil: every shortfall is new.
+func (s *Service) changedSince(ctx context.Context, in input, since uuid.UUID) (func(string) bool, error) {
+	if since == uuid.Nil {
+		return nil, nil
+	}
+	files, err := version.Files(ctx, s.DB.Queries(), since)
+	if err != nil {
+		return nil, err
+	}
+	var was []byte
+	for _, f := range files {
+		if f.Path == in.bundle.DocPath {
+			was = f.Content
+		}
+	}
+	wasDoc := section.Parse(was)
+	var spans [][2]int
+	for _, sec := range in.doc.Sections {
+		if sec.Level == 0 {
+			continue
+		}
+		if h, ok := section.HashAt(wasDoc, was, sec.Path); !ok || h != sec.Hash {
+			spans = append(spans, [2]int{sec.BodyStart, sec.End})
+		}
+	}
+	return func(quote string) bool {
+		if strings.TrimSpace(quote) == "" {
+			return false
+		}
+		start, _, ok := anchor.Find(in.main, quote)
+		if !ok {
+			return false
+		}
+		for _, sp := range spans {
+			if start >= sp[0] && start < sp[1] {
+				return true
+			}
+		}
+		return false
+	}, nil
+}
+
+// onlyChanged keeps the shortfalls of a whole-doc check that the last full review had, and the
+// new ones in changed text. A check whose every shortfall leaves passes.
+func onlyChanged(a rubricAnswer, prior []shortfall, changed func(string) bool) rubricAnswer {
+	if changed == nil || a.Result != "fail" {
+		return a
+	}
+	had := map[[2]string]bool{}
+	for _, sf := range prior {
+		had[sf.same()] = true
+	}
+	var keep []shortfall
+	for _, sf := range a.Shortfalls {
+		if had[sf.same()] || changed(sf.Quote) {
+			keep = append(keep, sf)
+		}
+	}
+	if len(keep) == 0 && len(a.Shortfalls) > 0 {
+		a.Result, a.Reason = "pass", "No shortfall of this check is in text that changed since the last full review."
+	}
+	a.Shortfalls = keep
+	return a
 }
 
 // sectionKey names the section of a unit of a check that runs once for each section, and is
@@ -740,7 +854,9 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 			continue
 		}
 		// A check the reviewer skipped, or whose answer does not match the schema, gets one more
-		// call with the other such checks of the batch.
+		// call of its own. On a long doc a reviewer that writes many shortfalls for one check can
+		// end its reply before the other checks of the batch; asked again as a batch, it does the
+		// same. Alone, each check gets the whole reply. The calls run at the same time.
 		var missing []rubricCheck
 		for _, c := range batch {
 			if _, ok := got[c.Slug]; !ok {
@@ -749,15 +865,28 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 		}
 		asked := true
 		if len(missing) > 0 {
-			again, err := s.askRubric(ctx, rc, in, missing, scopeNote, bundle, files)
-			if err != nil {
-				if err := fail(err); err != nil {
-					return nil, err
-				}
-				asked = false
+			again := make([]map[string]rubricAnswer, len(missing))
+			errs := make([]error, len(missing))
+			var wg sync.WaitGroup
+			for i, c := range missing {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					again[i], errs[i] = s.askRubric(ctx, rc, in, []rubricCheck{c}, scopeNote, bundle, files)
+				}()
 			}
-			for k, v := range again {
-				got[k] = v
+			wg.Wait()
+			for i := range missing {
+				if errs[i] != nil {
+					if err := fail(errs[i]); err != nil {
+						return nil, err
+					}
+					asked = false
+					continue
+				}
+				for k, v := range again[i] {
+					got[k] = v
+				}
 			}
 		}
 		for _, c := range batch {
@@ -775,7 +904,7 @@ func (s *Service) answerChecks(ctx context.Context, rc *runCtx, in input, u scop
 				a = rubricAnswer{Slug: c.Slug, Result: "not_applicable", Reason: "The reviewer gave no answer for this check."}
 				rc.note(fmt.Sprintf("The reviewer gave no valid answer for %s; it counts as not applicable.", c.Slug))
 			default:
-				one, err := s.oneOfEach(ctx, rc, c, withPrior(a, c.Prior), fingerprint)
+				one, err := s.oneOfEach(ctx, rc, c, onlyChanged(withPrior(a, c.Prior), c.Prior, u.changed), fingerprint)
 				if err != nil {
 					if err := fail(err); err != nil {
 						return nil, err

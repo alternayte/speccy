@@ -17,11 +17,11 @@ waivers: { should: non_author, must: maintainer }
 approvals: { required: 1 }
 divergence:
   readers: 3
-  questions: { min: 10, max: 20 }
+  questions: { min: 0, max: 20 }
   themes: [error handling, limits, data ownership, state changes, security, migration]
 checks:
   - slug: links.has-upstream
-    level: MUST
+    level: SHOULD
     stage: coherence
     scope: doc
     question: Does the doc link to the PRD it implements?
@@ -51,14 +51,14 @@ checks:
     question: Is every upstream REQ and NFR referenced or acknowledged?
     pass_when: Every upstream REQ and NFR is referenced or acknowledged.
   - slug: sdd.non-goals
-    level: MUST
+    level: SHOULD
     stage: rubric
     scope: doc
     section: Non-goals
     question: Does the doc list what the system will not do?
     pass_when: A section lists at least one thing the system will not do.
   - slug: sdd.decisions.ids
-    level: MUST
+    level: SHOULD
     stage: rubric
     scope: doc
     section: Decisions
@@ -72,7 +72,7 @@ checks:
     question: Does each decision list a rejected alternative?
     pass_when: Each decision lists at least one rejected alternative with a reason.
   - slug: sdd.components
-    level: MUST
+    level: SHOULD
     stage: rubric
     sizes: [app, initiative]
     scope: doc
@@ -114,7 +114,7 @@ checks:
     question: Does each external dependency have a stated failure behaviour?
     pass_when: Each external dependency has a stated failure behaviour.
   - slug: sdd.state
-    level: SHOULD
+    level: MUST
     stage: rubric
     sizes: [app, initiative]
     scope: doc
@@ -145,7 +145,7 @@ checks:
     question: Are logs, metrics, and alerts stated?
     pass_when: Logs, metrics, and alerts are stated.
   - slug: sdd.testing
-    level: MUST
+    level: SHOULD
     stage: rubric
     sizes: [app, initiative]
     scope: doc
@@ -177,7 +177,7 @@ checks:
     question: Are milestones ordered with exit criteria?
     pass_when: Milestones are ordered and each has exit criteria.
   - slug: sdd.open-questions
-    level: MUST
+    level: SHOULD
     stage: rubric
     sizes: [app, initiative]
     scope: doc

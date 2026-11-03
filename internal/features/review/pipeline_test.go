@@ -61,6 +61,8 @@ type reviewer struct {
 	// the slugs it passes.
 	shortfalls map[string][]map[string]string
 	passes     map[string]bool
+	// advice are the checks whose findings the materiality judge calls no material gap.
+	advice map[string]bool
 	// fixed are the shortfalls of the last review that the reviewer says are fixed, by slug and
 	// by their number in the prompt. It says nothing about the others.
 	fixed map[string][]int
@@ -91,6 +93,10 @@ var questionRe = regexp.MustCompile(`(?s)Question (\d+):\n<<<DATA [0-9a-f]+\n(.*
 var answerRe = regexp.MustCompile(`(?s)Answer ([A-Z]):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
 var dataBlockRe = regexp.MustCompile(`(?s)<<<DATA [0-9a-f]+\n(.*?)\nDATA [0-9a-f]+>>>`)
 var headingPathRe = regexp.MustCompile(`(?m)^- (.+)$`)
+var problemRe = regexp.MustCompile(`(?s)Problem (\d+):\n<<<DATA [0-9a-f]+\n(.*?)\nDATA`)
+var checkLineRe = regexp.MustCompile(`(?m)^Check: (\S+)$`)
+var upToRe = regexp.MustCompile(`up to (\d+) build questions`)
+var authorQuestionRe = regexp.MustCompile(`(?m)^Question for the author: (.+)$`)
 
 // readerAnswer is how each fake reader answers a question. A question about retries splits
 // the readers; one about "invented" gets quotes that are not in the doc; one about "unknown"
@@ -220,7 +226,7 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		}
 		out = map[string]any{"labels": labels}
 	case review.PromptQuestions:
-		var qs []map[string]any
+		qs := []map[string]any{}
 		for _, q := range r.questions {
 			qs = append(qs, map[string]any{"text": q.text, "cites": []string{q.cite}})
 		}
@@ -234,6 +240,12 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			}
 			_ = json.Unmarshal(c.Schema, &schema)
 			n := schema.Properties.Questions.MinItems
+			if n == 0 {
+				// The built-in profiles set no minimum: the fake writes up to the cap.
+				if m := upToRe.FindStringSubmatch(outsideData(c.Prompt)); m != nil {
+					_, _ = fmt.Sscan(m[1], &n)
+				}
+			}
 			paths := headingPathRe.FindAllStringSubmatch(outsideData(c.Prompt[strings.Index(c.Prompt, "Section heading paths:"):]), -1)
 			for i := 0; i < n && len(paths) > 0; i++ {
 				p := paths[i%len(paths)][1]
@@ -295,6 +307,29 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 		} else {
 			out = map[string]any{"new": rewordings.Replace(part), "explanation": "Names the actor."}
 		}
+	case review.PromptMaterial:
+		// Every problem is a material gap with two options, unless its check is in advice: then
+		// the judge finds none.
+		var results []map[string]any
+		for _, m := range problemRe.FindAllStringSubmatch(c.Prompt, -1) {
+			var n int
+			_, _ = fmt.Sscan(m[1], &n)
+			slug := ""
+			if sm := checkLineRe.FindStringSubmatch(m[2]); sm != nil {
+				slug = sm[1]
+			}
+			if r.advice[slug] {
+				results = append(results, map[string]any{"n": n, "analysis": "Every guess builds the same thing.", "class": "none", "options": []string{}, "pick": 0, "question": ""})
+				continue
+			}
+			question := "Which side stores it?"
+			if qm := authorQuestionRe.FindStringSubmatch(m[2]); qm != nil {
+				question = qm[1] // the judge keeps the reviewer's question
+			}
+			results = append(results, map[string]any{"n": n, "analysis": "Two guesses differ.", "class": "data_model",
+				"options": []string{"The service stores it.", "The client stores it."}, "pick": 1, "question": question})
+		}
+		out = map[string]any{"results": results}
 	case review.PromptFixAll:
 		out = map[string]any{"new": rewordings.Replace(labelled(c.Prompt, "The section to rewrite"))}
 	default:
@@ -379,7 +414,21 @@ func newPipeline(t *testing.T, e storetest.Engine, files map[string]string, mode
 	g := &model.Gateway{DB: db, Workspace: ws, Fake: fake}
 	en.reviews.Gateway = g
 	en.reviews.Progress = review.NewBroker()
+	// The pipeline tests read every stage, so their profiles turn grounding on. The built-in
+	// profiles leave it off (TestGrounding_OffByDefault).
+	builtin := en.reviews.Profiles
+	en.reviews.Profiles = func() map[string]profile.Versioned { return withGrounding(builtin()) }
 	return &pipelineEnv{env: en, fake: fake, gateway: g}
+}
+
+// withGrounding returns the profiles with the grounding stage on.
+func withGrounding(in map[string]profile.Versioned) map[string]profile.Versioned {
+	out := make(map[string]profile.Versioned, len(in))
+	for k, v := range in {
+		v.Profile.Grounding.Enabled = true
+		out[k] = v
+	}
+	return out
 }
 
 // run queues a full run of slug, runs it, and returns the finished run.

@@ -23,11 +23,42 @@ The bundles screen shows one state for each bundle: the worst state of its spec 
 
 Speccy computes the verdict with one pure function. It reads no clock, no file and no model, so the same input always gives the same verdict. The verdict is Build Ready only when all of these hold:
 
-- No MUST finding is open.
+- No open MUST finding is a material gap.
 - No blocking thread is open on the spec doc.
-- The spec doc has the upstream link that its profile requires, or a standalone acknowledgement in its sidecar.
+- The spec doc has the upstream link that its profile requires at MUST, or a standalone acknowledgement in its sidecar.
 
 SHOULD findings and INFO findings never change the verdict. A SHOULD finding lowers the score. An INFO finding is a hint.
+
+## Material gaps
+
+A material gap is a place where a builder who cannot ask the author must guess, and a wrong guess changes one of these:
+
+- the data model,
+- a public interface,
+- security,
+- what the user sees.
+
+Only a material gap blocks Build Ready. A gap that changes nothing of these is advice, even when its check is a MUST.
+
+After each model stage, the judge reads each MUST finding of that stage. For each finding, the judge names two plausible answers that a builder could pick. When the two answers differ in one of the four ways, the finding is a material gap. Its consequence class names the way, such as Data model. The judge also suggests the answer that fits the rest of the doc better. When the judge cannot name two such answers, the finding is advice. The rail and the counts then show it as a SHOULD finding.
+
+These MUST findings block without the judge:
+
+- A finding of a check that needs no model, such as `frontmatter.readable`. The profile level decides.
+- A MUST finding that the judge did not read, for example because the judge call failed. The next review asks the judge again.
+- A MUST check that the reviewer gave no answer for.
+
+A placeholder such as TBD becomes a build question for the judge. It blocks only when it is a material gap.
+
+## The questions screen
+
+The next action "Answer 3 questions" opens the questions screen. It lists each open material gap of the doc as a question, with its two options. The suggested option has a mark. For each question, pick an option, write another answer under **Other**, or pick **Not needed** and say why.
+
+Speccy starts to write an answer into the doc when you pick it. **Write answers** shows one diff for each part of the doc that changes. Two answers about one paragraph share one diff. **Accept and check again** saves one version and starts a review. The review reads only the sections that changed.
+
+**Not needed** needs no approval. Speccy writes it to the sidecar at once, bound to the one question. It ends when its section changes.
+
+While a review runs, the questions screen shows each question as the judge finds it. You can pick answers before the review ends.
 
 A thread can become blocking after the run. Speccy applies the thread rule each time it shows the verdict, so the verdict turns Not Build Ready at once. When a person resolves the thread, the result of the run comes back.
 
@@ -59,6 +90,8 @@ Speccy carries a finding only while its section has the same text. A finding in 
 
 A whole-doc finding is the exception. It is a finding of a whole-doc check, or a rubric finding with no quote, which says that content is missing. It stays in the verdict after an edit, until the next full review judges its check again. So a save cannot make the doc Build Ready by mistake.
 
+A later full review raises a new finding of a whole-doc check only in text that changed since the last full review. It judges each finding of the last review again. Thus each round of review ends with fewer findings. To have the whole doc judged again, ask for a fresh review: click **Write a fresh set at the next review** on the **Evidence** tab.
+
 Two more cases use the same rule:
 
 - **A run with fewer stages.** `speccy review --stages divergence` judges only the divergence stage. The findings of the stages it skips carry from the last run that did those stages.
@@ -88,7 +121,7 @@ The score is the number of passed checks divided by the number of applicable che
 
 The run report splits the score into six categories: Structure, Clarity, Completeness, Evidence, Precision and Coherence.
 
-The score is for metrics. It never decides the verdict. A spec doc with a score of 95 and one open MUST finding is Not Build Ready.
+The score is for metrics. It never decides the verdict. A spec doc with a score of 95 and one open material gap is Not Build Ready.
 
 ![The control row after a review: the verdict in words, the counts by level, and the score](../../../assets/shots/guide-verdict.png)
 

@@ -81,6 +81,9 @@ type Upstream struct {
 // domains the grounding stage accepts, their tier, their freshness period, and the claim class
 // of a section.
 type Grounding struct {
+	// Enabled turns the grounding stage on. It is off by default: most docs make no claim about
+	// the world outside them, and a review with no grounding is cheaper and faster.
+	Enabled bool                `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	Sources sourcepolicy.Policy `yaml:"sources" json:"sources"`
 	// FileContradiction is the level of a claim that a file of the bundle contradicts: SHOULD
 	// when empty, or MUST for a team that wants such a claim to block.
@@ -263,7 +266,7 @@ var defaults = Profile{
 
 func init() {
 	defaults.Divergence.Readers = 3
-	defaults.Divergence.Questions.Min = 10
+	defaults.Divergence.Questions.Min = 0
 	defaults.Divergence.Questions.Max = 20
 }
 

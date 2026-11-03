@@ -335,8 +335,11 @@ func (a *API) AcceptFixes(ctx context.Context, req api.AcceptFixesRequestObject)
 		return nil, err
 	}
 	by := kernel.ActorFrom(ctx).UserID
-	v, changed, err := a.Change(ctx, b.ID, cur.ID, source.Op{Kind: source.OpWrite, Path: file, Content: next}, by,
-		fmt.Sprintf("Applied Fix all for %s in %d section%s", strings.Join(slugs, ", "), len(edits), plural(len(edits))))
+	msg := fmt.Sprintf("Applied Fix all for %s in %d section%s", strings.Join(slugs, ", "), len(edits), plural(len(edits)))
+	if answers := answerCount(suggs); answers > 0 {
+		msg = fmt.Sprintf("Wrote %d answer%s from the questions screen into the doc", answers, plural(answers))
+	}
+	v, changed, err := a.Change(ctx, b.ID, cur.ID, source.Op{Kind: source.OpWrite, Path: file, Content: next}, by, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -357,6 +360,18 @@ func (a *API) AcceptFixes(ctx context.Context, req api.AcceptFixesRequestObject)
 	}
 	ver := version.ToAPI(v)
 	return api.AcceptFixes200JSONResponse{Version: &ver, Changed: changed, Sections: len(edits), Left: left}, nil
+}
+
+// answerCount is the number of answers that the accepted patches write: each patch from the
+// questions screen writes its own answer and the answers it shares a part with.
+func answerCount(suggs []suggestion) int {
+	n := 0
+	for _, s := range suggs {
+		if s.Answer != "" {
+			n += 1 + len(s.Answers)
+		}
+	}
+	return n
 }
 
 // GetFixPrompt returns the prompt that a person gives to a coding agent to fix the findings of

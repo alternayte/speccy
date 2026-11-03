@@ -123,8 +123,8 @@ func TestCarry_RepoFilesAboveTheFolder(t *testing.T) {
 		}
 	}
 	want := []string{
-		"MUST: The link to ../config/prod-keys.yaml points to a file that git ignores, so Speccy does not take it into the bundle.",
-		"MUST: The link to ../../outside.md points outside the bundle.",
+		"SHOULD: The link to ../config/prod-keys.yaml points to a file that git ignores, so Speccy does not take it into the bundle.",
+		"SHOULD: The link to ../../outside.md points outside the bundle.",
 	}
 	if strings.Join(broken, " | ") != strings.Join(want, " | ") {
 		t.Errorf("broken links:\n%s\nwant:\n%s", strings.Join(broken, "\n"), strings.Join(want, "\n"))

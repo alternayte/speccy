@@ -176,8 +176,9 @@ var operations = map[string]access{
 	"suggestFix": bundleEdit,
 	"acceptFix":  bundleEdit,
 	// The bulk fix of a reword check is the same two steps for a whole check.
-	"suggestFixes": bundleEdit,
-	"acceptFixes":  bundleEdit,
+	"suggestFixes":   bundleEdit,
+	"acceptFixes":    bundleEdit,
+	"suggestAnswers": bundleEdit,
 	// The prompt names the doc and holds no doc text.
 	"getFixPrompt": bundleRead,
 	// REQ-123: authors publish and discard drafts of GitHub bundles.

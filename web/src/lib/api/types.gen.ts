@@ -187,7 +187,10 @@ export type SkippedDoc = {
  * The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
  */
 export type NextAction = {
-    kind: 'waiver' | 'decide' | 'fix' | 'review' | 'adopt' | 'request_review' | 'handoff';
+    /**
+     * questions opens the questions screen, with every open blocking build question of the doc.
+     */
+    kind: 'waiver' | 'questions' | 'decide' | 'fix' | 'review' | 'adopt' | 'request_review' | 'handoff';
     /**
      * What to do, in words, for a button label or a status line.
      */
@@ -221,7 +224,7 @@ export type BundleVerdict = {
      */
     relaxed_count: number;
     /**
-     * Open MUST findings.
+     * Open MUST findings that block the verdict. A MUST finding that the materiality judge called no material gap counts as SHOULD, because it is advice.
      */
     must: number;
     should: number;
@@ -310,12 +313,27 @@ export type RunEstimate = {
 };
 
 export type RunEvent = {
-    type: 'stage' | 'progress' | 'done' | 'failed';
+    /**
+     * question is a material gap that the judge found while the review runs, before its finding is saved.
+     */
+    type: 'stage' | 'progress' | 'question' | 'done' | 'failed';
     stage: string;
     message?: string;
     done?: number;
     total?: number;
     cache_hits?: number;
+    question?: StreamedQuestion;
+};
+
+/**
+ * A blocking build question as the judge finds it during a review. The fork key matches the finding that the review saves, so an option picked before the review ends carries over.
+ */
+export type StreamedQuestion = {
+    fork: string;
+    check_slug: string;
+    question: string;
+    heading_path?: Array<string>;
+    material: Material;
 };
 
 export type ProfileDiff = {
@@ -900,6 +918,46 @@ export type Finding = {
      * The anchor in the bundle's current version, re-anchored when the run read an older version.
      */
     anchor: Anchor;
+    material?: Material;
+    /**
+     * Names the one fork the finding asks about. A "Not needed" answer binds to it.
+     */
+    fork?: string;
+    /**
+     * The answer the author gave on the questions screen, while its patch waits or after the author accepted it.
+     */
+    answer?: string;
+    /**
+     * The option the author picked for the answer, 1 or 2, or 0 for an answer in the author's own words.
+     */
+    option?: number;
+    /**
+     * The author answered "Not needed", with a reason. The waiver of the answer covers this finding.
+     */
+    not_needed?: boolean;
+};
+
+/**
+ * The materiality judge's decision on a MUST finding. A material gap is a place where a builder who cannot ask the author must guess, and two plausible guesses differ in the data model, an interface, security or what the user sees. It blocks Build Ready. A MUST finding with class none is advice. A MUST finding with no judgement blocks.
+ *
+ */
+export type Material = {
+    /**
+     * The consequence class.
+     */
+    class: 'data_model' | 'interface' | 'security' | 'user_visible' | 'none';
+    /**
+     * The two answers a builder could pick. Empty for none.
+     */
+    options?: Array<string>;
+    /**
+     * The option that fits the rest of the doc better, 1 or 2. 0 for none.
+     */
+    pick?: number;
+    /**
+     * The question that asks the author to choose.
+     */
+    question?: string;
 };
 
 export type Tour = {
@@ -980,6 +1038,27 @@ export type SuggestFixRequest = {
      * For an answer finding, the fact the author gives. Speccy writes it into the doc in the doc's style.
      */
     answer?: string;
+    /**
+     * The option of a material gap that the answer is, 1 or 2, or 0 for the author's own words.
+     */
+    option?: number;
+};
+
+export type AnswersRequest = {
+    answers: Array<QuestionAnswer>;
+};
+
+export type QuestionAnswer = {
+    finding_id: string;
+    answer: string;
+    option?: number;
+};
+
+export type AnswerPatches = {
+    /**
+     * One patch for each part of the doc. Two answers about one paragraph share a patch. Accept them with acceptFixes, by the finding_id of each patch.
+     */
+    patches: Array<FixSuggestion>;
 };
 
 export type SuggestFixesRequest = {
@@ -1080,6 +1159,10 @@ export type FixSuggestion = {
      * The version the patch was written for.
      */
     version_id: string;
+    /**
+     * For a patch from the questions screen, every finding whose answer it writes. finding_id is the first.
+     */
+    answers?: Array<string>;
     /**
      * For a missing upstream link, the docs the link can name. The patch is empty; the person picks one, and Speccy writes the link (#75).
      */
@@ -1590,6 +1673,10 @@ export type Waiver = {
      * True for a send-back, the answer "The downstream doc must change" to a coherence.downstream-request finding.
      */
     send_back?: boolean;
+    /**
+     * True for the answer "Not needed" to one finding. The author gives it, and it needs no approval.
+     */
+    not_needed?: boolean;
     /**
      * For a send-back, or a waiver of a coherence.downstream-request finding: the downstream doc. The approval writes to its sidecar, because Speccy writes nothing into the linked doc's sidecar.
      *
@@ -4638,6 +4725,33 @@ export type SuggestFixesResponses = {
 
 export type SuggestFixesResponse = SuggestFixesResponses[keyof SuggestFixesResponses];
 
+export type SuggestAnswersData = {
+    body: AnswersRequest;
+    path: {
+        runId: string;
+    };
+    query?: never;
+    url: '/runs/{runId}/answers';
+};
+
+export type SuggestAnswersErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SuggestAnswersError = SuggestAnswersErrors[keyof SuggestAnswersErrors];
+
+export type SuggestAnswersResponses = {
+    /**
+     * The patches.
+     */
+    200: AnswerPatches;
+};
+
+export type SuggestAnswersResponse = SuggestAnswersResponses[keyof SuggestAnswersResponses];
+
 export type AcceptFixesData = {
     body: AcceptFixesRequest;
     path: {
@@ -5091,6 +5205,11 @@ export type RequestWaiverData = {
          *
          */
         send_back?: boolean;
+        /**
+         * Answer a finding with "Not needed": the author says the fork does not matter, with a reason. It needs no approval. Speccy writes it to the sidecar at once, bound to the one fork of the finding, and it ends when the section changes.
+         *
+         */
+        not_needed?: boolean;
     };
     path: {
         /**

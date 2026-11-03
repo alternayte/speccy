@@ -123,7 +123,7 @@ func (e *env) edit(t *testing.T, content string) {
 func (e *env) waive(t *testing.T) api.Waiver {
 	t.Helper()
 	res, err := e.app.API.RequestWaiver(as("author"), api.RequestWaiverRequestObject{DocId: e.b.ID,
-		Body: &api.RequestWaiverJSONRequestBody{FindingId: e.mustFinding(t, "lint.placeholder"), Reason: "The provider sets this limit; the asset lists it."}})
+		Body: &api.RequestWaiverJSONRequestBody{FindingId: e.mustFinding(t, "divergence.gap"), Reason: "The provider sets this limit; the asset lists it."}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestWaiver_ApprovedWaiverPasses(t *testing.T) {
 				t.Errorf("after the waiver: %s with %d open MUST, want build_ready with 0", r, must)
 			}
 			dec := sidecar(t, e)
-			if len(dec.Waivers) != 1 || dec.Waivers[0].Check != "lint.placeholder" || dec.Waivers[0].RequestedBy != "Ann Author" {
+			if len(dec.Waivers) != 1 || dec.Waivers[0].Check != "divergence.gap" || dec.Waivers[0].RequestedBy != "Ann Author" {
 				t.Errorf("sidecar waivers %+v", dec.Waivers)
 			}
 		})
@@ -545,5 +545,33 @@ func (e *env) edit2(t *testing.T, path, content string) {
 	if _, _, err := e.app.Bundles.Change(as("author"), b.ID, b.CurrentVersionID.UUID,
 		source.Op{Kind: source.OpWrite, Path: path, Content: []byte(content)}, "author", "Edit"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Material gate: "Not needed" closes one fork with no approval. A second placeholder in the
+// same section is another question, and it still blocks.
+func TestNotNeeded_ClosesOneForkWithoutApproval(t *testing.T) {
+	e := newEnv(t, storetest.Engines()[0])
+	e.edit(t, strings.Replace(doc, "The request limit is TBD for now.", "The request limit is TBD for now.\n\nThe timeout is TBD too.", 1))
+	if r, must := e.verdict(t); r != "not_build_ready" || must != 2 {
+		t.Fatalf("before: %s with %d MUST, want not_build_ready with 2", r, must)
+	}
+	res, err := e.app.API.RequestWaiver(as("author"), api.RequestWaiverRequestObject{DocId: e.b.ID,
+		Body: &api.RequestWaiverJSONRequestBody{FindingId: e.mustFinding(t, "divergence.gap"), Reason: "Any limit works here.", NotNeeded: ptr(true)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := api.Waiver(res.(api.RequestWaiver200JSONResponse)); w.Status != "approved" || w.NotNeeded == nil || !*w.NotNeeded {
+		t.Fatalf("the answer %+v, want approved at once and marked not needed", w)
+	}
+	if r, must := e.verdict(t); r != "not_build_ready" || must != 1 {
+		t.Errorf("after Not needed on one: %s with %d MUST, want not_build_ready with 1", r, must)
+	}
+	dec, err := e.app.Bundles.Decisions(context.Background(), e.b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dec.Waivers) != 1 || !dec.Waivers[0].NotNeeded || dec.Waivers[0].Fork == "" {
+		t.Errorf("the sidecar %+v, want one not_needed entry bound to a fork", dec.Waivers)
 	}
 }

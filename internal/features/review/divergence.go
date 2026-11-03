@@ -854,9 +854,10 @@ func (idx citeIndex) anchor(cites []cite) anchor.Anchor {
 // cites one of them, and a section that needs no question gets none.
 func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx citeIndex, only []string) ([]buildQuestion, error) {
 	d := in.profile.Profile.Divergence
-	lo, hi, paths := d.Questions.Min, d.Questions.Max, idx.paths
+	hi := questionCap(in, d.Questions.Max)
+	lo, paths := min(d.Questions.Min, hi), idx.paths
 	if only != nil {
-		lo, hi, paths = 0, max(1, min(d.Questions.Max, 3*len(only))), only
+		lo, hi, paths = 0, max(1, min(hi, 3*len(only))), only
 	}
 	res, err := rc.call(ctx, s.Gateway, model.Call{
 		Role: model.RoleReviewer, PromptVersion: PromptQuestions, System: systemPrompt,
@@ -904,7 +905,28 @@ func (s *Service) newQuestions(ctx context.Context, rc *runCtx, in input, idx ci
 	if dropped > 0 {
 		rc.note(fmt.Sprintf("%d build questions cited no section or trace ID of the doc, so they were dropped.", dropped))
 	}
+	if len(out) > hi {
+		rc.note(fmt.Sprintf("The reviewer wrote %d build questions; the review keeps the first %d.", len(out), hi))
+		out = out[:hi]
+	}
 	return out, nil
+}
+
+// questionCap is the most build questions a doc gets: the profile's maximum, scaled to the doc.
+// Each section with text allows two questions, and a doc of size feature gets at most half the
+// maximum. A short doc then gets no filler questions.
+func questionCap(in input, most int) int {
+	n := 0
+	for _, sec := range in.doc.Sections {
+		if sec.Level > 0 && len(strings.Fields(section.Normalize(sec.Own(in.main)))) > 0 {
+			n++
+		}
+	}
+	hi := min(most, max(3, 2*n))
+	if in.size == kernel.Feature {
+		hi = min(hi, max(3, most/2))
+	}
+	return max(1, hi)
 }
 
 // pinnedQuestion is a build question in the cache.

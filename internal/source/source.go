@@ -229,6 +229,11 @@ type Waiver struct {
 	// other conflict in its section (#136). A waiver with no conflict, written before Speccy
 	// recorded one, still covers each conflict in its section.
 	Conflict *Conflict `yaml:"conflict,omitempty"`
+	// Fork binds the answer "Not needed" to the one fork of one finding: a build question or
+	// one shortfall of a check. NotNeeded marks that answer. The author gives it with a reason,
+	// and it needs no approval: it closes that finding and no other finding of the check.
+	Fork      string `yaml:"fork,omitempty"`
+	NotNeeded bool   `yaml:"not_needed,omitempty"`
 }
 
 // TraceAck acknowledges in the sidecar that an upstream trace ID is intentionally not covered

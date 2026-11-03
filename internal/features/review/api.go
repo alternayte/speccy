@@ -146,6 +146,10 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.R
 		}
 		switch kernel.Level(f.Level) {
 		case kernel.Must:
+			if advice(f.Evidence) {
+				out.Should++ // the judge found no material gap: advice
+				continue
+			}
 			out.Must++
 		case kernel.Should:
 			out.Should++
@@ -280,6 +284,17 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 			isNew[id] = true
 		}
 	}
+	// The "Not needed" answers in the sidecar, by check and fork.
+	notNeeded := map[string]bool{}
+	if a.Service != nil && a.Service.Decisions != nil {
+		if dec, err := a.Service.Decisions(ctx, b); err == nil {
+			for _, w := range dec.Waivers {
+				if w.NotNeeded && w.Fork != "" {
+					notNeeded[w.Check+"\x00"+w.Fork] = true
+				}
+			}
+		}
+	}
 	out := api.FindingList{Items: make([]api.Finding, 0, len(rows))}
 	for _, f := range rows {
 		var an anchor.Anchor
@@ -318,6 +333,29 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		}
 		if question := answerQuestion(f.CheckSlug, f.Message, an.Quote, sugg.Question, f.Evidence); question != "" {
 			af.Question = &question
+		}
+		fork := source.ForkOf(f.CheckSlug, f.Evidence, f.Message)
+		af.Fork = &fork
+		if m, ok := materialOf(f.Evidence); ok {
+			af.Material = materialAPI(m)
+			if !m.Material() && af.Level == api.FindingLevelMUST {
+				// A MUST finding with no material gap is advice: it shows and counts as SHOULD.
+				af.Level = api.FindingLevelSHOULD
+				if af.Layer != nil && *af.Layer == "risk" {
+					af.Layer = nil
+					if l := Layer(af.CheckSlug, af.Stage, kernel.Should); l != "" {
+						layer := api.FindingLayer(l)
+						af.Layer = &layer
+					}
+				}
+			}
+		}
+		if sugg.Answer != "" {
+			af.Answer, af.Option = &sugg.Answer, &sugg.Option
+		}
+		if f.Waived && notNeeded[f.CheckSlug+"\x00"+fork] {
+			yes := true
+			af.NotNeeded = &yes
 		}
 		if f.CheckSlug == CoverageSlug {
 			var ev struct {
@@ -361,6 +399,16 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 	return api.ListFindings200JSONResponse(out), nil
 }
 
+// materialAPI is a judgement in the API.
+func materialAPI(m material) *api.Material {
+	out := &api.Material{Class: api.MaterialClass(m.Class)}
+	if m.Material() {
+		opts, pick, q := append([]string{}, m.Options...), m.Pick, m.Question
+		out.Options, out.Pick, out.Question = &opts, &pick, &q
+	}
+	return out
+}
+
 // Layer is the overlay layer of a finding (SDD §13.2): ambiguous for divergence and gaps,
 // contradicted and unverified for claims and conflicts, risk for other MUST findings, and slop
 // for other lint findings. Other findings have no layer.
@@ -390,6 +438,27 @@ func lines(src []byte, an anchor.Anchor) (int, int) {
 }
 
 func ptrInt(n int) *int { return &n }
+
+// OpenQuestions counts the open blocking build questions of a run: the material gaps that no
+// waiver covers. The questions screen lists them, and the next action names the count.
+func (a *API) OpenQuestions(ctx context.Context, runID uuid.UUID) (int, error) {
+	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: runID})
+	if err != nil {
+		return 0, err
+	}
+	list, ok := res.(api.ListFindings200JSONResponse)
+	if !ok {
+		return 0, nil
+	}
+	n := 0
+	for _, f := range list.Items {
+		if f.Level == api.FindingLevelMUST && !f.Waived && (f.UpstreamChange == nil || f.UpstreamChange.Blocks) &&
+			f.Material != nil && f.Material.Class != api.MaterialClassNone {
+			n++
+		}
+	}
+	return n, nil
+}
 
 // FirstMust returns the first MUST finding of a run that no waiver covers, or nil. The next
 // action reads it (SDD §13.4).

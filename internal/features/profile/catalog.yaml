@@ -14,7 +14,7 @@ checks:
     fix: Correct the YAML or JSON of the block, move it to the top of the doc, and write each link as a kind and a target.
   - slug: lint.placeholder
     stage: lint
-    what: The prose has no placeholder, such as TBD, TODO, XXX, FIXME, a `{{…}}` or `<…>` marker, or lorem ipsum.
+    what: The prose has no placeholder, such as TBD, TODO, XXX, FIXME, a `{{…}}` or `<…>` marker, or lorem ipsum. A review turns each placeholder into a build question, reported as divergence.gap. The materiality judge decides whether it blocks.
     fix: Write the text that the placeholder holds a place for, or delete the placeholder.
   - slug: lint.required-headings
     stage: lint
@@ -109,7 +109,7 @@ checks:
   - slug: divergence.gap
     stage: divergence
     level: question
-    what: The doc answers each build question. All the readers answered that the doc does not say.
+    what: The doc answers each build question. All the readers answered that the doc does not say, or the doc holds a placeholder where the answer goes.
     fix: Add the answer to the section that the question cites.
   - slug: grounding.contradicted-claim
     stage: grounding

@@ -76,6 +76,7 @@ The settings of the grounding stage.
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
+| `enabled` | boolean |  | Turns the grounding stage on. It is off by default: a review then makes no claim calls. |
 | `file_contradiction` | one of `SHOULD`, `MUST` |  | The level of grounding.file-contradicts-claim: a claim that a file of the bundle contradicts. The default is SHOULD. |
 | `sources` | object |  | The source policy: which domains the grounding stage accepts, their tier, their freshness period, and the claim class of a section. |
 
@@ -177,7 +178,7 @@ How many build questions the stage writes.
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
-| `min` | integer |  | The fewest build questions. Default 10. It cannot be larger than max. |
+| `min` | integer |  | The fewest build questions. Default 0: the reviewer writes a question only where it sees a real choice. It cannot be larger than max. |
 | `max` | integer |  | The most build questions. Default 20. |
 
 ## `lint`
@@ -195,7 +196,7 @@ The settings of the lint stage.
 | Key | Type | Required | Meaning |
 |---|---|---|---|
 | `slug` | string matching `^[a-z][a-z0-9-]*(\.[a-z0-9-]+)+$` | yes | The ID of the check: lower-case words with dots between them, such as `sdd.data-model`. It is unique in the profile. |
-| `level` | one of `MUST`, `SHOULD`, `INFO` | yes | The level of a finding. An open MUST finding makes the verdict Not Build Ready. |
+| `level` | one of `MUST`, `SHOULD`, `INFO` | yes | The level of a finding. MUST blocks when material: an open MUST finding of an AI stage makes the verdict Not Build Ready only when the judge finds a material gap, where two plausible builder guesses differ in the data model, an interface, security or what the user sees. A deterministic MUST finding always blocks. SHOULD never blocks. |
 | `stage` | one of `rubric`, `grounding`, `divergence`, `coherence` | yes | The review stage that runs the check. |
 | `scope` | one of `doc`, `section` |  | What the check reads. With doc, the check reads the whole doc, or the one section that `section` names. With section, the check runs on every section, and a waiver covers one section. Default doc. |
 | `question` | string |  | The question the check asks about the doc. |

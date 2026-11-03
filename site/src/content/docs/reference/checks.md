@@ -37,7 +37,7 @@ To fix a finding: Move the code or the table into an asset in the bundle, and li
 
 <h3 id="lint.broken-link"><code>lint.broken-link</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: every profile
 - Fix kind: reword when one file of the bundle has the name the link names, and answer when none or more than one has it
 
@@ -57,7 +57,7 @@ To fix a finding: Define the ID, correct the reference, or link the doc that def
 
 <h3 id="lint.duplicate-id"><code>lint.duplicate-id</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: every profile
 - Fix kind: answer
 
@@ -77,11 +77,11 @@ To fix a finding: Name the actor, such as "the service retries the request".
 
 <h3 id="lint.placeholder"><code>lint.placeholder</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: every profile
 - Fix kind: answer
 
-The prose has no placeholder, such as TBD, TODO, XXX, FIXME, a `{{…}}` or `<…>` marker, or lorem ipsum.
+The prose has no placeholder, such as TBD, TODO, XXX, FIXME, a `{{…}}` or `<…>` marker, or lorem ipsum. A review turns each placeholder into a build question, reported as divergence.gap. The materiality judge decides whether it blocks.
 
 To fix a finding: Write the text that the placeholder holds a place for, or delete the placeholder.
 
@@ -97,7 +97,7 @@ To fix a finding: Move detail into an asset or a linked doc, or split the sectio
 
 <h3 id="lint.required-headings"><code>lint.required-headings</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: every profile
 - Fix kind: answer
 
@@ -223,7 +223,7 @@ It passes when: Each metric has a current baseline value.
 
 <h3 id="prd.goals.measurable"><code>prd.goals.measurable</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: PRD
 - Fix kind: answer
 
@@ -244,7 +244,7 @@ It passes when: Performance, security, accessibility, and privacy needs are stat
 
 <h3 id="prd.non-goals"><code>prd.non-goals</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: PRD
 - Fix kind: answer
 
@@ -254,7 +254,7 @@ It passes when: A section lists at least one thing the product will not do.
 
 <h3 id="prd.open-questions"><code>prd.open-questions</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: PRD
 - Sizes: app, initiative
 - Fix kind: answer
@@ -265,7 +265,7 @@ It passes when: Open questions are listed with an owner each, or the doc says "n
 
 <h3 id="prd.problem.evidence"><code>prd.problem.evidence</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: PRD
 - Fix kind: answer
 
@@ -306,7 +306,7 @@ It passes when: Every requirement has an acceptance criterion that a tester can 
 
 <h3 id="prd.req.ids"><code>prd.req.ids</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: PRD
 - Fix kind: answer
 
@@ -347,7 +347,7 @@ It passes when: Risks are listed, each with a mitigation or an owner.
 
 <h3 id="sdd.components"><code>sdd.components</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
 - Fix kind: answer
@@ -400,7 +400,7 @@ It passes when: Each decision lists at least one rejected alternative with a rea
 
 <h3 id="sdd.decisions.ids"><code>sdd.decisions.ids</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: SDD
 - Fix kind: answer
 
@@ -465,7 +465,7 @@ It passes when: Data and rollout migration are described, or marked not applicab
 
 <h3 id="sdd.non-goals"><code>sdd.non-goals</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: SDD
 - Fix kind: answer
 
@@ -486,7 +486,7 @@ It passes when: Logs, metrics, and alerts are stated.
 
 <h3 id="sdd.open-questions"><code>sdd.open-questions</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
 - Fix kind: answer
@@ -519,7 +519,7 @@ It passes when: Authentication, authorisation, secrets, and untrusted input are 
 
 <h3 id="sdd.state"><code>sdd.state</code></h3>
 
-- Level: SHOULD
+- Level: MUST
 - Profiles: SDD
 - Sizes: app, initiative
 - Fix kind: answer
@@ -530,7 +530,7 @@ It passes when: Each stateful entity has its states and transitions.
 
 <h3 id="sdd.testing"><code>sdd.testing</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: SDD
 - Sizes: app, initiative
 - Fix kind: answer
@@ -593,7 +593,7 @@ To fix a finding: Rewrite the text that the question cites, so that it has one m
 - Profiles: every profile
 - Fix kind: answer
 
-The doc answers each build question. All the readers answered that the doc does not say.
+The doc answers each build question. All the readers answered that the doc does not say, or the doc holds a placeholder where the answer goes.
 
 To fix a finding: Add the answer to the section that the question cites.
 
@@ -673,7 +673,7 @@ To fix a finding: Add a references or refines link for each doc that this doc co
 
 <h3 id="links.has-upstream"><code>links.has-upstream</code></h3>
 
-- Level: MUST
+- Level: SHOULD
 - Profiles: SDD
 - Fix kind: answer
 

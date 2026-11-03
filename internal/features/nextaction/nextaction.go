@@ -26,6 +26,9 @@ type Inputs struct {
 	Point *api.TourPoint
 	// Finding is the first MUST finding that is not waived. One bundle only.
 	Finding *api.Finding
+	// Questions is the count of open blocking build questions: the material gaps of the
+	// verdict's run that no waiver covers. One bundle only.
+	Questions int
 	// CanEdit is false for a person who only reads the bundle: they get no author action.
 	CanEdit bool
 	// Hosted is true when a team uses this server. Local mode has one person, so it asks for
@@ -57,6 +60,10 @@ func Of(in Inputs) *api.NextAction {
 	}
 	if !in.CanEdit {
 		return nil
+	}
+	// The questions screen answers every material gap in one pass, so it comes before the tour.
+	if in.Questions > 0 && (in.Verdict == nil || !stale(in.Verdict, in.CurrentVersion)) {
+		return &api.NextAction{Kind: api.NextActionKindQuestions, Sentence: fmt.Sprintf("Answer %d question%s", in.Questions, plural(in.Questions))}
 	}
 	if p := in.Point; p != nil {
 		key := p.Key
@@ -94,7 +101,7 @@ func Of(in Inputs) *api.NextAction {
 	if v.Must > 0 {
 		return &api.NextAction{
 			Kind:     api.NextActionKindFix,
-			Sentence: fmt.Sprintf("Fix %d MUST finding%s", v.Must, plural(v.Must)),
+			Sentence: fmt.Sprintf("Fix %d blocking finding%s", v.Must, plural(v.Must)),
 		}
 	}
 	if a := in.Adopt; a != nil && (a.Type != nil || a.Size != nil) {

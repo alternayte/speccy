@@ -22,6 +22,8 @@ type Deps struct {
 	FirstPoint func(ctx context.Context, bundleID uuid.UUID) (*api.TourPoint, error)
 	// FirstMust returns the first MUST finding of a run that no waiver covers, or nil.
 	FirstMust func(ctx context.Context, runID uuid.UUID) (*api.Finding, error)
+	// OpenQuestions counts the open blocking build questions of a run.
+	OpenQuestions func(ctx context.Context, runID uuid.UUID) (int, error)
 	// Approvals returns how many approvals the profile needs, and how many the bundle has.
 	Approvals func(ctx context.Context, bundleID uuid.UUID) (needed, given int, err error)
 	// Handoffs returns how many builders took the packet of a bundle version.
@@ -81,6 +83,13 @@ func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *ap
 			return err
 		}
 		in.WaiverWaiting = nextaction.WaiverFor(waiting, b.ID)
+	}
+	if canEdit && a.Deps.OpenQuestions != nil && out.Verdict != nil {
+		n, err := a.Deps.OpenQuestions(ctx, out.Verdict.RunId)
+		if err != nil {
+			return err
+		}
+		in.Questions = n
 	}
 	if canEdit && a.Deps.FirstPoint != nil {
 		p, err := a.Deps.FirstPoint(ctx, b.ID)

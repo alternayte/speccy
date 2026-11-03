@@ -17,7 +17,7 @@ const (
 	PromptClaims = "claims-v3"
 	PromptVerify = "verify-v2"
 	// PromptQuestions, PromptReader, and PromptJudge are the divergence test (SDD §8.5).
-	PromptQuestions = "questions-v1"
+	PromptQuestions = "questions-v2"
 	PromptReader    = "reader-v1"
 	PromptJudge     = "judge-v3"
 	// PromptContradiction checks two linked docs for conflicts (REQ-054).
@@ -219,10 +219,12 @@ func questionsPrompt(docType string, min, max int, themes []string, sections []s
 	var b strings.Builder
 	if newOnly {
 		fmt.Fprintf(&b, "The sections listed below are new in this %s. Write up to %d build questions about them, and none about the rest of the doc. Write no question for a section that leaves nothing open.", docType, max)
-	} else {
+	} else if min > 0 {
 		fmt.Fprintf(&b, "Write between %d and %d build questions for this %s.", min, max, docType)
+	} else {
+		fmt.Fprintf(&b, "Write up to %d build questions for this %s. Write only questions where you see a real choice. A doc that leaves nothing open gets no question; do not write a question to fill the list.", max, docType)
 	}
-	b.WriteString(" A build question is a question that an engineer must answer to build the thing the doc describes. Good questions ask about the choices where two careful engineers could build different things: who owns a step, what happens on an error, exact limits, the order of state changes.\n\n")
+	b.WriteString(" A build question is a question that an engineer must answer to build the thing the doc describes. Good questions ask about the choices where two careful engineers could build different things: a different stored field or state, a different input, output or error, a different rule for who can do what, or a different result that the user sees. Do not ask about wording, format, process, plans or the team.\n\n")
 	b.WriteString("Rules:\n")
 	b.WriteString("- Ask one thing per question. Ask it so that a short answer settles it.\n")
 	b.WriteString("- Do not ask what the doc obviously states in one place. Do not ask for opinions.\n")
@@ -243,8 +245,10 @@ func questionsSchema(min, max int) []byte {
 	s := map[string]any{
 		"type": "object", "additionalProperties": false, "required": []string{"questions"},
 		"properties": map[string]any{
+			// No maxItems: a model that writes a few more questions than asked does not fail
+			// the stage. newQuestions keeps the first max.
 			"questions": map[string]any{
-				"type": "array", "minItems": min, "maxItems": max,
+				"type": "array", "minItems": min,
 				"items": map[string]any{
 					"type": "object", "additionalProperties": false, "required": []string{"text", "cites"},
 					"properties": map[string]any{

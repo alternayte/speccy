@@ -238,7 +238,8 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 	vin.Items = ev.items
 	for i, f := range ev.findings {
 		id := kernel.NewID()
-		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting()})
+		raw, _ := json.Marshal(f.evidence)
+		vin.Findings = append(vin.Findings, verdict.Finding{ID: id.String(), Level: f.level, Waived: waived[i], Waiting: upstream[i].waiting(), Advice: advice(raw)})
 		af := api.Finding{Id: id, CheckSlug: f.slug, Level: api.FindingLevel(f.level), Stage: f.stage, Relaxed: ev.relaxed[f.slug],
 			Message: f.message, Waived: waived[i], Anchor: anchorAPI(f.anchor), FixKind: f.kind()}
 		af.Line, af.EndLine = lines(mainContent(c, f.anchor.File), f.anchor)
@@ -261,6 +262,21 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		if l := Layer(f.slug, f.stage, f.level); l != "" {
 			layer := api.FindingLayer(l)
 			af.Layer = &layer
+		}
+		fork := source.ForkOf(f.slug, evidence, f.message)
+		af.Fork = &fork
+		if m, ok := materialOf(evidence); ok {
+			af.Material = materialAPI(m)
+			if !m.Material() && af.Level == api.FindingLevelMUST {
+				af.Level = api.FindingLevelSHOULD // advice
+				if af.Layer != nil && *af.Layer == "risk" {
+					af.Layer = nil
+					if l := Layer(af.CheckSlug, af.Stage, kernel.Should); l != "" {
+						layer := api.FindingLayer(l)
+						af.Layer = &layer
+					}
+				}
+			}
 		}
 		out.Findings = append(out.Findings, af)
 	}

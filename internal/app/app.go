@@ -183,11 +183,12 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}
 	go reviews.Work(ctx)
 	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
-		Waiting:    waiverAPI.Waiting,
-		FirstPoint: tourAPI.FirstPoint,
-		FirstMust:  reviewAPI.FirstMust,
-		Approvals:  approvalAPI.ApprovalCount,
-		Handoffs:   handoffAPI.CountForVersion,
+		Waiting:       waiverAPI.Waiting,
+		FirstPoint:    tourAPI.FirstPoint,
+		FirstMust:     reviewAPI.FirstMust,
+		OpenQuestions: reviewAPI.OpenQuestions,
+		Approvals:     approvalAPI.ApprovalCount,
+		Handoffs:      handoffAPI.CountForVersion,
 	}}
 	addSource = func(ctx context.Context, url string) error {
 		_, err := bundleAPI.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: url}})

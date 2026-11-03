@@ -146,39 +146,53 @@ export function useActiveRun(docId: string, onEnd: () => void) {
   return { active, events, refetch: runs.refetch };
 }
 
-// RunProgress shows the stages of a running review, with a count for the current one.
+// RunProgress shows the stages of a running review. Lint runs first; the model stages then run
+// at the same time, so each one that started shows as running, with the count of the latest.
 export function RunProgress({ events }: { events: RunEvent[] }) {
   const last = events[events.length - 1];
-  const stage = [...events].reverse().find((e) => e.type === "stage")?.stage ?? "queued";
-  const progress = [...events].reverse().find((e) => e.type === "progress" && e.stage === stage);
-  const idx = stages.indexOf(stage as (typeof stages)[number]);
+  const started = new Set(events.filter((e) => e.type === "stage").map((e) => e.stage));
+  const latest = [...events].reverse().find((e) => e.type === "stage")?.stage ?? "queued";
+  const progress = [...events].reverse().find((e) => e.type === "progress" && e.total);
+  const questions = events.filter((e) => e.type === "question").length;
+  const modelStarted = [...started].some((s) => s !== "lint");
   return (
     <div role="status" aria-live="polite" className="border-b border-line bg-surface px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <span className="inline-flex items-center gap-2 text-md font-semibold">
           <Loader2 aria-hidden className="size-4 animate-spin text-accent" />
-          {stage === "queued" ? "Waiting to start" : "Reviewing"}
+          {latest === "queued" ? "Waiting to start" : "Reviewing"}
         </span>
         <ol className="flex items-center gap-1 text-xs">
-          {stages.map((s, i) => (
-            <li
-              key={s}
-              className={clsx(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors duration-300",
-                i < idx && "border-ok/40 text-ok",
-                i === idx && "border-accent bg-accent-soft text-ink",
-                (i > idx || idx < 0) && "border-line text-ink-3",
-              )}
-            >
-              {i < idx ? <Check aria-hidden className="size-3" /> : null}
-              {s}
-            </li>
-          ))}
+          {stages
+            .filter((s) => s === "lint" || s === "verdict" || started.has(s) || !modelStarted)
+            .map((s) => {
+              const done = (s === "lint" && modelStarted) || (s !== "verdict" && started.has("verdict"));
+              const running = !done && started.has(s);
+              return (
+                <li
+                  key={s}
+                  className={clsx(
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors duration-300",
+                    done && "border-ok/40 text-ok",
+                    running && "border-accent bg-accent-soft text-ink",
+                    !done && !running && "border-line text-ink-3",
+                  )}
+                >
+                  {done ? <Check aria-hidden className="size-3" /> : null}
+                  {s}
+                </li>
+              );
+            })}
         </ol>
         {progress?.total ? (
           <span className="text-xs text-ink-2">
             {progress.message ? `${progress.message}: ` : ""}
             {progress.done} of {progress.total}
+          </span>
+        ) : null}
+        {questions ? (
+          <span className="text-xs text-ink-2">
+            {questions} question{questions === 1 ? "" : "s"} so far
           </span>
         ) : null}
         {last?.cache_hits ? <span className="text-xs text-ink-3">{last.cache_hits} from the cache</span> : null}
