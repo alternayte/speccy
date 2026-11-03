@@ -1,5 +1,5 @@
 // Package tui is the terminal UI (REQ-122): it lists bundles, runs a review, shows the
-// verdict and the findings, steps through the tour, and opens a file in $EDITOR. It uses the
+// verdict and the findings, steps through the questions, and opens a file in $EDITOR. It uses the
 // HTTP API, as the browser does.
 package tui
 
@@ -47,7 +47,7 @@ type screen int
 const (
 	screenList screen = iota
 	screenBundle
-	screenTour
+	screenQuestions
 )
 
 type model struct {
@@ -64,8 +64,8 @@ type model struct {
 	findings []api.Finding
 	fcursor  int
 
-	tour    []api.TourPoint
-	tcursor int
+	questions []api.QuestionItem
+	qcursor   int
 
 	help    bool   // the key overlay
 	running string // the run in progress, or ""
@@ -81,9 +81,9 @@ type (
 		bundle   api.SpecDoc
 		findings []api.Finding
 	}
-	tourMsg     []api.TourPoint
-	startedMsg  string
-	progressMsg struct {
+	questionsMsg []api.QuestionItem
+	startedMsg   string
+	progressMsg  struct {
 		run   api.Run
 		stage string
 	}
@@ -159,16 +159,16 @@ func (m *model) loadBundle(id uuid.UUID) tea.Cmd {
 	}
 }
 
-func (m *model) loadTour(id uuid.UUID) tea.Cmd {
+func (m *model) loadQuestions(id uuid.UUID) tea.Cmd {
 	return func() tea.Msg {
-		res, err := m.o.Client.GetTourWithResponse(m.ctx, id)
+		res, err := m.o.Client.GetQuestionsWithResponse(m.ctx, id)
 		if err != nil {
 			return errMsg{err}
 		}
 		if res.JSON200 == nil {
 			return errMsg{problem(res.ApplicationproblemJSONDefault, res.StatusCode())}
 		}
-		return tourMsg(res.JSON200.Points)
+		return questionsMsg(res.JSON200.Items)
 	}
 }
 
@@ -243,8 +243,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.fcursor >= len(m.findings) {
 			m.fcursor = max(0, len(m.findings)-1)
 		}
-	case tourMsg:
-		m.tour, m.tcursor, m.screen, m.err = msg, 0, screenTour, nil
+	case questionsMsg:
+		m.questions, m.qcursor, m.screen, m.err = msg, 0, screenQuestions, nil
 	case startedMsg:
 		m.running, m.stage, m.status = string(msg), "queued", ""
 		return m, m.pollRun(string(msg))
@@ -335,7 +335,7 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, m.startReview(m.bundle.Id)
 			}
 		case "t":
-			return m, m.loadTour(m.bundle.Id)
+			return m, m.loadQuestions(m.bundle.Id)
 		case "e", "enter":
 			if len(m.findings) > 0 {
 				f := m.findings[m.fcursor]
@@ -343,17 +343,17 @@ func (m *model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, m.openEditor(m.bundle.Slug, m.bundle.Path, 0)
 		}
-	case screenTour:
+	case screenQuestions:
 		switch k.String() {
 		case "esc", "h", "left":
 			m.screen = screenBundle
 		case "j", "down":
-			m.tcursor = min(m.tcursor+1, max(0, len(m.tour)-1))
+			m.qcursor = min(m.qcursor+1, max(0, len(m.questions)-1))
 		case "k", "up":
-			m.tcursor = max(m.tcursor-1, 0)
+			m.qcursor = max(m.qcursor-1, 0)
 		case "e", "enter":
-			if len(m.tour) > 0 && m.tour[m.tcursor].Anchor != nil {
-				a := *m.tour[m.tcursor].Anchor
+			if len(m.questions) > 0 && m.questions[m.qcursor].Anchor != nil {
+				a := *m.questions[m.qcursor].Anchor
 				return m, m.openEditor(m.bundle.Slug, a.File, m.line(a))
 			}
 		}
@@ -427,8 +427,7 @@ func (m *model) next() *api.NextAction {
 	return m.bundle.NextAction
 }
 
-// doNext does the named thing, as far as a terminal can: it runs a review, opens the tour, or
-// opens the file at the finding. The rest needs the app, and the message line says so.
+// doNext does the named thing, as far as a terminal can: it runs a review or opens the questions. The rest needs the app, and the message line says so.
 func (m *model) doNext() (tea.Model, tea.Cmd) {
 	n := m.next()
 	if n == nil {
@@ -449,19 +448,9 @@ func (m *model) doNext() (tea.Model, tea.Cmd) {
 		}
 		m.bundle = b
 		return m, m.startReview(b.Id)
-	case api.NextActionKindDecide:
+	case api.NextActionKindQuestions:
 		m.bundle = b
-		return m, m.loadTour(b.Id)
-	case api.NextActionKindFix:
-		if m.screen != screenBundle {
-			m.bundle, m.findings, m.fcursor, m.screen = b, nil, 0, screenBundle
-			return m, m.loadBundle(b.Id)
-		}
-		if len(m.findings) > 0 {
-			f := m.findings[m.fcursor]
-			return m, m.openEditor(b.Slug, f.Anchor.File, m.line(f.Anchor))
-		}
-		return m, m.openEditor(b.Slug, b.Path, 0)
+		return m, m.loadQuestions(b.Id)
 	default:
 		m.status = n.Sentence + ": do this in the app."
 		return m, nil

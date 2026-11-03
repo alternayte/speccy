@@ -168,9 +168,9 @@ The button in the control row always names one thing. It is the only primary but
 Speccy picks the next action in this order:
 
 1. A waiver that waits for your decision.
-2. A point of the tour.
-3. The first MUST finding.
-4. A check of the current version.
+2. A check of the current version, when it has no current verdict.
+3. The questions on the questions screen.
+4. A second check, when a MUST check came back with no answer.
 5. The type and the size, when Speccy guessed them.
 6. The reviews the profile needs, in hosted mode.
 7. The handoff.
@@ -200,19 +200,18 @@ The **Evidence** tab appears after a full review. It holds the claims the ground
 
 ![The run report](../../../assets/shots/guide-run-report.png)
 
-## 8. Take the tour
+## 8. Answer the questions
 
-Open **More → Tour**. The tour lists the points that need a decision from a person. Blocking threads come first, then MUST findings that need a decision, then waiver requests, then open decisions. The doc dims around the section of each point.
+Click the next action "Answer N questions", or open **More → Questions**. The questions screen lists everything that blocks Build Ready and needs a person. All items show on one page, in doc order. An item is one of four kinds:
 
-![The tour moves point to point](../../../assets/shots/guide-tour.gif)
+- A material gap: two options, with a mark on the suggested one. Pick an option, write another answer under **Other**, or pick **Not needed**.
+- A blocking thread: the thread shows inline. Reply in it, or click **Resolve**.
+- A decision finding: for example a `trace.coverage` gap with its three answers, or a `links.has-upstream` finding with a link fix or **Mark it standalone**.
+- Any other open MUST finding: click **Suggest fix** or **Answer and fix**, or click **Ask for a waiver**.
 
-Use the keys:
+![The questions screen lists each item that blocks Build Ready](../../../assets/shots/guide-questions-screen.png)
 
-- `j` and `k` move to the next and the previous point.
-- `d` records a decision.
-- `w` asks for a waiver.
-- `c` opens a comment.
-- `Esc` leaves the tour.
+Waivers that wait for your decision show at the top, under **Waiting for your decision**. Open decisions do not block, so they stay in the threads panel. When a MUST check came back with no answer, the screen shows **Check again** at the top.
 
 A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. The profile's waiver policy says who can approve it. On approval, Speccy writes the waiver into the doc's sidecar, `.speccy/decisions/<doc path>.yaml`. The waiver travels with the repo in git, and the doc text does not change. An edit of that section ends the waiver, and the check runs again.
 
@@ -220,21 +219,21 @@ An acknowledgement uses the same mechanism for a link or a trace item that you l
 
 ## 9. Send it to a reviewer
 
-A reviewer reads the spec, and answers the questions you have for them. They see no findings, no waivers and no author tools. This is reviewer mode.
+A reviewer reads the spec, and comments on the questions that block Build Ready. They see no author tools. This is reviewer mode.
 
 To see reviewer mode yourself, add `?as=reviewer` to the bundle's URL.
 
 ![Reviewer mode: the spec, the attachments, and one status line](../../../assets/shots/guide-reviewer.png)
 
-The status line under the title says in words whether you are still working or the spec is ready. The reviewer selects any words and clicks **Comment** to start a thread on that text. **Answer the questions** opens the points that wait for them.
+The status line under the title says in words whether you are still working or the spec is ready. The reviewer selects any words and clicks **Comment** to start a thread on that text. **Answer the questions** opens the questions screen. The reviewer sees the same items, with no option pickers and no answer controls. They click **Comment** on an item to open a thread on its finding. They can reply in a blocking thread.
 
-![The questions a reviewer must answer](../../../assets/shots/guide-reviewer-questions.png)
+![The questions screen in reviewer mode, with Comment on each item](../../../assets/shots/guide-reviewer-questions.png)
 
 In hosted mode, **Share** in the control row sets who can see the bundle. **Link** lets a guest open it with a share link, and **Make a share link** makes one. Local mode has one person, so it has no Share control. [Run hosted mode](/how-to/run-hosted-mode/) covers teams.
 
 ## 10. Reach Build Ready
 
-Fix what the findings and the tour raised. Click **Save**. Run the review again. Repeat until the control row says Build Ready.
+Fix what the findings and the questions screen raised. Click **Save**. Run the review again. Repeat until the control row says Build Ready.
 
 ![Build Ready: the doc passes each check](../../../assets/shots/guide-build-ready.png)
 

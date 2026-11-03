@@ -49,8 +49,8 @@ func (m *model) screenParts(w, rows int) (string, string, []string, [][2]string)
 	switch m.screen {
 	case screenBundle:
 		return m.bundleBody(w, rows)
-	case screenTour:
-		return m.tourBody(w, rows)
+	case screenQuestions:
+		return m.questionsBody(w, rows)
 	}
 	return m.listBody(w, rows)
 }
@@ -133,7 +133,7 @@ func ago(t time.Time) string {
 }
 
 func (m *model) bundleBody(w, rows int) (string, string, []string, [][2]string) {
-	keys := m.keysWithNext([][2]string{{"j/k", "move"}, {"e", "edit"}, {"r", "review"}, {"t", "tour"}, {"esc", "back"}, {"?", "keys"}})
+	keys := m.keysWithNext([][2]string{{"j/k", "move"}, {"e", "edit"}, {"r", "review"}, {"t", "questions"}, {"esc", "back"}, {"?", "keys"}})
 	bu := m.bundle
 	meta := fmt.Sprintf("%s · %s · v%d", truncate(bu.Title, 44), strings.ToUpper(bu.ProfileKey), bu.CurrentVersion.Number)
 	head := []string{"  " + verdictStyled(bu.Verdict) + countsText(bu.Verdict), ""}
@@ -181,26 +181,40 @@ func (m *model) findingDetail(w int) []string {
 	return out
 }
 
-func (m *model) tourBody(w, rows int) (string, string, []string, [][2]string) {
+func (m *model) questionsBody(w, rows int) (string, string, []string, [][2]string) {
 	keys := m.keysWithNext([][2]string{{"j/k", "next and previous"}, {"e", "edit"}, {"esc", "back"}, {"?", "keys"}})
-	if len(m.tour) == 0 {
-		return "tour", m.bundle.Slug, center(rows, w, emptyText.Render("Nothing needs a decision."),
-			faint.Render("Every point of this bundle is answered.")), keys
+	if len(m.questions) == 0 {
+		return "questions", m.bundle.Slug, center(rows, w, emptyText.Render("Nothing blocks Build Ready."),
+			faint.Render("No question of this doc is open.")), keys
 	}
-	p := m.tour[m.tcursor]
-	meta := fmt.Sprintf("%s · %d of %d", m.bundle.Slug, m.tcursor+1, len(m.tour))
+	p := m.questions[m.qcursor]
+	meta := fmt.Sprintf("%s · %d of %d", m.bundle.Slug, m.qcursor+1, len(m.questions))
 	text := lipgloss.NewStyle().Width(max(20, min(w-6, 76)))
 	out := []string{
-		"  " + progressBar(m.tcursor+1, len(m.tour), min(40, w-20)) +
-			faint.Render(fmt.Sprintf("  %d of %d · %s", m.tcursor+1, len(m.tour), strings.ReplaceAll(string(p.Kind), "_", " "))),
+		"  " + progressBar(m.qcursor+1, len(m.questions), min(40, w-20)) +
+			faint.Render(fmt.Sprintf("  %d of %d · %s", m.qcursor+1, len(m.questions), strings.ReplaceAll(string(p.Kind), "_", " "))),
 		"",
 	}
 	for _, l := range strings.Split(text.Render(p.Ask), "\n") {
 		out = append(out, "  "+bold.Render(l))
 	}
-	if p.Context != "" {
+	if f := p.Finding; f != nil && f.Material != nil && f.Material.Options != nil {
+		for i, o := range *f.Material.Options {
+			mark := "  "
+			if f.Material.Pick != nil && *f.Material.Pick == i+1 {
+				mark = "* "
+			}
+			for j, l := range strings.Split(text.Render(fmt.Sprintf("%d. %s", i+1, o)), "\n") {
+				if j > 0 {
+					mark = "  "
+				}
+				out = append(out, "  "+mark+l)
+			}
+		}
+	}
+	if p.Context != nil && *p.Context != "" {
 		out = append(out, "")
-		for _, l := range strings.Split(text.Render(p.Context), "\n") {
+		for _, l := range strings.Split(text.Render(*p.Context), "\n") {
 			out = append(out, "  "+l)
 		}
 	}
@@ -210,8 +224,8 @@ func (m *model) tourBody(w, rows int) (string, string, []string, [][2]string) {
 			out = append(out, "  "+faint.Render("│ "+l))
 		}
 	}
-	out = append(out, "", faint.Render("  Decide in the app, or with the MCP tool post_message."))
-	return "tour", meta, out, keys
+	out = append(out, "", faint.Render("  Answer on the questions screen of the app. * marks the suggested option."))
+	return "questions", meta, out, keys
 }
 
 // messageLine holds one line for progress, feedback, an error, or the next action. It is always
@@ -247,7 +261,7 @@ func helpBody(s screen) []string {
 		{"enter", "open the bundle, or the finding in $EDITOR"},
 		{"e", "open the file in $EDITOR at the finding"},
 		{"r", "run a full review"},
-		{"t", "open the tour"},
+		{"t", "open the questions"},
 		{"esc / h", "go back"},
 		{"?", "keys"},
 		{"q / ctrl+c", "quit"},

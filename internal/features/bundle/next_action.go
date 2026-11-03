@@ -18,12 +18,8 @@ import (
 type Deps struct {
 	// Waiting returns the waivers that wait for the caller across the workspace (SDD §9.1).
 	Waiting func(ctx context.Context) ([]api.Waiver, error)
-	// FirstPoint returns the first point of a bundle's tour, or nil.
-	FirstPoint func(ctx context.Context, bundleID uuid.UUID) (*api.TourPoint, error)
-	// FirstMust returns the first MUST finding of a run that no waiver covers, or nil.
-	FirstMust func(ctx context.Context, runID uuid.UUID) (*api.Finding, error)
-	// OpenQuestions counts the open blocking build questions of a run.
-	OpenQuestions func(ctx context.Context, runID uuid.UUID) (int, error)
+	// Questions returns the list of the questions screen of a doc.
+	Questions func(ctx context.Context, docID uuid.UUID) (*api.Questions, error)
 	// Approvals returns how many approvals the profile needs, and how many the bundle has.
 	Approvals func(ctx context.Context, bundleID uuid.UUID) (needed, given int, err error)
 	// Handoffs returns how many builders took the packet of a bundle version.
@@ -48,6 +44,7 @@ func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *a
 	if out.Status != nil {
 		in.Status = *out.Status
 	}
+	in.Questions, in.Recheck = nextaction.ListQuestions(out.Verdict)
 	if in.Hosted && a.Deps.Approvals != nil && in.Verdict != nil && in.Verdict.Result == api.VerdictResultBuildReady {
 		needed, given, err := a.Deps.Approvals(ctx, b.ID)
 		if err != nil {
@@ -59,8 +56,8 @@ func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *a
 	return nil
 }
 
-// full names the next action of one bundle. It adds what the list is too big to read: the tour
-// point, the first MUST finding, and the handoffs, so the action carries a target.
+// full names the next action of one bundle. It adds what the list is too big to read: the items
+// of the questions screen, and the handoffs.
 func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *api.SpecDoc) error {
 	canEdit, err := share.CanEdit(ctx, q, kernel.ActorFrom(ctx), b)
 	if err != nil {
@@ -84,26 +81,12 @@ func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *ap
 		}
 		in.WaiverWaiting = nextaction.WaiverFor(waiting, b.ID)
 	}
-	if canEdit && a.Deps.OpenQuestions != nil && out.Verdict != nil {
-		n, err := a.Deps.OpenQuestions(ctx, out.Verdict.RunId)
+	if canEdit && a.Deps.Questions != nil && out.Verdict != nil {
+		qs, err := a.Deps.Questions(ctx, b.ID)
 		if err != nil {
 			return err
 		}
-		in.Questions = n
-	}
-	if canEdit && a.Deps.FirstPoint != nil {
-		p, err := a.Deps.FirstPoint(ctx, b.ID)
-		if err != nil {
-			return err
-		}
-		in.Point = p
-	}
-	if canEdit && in.Point == nil && a.Deps.FirstMust != nil && out.Verdict != nil {
-		f, err := a.Deps.FirstMust(ctx, out.Verdict.RunId)
-		if err != nil {
-			return err
-		}
-		in.Finding = f
+		in.Questions, in.Recheck = len(qs.Items), qs.Recheck
 	}
 	if canEdit && out.Verdict != nil && out.Verdict.Result == api.VerdictResultBuildReady {
 		if in.Hosted && a.Deps.Approvals != nil {

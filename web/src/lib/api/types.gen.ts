@@ -188,19 +188,14 @@ export type SkippedDoc = {
  */
 export type NextAction = {
     /**
-     * questions opens the questions screen, with every open blocking build question of the doc.
+     * questions opens the questions screen, with everything that blocks Build Ready and needs the author.
      */
-    kind: 'waiver' | 'questions' | 'decide' | 'fix' | 'review' | 'adopt' | 'request_review' | 'handoff';
+    kind: 'waiver' | 'questions' | 'review' | 'adopt' | 'request_review' | 'handoff';
     /**
      * What to do, in words, for a button label or a status line.
      */
     sentence: string;
     waiver_id?: string;
-    finding_id?: string;
-    /**
-     * The key of the tour point to open.
-     */
-    tour_key?: string;
 };
 
 /**
@@ -227,6 +222,10 @@ export type BundleVerdict = {
      * Open MUST findings that block the verdict. A MUST finding that the materiality judge called no material gap counts as SHOULD, because it is advice.
      */
     must: number;
+    /**
+     * The MUST findings of checks that came back with no answer. They count in must. Another review answers them, so they are not questions.
+     */
+    unanswered?: number;
     should: number;
     info: number;
     /**
@@ -960,39 +959,49 @@ export type Material = {
     question?: string;
 };
 
-export type Tour = {
+/**
+ * Everything that blocks Build Ready and needs a person, from the run behind the verdict.
+ */
+export type Questions = {
     /**
-     * The run whose findings the tour uses. Absent before the first review.
+     * The run whose findings the list uses. Absent before the first review.
      */
     run_id?: string;
-    points: Array<TourPoint>;
+    /**
+     * A MUST check of the run has no answer. Another review answers it, not the author.
+     */
+    recheck: boolean;
+    /**
+     * The items in doc order. An item with no anchor comes first.
+     */
+    items: Array<QuestionItem>;
+    /**
+     * The waiver requests of this doc that wait for the caller's decision.
+     */
+    waivers: Array<Waiver>;
 };
 
 /**
- * One point that needs a human decision. The ask states one explicit decision.
+ * One thing that blocks Build Ready. material_gap is a build question with two options. blocking_thread is an open blocking thread. decision is a finding that needs a human answer with no options: a coverage gap, a send-back or a missing upstream link. finding is any other open MUST finding.
+ *
  */
-export type TourPoint = {
+export type QuestionItem = {
+    /**
+     * Stable across reviews for a material gap (its fork), else the finding or thread ID.
+     */
     key: string;
-    kind: 'blocking_thread' | 'finding' | 'waiver' | 'open_decision';
+    kind: 'material_gap' | 'blocking_thread' | 'decision' | 'finding';
+    /**
+     * The one thing the person must decide or do, in words.
+     */
     ask: string;
     /**
-     * Why the point needs a decision, in one or two sentences.
+     * Why it blocks, in one or two sentences.
      */
-    context: string;
-    level?: 'MUST' | 'SHOULD' | 'INFO';
-    check_slug?: string;
+    context?: string;
     anchor?: Anchor;
-    finding_id?: string;
-    thread_id?: string;
-    waiver_id?: string;
-    /**
-     * For a waiver, the caller can approve or reject it now.
-     */
-    can_approve?: boolean;
-    /**
-     * For a coverage gap, the upstream trace ID it is about.
-     */
-    trace_id?: string;
+    finding?: Finding;
+    thread?: Thread;
 };
 
 export type RunReport = {
@@ -4552,7 +4561,7 @@ export type GetRunResponses = {
 
 export type GetRunResponse = GetRunResponses[keyof GetRunResponses];
 
-export type GetTourData = {
+export type GetQuestionsData = {
     body?: never;
     path: {
         /**
@@ -4561,26 +4570,26 @@ export type GetTourData = {
         docId: string;
     };
     query?: never;
-    url: '/docs/{docId}/tour';
+    url: '/docs/{docId}/questions';
 };
 
-export type GetTourErrors = {
+export type GetQuestionsErrors = {
     /**
      * An error.
      */
     default: Problem;
 };
 
-export type GetTourError = GetTourErrors[keyof GetTourErrors];
+export type GetQuestionsError = GetQuestionsErrors[keyof GetQuestionsErrors];
 
-export type GetTourResponses = {
+export type GetQuestionsResponses = {
     /**
-     * The tour.
+     * The questions.
      */
-    200: Tour;
+    200: Questions;
 };
 
-export type GetTourResponse = GetTourResponses[keyof GetTourResponses];
+export type GetQuestionsResponse = GetQuestionsResponses[keyof GetQuestionsResponses];
 
 export type SummarizeDiffData = {
     body?: never;

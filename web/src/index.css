@@ -438,20 +438,6 @@ body {
   }
 }
 
-/* Tour (SDD §13.3): the rest of the doc is muted around the current section. The muted colour
-   keeps AA contrast; opacity would not. */
-.doc .tour-dim:not(.placeholder),
-.doc .tour-dim *:not(.placeholder) {
-  color: var(--ink-3);
-  transition: color 0.25s ease;
-}
-@media (prefers-reduced-motion: reduce) {
-  .doc .tour-dim,
-  .doc .tour-dim *:not(.placeholder) {
-    transition: none;
-  }
-}
-
 /* The same wash in the code view: a selection alone paints in the accent's soft tone, which on
    the editor's surface is too faint to notice. */
 @keyframes cm-flash {

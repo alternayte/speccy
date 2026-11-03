@@ -1,8 +1,18 @@
 import { useBundleId } from "@/features/bundle/params";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { clsx } from "clsx";
-import { ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CircleCheck,
+  ExternalLink,
+  Loader2,
+  Lock,
+  MessageSquare,
+  RotateCw,
+  Sparkles,
+} from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -10,17 +20,40 @@ import { Empty, ErrorState, Loading } from "@/components/ui/states";
 import { TextDiff } from "@/features/bundle/text-diff";
 import { useActiveRun } from "@/features/bundle/run-review";
 import {
+  type Ask,
+  contradictionSlug,
+  downstreamSlug,
+  fixText,
+  SuggestFix,
+  upstreamSlug,
+  useDecide,
+  WaiverCard,
+  WaiverDialog,
+} from "@/features/bundle/findings-panel";
+import { checkDocsURL } from "@/lib/docs";
+import { useMe } from "@/features/account/me";
+import { useReviewerMode } from "@/features/review/mode";
+import { ThreadView } from "@/features/threads/threads-panel";
+import { GapAnswer } from "@/features/trace/gap-answer";
+import { MarkStandalone } from "@/features/trace/mark-standalone";
+import {
   acceptFixes,
   type Finding,
   type FixSuggestion,
   type Material,
+  type QuestionItem,
   requestWaiver,
   startRun,
   type StreamedQuestion,
   suggestAnswers,
   suggestFix,
 } from "@/lib/api";
-import { getSpecDocOptions, listFindingsOptions } from "@/lib/api/@tanstack/react-query.gen";
+import {
+  getQuestionsOptions,
+  getQuestionsQueryKey,
+  getSpecDocOptions,
+  openBundleThreadMutation,
+} from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
 
 // classLabel names what the two options of a material gap differ in.
@@ -42,8 +75,8 @@ type Choice =
 // Draft is where the patch of one answer stands. The patch starts when the author picks.
 type Draft = { answer: string; state: "writing" | "ready" | "failed"; error?: string };
 
-// Question is one blocking build question: a saved finding, or a question the running review
-// streamed before it saved its finding.
+// Question is one material gap: a saved finding, or a question the running review streamed
+// before it saved its finding.
 type Question = {
   fork: string;
   question: string;
@@ -52,15 +85,6 @@ type Question = {
   finding?: Finding;
 };
 
-// blocking says whether a finding is an open blocking build question: a material gap, or a
-// MUST answer finding that the judge has not read yet.
-function blocking(f: Finding): boolean {
-  if (f.level !== "MUST" || f.waived || f.unanswered) return false;
-  if (f.upstream_change && !f.upstream_change.blocks) return false;
-  if (f.material) return f.material.class !== "none";
-  return f.fix_kind === "answer";
-}
-
 function answerOf(q: Question, c?: Choice): string {
   if (!c) return "";
   if (c.kind === "option") return q.material?.options?.[c.option - 1] ?? "";
@@ -68,22 +92,31 @@ function answerOf(q: Question, c?: Choice): string {
   return "";
 }
 
-// QuestionsPage is the questions screen (material gate): every open blocking build question of
-// the doc on one screen. Each material gap has two options and a suggested pick; the author
-// picks one, writes another, or says it is not needed. Speccy starts writing an answer into the
-// doc when the author picks it, so the diffs are ready at submit. Accept saves one version and
-// starts a review, which reads only the changed sections.
+// QuestionsPage is the questions screen: everything that blocks Build Ready and needs a person,
+// in doc order, from the server's list. A material gap has two options and a suggested pick; the
+// author picks one, writes another, or says it is not needed. Speccy starts writing an answer
+// into the doc when the author picks it, so the diffs are ready at submit. Accept saves one
+// version and starts a review, which reads only the changed sections. A blocking thread takes a
+// reply, and a blocking finding takes the answer the rail gives it. A reviewer sees the same list
+// with no answer controls and comments on each item; an approver also decides the waivers that
+// wait for them here.
 export function QuestionsPage({ docId }: { docId: string }) {
   const bundleId = useBundleId();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const me = useMe();
+  const mode = useReviewerMode();
+  // A reviewer, or a guest, cannot write to the doc: they see the items and comment on them.
+  const canAnswer = !mode.reviewer && !me.data?.guest;
   const bundle = useQuery(getSpecDocOptions({ path: { docId } }));
-  const runId = bundle.data?.verdict?.run_id;
-  const findings = useQuery({ ...listFindingsOptions({ path: { runId: runId ?? "" } }), enabled: !!runId });
+  const list = useQuery(getQuestionsOptions({ path: { docId } }));
+  const runId = list.data?.run_id;
   const refresh = useCallback(() => {
     qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
+    qc.invalidateQueries({ queryKey: getQuestionsQueryKey({ path: { docId } }) });
   }, [qc, docId]);
   const run = useActiveRun(docId, refresh);
+  const decide = useDecide(docId);
 
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -91,19 +124,26 @@ export function QuestionsPage({ docId }: { docId: string }) {
   const [patches, setPatches] = useState<FixSuggestion[]>([]);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState<{ text: string; bad?: boolean }>();
+  const [waiving, setWaiving] = useState<Ask>();
+  // decided holds the waivers this person decided here, so the card stays and shows the result.
+  const [decided, setDecided] = useState<string[]>([]);
   // asked holds the answer each finding's patch was asked for, so a new pick starts a new patch
   // and an old reply does not overwrite it.
   const asked = useRef<Record<string, string>>({});
 
-  // The saved questions first, then the ones the running review found that are not saved yet.
-  const saved: Question[] = (findings.data?.items ?? []).filter(blocking).map((f) => ({
-    fork: f.fork ?? f.id,
-    question: f.material?.question || f.question || f.message,
-    material: f.material,
-    section: f.anchor.heading_path,
-    finding: f,
-  }));
-  const known = new Set(saved.map((q) => q.fork));
+  const items = list.data?.items ?? [];
+  // The saved material gaps, then the ones the running review found that are not saved yet.
+  const saved: Question[] = items
+    .filter((it) => it.kind === "material_gap" && it.finding)
+    .map((it) => ({
+      fork: it.key,
+      question: it.ask,
+      material: it.finding!.material,
+      section: it.finding!.anchor.heading_path,
+      finding: it.finding,
+    }));
+  const known = new Set(items.map((it) => it.key));
   const streamed: Question[] = [];
   for (const e of run.active ? run.events : []) {
     const s: StreamedQuestion | undefined = e.type === "question" ? e.question : undefined;
@@ -111,7 +151,7 @@ export function QuestionsPage({ docId }: { docId: string }) {
     known.add(s.fork);
     streamed.push({ fork: s.fork, question: s.question, material: s.material, section: s.heading_path ?? [] });
   }
-  const questions = [...saved, ...streamed];
+  const gapOf = new Map(saved.map((q) => [q.fork, q]));
 
   // write starts the patch of one answer at once, so the author does not wait at submit.
   const write = (q: Question, c: Choice) => {
@@ -214,30 +254,44 @@ export function QuestionsPage({ docId }: { docId: string }) {
     navigate({ to: "/bundles/$bundleId/docs/$docId", params: { bundleId, docId } });
   };
 
-  if (bundle.isPending || (runId && findings.isPending)) return <Loading label="Loading the questions" />;
-  if (bundle.isError || findings.isError)
+  const recheck = async () => {
+    setError(undefined);
+    try {
+      await startRun({ path: { docId }, throwOnError: true });
+      refresh();
+    } catch (err) {
+      setError(problemMessage(err));
+    }
+  };
+
+  if (bundle.isPending || list.isPending || mode.pending) return <Loading label="Loading the questions" />;
+  if (bundle.isError || list.isError)
     return (
-      <div className="mx-auto max-w-[720px] p-6">
-        <ErrorState message={problemMessage(bundle.error ?? findings.error)} />
+      <div className="mx-auto max-w-[760px] p-6">
+        <ErrorState message={problemMessage(bundle.error ?? list.error)} />
       </div>
     );
 
+  const waivers = list.data.waivers;
+  const count = items.length + streamed.length;
   const writing = saved.filter((q) => q.finding && drafts[q.finding.id]?.state === "writing").length;
+  const answerable = canAnswer && saved.length > 0;
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-3 py-2 sm:px-4">
         <Link
           to="/bundles/$bundleId/docs/$docId"
           params={{ bundleId, docId }}
+          search={true}
           className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
         >
           <ArrowLeft aria-hidden className="size-3.5" /> {bundle.data.title}
         </Link>
         <h1 className="text-lg font-semibold tracking-tight">Questions</h1>
         <span className="text-xs text-ink-2">
-          {questions.length === 0
+          {count === 0
             ? "Nothing blocks Build Ready"
-            : `${questions.length} question${questions.length === 1 ? "" : "s"} block${questions.length === 1 ? "s" : ""} Build Ready`}
+            : `${count} question${count === 1 ? "" : "s"} block${count === 1 ? "s" : ""} Build Ready`}
         </span>
         {run.active ? (
           <span className="inline-flex items-center gap-1 text-xs text-ink-3">
@@ -247,37 +301,101 @@ export function QuestionsPage({ docId }: { docId: string }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[760px] px-4 py-5 sm:px-6">
+        <div className="mx-auto max-w-[760px] space-y-4 px-4 py-5 sm:px-6">
+          {notice ? (
+            <p role="status" className={clsx("text-sm", notice.bad ? "text-bad" : "text-ok")}>
+              {notice.text}
+            </p>
+          ) : null}
+          {list.data.recheck && canAnswer && !run.active ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warn/40 bg-warn-soft px-4 py-3 text-sm">
+              <p className="min-w-0 flex-1 text-ink">
+                The reviewer gave no answer for a MUST check. Another review answers it.
+              </p>
+              {canAnswer ? (
+                <Button size="sm" icon={<RotateCw className="size-3.5" />} onClick={recheck}>
+                  Check again
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+          {waivers.length ? (
+            <section aria-label="Waivers that wait for you" className="space-y-2">
+              <h2 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
+                Waiting for your decision
+              </h2>
+              {waivers.map((w) => (
+                <div key={w.id} className="rounded-lg border border-line bg-surface pt-3">
+                  <p className="px-4 pb-2 font-mono text-2xs text-ink-3">{w.check_slug}</p>
+                  <WaiverCard
+                    waiver={w}
+                    waivers={waivers}
+                    viaPullRequest={bundle.data.source_kind === "github"}
+                    decide={decide}
+                    onDecided={() => {
+                      setDecided((d) => [...d, w.id]);
+                      refresh();
+                    }}
+                    next={[]}
+                    onNext={() => {}}
+                  />
+                </div>
+              ))}
+            </section>
+          ) : null}
           {step === "review" ? (
             <ReviewPatches patches={patches} />
-          ) : questions.length === 0 ? (
+          ) : count === 0 ? (
             <Empty title="No open questions">
               {runId
-                ? "A builder would not have to guess anything that changes the data model, an interface, security or what the user sees."
+                ? "Nothing blocks Build Ready that needs a person: no material gap, no blocking thread, and no blocking finding."
                 : "Run a review first. The questions screen lists what a builder would have to guess."}
             </Empty>
           ) : (
             <ol className="space-y-4">
-              {questions.map((q, i) => (
-                <QuestionCard
-                  key={q.fork}
-                  n={i + 1}
-                  q={q}
-                  choice={choices[q.fork]}
-                  draft={q.finding ? drafts[q.finding.id] : undefined}
-                  onChoose={(c, start) => choose(q, c, start)}
-                  onWrite={() => {
-                    const c = choices[q.fork];
-                    if (c) write(q, c);
-                  }}
-                />
+              {items.map((it, i) => {
+                const q = gapOf.get(it.key);
+                if (q && canAnswer)
+                  return (
+                    <QuestionCard
+                      key={it.key}
+                      n={i + 1}
+                      q={q}
+                      choice={choices[q.fork]}
+                      draft={q.finding ? drafts[q.finding.id] : undefined}
+                      onChoose={(c, start) => choose(q, c, start)}
+                      onWrite={() => {
+                        const c = choices[q.fork];
+                        if (c) write(q, c);
+                      }}
+                    />
+                  );
+                return (
+                  <ItemCard
+                    key={it.key}
+                    n={i + 1}
+                    item={it}
+                    docId={docId}
+                    canAnswer={canAnswer}
+                    member={!me.data?.guest}
+                    onAsk={setWaiving}
+                    onDone={(text, bad) => {
+                      setNotice({ text, bad });
+                      refresh();
+                    }}
+                  />
+                );
+              })}
+              {streamed.map((q, i) => (
+                <ReadOnlyGap key={q.fork} n={items.length + i + 1} q={q} />
               ))}
             </ol>
           )}
+          {decided.length ? <span className="sr-only">{decided.length} decided</span> : null}
         </div>
       </div>
 
-      {questions.length > 0 || step === "review" ? (
+      {answerable || step === "review" ? (
         <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-t border-line bg-surface px-4 py-3 sm:px-6">
           <span className="text-xs text-ink-2" role="status" aria-live="polite">
             {busy ??
@@ -311,8 +429,299 @@ export function QuestionsPage({ docId }: { docId: string }) {
             )}
           </div>
         </div>
+      ) : error ? (
+        <p className="shrink-0 border-t border-line bg-surface px-4 py-2 text-xs text-bad">{error}</p>
+      ) : null}
+      <WaiverDialog
+        docId={docId}
+        ask={waiving}
+        onClose={() => {
+          setWaiving(undefined);
+          refresh();
+        }}
+      />
+    </div>
+  );
+}
+
+// kindLabel names an item that is not an answerable material gap.
+const kindLabel: Record<QuestionItem["kind"], string> = {
+  material_gap: "Build question",
+  blocking_thread: "Blocking thread",
+  decision: "Needs a decision",
+  finding: "Blocking finding",
+};
+
+// ItemCard is one item that the author answers with the rail's action for it, or that a
+// reviewer reads and comments on. A material gap shows here for a reviewer, with its options
+// and no controls.
+function ItemCard({
+  n,
+  item: it,
+  docId,
+  canAnswer,
+  member,
+  onAsk,
+  onDone,
+}: {
+  n: number;
+  item: QuestionItem;
+  docId: string;
+  canAnswer: boolean;
+  member: boolean;
+  onAsk: (a: Ask) => void;
+  onDone: (text: string, bad?: boolean) => void;
+}) {
+  const f = it.finding;
+  const [open, setOpen] = useState<"gap" | "standalone" | "comment">();
+  const docs = f ? checkDocsURL(f.check_slug) : undefined;
+  const section = it.anchor?.heading_path ?? [];
+  const m = f?.material && f.material.class !== "none" ? f.material : undefined;
+  return (
+    <li className="rounded-lg border border-line bg-surface">
+      <div className="p-4">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="font-mono text-xs text-ink-3">{n}</span>
+          <p className="min-w-0 flex-1 text-sm font-medium text-ink">
+            <InlineCode text={it.ask} />
+          </p>
+        </div>
+        <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-ink-3">
+          {it.kind === "blocking_thread" ? <Lock aria-hidden className="size-3" /> : null}
+          {m ? classLabel[m.class] : kindLabel[it.kind]}
+          {f ? <span className="font-mono">· {f.check_slug}</span> : null}
+          {section.length ? <span>· {section.join(" › ")}</span> : null}
+        </p>
+        {it.context && !it.thread ? <p className="mt-2 text-sm text-ink-2">{it.context}</p> : null}
+        {m?.options?.length ? (
+          <ul className="mt-3 space-y-1.5">
+            {m.options.map((text, i) => (
+              <li key={i} className="flex items-start gap-2 rounded-md border border-line px-3 py-2 text-sm">
+                <span className="font-mono text-xs text-ink-3">{i + 1}</span>
+                <span className="min-w-0 flex-1 text-ink">
+                  <InlineCode text={text} />
+                </span>
+                {m.pick === i + 1 ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs text-ink-2">
+                    <Sparkles aria-hidden className="size-3" /> Suggested
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {/* A gap's anchor is the frontmatter, which says nothing about the gap. */}
+        {f && f.anchor.quote.trim() && !f.trace_id && it.kind !== "material_gap" ? (
+          <p className="mt-2 line-clamp-3 border-l-2 border-line-strong pl-2 font-mono text-xs text-ink-2">
+            {f.anchor.quote}
+          </p>
+        ) : null}
+      </div>
+
+      {it.thread ? (
+        <div className="border-t border-line">
+          <ThreadView threadId={it.thread.id} docId={docId} member={member && canAnswer} />
+        </div>
+      ) : null}
+
+      {f && canAnswer ? (
+        <FindingActions finding={f} docId={docId} open={open} setOpen={setOpen} onAsk={onAsk} onDone={onDone} />
+      ) : null}
+
+      {f && !canAnswer ? (
+        open === "comment" ? (
+          <CommentForm item={it} docId={docId} onCancel={() => setOpen(undefined)} />
+        ) : (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-4 py-2.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setOpen("comment")}
+              className="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+            >
+              <MessageSquare aria-hidden className="size-3.5" /> Comment
+            </button>
+            {docs ? <DocsLink href={docs} /> : null}
+          </div>
+        )
+      ) : null}
+    </li>
+  );
+}
+
+// FindingActions are the answers the rail gives a blocking finding: a coverage gap takes one
+// of its three answers, a missing upstream link takes a link or the standalone answer, a
+// conflict takes "the other doc must change", and every other finding takes a fix or a waiver.
+function FindingActions({
+  finding: f,
+  docId,
+  open,
+  setOpen,
+  onAsk,
+  onDone,
+}: {
+  finding: Finding;
+  docId: string;
+  open?: "gap" | "standalone" | "comment";
+  setOpen: (o?: "gap" | "standalone" | "comment") => void;
+  onAsk: (a: Ask) => void;
+  onDone: (text: string, bad?: boolean) => void;
+}) {
+  const docs = checkDocsURL(f.check_slug);
+  if (f.trace_id)
+    return (
+      <div className="border-t border-line px-4 py-3">
+        <GapAnswer docId={docId} findingId={f.id} traceId={f.trace_id} question={false} onDone={(t) => onDone(t)} />
+      </div>
+    );
+  const upstream = f.check_slug === upstreamSlug;
+  return (
+    <div className="border-t border-line pt-3">
+      <SuggestFix
+        runId={f.run_id}
+        docId={docId}
+        finding={f}
+        onAccepted={(r) => {
+          const t = fixText(r);
+          onDone(t.text, t.bad);
+        }}
+        aside={
+          <>
+            {upstream ? (
+              <button
+                type="button"
+                onClick={() => setOpen(open === "standalone" ? undefined : "standalone")}
+                className="text-xs text-ink-2 hover:text-ink"
+              >
+                Mark it standalone
+              </button>
+            ) : (
+              <button type="button" onClick={() => onAsk({ finding: f })} className="text-xs text-ink-2 hover:text-ink">
+                Ask for a waiver
+              </button>
+            )}
+            {f.check_slug === contradictionSlug && !f.upstream_change ? (
+              <button
+                type="button"
+                onClick={() => onAsk({ finding: f, kind: "upstream" })}
+                className="text-xs text-ink-2 hover:text-ink"
+              >
+                The linked doc must change
+              </button>
+            ) : null}
+            {f.check_slug === downstreamSlug ? (
+              <button
+                type="button"
+                onClick={() => onAsk({ finding: f, kind: "send_back" })}
+                className="text-xs text-ink-2 hover:text-ink"
+              >
+                The downstream doc must change
+              </button>
+            ) : null}
+            {docs ? <DocsLink href={docs} /> : null}
+          </>
+        }
+      />
+      {upstream && open === "standalone" ? (
+        <MarkStandalone
+          className="mx-4 mb-3"
+          docId={docId}
+          findingId={f.id}
+          onCancel={() => setOpen(undefined)}
+          onDone={(t) => {
+            setOpen(undefined);
+            onDone(t);
+          }}
+        />
       ) : null}
     </div>
+  );
+}
+
+function DocsLink({ href }: { href: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-ink-2 hover:text-ink"
+    >
+      What this check means <ExternalLink aria-hidden className="size-3" />
+    </a>
+  );
+}
+
+// CommentForm opens a thread on an item's finding, so the author sees it on that finding.
+function CommentForm({ item, docId, onCancel }: { item: QuestionItem; docId: string; onCancel: () => void }) {
+  const qc = useQueryClient();
+  const [body, setBody] = useState("");
+  const post = useMutation({
+    ...openBundleThreadMutation(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: getQuestionsQueryKey({ path: { docId } }) }),
+  });
+  const f = item.finding!;
+  if (post.isSuccess)
+    return (
+      <p className="flex items-center gap-1.5 border-t border-line px-4 py-2.5 text-xs text-ok">
+        <CircleCheck aria-hidden className="size-3.5" /> Posted. The author sees your comment on this finding.
+      </p>
+    );
+  return (
+    <form
+      className="space-y-2 border-t border-line px-4 py-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        post.mutate({
+          path: { docId },
+          body: {
+            anchor_kind: "finding",
+            anchor: { finding_id: f.id, check_slug: f.check_slug },
+            addressed_to: "humans",
+            title: item.ask.slice(0, 200),
+            body: body.trim(),
+          },
+        });
+      }}
+    >
+      <Textarea
+        aria-label="Comment"
+        rows={3}
+        autoFocus
+        className="font-sans text-sm"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Tell the author which answer is right, or what is missing."
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
+        }}
+      />
+      {post.isError ? <ErrorState message={problemMessage(post.error)} /> : null}
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" type="button" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" variant="primary" type="submit" disabled={post.isPending || !body.trim()}>
+          Post
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ReadOnlyGap is a material gap the running review streamed before it saved its finding.
+function ReadOnlyGap({ n, q }: { n: number; q: Question }) {
+  return (
+    <li className="rounded-lg border border-dashed border-line bg-surface p-4">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="font-mono text-xs text-ink-3">{n}</span>
+        <p className="min-w-0 flex-1 text-sm font-medium text-ink">
+          <InlineCode text={q.question} />
+        </p>
+      </div>
+      <p className="mt-1 text-xs text-ink-3">
+        {q.material && q.material.class !== "none" ? classLabel[q.material.class] : "Needs a fact"}
+        {q.section.length ? ` · ${q.section.join(" › ")}` : ""} · the review is still saving this question
+      </p>
+    </li>
   );
 }
 

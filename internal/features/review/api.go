@@ -151,6 +151,12 @@ func runVerdict(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run pgdb.R
 				continue
 			}
 			out.Must++
+			if source.Unanswered(f.Evidence) {
+				if out.Unanswered == nil {
+					out.Unanswered = ptrInt(0)
+				}
+				*out.Unanswered++
+			}
 		case kernel.Should:
 			out.Should++
 		default:
@@ -438,46 +444,6 @@ func lines(src []byte, an anchor.Anchor) (int, int) {
 }
 
 func ptrInt(n int) *int { return &n }
-
-// OpenQuestions counts the open blocking build questions of a run: the material gaps that no
-// waiver covers. The questions screen lists them, and the next action names the count.
-func (a *API) OpenQuestions(ctx context.Context, runID uuid.UUID) (int, error) {
-	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: runID})
-	if err != nil {
-		return 0, err
-	}
-	list, ok := res.(api.ListFindings200JSONResponse)
-	if !ok {
-		return 0, nil
-	}
-	n := 0
-	for _, f := range list.Items {
-		if f.Level == api.FindingLevelMUST && !f.Waived && (f.UpstreamChange == nil || f.UpstreamChange.Blocks) &&
-			f.Material != nil && f.Material.Class != api.MaterialClassNone {
-			n++
-		}
-	}
-	return n, nil
-}
-
-// FirstMust returns the first MUST finding of a run that no waiver covers, or nil. The next
-// action reads it (SDD §13.4).
-func (a *API) FirstMust(ctx context.Context, runID uuid.UUID) (*api.Finding, error) {
-	res, err := a.ListFindings(ctx, api.ListFindingsRequestObject{RunId: runID})
-	if err != nil {
-		return nil, err
-	}
-	list, ok := res.(api.ListFindings200JSONResponse)
-	if !ok {
-		return nil, nil
-	}
-	for i, f := range list.Items {
-		if f.Level == api.FindingLevelMUST && !f.Waived && (f.UpstreamChange == nil || f.UpstreamChange.Blocks) {
-			return &list.Items[i], nil
-		}
-	}
-	return nil, nil
-}
 
 // carriedRows returns the full-run findings that the verdict of runID counts, with the waiver
 // the verdict found for each.

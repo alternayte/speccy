@@ -28,15 +28,15 @@ A gap has three answers. Each one closes the gap in the verdict and in the trace
 
 The first answer changes the doc text, so a builder reads the ID next to the design. The other two are acknowledgements. They leave the doc text as it is.
 
-## Answer in the tour
+## Answer on the questions screen
 
 <Steps>
 
-1. Open the spec doc. The next action in the control row reads "Decide: does this doc cover REQ-001?". Click it to open the tour. **More → Tour** opens the same tour.
+1. Open the spec doc. The next action in the control row reads, for example, "Answer 3 questions". Click it to open the questions screen. **More → Questions** opens the same screen.
 
-2. On the gap, click **Decide**, or press `d`.
+2. Find the `trace.coverage` item. Its question names the trace ID. The screen shows all items on one page, in doc order.
 
-   ![The tour asks whether the SDD covers a PRD requirement, and offers the three answers](../../../assets/shots/linked-gap.png)
+   ![The questions screen asks whether the SDD covers a PRD requirement, and offers the three answers](../../../assets/shots/linked-gap.png)
 
 3. Pick one answer.
    - **This doc covers it**: pick a section under **The section that covers it**. Speccy shows the line it adds.
@@ -57,7 +57,7 @@ The first answer changes the doc text, so a builder reads the ID next to the des
 
 2. Click **Answer the gap** under the finding.
 
-3. Pick the answer and fill in the fields, as in the tour.
+3. Pick the answer and fill in the fields, as on the questions screen.
 
 4. Click **Add the line** or **Ask for approval**. A line above the list says what Speccy did.
 
@@ -77,7 +77,7 @@ The matrix on the upstream doc's Traceability page shows each gap of each doc th
 
 3. Click **Answer** in the cell. The three answers open for the spec doc of that column.
 
-4. Pick the answer and fill in the fields, as in the tour. Click **Add the line** or **Ask for approval**.
+4. Pick the answer and fill in the fields, as on the questions screen. Click **Add the line** or **Ask for approval**.
 
 </Steps>
 
@@ -89,9 +89,9 @@ The profile's waiver policy decides who approves an acknowledgement. `trace.cove
 
 <Steps>
 
-1. Open the request. It waits in the approver's **Inbox**, in the tour, and on the finding in the findings rail.
+1. Open the request. It waits in the approver's **Inbox** and on the finding in the findings rail. It also waits at the top of the questions screen, under **Waiting for your decision**.
 
-2. Read the reason. The tour asks, for example, "Approve or reject: REQ-002 is out of scope for this doc."
+2. Read the reason on the card. For example: "REQ-002 is out of scope for this doc."
 
 3. Click **Approve**, or click **Reject** and give a decision reason of at least 20 characters.
 
@@ -162,7 +162,7 @@ You can also delete the entry from the sidecar yourself:
 Speccy watches the sidecar of a folder that it serves. It lints the doc again, and the gap opens again. A doc in a GitHub source takes the change on its next sync.
 
 <Aside type="caution">
-An open request is not an answer. Until the last approval, the gap still counts in the verdict. The tour then shows the approval, not the gap.
+An open request is not an answer. Until the last approval, the gap still counts in the verdict. The questions screen does not show the gap as an item. The approver sees the request instead.
 </Aside>
 
 ## Related

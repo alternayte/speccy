@@ -11,7 +11,7 @@ This page lists what `speccy tui` shows, every key it reads, and how it fits a s
 speccy tui
 ```
 
-The TUI lists the bundles and runs a review. It shows the verdict, the findings and the tour, and it opens a file in your editor at a finding.
+The TUI lists the bundles and runs a review. It shows the verdict, the findings and the questions screen, and it opens a file in your editor at a finding.
 
 ## Where it runs
 
@@ -33,7 +33,7 @@ Every screen has the same five parts, from top to bottom.
 | Part | What it holds |
 |---|---|
 | Title bar | `Speccy` and the screen name, then the meta text: the bundle count, or the title, profile and version. |
-| Body | The list, the findings or the tour point. |
+| Body | The list, the findings or the question. |
 | Message line | One line of progress, feedback, an error, or the next action. |
 | Rule | A thin line. |
 | Key bar | The keys of this screen. |
@@ -81,9 +81,9 @@ The bundle screen lists the open findings of the verdict: MUST first, then SHOUL
 
 The block under the list shows the selected finding: the check slug, the stage, the message, and the fix. A finding with no fix shows its quote instead.
 
-## The tour screen
+## The questions screen
 
-The tour screen shows one point at a time: a progress bar, the kind of point, the question, its context, and the quote. The TUI shows the tour and does not record a decision. Decide in the app, or with the MCP tool `post_message`.
+The questions screen shows one item at a time: a progress bar, the kind of item, the question, its context, and the quote. For a material gap it also shows the options, and a `*` marks the suggested option. The TUI records no answer. The message line tells you to answer on the questions screen of the app.
 
 ## Keys
 
@@ -92,14 +92,14 @@ The tour screen shows one point at a time: a progress bar, the kind of point, th
 | Key | Screen | What it does |
 |---|---|---|
 | `n` | all | Does the next action of the bundle in hand. |
-| `j`, `↓` | all | Moves down one row, one finding, or one tour point. |
-| `k`, `↑` | all | Moves up one row, one finding, or one tour point. |
+| `j`, `↓` | all | Moves down one row, one finding, or one question. |
+| `k`, `↑` | all | Moves up one row, one finding, or one question. |
 | `enter`, `l`, `→` | list | Opens the bundle. |
 | `r` | list, bundle | Runs a full review of the bundle. It does nothing while a review runs. |
 | `e`, `enter` | bundle | Opens the file in the editor at the selected finding. With no findings, it opens the spec doc. |
-| `t` | bundle | Opens the tour. |
-| `e`, `enter` | tour | Opens the file in the editor at the point's anchor. A point with no anchor opens nothing. |
-| `esc`, `h`, `←` | bundle, tour | Goes back one screen. On the key list, `esc` closes it. |
+| `t` | bundle | Opens the questions screen. |
+| `e`, `enter` | questions | Opens the file in the editor at the item's anchor. An item with no anchor opens nothing. |
+| `esc`, `h`, `←` | bundle, questions | Goes back one screen. On the key list, `esc` closes it. |
 | `?` | all | Opens or closes the key list. |
 | `q`, `ctrl+c` | all | Quits. |
 
@@ -108,8 +108,7 @@ The tour screen shows one point at a time: a progress bar, the kind of point, th
 | Next action | What `n` does |
 |---|---|
 | Review | Runs a full review. |
-| Decide | Opens the tour. |
-| Fix | Opens the bundle. On the bundle screen, it opens the editor at the selected finding. |
+| Questions | Opens the questions screen. |
 | Any other kind | Writes the sentence and `do this in the app.` on the message line. |
 
 A full review needs a model for each role its stages use. With no model, the message line shows the error. [Add a model backend](/how-to/add-a-model-backend/) sets one up.

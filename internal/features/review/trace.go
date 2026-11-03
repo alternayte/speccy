@@ -342,7 +342,7 @@ func (a *API) matrix(ctx context.Context, up pgdb.SpecDoc, upMain []byte, downs 
 }
 
 // gapFindings returns the trace.coverage findings of d's verdict run by trace ID. An answer to
-// a gap names its finding, as the tour and the findings rail do.
+// a gap names its finding, as the questions screen and the findings rail do.
 func gapFindings(ctx context.Context, q store.Querier, d pgdb.SpecDoc) (map[string]uuid.UUID, error) {
 	out := map[string]uuid.UUID{}
 	v, _, err := Summary(ctx, q, d)

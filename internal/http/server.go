@@ -25,10 +25,10 @@ import (
 	"github.com/alternayte/speccy/internal/features/insights"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/prreview"
+	"github.com/alternayte/speccy/internal/features/questions"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/thread"
-	"github.com/alternayte/speccy/internal/features/tour"
 	"github.com/alternayte/speccy/internal/features/verify"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
@@ -54,7 +54,7 @@ type API struct {
 	*ApprovalAPI
 	*InboxAPI
 	*InsightsAPI
-	*TourAPI
+	*QuestionsAPI
 	*HandoffAPI
 	*VerifyAPI
 	*PrReviewAPI
@@ -62,22 +62,22 @@ type API struct {
 
 // The aliases give each embedded feature API its own field name.
 type (
-	BundleAPI   = bundle.API
-	VersionAPI  = version.API
-	ExportAPI   = export.API
-	ProfileAPI  = profile.API
-	ReviewAPI   = review.API
-	AdminAPI    = admin.API
-	ShareAPI    = share.API
-	ThreadAPI   = thread.API
-	WaiverAPI   = waiver.API
-	ApprovalAPI = approval.API
-	InboxAPI    = inbox.API
-	InsightsAPI = insights.API
-	TourAPI     = tour.API
-	HandoffAPI  = handoff.API
-	VerifyAPI   = verify.API
-	PrReviewAPI = prreview.API
+	BundleAPI    = bundle.API
+	VersionAPI   = version.API
+	ExportAPI    = export.API
+	ProfileAPI   = profile.API
+	ReviewAPI    = review.API
+	AdminAPI     = admin.API
+	ShareAPI     = share.API
+	ThreadAPI    = thread.API
+	WaiverAPI    = waiver.API
+	ApprovalAPI  = approval.API
+	InboxAPI     = inbox.API
+	InsightsAPI  = insights.API
+	QuestionsAPI = questions.API
+	HandoffAPI   = handoff.API
+	VerifyAPI    = verify.API
+	PrReviewAPI  = prreview.API
 )
 
 // Core serves the operations that belong to no feature.

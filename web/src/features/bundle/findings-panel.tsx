@@ -60,17 +60,17 @@ function rowsOf(items: Finding[]): CheckRow[] {
 }
 
 // upstreamSlug is the check a standalone Acknowledgement answers (SDD §9.4).
-const upstreamSlug = "links.has-upstream";
+export const upstreamSlug = "links.has-upstream";
 
 // contradictionSlug is a conflict with a linked doc. It takes a second answer beside a waiver:
 // the linked doc must change. downstreamSlug is that request on the linked doc, and it takes
 // the answer that the downstream doc must change.
-const contradictionSlug = "coherence.contradiction";
-const downstreamSlug = "coherence.downstream-request";
+export const contradictionSlug = "coherence.contradiction";
+export const downstreamSlug = "coherence.downstream-request";
 
 // Ask is what the waiver dialog asks for: a waiver, an upstream request, or a send-back.
 type AskKind = "waiver" | "upstream" | "send_back";
-type Ask = { finding: Finding; reason?: string; kind?: AskKind };
+export type Ask = { finding: Finding; reason?: string; kind?: AskKind };
 
 // FindingsPanel lists the findings of a run. The MUST findings, which block Build Ready, show
 // as cards in document order. The SHOULD and INFO findings show as one row for each check with
@@ -696,7 +696,7 @@ const askText: Record<AskKind, { title: string; description: string; placeholder
 // WaiverDialog asks for a waiver of one finding, with a reason (REQ-072), or for one of the
 // other two answers to a conflict. An ended waiver opens it with the old reason, because the
 // edit often does not change what it was for.
-function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask; onClose: () => void }) {
+export function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask; onClose: () => void }) {
   const qc = useQueryClient();
   const finding = ask?.finding;
   const [reason, setReason] = useState("");
@@ -769,7 +769,7 @@ function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask; onClo
 }
 
 // useDecide approves or rejects a waiver from the finding it excuses (SDD §9.1).
-function useDecide(docId: string) {
+export function useDecide(docId: string) {
   const qc = useQueryClient();
   const done = () => {
     qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { docId } }) });
@@ -843,7 +843,7 @@ function nextWaiting(all: Waiver[], items: Finding[], decided: string[], not: Wa
 
 // WaiverCard is the request on the finding it excuses: the reason, the policy count, the
 // waivers already decided on the same section, and the decision (SDD §9.1).
-function WaiverCard({
+export function WaiverCard({
   waiver: w,
   waivers,
   viaPullRequest,
@@ -1086,7 +1086,7 @@ function WaiversList({
 // control asks the author for the answer first, and the AI writes that answer into the doc. A
 // missing upstream link gets a list of docs instead, and Speccy writes the link (#75). After an
 // accept of a lint finding's fix, the rail says at once whether the check still fails.
-function SuggestFix({
+export function SuggestFix({
   runId,
   docId,
   finding,
@@ -1264,7 +1264,7 @@ function SuggestFix({
 
 // fixText says what an accepted fix did. A lint finding is checked at once; an AI finding
 // needs a new review.
-function fixText(result: AcceptedFix): { text: string; bad?: boolean } {
+export function fixText(result: AcceptedFix): { text: string; bad?: boolean } {
   const where = result.version ? ` as version ${result.version.number}` : "";
   if (result.result === "still_fails")
     return { text: `Fix applied${where}. Still fails: ${result.message ?? ""}`, bad: true };

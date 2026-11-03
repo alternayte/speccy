@@ -815,8 +815,6 @@ func (e MetaSignInProviders) Valid() bool {
 // Defines values for NextActionKind.
 const (
 	NextActionKindAdopt         NextActionKind = "adopt"
-	NextActionKindDecide        NextActionKind = "decide"
-	NextActionKindFix           NextActionKind = "fix"
 	NextActionKindHandoff       NextActionKind = "handoff"
 	NextActionKindQuestions     NextActionKind = "questions"
 	NextActionKindRequestReview NextActionKind = "request_review"
@@ -828,10 +826,6 @@ const (
 func (e NextActionKind) Valid() bool {
 	switch e {
 	case NextActionKindAdopt:
-		return true
-	case NextActionKindDecide:
-		return true
-	case NextActionKindFix:
 		return true
 	case NextActionKindHandoff:
 		return true
@@ -1079,6 +1073,30 @@ func (e PrSettingsLevels) Valid() bool {
 	case PrSettingsLevelsMust:
 		return true
 	case PrSettingsLevelsShould:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for QuestionItemKind.
+const (
+	QuestionItemKindBlockingThread QuestionItemKind = "blocking_thread"
+	QuestionItemKindDecision       QuestionItemKind = "decision"
+	QuestionItemKindFinding        QuestionItemKind = "finding"
+	QuestionItemKindMaterialGap    QuestionItemKind = "material_gap"
+)
+
+// Valid indicates whether the value is a known member of the QuestionItemKind enum.
+func (e QuestionItemKind) Valid() bool {
+	switch e {
+	case QuestionItemKindBlockingThread:
+		return true
+	case QuestionItemKindDecision:
+		return true
+	case QuestionItemKindFinding:
+		return true
+	case QuestionItemKindMaterialGap:
 		return true
 	default:
 		return false
@@ -1369,64 +1387,19 @@ func (e ThreadMessageAuthorKind) Valid() bool {
 
 // Defines values for ThreadMessageDecision.
 const (
-	Decision ThreadMessageDecision = "decision"
-	Empty    ThreadMessageDecision = ""
-	Reversal ThreadMessageDecision = "reversal"
+	ThreadMessageDecisionDecision ThreadMessageDecision = "decision"
+	ThreadMessageDecisionEmpty    ThreadMessageDecision = ""
+	ThreadMessageDecisionReversal ThreadMessageDecision = "reversal"
 )
 
 // Valid indicates whether the value is a known member of the ThreadMessageDecision enum.
 func (e ThreadMessageDecision) Valid() bool {
 	switch e {
-	case Decision:
+	case ThreadMessageDecisionDecision:
 		return true
-	case Empty:
+	case ThreadMessageDecisionEmpty:
 		return true
-	case Reversal:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TourPointKind.
-const (
-	TourPointKindBlockingThread TourPointKind = "blocking_thread"
-	TourPointKindFinding        TourPointKind = "finding"
-	TourPointKindOpenDecision   TourPointKind = "open_decision"
-	TourPointKindWaiver         TourPointKind = "waiver"
-)
-
-// Valid indicates whether the value is a known member of the TourPointKind enum.
-func (e TourPointKind) Valid() bool {
-	switch e {
-	case TourPointKindBlockingThread:
-		return true
-	case TourPointKindFinding:
-		return true
-	case TourPointKindOpenDecision:
-		return true
-	case TourPointKindWaiver:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for TourPointLevel.
-const (
-	TourPointLevelINFO   TourPointLevel = "INFO"
-	TourPointLevelMUST   TourPointLevel = "MUST"
-	TourPointLevelSHOULD TourPointLevel = "SHOULD"
-)
-
-// Valid indicates whether the value is a known member of the TourPointLevel enum.
-func (e TourPointLevel) Valid() bool {
-	switch e {
-	case TourPointLevelINFO:
-		return true
-	case TourPointLevelMUST:
-		return true
-	case TourPointLevelSHOULD:
+	case ThreadMessageDecisionReversal:
 		return true
 	default:
 		return false
@@ -2380,9 +2353,12 @@ type BundleVerdict struct {
 	StaleUpstream *[]BundleRef `json:"stale_upstream,omitempty"`
 
 	// Trend What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
-	Trend         *Trend `json:"trend,omitempty"`
-	VersionNumber int64  `json:"version_number"`
-	WaiverCount   int    `json:"waiver_count"`
+	Trend *Trend `json:"trend,omitempty"`
+
+	// Unanswered The MUST findings of checks that came back with no answer. They count in must. Another review answers them, so they are not questions.
+	Unanswered    *int  `json:"unanswered,omitempty"`
+	VersionNumber int64 `json:"version_number"`
+	WaiverCount   int   `json:"waiver_count"`
 }
 
 // BundleVerdictKind lint means only the lint stage ran.
@@ -3122,20 +3098,15 @@ type MetaSignInProviders string
 
 // NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
 type NextAction struct {
-	FindingId *openapi_types.UUID `json:"finding_id,omitempty"`
-
-	// Kind questions opens the questions screen, with every open blocking build question of the doc.
+	// Kind questions opens the questions screen, with everything that blocks Build Ready and needs the author.
 	Kind NextActionKind `json:"kind"`
 
 	// Sentence What to do, in words, for a button label or a status line.
-	Sentence string `json:"sentence"`
-
-	// TourKey The key of the tour point to open.
-	TourKey  *string             `json:"tour_key,omitempty"`
+	Sentence string              `json:"sentence"`
 	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
-// NextActionKind questions opens the questions screen, with every open blocking build question of the doc.
+// NextActionKind questions opens the questions screen, with everything that blocks Build Ready and needs the author.
 type NextActionKind string
 
 // OpenThread defines model for OpenThread.
@@ -3525,6 +3496,44 @@ type QuestionAnswer struct {
 	Answer    string             `json:"answer"`
 	FindingId openapi_types.UUID `json:"finding_id"`
 	Option    *int               `json:"option,omitempty"`
+}
+
+// QuestionItem One thing that blocks Build Ready. material_gap is a build question with two options. blocking_thread is an open blocking thread. decision is a finding that needs a human answer with no options: a coverage gap, a send-back or a missing upstream link. finding is any other open MUST finding.
+type QuestionItem struct {
+	// Anchor A range of text with context (SDD §8.8).
+	Anchor *Anchor `json:"anchor,omitempty"`
+
+	// Ask The one thing the person must decide or do, in words.
+	Ask string `json:"ask"`
+
+	// Context Why it blocks, in one or two sentences.
+	Context *string `json:"context,omitempty"`
+
+	// Finding One failed check. The rail and the MCP tool get_findings read this one shape.
+	Finding *Finding `json:"finding,omitempty"`
+
+	// Key Stable across reviews for a material gap (its fork), else the finding or thread ID.
+	Key    string           `json:"key"`
+	Kind   QuestionItemKind `json:"kind"`
+	Thread *Thread          `json:"thread,omitempty"`
+}
+
+// QuestionItemKind defines model for QuestionItem.Kind.
+type QuestionItemKind string
+
+// Questions Everything that blocks Build Ready and needs a person, from the run behind the verdict.
+type Questions struct {
+	// Items The items in doc order. An item with no anchor comes first.
+	Items []QuestionItem `json:"items"`
+
+	// Recheck A MUST check of the run has no answer. Another review answers it, not the author.
+	Recheck bool `json:"recheck"`
+
+	// RunId The run whose findings the list uses. Absent before the first review.
+	RunId *openapi_types.UUID `json:"run_id,omitempty"`
+
+	// Waivers The waiver requests of this doc that wait for the caller's decision.
+	Waivers []Waiver `json:"waivers"`
 }
 
 // QuoteCheck defines model for QuoteCheck.
@@ -3947,43 +3956,6 @@ type ThreadMessageAuthorKind string
 
 // ThreadMessageDecision defines model for ThreadMessage.Decision.
 type ThreadMessageDecision string
-
-// Tour defines model for Tour.
-type Tour struct {
-	Points []TourPoint `json:"points"`
-
-	// RunId The run whose findings the tour uses. Absent before the first review.
-	RunId *openapi_types.UUID `json:"run_id,omitempty"`
-}
-
-// TourPoint One point that needs a human decision. The ask states one explicit decision.
-type TourPoint struct {
-	// Anchor A range of text with context (SDD §8.8).
-	Anchor *Anchor `json:"anchor,omitempty"`
-	Ask    string  `json:"ask"`
-
-	// CanApprove For a waiver, the caller can approve or reject it now.
-	CanApprove *bool   `json:"can_approve,omitempty"`
-	CheckSlug  *string `json:"check_slug,omitempty"`
-
-	// Context Why the point needs a decision, in one or two sentences.
-	Context   string              `json:"context"`
-	FindingId *openapi_types.UUID `json:"finding_id,omitempty"`
-	Key       string              `json:"key"`
-	Kind      TourPointKind       `json:"kind"`
-	Level     *TourPointLevel     `json:"level,omitempty"`
-	ThreadId  *openapi_types.UUID `json:"thread_id,omitempty"`
-
-	// TraceId For a coverage gap, the upstream trace ID it is about.
-	TraceId  *string             `json:"trace_id,omitempty"`
-	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
-}
-
-// TourPointKind defines model for TourPoint.Kind.
-type TourPointKind string
-
-// TourPointLevel defines model for TourPoint.Level.
-type TourPointLevel string
 
 // TraceAck An Acknowledgement of one upstream trace ID. On approval it goes in the sidecar under trace.
 type TraceAck struct {
@@ -5189,6 +5161,9 @@ type ServerInterface interface {
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /docs/{docId}/publish)
 	PublishBundle(w http.ResponseWriter, r *http.Request, docId DocId)
+	// GetQuestions Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
+	// (GET /docs/{docId}/questions)
+	GetQuestions(w http.ResponseWriter, r *http.Request, docId DocId)
 	// FreshQuestions Ask for a fresh set of build questions at the next full review.
 	// (POST /docs/{docId}/questions/fresh)
 	FreshQuestions(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -5213,9 +5188,6 @@ type ServerInterface interface {
 	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
 	// (POST /docs/{docId}/threads)
 	OpenBundleThread(w http.ResponseWriter, r *http.Request, docId DocId)
-	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	// (GET /docs/{docId}/tour)
-	GetTour(w http.ResponseWriter, r *http.Request, docId DocId)
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /docs/{docId}/trace)
 	GetTrace(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -7080,6 +7052,32 @@ func (siw *ServerInterfaceWrapper) PublishBundle(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetQuestions operation middleware
+func (siw *ServerInterfaceWrapper) GetQuestions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetQuestions(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // FreshQuestions operation middleware
 func (siw *ServerInterfaceWrapper) FreshQuestions(w http.ResponseWriter, r *http.Request) {
 
@@ -7295,32 +7293,6 @@ func (siw *ServerInterfaceWrapper) OpenBundleThread(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.OpenBundleThread(w, r, docId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// GetTour operation middleware
-func (siw *ServerInterfaceWrapper) GetTour(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "docId" -------------
-	var docId DocId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetTour(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9331,7 +9303,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.UpdateMCPConnection)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp/{connectionId}/tools", wrapper.ListMCPTools)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
-	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/tour", wrapper.GetTour)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/questions", wrapper.GetQuestions)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/diff/summary", wrapper.SummarizeDiff)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}/report", wrapper.GetRunReport)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/runs/{runId}/findings/{findingId}/fix", wrapper.SuggestFix)
@@ -11822,6 +11794,45 @@ func (response PublishBundledefaultApplicationProblemPlusJSONResponse) VisitPubl
 	return err
 }
 
+type GetQuestionsRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetQuestionsResponseObject interface {
+	VisitGetQuestionsResponse(w http.ResponseWriter) error
+}
+
+type GetQuestions200JSONResponse Questions
+
+func (response GetQuestions200JSONResponse) VisitGetQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetQuestionsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetQuestionsdefaultApplicationProblemPlusJSONResponse) VisitGetQuestionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type FreshQuestionsRequestObject struct {
 	DocId DocId `json:"docId"`
 }
@@ -12123,45 +12134,6 @@ type OpenBundleThreaddefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response OpenBundleThreaddefaultApplicationProblemPlusJSONResponse) VisitOpenBundleThreadResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(response.StatusCode)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetTourRequestObject struct {
-	DocId DocId `json:"docId"`
-}
-
-type GetTourResponseObject interface {
-	VisitGetTourResponse(w http.ResponseWriter) error
-}
-
-type GetTour200JSONResponse Tour
-
-func (response GetTour200JSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetTourdefaultApplicationProblemPlusJSONResponse struct {
-	Body       Problem
-	StatusCode int
-}
-
-func (response GetTourdefaultApplicationProblemPlusJSONResponse) VisitGetTourResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -15447,6 +15419,9 @@ type StrictServerInterface interface {
 	// PublishBundle Publish the draft of a GitHub bundle as a branch, a commit, and a pull request (REQ-123).
 	// (POST /docs/{docId}/publish)
 	PublishBundle(ctx context.Context, request PublishBundleRequestObject) (PublishBundleResponseObject, error)
+	// GetQuestions Everything that blocks Build Ready and needs a person, in doc order. The questions screen, the TUI and the MCP server read it.
+	// (GET /docs/{docId}/questions)
+	GetQuestions(ctx context.Context, request GetQuestionsRequestObject) (GetQuestionsResponseObject, error)
 	// FreshQuestions Ask for a fresh set of build questions at the next full review.
 	// (POST /docs/{docId}/questions/fresh)
 	FreshQuestions(ctx context.Context, request FreshQuestionsRequestObject) (FreshQuestionsResponseObject, error)
@@ -15471,9 +15446,6 @@ type StrictServerInterface interface {
 	// OpenBundleThread Open a thread on a bundle, anchored to text, a section, or a finding (REQ-087). A guest opens threads for humans only.
 	// (POST /docs/{docId}/threads)
 	OpenBundleThread(ctx context.Context, request OpenBundleThreadRequestObject) (OpenBundleThreadResponseObject, error)
-	// GetTour The ordered points of the bundle's current review that need a human decision (SDD §13.3).
-	// (GET /docs/{docId}/tour)
-	GetTour(ctx context.Context, request GetTourRequestObject) (GetTourResponseObject, error)
 	// GetTrace The bundle's links, its traceability matrices, and suggested trace IDs (REQ-050, REQ-052, REQ-058).
 	// (GET /docs/{docId}/trace)
 	GetTrace(ctx context.Context, request GetTraceRequestObject) (GetTraceResponseObject, error)
@@ -17471,6 +17443,32 @@ func (sh *strictHandler) PublishBundle(w http.ResponseWriter, r *http.Request, d
 	}
 }
 
+// GetQuestions operation middleware
+func (sh *strictHandler) GetQuestions(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetQuestionsRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetQuestions(ctx, request.(GetQuestionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetQuestions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetQuestionsResponseObject); ok {
+		if err := validResponse.VisitGetQuestionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // FreshQuestions operation middleware
 func (sh *strictHandler) FreshQuestions(w http.ResponseWriter, r *http.Request, docId DocId) {
 	var request FreshQuestionsRequestObject
@@ -17697,32 +17695,6 @@ func (sh *strictHandler) OpenBundleThread(w http.ResponseWriter, r *http.Request
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(OpenBundleThreadResponseObject); ok {
 		if err := validResponse.VisitOpenBundleThreadResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
-// GetTour operation middleware
-func (sh *strictHandler) GetTour(w http.ResponseWriter, r *http.Request, docId DocId) {
-	var request GetTourRequestObject
-
-	request.DocId = docId
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.GetTour(ctx, request.(GetTourRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetTour")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(GetTourResponseObject); ok {
-		if err := validResponse.VisitGetTourResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

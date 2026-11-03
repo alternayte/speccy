@@ -21,25 +21,29 @@ func TestView_FrameFitsTheTerminal(t *testing.T) {
 	b := api.SpecDoc{Title: "Speccy — Software Design Document", Slug: "docs/specs/a-rather-long-bundle-slug",
 		ProfileKey: "sdd", Path: "SDD.md", CurrentVersion: api.Version{Number: 7}, SourceKind: "local",
 		Status: &st, UpdatedAt: time.Now().Add(-70 * time.Minute), Verdict: v,
-		NextAction: &api.NextAction{Kind: api.NextActionKindFix, Sentence: strings.Repeat("fix this thing ", 12)}}
+		NextAction: &api.NextAction{Kind: api.NextActionKindQuestions, Sentence: strings.Repeat("answer this thing ", 12)}}
 	fix := strings.Repeat("a long fix that must be cut ", 8)
 	fs := []api.Finding{
 		{Level: api.FindingLevelMUST, CheckSlug: "sdd.data.model", Stage: "rubric", Fix: &fix,
 			Message: strings.Repeat("a long message that must be cut ", 8), Anchor: api.Anchor{File: "SDD.md", Quote: strings.Repeat("quoted ", 40)}},
 		{Level: api.FindingLevelSHOULD, CheckSlug: "lint.prose-limit", Stage: "lint", Message: "The doc has 9503 words."},
 	}
-	tour := []api.TourPoint{{Kind: "divergence", Ask: strings.Repeat("a long question ", 12), Context: strings.Repeat("context ", 30),
-		Anchor: &api.Anchor{File: "SDD.md", Quote: strings.Repeat("quoted ", 30)}}}
+	ctx := strings.Repeat("context ", 30)
+	opts := []string{strings.Repeat("option one ", 12), strings.Repeat("option two ", 12)}
+	pick := 2
+	qs := []api.QuestionItem{{Kind: api.QuestionItemKindMaterialGap, Ask: strings.Repeat("a long question ", 12), Context: &ctx,
+		Anchor:  &api.Anchor{File: "SDD.md", Quote: strings.Repeat("quoted ", 30)},
+		Finding: &api.Finding{Material: &api.Material{Class: api.MaterialClassDataModel, Options: &opts, Pick: &pick}}}}
 
 	models := map[string]*model{
-		"list":     {screen: screenList, bundles: []api.SpecDoc{b, b}},
-		"empty":    {screen: screenList},
-		"bundle":   {screen: screenBundle, bundle: &b, findings: fs, fcursor: 1},
-		"running":  {screen: screenBundle, bundle: &b, findings: fs, running: "x", stage: "divergence"},
-		"nofinds":  {screen: screenBundle, bundle: &b},
-		"tour":     {screen: screenTour, bundle: &b, tour: tour},
-		"tourless": {screen: screenTour, bundle: &b},
-		"help":     {screen: screenBundle, bundle: &b, findings: fs, help: true},
+		"list":        {screen: screenList, bundles: []api.SpecDoc{b, b}},
+		"empty":       {screen: screenList},
+		"bundle":      {screen: screenBundle, bundle: &b, findings: fs, fcursor: 1},
+		"running":     {screen: screenBundle, bundle: &b, findings: fs, running: "x", stage: "divergence"},
+		"nofinds":     {screen: screenBundle, bundle: &b},
+		"questions":   {screen: screenQuestions, bundle: &b, questions: qs},
+		"noquestions": {screen: screenQuestions, bundle: &b},
+		"help":        {screen: screenBundle, bundle: &b, findings: fs, help: true},
 	}
 	sizes := [][2]int{{80, 24}, {100, 30}, {160, 45}, {60, 12}}
 	for name, m := range models {
@@ -66,9 +70,9 @@ func TestView_NextActionIsAlwaysOffered(t *testing.T) {
 		CurrentVersion: api.Version{Number: 1}, SourceKind: "local", UpdatedAt: time.Now(),
 		NextAction: &api.NextAction{Kind: api.NextActionKindReview, Sentence: "Check this doc"}}
 	for name, m := range map[string]*model{
-		"list":   {screen: screenList, bundles: []api.SpecDoc{b}},
-		"bundle": {screen: screenBundle, bundle: &b},
-		"tour":   {screen: screenTour, bundle: &b},
+		"list":      {screen: screenList, bundles: []api.SpecDoc{b}},
+		"bundle":    {screen: screenBundle, bundle: &b},
+		"questions": {screen: screenQuestions, bundle: &b},
 	} {
 		m.width, m.height = 100, 30
 		out := m.View()
