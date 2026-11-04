@@ -11,6 +11,7 @@ import {
   Network,
   PackageCheck,
   Play,
+  ShieldCheck,
   Printer,
   Trash2,
   Tags,
@@ -28,6 +29,7 @@ const kindIcon: Record<NextAction["kind"], React.ReactNode> = {
   adopt: <FileText className="size-3.5" />,
   request_review: <MessageSquarePlus className="size-3.5" />,
   handoff: <PackageCheck className="size-3.5" />,
+  verify: <ShieldCheck className="size-3.5" />,
 };
 
 // ControlRow is the one row above the panes (SDD §13.4): the title, the verdict in words, and

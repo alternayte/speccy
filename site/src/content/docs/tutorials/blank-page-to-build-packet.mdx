@@ -174,6 +174,7 @@ Speccy picks the next action in this order:
 5. The type and the size, when Speccy guessed them.
 6. The reviews the profile needs, in hosted mode.
 7. The handoff.
+8. A verification run, after a handoff, when the current version has no run or its newest run failed.
 
 The Bundles screen shows the same next action on each row, so you can pick the work before you open a bundle.
 
@@ -277,11 +278,11 @@ For one profile, the false-ready rate is the share of Build Ready handoffs that 
 
 ## 12. Verify the build
 
-After the build, Speccy checks the code against the spec.
+After the build, Speccy checks the code against the spec. The `HANDOFF.md` of the packet tells the coding agent to start this run when it finishes. While the run waits or runs, the next action is empty. When no run of the current version exists, the next action reads **Verify the build**.
 
 <Steps>
 
-1. Open the **History** tab. Under **Verification**, paste the GitHub URL of the repo, the branch, the commit or the pull request into **Code to verify**. A doc with an `implemented-by` link fills the field for you.
+1. Click **Verify the build**, or open the **History** tab. Under **Verification**, paste the GitHub URL of the repo, the branch, the commit or the pull request into **Code to verify**. A doc with an `implemented-by` link fills the field for you.
 
 2. Click **Check**. Speccy shows the repo and the commit that it reads.
 

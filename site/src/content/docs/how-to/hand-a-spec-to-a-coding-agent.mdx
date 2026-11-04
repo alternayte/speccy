@@ -29,7 +29,7 @@ The verdict must be Build Ready, and it must belong to the current version. Othe
 <Tabs>
 <TabItem label="Web app">
 
-On a Build Ready doc with no handoff, the next action reads **Hand it to a builder**. On any doc, **More → Hand it to a builder** opens the same dialog.
+On a Build Ready doc with no handoff, the next action reads **Hand it to a builder**. After the handoff, it reads **Verify the build** until a verification run of the current version starts. On any doc, **More → Hand it to a builder** opens the same dialog.
 
 <Steps>
 
@@ -147,13 +147,14 @@ The same server lets an agent fix the findings of a review before the build. [Fi
 
 ## What the re-entry prompt says
 
-`HANDOFF.md` is the file an agent reads first, and again after it loses its context. It has five parts:
+`HANDOFF.md` is the file an agent reads first, and again after it loses its context. It has six parts:
 
 - **Read**: the spec doc, its assets, the linked docs and the external links.
 - **Answers**: each build question with its agreed answer. A question with no agreed answer says to ask the author first.
 - **Work**: one unchecked line for each trace ID of the doc. A doc with no trace IDs asks the agent to write the list itself.
 - **If you get stuck**: the handoff ID, and how to send a build report.
 - **Done when**: every line ticked, and the project's own checks pass.
+- **When you are done**: verify the build with the MCP tool `verify_build` or `speccy verify`, with the handoff ID. A missing or breached MUST comes back to the author as a question.
 
 The agent owns the file after the handoff, and it ticks the lines as it works. Speccy never reads it back.
 

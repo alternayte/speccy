@@ -188,9 +188,9 @@ export type SkippedDoc = {
  */
 export type NextAction = {
     /**
-     * questions opens the questions screen, with everything that blocks Build Ready and needs the author.
+     * questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
      */
-    kind: 'waiver' | 'questions' | 'review' | 'adopt' | 'request_review' | 'handoff';
+    kind: 'waiver' | 'questions' | 'review' | 'adopt' | 'request_review' | 'handoff' | 'verify';
     /**
      * What to do, in words, for a button label or a status line.
      */

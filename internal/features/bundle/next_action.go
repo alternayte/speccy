@@ -24,6 +24,9 @@ type Deps struct {
 	Approvals func(ctx context.Context, bundleID uuid.UUID) (needed, given int, err error)
 	// Handoffs returns how many builders took the packet of a bundle version.
 	Handoffs func(ctx context.Context, bundleID uuid.UUID, version int64) (int, error)
+	// VerifyDue reports whether the current version can be verified and has no usable
+	// verification run: none, or the newest one failed or is stale.
+	VerifyDue func(ctx context.Context, docID uuid.UUID) (bool, error)
 }
 
 // brief names the next action from the signals a list already reads: the verdict, the waivers
@@ -102,6 +105,13 @@ func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *ap
 				return err
 			}
 			in.Handoffs = n
+		}
+		if in.Handoffs > 0 && a.Deps.VerifyDue != nil {
+			due, err := a.Deps.VerifyDue(ctx, b.ID)
+			if err != nil {
+				return err
+			}
+			in.VerifyDue = due
 		}
 	}
 	out.NextAction = nextaction.Of(in)

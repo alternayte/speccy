@@ -33,13 +33,14 @@ A build question that the readers read differently carries no answer. Neither do
 
 ## The re-entry prompt
 
-The packet includes a re-entry prompt, `HANDOFF.md`. A coding agent reads it to resume the build after it loses its context. It has five parts:
+The packet includes a re-entry prompt, `HANDOFF.md`. A coding agent reads it to resume the build after it loses its context. It has six parts:
 
 - **Read**: the spec doc and its version, the assets, the linked docs, and the external links.
 - **Answers**: each build question with its agreed answer. A question with a gap or a divergence tells the agent to ask the author.
 - **Work**: one checkbox line for each trace ID of the doc. A doc with no trace IDs leaves the agent to write the list.
 - **If you get stuck**: how to send a build report, with the handoff ID.
 - **Done when**: every line ticked, the checks of the project passing, and nothing left unbuilt without a reason.
+- **When you are done**: the call that verifies the build against the handoff. The run is the signal that the build is done.
 
 The agent owns the file after the handoff, and ticks lines as it works. Speccy never reads it back.
 

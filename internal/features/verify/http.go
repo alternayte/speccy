@@ -264,3 +264,36 @@ func str(p *string) string {
 	}
 	return *p
 }
+
+// Due reports whether the author must verify the current version: the profile's gate can read
+// a trace ID in the main doc, and the newest run of the current version is absent, failed or
+// stale. A queued or running run is waiting, and a done run has answered.
+func (a *API) Due(ctx context.Context, docID uuid.UUID) (bool, error) {
+	q := a.DB.Queries()
+	b, err := version.Bundle(ctx, q, a.Workspace, docID)
+	if err != nil {
+		return false, err
+	}
+	prof, ok := a.Profiles()[b.ProfileKey]
+	if !ok {
+		return false, nil
+	}
+	cur, err := version.LoadCurrent(ctx, q, b)
+	if err != nil {
+		return false, err
+	}
+	if reqs, _ := requirements(cur.File(b.DocPath), prof.Profile); len(reqs) == 0 {
+		return false, nil
+	}
+	rows, err := q.ListVerificationRuns(ctx, docID)
+	if err != nil {
+		return false, err
+	}
+	for _, r := range rows {
+		if r.VersionID != b.CurrentVersionID.UUID {
+			continue
+		}
+		return r.Stale || r.Status == StatusFailed, nil
+	}
+	return true, nil
+}

@@ -819,6 +819,7 @@ const (
 	NextActionKindQuestions     NextActionKind = "questions"
 	NextActionKindRequestReview NextActionKind = "request_review"
 	NextActionKindReview        NextActionKind = "review"
+	NextActionKindVerify        NextActionKind = "verify"
 	NextActionKindWaiver        NextActionKind = "waiver"
 )
 
@@ -834,6 +835,8 @@ func (e NextActionKind) Valid() bool {
 	case NextActionKindRequestReview:
 		return true
 	case NextActionKindReview:
+		return true
+	case NextActionKindVerify:
 		return true
 	case NextActionKindWaiver:
 		return true
@@ -3098,7 +3101,7 @@ type MetaSignInProviders string
 
 // NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
 type NextAction struct {
-	// Kind questions opens the questions screen, with everything that blocks Build Ready and needs the author.
+	// Kind questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
 	Kind NextActionKind `json:"kind"`
 
 	// Sentence What to do, in words, for a button label or a status line.
@@ -3106,7 +3109,7 @@ type NextAction struct {
 	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
-// NextActionKind questions opens the questions screen, with everything that blocks Build Ready and needs the author.
+// NextActionKind questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
 type NextActionKind string
 
 // OpenThread defines model for OpenThread.
