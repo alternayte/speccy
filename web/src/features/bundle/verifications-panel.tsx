@@ -38,11 +38,14 @@ export function VerificationsPanel({
   canVerify,
   prefill,
   focus,
+  focusField = 0,
 }: {
   docId: string;
   canVerify: boolean;
   prefill?: string;
   focus?: RunFocus;
+  // focusField changes when the next action asks for the verify field.
+  focusField?: number;
 }) {
   const runs = useQuery({ ...listVerificationsOptions({ path: { docId } }), refetchInterval: 15_000 });
   const waivers = useQuery({ ...listWaiversOptions({ path: { docId } }), refetchInterval: 5000 });
@@ -74,7 +77,7 @@ export function VerificationsPanel({
       {active ? (
         <RunProgress docId={docId} run={active} />
       ) : canVerify ? (
-        <VerifyForm key={prefill ?? ""} docId={docId} prefill={prefill} />
+        <VerifyForm key={prefill ?? ""} docId={docId} prefill={prefill} focusSeq={focusField} />
       ) : null}
       {items.length === 0 ? null : (
         <ul className="divide-y divide-line border-t border-line">
@@ -442,8 +445,14 @@ function runState(v: Verification) {
 // VerifyForm takes one pasted target. It prefills from the doc's implemented-by link, else from
 // the repo of the last run. Speccy says which repo and commit the target names before the run
 // starts, because a run makes model calls for every trace ID.
-function VerifyForm({ docId, prefill }: { docId: string; prefill?: string }) {
+function VerifyForm({ docId, prefill, focusSeq }: { docId: string; prefill?: string; focusSeq: number }) {
   const qc = useQueryClient();
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusSeq === 0) return;
+    field.current?.scrollIntoView({ block: "center" });
+    field.current?.focus();
+  }, [focusSeq]);
   const defaults = useQuery(verificationDefaultsOptions({ path: { docId } }));
   const options = defaults.data?.items ?? [];
   const [typed, setTyped] = useState<string>();
@@ -473,6 +482,7 @@ function VerifyForm({ docId, prefill }: { docId: string; prefill?: string }) {
       <Label htmlFor="verify-target">Code to verify</Label>
       <Input
         id="verify-target"
+        ref={field}
         value={target}
         placeholder="https://github.com/acme/pay/pull/12"
         onChange={(e) => change(e.target.value)}

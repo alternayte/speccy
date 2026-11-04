@@ -71,6 +71,8 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
   const [verifyAt, setVerifyAt] = useState<string>();
   // The verification run a verification waiver opens, in History.
   const [runFocus, setRunFocus] = useState<RunFocus>();
+  // verifyField counts the requests to focus the verify field; the next action makes one.
+  const [verifyField, setVerifyField] = useState(0);
   // focus names the doc it belongs to: an anchor in another spec doc waits until that doc's
   // files are on screen, so one doc's offsets never move another doc's editor (#74).
   const [focus, setFocus] = useState<{ start: number; end: number; seq: number; docId: string }>();
@@ -229,6 +231,11 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         return;
       case "handoff":
         setHandingOff(true);
+        return;
+      case "verify":
+        setTab("history");
+        setPanel("rail");
+        setVerifyField((n) => n + 1);
         return;
     }
   };
@@ -521,7 +528,13 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
                 <>
                   <VersionsPanel docId={docId} current={b.current_version.id} />
                   <HandoffsPanel docId={docId} current={b.current_version.number} />
-                  <VerificationsPanel docId={docId} canVerify={!guest} prefill={verifyAt} focus={runFocus} />
+                  <VerificationsPanel
+                    docId={docId}
+                    canVerify={!guest}
+                    prefill={verifyAt}
+                    focus={runFocus}
+                    focusField={verifyField}
+                  />
                 </>
               )}
             </div>

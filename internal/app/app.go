@@ -191,6 +191,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		Questions: questionsAPI.List,
 		Approvals: approvalAPI.ApprovalCount,
 		Handoffs:  handoffAPI.CountForVersion,
+		VerifyDue: verifyAPI.Due,
 	}}
 	addSource = func(ctx context.Context, url string) error {
 		_, err := bundleAPI.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: url}})

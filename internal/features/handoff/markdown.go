@@ -91,6 +91,11 @@ func HandoffMarkdown(p api.BuildPacket) string {
 	b.WriteString("- Every line above is ticked.\n")
 	b.WriteString("- The project's own checks pass.\n")
 	b.WriteString("- Nothing in the design is left unbuilt without a line here that says why.\n")
+	b.WriteString("\n## When you are done\n\n")
+	b.WriteString("Verify the build, so Speccy checks the code against the design and the author sees the result.\n\n")
+	fmt.Fprintf(&b, "- Call the `verify_build` tool with bundle `%s`, handoff `%s`, and the URL of the repo, branch, commit or pull request you built.\n", p.Bundle, p.HandoffId)
+	fmt.Fprintf(&b, "- Without the tool, run `speccy verify <doc path> <URL> --handoff %s` in the folder Speccy serves.\n", p.HandoffId)
+	b.WriteString("- A missing or breached MUST comes back as a question for the author. Wait for the answer, then build and verify again.\n")
 	return b.String()
 }
 

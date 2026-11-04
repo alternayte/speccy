@@ -37,6 +37,9 @@ type Inputs struct {
 	ApprovalsNeeded, ApprovalsGiven int
 	// Handoffs is how many builders took the packet of the current version.
 	Handoffs int
+	// VerifyDue is true when the current version can be verified and its newest verification
+	// run is absent, failed or stale. One bundle only.
+	VerifyDue bool
 }
 
 // ListQuestions is the count of the questions screen that a list row can name without building
@@ -92,6 +95,11 @@ func Of(in Inputs) *api.NextAction {
 	}
 	if in.Handoffs == 0 {
 		return &api.NextAction{Kind: api.NextActionKindHandoff, Sentence: "Hand it to a builder"}
+	}
+	// The builder's agent verifies when it finishes. When it has not, or a person built, the
+	// author verifies. A run that is queued or running is waiting, not an action.
+	if in.VerifyDue {
+		return &api.NextAction{Kind: api.NextActionKindVerify, Sentence: "Verify the build"}
 	}
 	return nil
 }
