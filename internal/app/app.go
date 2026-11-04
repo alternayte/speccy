@@ -166,7 +166,11 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}
 	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}
 	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change,
-		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions}
+		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions, Solo: root != nil}
+	// An Acknowledgement closes at once now: one that waits from before gets its approval.
+	if err := waiverAPI.ApproveWaitingAcknowledgements(ctx); err != nil {
+		return nil, err
+	}
 	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people}
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
 	questionsAPI := &questions.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}

@@ -38,6 +38,9 @@ type API struct {
 	// Decisions reads a bundle's sidecar, and SetDecisions writes it (DEC-009).
 	Decisions    func(ctx context.Context, b pgdb.SpecDoc) (source.Decisions, error)
 	SetDecisions func(ctx context.Context, b pgdb.SpecDoc, d source.Decisions, by, message string) error
+	// Solo is true in local mode. Its one person is the approver, so a waiver asks for no
+	// approval.
+	Solo bool
 }
 
 // PolicyFor is the waiver policy of a check at a level (§9.1): the check's own policy when it
@@ -187,15 +190,20 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 			return nil, kernel.Invalid("two_answers", "Give one answer: Not needed, or a waiver of another kind.")
 		}
 		r.Scope, r.Fork = ScopeNotNeeded, source.ForkOf(f.CheckSlug, f.Evidence, f.Message)
-		// The answer needs no approval, so it goes in the sidecar first, as an approval does.
-		events, err := DecideRequest(State{}, r)
-		if err != nil {
-			return nil, err
-		}
-		s := State{}
-		for _, e := range events {
-			s = Evolve(s, e)
-		}
+	}
+	// An Acknowledgement states scope or fact, and local mode's one person is the approver:
+	// either way the requester decides alone.
+	r.Alone = Acknowledgement(r.Scope) || a.Solo
+	// A request decided alone goes in the sidecar first, as an approval does.
+	events, err := DecideRequest(State{}, r)
+	if err != nil {
+		return nil, err
+	}
+	s := State{}
+	for _, e := range events {
+		s = Evolve(s, e)
+	}
+	if s.Status == StatusApproved {
 		if err := a.writeSidecar(ctx, b, s, r.By); err != nil {
 			return nil, err
 		}
@@ -696,7 +704,7 @@ func (a *API) RequestVerificationWaiver(ctx context.Context, req api.RequestVeri
 	r := Request{
 		ID: kernel.NewID(), BundleID: b.ID, Check: slug, Scope: ScopeVerify, TraceID: traceID, Repo: repo, RunID: runID,
 		Level: kernel.Must, Section: path, SectionHash: hash, Reason: req.Body.Reason,
-		By: kernel.ActorFrom(ctx).UserID, Policy: p.Profile.Waivers.Must,
+		By: kernel.ActorFrom(ctx).UserID, Policy: p.Profile.Waivers.Must, Alone: a.Solo,
 	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
@@ -790,3 +798,33 @@ const (
 	coverageSlug = "trace.coverage"
 	upstreamSlug = "links.has-upstream"
 )
+
+// ApproveWaitingAcknowledgements approves each Acknowledgement that waits for approval from
+// before an Acknowledgement closed at once. Speccy records the approval itself, with the note
+// "approval no longer needed", and writes the sidecar entry first, as an approval does. A
+// request whose bundle is gone stays as it is.
+func (a *API) ApproveWaitingAcknowledgements(ctx context.Context) error {
+	rows, err := a.DB.Queries().ListWorkspaceWaivers(ctx, a.Workspace)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row.Status != StatusRequested || !Acknowledgement(row.Scope) {
+			continue
+		}
+		s, b, err := a.load(ctx, row.ID)
+		if err != nil {
+			continue
+		}
+		if _, err := DecideNoLongerNeeded(s); err != nil {
+			continue
+		}
+		if err := a.writeSidecar(kernel.WithActor(ctx, kernel.Actor{UserID: SpeccyActor}), b, s, SpeccyActor); err != nil {
+			return err
+		}
+		if _, err := es.Run(ctx, a.ES, StreamType, s.ID, DecideNoLongerNeeded, Evolve); err != nil {
+			return err
+		}
+	}
+	return nil
+}

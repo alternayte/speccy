@@ -157,6 +157,10 @@ type Request struct {
 	Reason      string
 	By          string
 	Policy      profile.Policy
+	// Alone is true when the requester decides alone, so the request is approved in the same
+	// step: an Acknowledgement, which states scope or fact, and any waiver in local mode, where
+	// the one person is the approver.
+	Alone bool `json:",omitempty"`
 }
 
 type requestedV1 struct {
@@ -168,7 +172,12 @@ type approvedV1 struct {
 	V     int    `json:"v"`
 	By    string `json:"by"`
 	Final bool   `json:"final"` // the approvals reached the policy
+	// Note says why Speccy approved a request itself, when it did.
+	Note string `json:"note,omitempty"`
 }
+
+// SpeccyActor is the actor of the approvals Speccy records itself.
+const SpeccyActor = "speccy"
 
 type byV1 struct {
 	V      int    `json:"v"`
@@ -199,7 +208,20 @@ func DecideRequest(s State, r Request) ([]es.Event, error) {
 	if len([]rune(strings.TrimSpace(r.Reason))) < MinReason {
 		return nil, kernel.Invalid("reason_too_short", "Give a reason of at least %d characters, so a reviewer can judge it.", MinReason)
 	}
+	if r.Alone && !conflictDecision(r.Scope) {
+		return []es.Event{es.NewEvent(Requested, requestedV1{V: 1, Request: r}),
+			es.NewEvent(Approved, approvedV1{V: 1, By: r.By, Final: true})}, nil
+	}
 	return []es.Event{es.NewEvent(Requested, requestedV1{V: 1, Request: r})}, nil
+}
+
+// DecideNoLongerNeeded approves an Acknowledgement that waits from before an Acknowledgement
+// closed at once. Speccy records the approval itself, with the reason.
+func DecideNoLongerNeeded(s State) ([]es.Event, error) {
+	if s.Status != StatusRequested || !Acknowledgement(s.Scope) {
+		return nil, kernel.Conflict("waiver_not_requested", "This request needs no approval step.")
+	}
+	return []es.Event{es.NewEvent(Approved, approvedV1{V: 1, By: SpeccyActor, Final: true, Note: "approval no longer needed"})}, nil
 }
 
 // CanApprove is §9.1: whether a approves or rejects a waiver with policy p. It does not count

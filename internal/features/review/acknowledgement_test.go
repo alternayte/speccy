@@ -48,9 +48,10 @@ func TestAcknowledgements_StandaloneAndWithdraw(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				// An Acknowledgement closes at once: no approval step.
 				req := res.(api.RequestWaiver200JSONResponse)
-				if _, err := w.ApproveWaiver(ctx, api.ApproveWaiverRequestObject{WaiverId: req.Id}); err != nil {
-					t.Fatal(err)
+				if req.Status != api.WaiverStatusApproved {
+					t.Fatalf("the Acknowledgement is %s, want approved at once", req.Status)
 				}
 				return api.Waiver(req)
 			}
@@ -80,7 +81,7 @@ func TestAcknowledgements_StandaloneAndWithdraw(t *testing.T) {
 				return api.Waiver{}
 			}
 
-			// Mark it standalone: a request, then the approval writes standalone: to the sidecar.
+			// Mark it standalone: the request closes at once and writes standalone: to the sidecar.
 			_, fs, _ := en.latest(t, "cache")
 			up := findingsOf(fs, review.HasUpstreamSlug)
 			if len(up) != 1 {

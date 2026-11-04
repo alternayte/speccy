@@ -140,19 +140,19 @@ A run is a statement about one commit. A new commit in the code repo makes no ru
 
 ## Excuse one trace ID
 
-A verification waiver excuses one trace ID in one code repo. It keeps the rest of the waiver mechanism. It needs a reason of at least 20 characters, and it follows the profile's policy for a MUST. It ends when the section of the requirement changes. It never goes in the sidecar. The sidecar travels with the doc into every build, and this exception belongs to one repo.
+A verification waiver excuses one trace ID in one code repo. It keeps the rest of the waiver mechanism. It needs a reason of at least 20 characters. In hosted mode, it follows the profile's policy for a MUST. In local mode, it closes at once, because you are the approver. It ends when the section of the requirement changes. It never goes in the sidecar. The sidecar travels with the doc into every build, and this exception belongs to one repo.
 
 <Steps>
 
 1. Open the **History** tab, and click the run.
 
-2. Find the missing or breached trace ID, and click **Ask for a waiver**.
+2. Find the missing or breached trace ID, and click **Ship it open**.
 
-3. Write the reason, and click **Ask**.
+3. Write the reason. Click **Ask for approval** in hosted mode, or **Ship it open** in local mode.
 
 </Steps>
 
-The outcome row shows the request, the approvals it has, and the approvals the policy needs. After the approval, the row says so.
+In hosted mode, the outcome row shows the request, the approvals it has, and the approvals the policy needs. After the approval, the row says so.
 
 The CLI and the MCP server have no control that asks for a verification waiver. A script asks through the HTTP API. The doc ID is the last part of the bundle page URL, `/bundles/<bundle id>/docs/<doc id>`:
 
@@ -164,7 +164,7 @@ curl -X POST http://127.0.0.1:7878/api/v1/docs/<doc id>/verification-waivers \
 
 `repo` is the repo as the run names it, such as `acme/payments`. In hosted mode, send a personal API token as `Authorization: Bearer <token>`.
 
-The request waits in the approver's **Inbox** and at the top of the questions screen, as any waiver does. The inbox link opens the run that the request came from, and the approver clicks **Approve** or **Reject** on the outcome row. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows the approval. The next run counts the trace ID as waived, and the run verdict counts the waivers.
+In hosted mode, the request waits in the approver's **Inbox** and at the top of the questions screen, as any waiver does. The inbox link opens the run that the request came from, and the approver clicks **Approve** or **Reject** on the outcome row. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows the approval. The next run counts the trace ID as waived, and the run verdict counts the waivers.
 
 ## Related
 

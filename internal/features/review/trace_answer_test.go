@@ -80,8 +80,9 @@ func TestTraceAnswers_CloseGaps(t *testing.T) {
 			if req.Trace == nil || req.Trace.Id != "REQ-002" {
 				t.Fatalf("the request = %+v, want an Acknowledgement of REQ-002", req)
 			}
-			if _, err := w.ApproveWaiver(ctx, api.ApproveWaiverRequestObject{WaiverId: req.Id}); err != nil {
-				t.Fatal(err)
+			// An Acknowledgement closes at once: no approval step.
+			if req.Status != api.WaiverStatusApproved {
+				t.Fatalf("the Acknowledgement is %s, want approved at once", req.Status)
 			}
 			side, _ := os.ReadFile(filepath.Join(en.dir, ".speccy", "decisions", "refunds", "SDD.md.yaml"))
 			if !strings.Contains(string(side), "id: REQ-002") || !strings.Contains(string(side), "status: out_of_scope") {

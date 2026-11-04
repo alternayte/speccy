@@ -55,15 +55,9 @@ func ListQuestions(v *api.BundleVerdict) (n int, recheck bool) {
 func Of(in Inputs) *api.NextAction {
 	if w := in.WaiverWaiting; w != nil {
 		id := w.Id
-		// An Acknowledgement uses the waiver mechanism, but the author asked for something else:
-		// the sentence names what they asked for.
+		// An acknowledgement never waits: it closes at once.
 		sentence := fmt.Sprintf("Decide the waiver of %s", w.CheckSlug)
-		switch {
-		case w.Standalone != nil && *w.Standalone:
-			sentence = "Decide the standalone acknowledgement"
-		case w.Trace != nil:
-			sentence = fmt.Sprintf("Decide the acknowledgement of %s", w.Trace.Id)
-		case w.Verification != nil:
+		if w.Verification != nil {
 			sentence = fmt.Sprintf("Decide the waiver of %s in %s", w.Verification.TraceId, w.Verification.Repo)
 		}
 		return &api.NextAction{Kind: api.NextActionKindWaiver, Sentence: sentence, WaiverId: &id}

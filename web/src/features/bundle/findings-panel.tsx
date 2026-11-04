@@ -277,7 +277,7 @@ export function FindingsPanel({
                       onClick={() => setWaiving({ finding: f })}
                       className="text-ink-2 hover:text-ink"
                     >
-                      Ask for a waiver
+                      Ship it open
                     </button>
                     {/* After a send-back, the conflict takes an edit or a waiver, and no other answer. */}
                     {f.check_slug === contradictionSlug && !f.upstream_change && !pending(f) ? (
@@ -674,10 +674,10 @@ function UpstreamState({ finding: f }: { finding: Finding }) {
 // askText is the title, the description and the reason prompt of each answer the dialog asks for.
 const askText: Record<AskKind, { title: string; description: string; placeholder: string }> = {
   waiver: {
-    title: "Ask for a waiver",
+    title: "Ship it open",
     description:
-      "A waiver is an approved exception for this check. A waiver of a check about one section ends when that section changes. A waiver of a whole-doc check stays through edits, and ends when a review passes the check.",
-    placeholder: "Why this check does not apply here. At least 20 characters.",
+      "The gap is real, and the doc ships with it. This is a waiver: an approver decides it under the profile's waiver policy. A waiver of a check about one section ends when that section changes. A waiver of a whole-doc check stays through edits, and ends when a review passes the check. If the finding does not apply to this doc, answer Not needed on the questions screen instead.",
+    placeholder: "Why the doc can ship with this gap. At least 20 characters.",
   },
   upstream: {
     title: "The linked doc must change",
@@ -698,6 +698,16 @@ const askText: Record<AskKind, { title: string; description: string; placeholder
 // edit often does not change what it was for.
 export function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask; onClose: () => void }) {
   const qc = useQueryClient();
+  // Local mode's one person is the approver, so a waiver closes at once there.
+  const solo = useMe().data?.mode === "local";
+  const kind = ask?.kind ?? "waiver";
+  const description =
+    kind === "waiver" && solo
+      ? askText.waiver.description.replace(
+          "an approver decides it under the profile's waiver policy",
+          "in local mode you are the approver, so it closes at once",
+        )
+      : askText[kind].description;
   const finding = ask?.finding;
   const [reason, setReason] = useState("");
   useEffect(() => setReason(ask?.reason ?? ""), [ask]);
@@ -706,6 +716,7 @@ export function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask
     onSuccess: () => {
       setReason("");
       qc.invalidateQueries({ queryKey: listWaiversQueryKey({ path: { docId } }) });
+      qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId } }).queryKey });
       onClose();
     },
   });
@@ -719,7 +730,7 @@ export function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask
         }
       }}
       title={askText[ask?.kind ?? "waiver"].title}
-      description={askText[ask?.kind ?? "waiver"].description}
+      description={description}
     >
       {finding ? (
         <form
@@ -759,7 +770,7 @@ export function WaiverDialog({ docId, ask, onClose }: { docId: string; ask?: Ask
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={request.isPending || reason.trim().length < 20}>
-              Ask
+              {kind === "waiver" ? (solo ? "Ship it open" : "Ask for approval") : "Ask"}
             </Button>
           </div>
         </form>

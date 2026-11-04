@@ -11,8 +11,8 @@ import { problemMessage } from "@/lib/problem";
 const minReason = 20;
 
 // MarkStandalone answers a links.has-upstream finding: the doc has no upstream doc, for a
-// reason. It is an Acknowledgement, so it follows the profile's waiver policy for the
-// finding's level, and the approval writes standalone: to the doc's sidecar (SDD §9.4).
+// reason. It is an Acknowledgement, so it closes at once, with no approval, and writes
+// standalone: to the doc's sidecar (SDD §9.4).
 export function MarkStandalone({
   docId,
   findingId,
@@ -30,10 +30,10 @@ export function MarkStandalone({
   const [reason, setReason] = useState("");
   const ask = useMutation({
     ...requestWaiverMutation(),
-    // A request never approves itself, so the finding stays until someone approves it.
+    // An Acknowledgement needs no approval: the finding closes at once.
     onSuccess: () => {
       qc.invalidateQueries();
-      onDone("Asked for approval of the standalone acknowledgement. links.has-upstream passes when it is approved.");
+      onDone("Marked the doc standalone. links.has-upstream passes.");
     },
   });
   return (
@@ -55,7 +55,7 @@ export function MarkStandalone({
           autoFocus
         />
         <span className="mt-1 block text-ink-3">
-          At least {minReason} characters. The profile&apos;s waiver policy decides who approves it. The approval writes{" "}
+          At least {minReason} characters. It closes the finding at once and writes{" "}
           <code className="text-ink">standalone:</code> to the sidecar.
         </span>
       </label>
@@ -71,7 +71,7 @@ export function MarkStandalone({
           </Button>
         ) : null}
         <Button size="sm" type="submit" variant="primary" disabled={reason.trim().length < minReason || ask.isPending}>
-          Ask for approval
+          Mark it standalone
         </Button>
       </div>
     </form>

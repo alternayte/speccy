@@ -97,3 +97,53 @@ func must(ev []es.Event, err error) []es.Event {
 	}
 	return ev
 }
+
+// Two ways out: an Acknowledgement and a request decided alone close at once; a waiver in
+// hosted mode, an upstream request and a send-back wait for an approver.
+func TestDecideRequest_AloneClosesAtOnce(t *testing.T) {
+	maint := profile.Policy{Name: "maintainer"}
+	reason := "The checkout UI doc owns this requirement."
+	for _, c := range []struct {
+		name  string
+		scope string
+		alone bool
+		want  string
+	}{
+		{"waiver, hosted", ScopeCheck, false, StatusRequested},
+		{"waiver, local", ScopeCheck, true, StatusApproved},
+		{"acknowledgement", ScopeTrace, true, StatusApproved},
+		{"standalone", ScopeStandalone, true, StatusApproved},
+		{"upstream request", ScopeUpstream, true, StatusRequested},
+		{"send-back", ScopeSendBack, true, StatusRequested},
+	} {
+		ev, err := DecideRequest(State{}, Request{ID: uuid.New(), Check: "trace.coverage", Scope: c.scope, Level: kernel.Must,
+			Reason: reason, By: "author", Policy: maint, Alone: c.alone})
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if s := apply(State{}, ev); s.Status != c.want {
+			t.Errorf("%s: status %s, want %s", c.name, s.Status, c.want)
+		}
+	}
+	if _, err := DecideRequest(State{}, Request{ID: uuid.New(), Check: "sdd.limits", Scope: ScopeCheck, Level: kernel.Must,
+		Reason: reason, By: "author", Policy: profile.Policy{Name: "forbidden"}, Alone: true}); err == nil {
+		t.Error("a forbidden policy took a waiver decided alone")
+	}
+}
+
+// A request that waits from before an Acknowledgement closed at once gets Speccy's approval.
+func TestDecideNoLongerNeeded(t *testing.T) {
+	ack, _ := DecideRequest(State{}, Request{ID: uuid.New(), Check: "trace.coverage", Scope: ScopeTrace, Level: kernel.Must,
+		Reason: "The checkout UI doc owns this requirement.", By: "author", Policy: profile.Policy{Name: "maintainer"}})
+	s := apply(State{}, ack)
+	ev, err := DecideNoLongerNeeded(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s = apply(s, ev); s.Status != StatusApproved || s.DecidedBy != SpeccyActor {
+		t.Errorf("status %s by %s, want approved by %s", s.Status, s.DecidedBy, SpeccyActor)
+	}
+	if _, err := DecideNoLongerNeeded(requested(profile.Policy{Name: "maintainer"})); err == nil {
+		t.Error("Speccy approved a check waiver, which still needs an approver")
+	}
+}

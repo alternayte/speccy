@@ -21,6 +21,7 @@ import {
   verificationDefaultsOptions,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
+import { useMe } from "@/features/account/me";
 import { relativeTime } from "./time";
 
 // RunFocus names the verification run a link asked to open, and the trace ID to show in it. A
@@ -185,7 +186,7 @@ const outcomeTone = {
 } as const;
 
 // Outcomes lists the outcome of each trace ID in one run. A missing or breached outcome that
-// no waiver covers gets Ask for a waiver. The newest waiver of the trace ID in this repo shows
+// no waiver covers gets Ship it open. The newest waiver of the trace ID in this repo shows
 // on the row, with its decision for a person who can approve it.
 function Outcomes({
   docId,
@@ -240,7 +241,7 @@ function Outcomes({
                   onClick={() => setAsking(o)}
                   className="mt-1.5 font-medium text-accent hover:underline"
                 >
-                  Ask for a waiver
+                  Ship it open
                 </button>
               ) : null}
             </li>
@@ -364,6 +365,8 @@ function VerificationWaiverDialog({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  // Local mode's one person is the approver, so the waiver closes at once there.
+  const solo = useMe().data?.mode === "local";
   const [reason, setReason] = useState("");
   const request = useMutation({
     ...requestVerificationWaiverMutation(),
@@ -383,8 +386,8 @@ function VerificationWaiverDialog({
           onClose();
         }
       }}
-      title="Ask for a waiver"
-      description="A verification waiver excuses one trace ID in one code repo. The profile's waiver policy for a MUST says who approves it. It ends when the section of the requirement changes, and it never goes in the sidecar."
+      title="Ship it open"
+      description="A verification waiver excuses one trace ID in one code repo. The profile's waiver policy for a MUST says who approves it. In local mode it closes at once. It ends when the section of the requirement changes, and it never goes in the sidecar."
     >
       {outcome ? (
         <form
@@ -418,7 +421,7 @@ function VerificationWaiverDialog({
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={request.isPending || reason.trim().length < 20}>
-              Ask
+              {solo ? "Ship it open" : "Ask for approval"}
             </Button>
           </div>
         </form>
