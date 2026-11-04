@@ -188,7 +188,7 @@ The overlay marks the failed text in the preview, one layer per kind: Risk, Ambi
 Each finding has these controls:
 
 - **Suggest fix** asks the writer model for a patch. You see the diff, and **Accept** writes it. A finding that needs a fact shows **Answer and fix**, and asks for your answer first. [Fix the findings of a review](/how-to/fix-findings/) shows each way to fix a finding.
-- **Ask for a waiver** asks for an exception for this check in this section.
+- **Ship it open** says that the gap is real, and the doc ships with it. It is a waiver: an exception for this check in this section.
 - **Discuss** opens a thread on the finding.
 - **What this check means** opens the entry of the check in the [Check catalog](/reference/checks/).
 
@@ -204,18 +204,20 @@ The **Evidence** tab appears after a full review. It holds the claims the ground
 
 Click the next action "Answer N questions", or open **More → Questions**. The questions screen lists everything that blocks Build Ready and needs a person. All items show on one page, in doc order. An item is one of four kinds:
 
-- A material gap: two options, with a mark on the suggested one. Pick an option, write another answer under **Other**, or pick **Not needed**.
+- A material gap: two options, with a mark on the suggested one. Pick an option, or write another answer under **Other**. **Not needed** says that the finding does not apply to this doc. **Ship it open** ships the doc with the gap.
 - A blocking thread: the thread shows inline. Reply in it, or click **Resolve**.
 - A decision finding: for example a `trace.coverage` gap with its three answers, or a `links.has-upstream` finding with a link fix or **Mark it standalone**.
-- Any other open MUST finding: click **Suggest fix** or **Answer and fix**, or click **Ask for a waiver**.
+- Any other open MUST finding: click **Suggest fix** or **Answer and fix**, or click **Ship it open**.
 
 ![The questions screen lists each item that blocks Build Ready](../../../assets/shots/guide-questions-screen.png)
 
-Waivers that wait for your decision show at the top, under **Waiting for your decision**. Open decisions do not block, so they stay in the threads panel. When a MUST check came back with no answer, the screen shows **Check again** at the top.
+In hosted mode, waivers that wait for your decision show at the top, under **Waiting for your decision**. Open decisions do not block, so they stay in the threads panel. When a MUST check came back with no answer, the screen shows **Check again** at the top.
 
-A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. The profile's waiver policy says who can approve it. On approval, Speccy writes the waiver into the doc's sidecar, `.speccy/decisions/<doc path>.yaml`. The waiver travels with the repo in git, and the doc text does not change. An edit of that section ends the waiver, and the check runs again.
+**Not needed** takes a reason of at least 10 characters. It closes at once, with no approval.
 
-An acknowledgement uses the same mechanism for a link or a trace item that you leave out on purpose. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows both.
+A waiver is an approved exception for one check in one section, with a reason of at least 20 characters. In hosted mode, the profile's waiver policy says who can approve it. In local mode, you are the approver, so **Ship it open** closes at once. On approval, Speccy writes the waiver into the doc's sidecar, `.speccy/decisions/<doc path>.yaml`. The waiver travels with the repo in git, and the doc text does not change. An edit of that section ends the waiver, and the check runs again.
+
+An acknowledgement uses the same sidecar for a link or a trace item that you leave out on purpose. It needs no approval, and it closes at once. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows both.
 
 ## 9. Send it to a reviewer
 
@@ -320,7 +322,7 @@ The GitHub Action posts the findings on each pull request, and a reply on the pu
 ## What you have now
 
 - A bundle, `payment-retries`, with one spec doc and a Build Ready verdict.
-- A sidecar for each waiver or acknowledgement you approved.
+- A sidecar for each waiver or acknowledgement you gave.
 - A build packet with its re-entry prompt, and one handoff in History.
 
 ## Next

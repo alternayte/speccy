@@ -20,7 +20,7 @@ const waiveUsage = "Usage: speccy waive <doc path> <finding ID> --reason \"<why 
 const waiversUsage = "Usage: speccy waivers list <doc path>\n"
 
 // runWaive asks for a waiver of one finding (REQ-072), and with --approve approves it under the
-// profile's waiver policy, as the app does (#135). The owner of the state folder decides both.
+// profile's waiver policy, as the app does (#135). In local mode the request is approved at once. The owner of the state folder decides both.
 // --upstream-change and --send-back ask for the two other answers to a conflict, which use the
 // waiver mechanism.
 func runWaive(args []string, stdout, stderr io.Writer) int {
@@ -98,6 +98,11 @@ func runWaive(args []string, stdout, stderr io.Writer) int {
 		what = "a send-back to " + downstreamName(w)
 	}
 	fmt.Fprintf(stdout, "Asked for %s for %s in %s. Waiver ID %s.\n", what, w.CheckSlug, waiverWhere(w), w.Id)
+	// Local mode's one person is the approver, so a waiver is approved when it is asked for.
+	if w.Status == api.WaiverStatusApproved {
+		fmt.Fprintf(stdout, "Approved at once: in local mode you are the approver. Speccy wrote the waiver to the doc's sidecar, and the finding no longer counts in the verdict.\n")
+		return exitOK
+	}
 	if !approve {
 		fmt.Fprintf(stdout, "It needs %s under the policy %s. Approve it in the app, or run this command with --approve.\n", approvals(w.Needed), w.Policy)
 		return exitOK

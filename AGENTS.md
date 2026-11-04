@@ -33,7 +33,7 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Waiver: an approved exception for one check in one section, with a reason.
 - Sidecar: the file .speccy/decisions/<doc path>.yaml that holds the waivers and acknowledgements for one doc. Avoid: waiver file, decisions file, metadata file.
 - Heading path: the list of headings down to one section. It anchors a decision in a doc with no trace IDs. Avoid: breadcrumb, section path, anchor.
-- Acknowledgement: an author statement that a link or trace item is intentionally absent. It uses the waiver mechanism.
+- Acknowledgement: an author statement that a link or trace item is intentionally absent or covered elsewhere. It closes at once, with no approval, and writes the sidecar. Avoid: trace waiver.
 - Link: a typed relation between two bundles.
 - Trace ID: a stable ID in a doc, such as REQ-012 or DEC-004.
 - Section: the text under one heading, down to the next heading of the same or higher level.
@@ -95,3 +95,4 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Material gap: a point where a builder who cannot ask the author must guess, and a wrong guess changes the data model, a public interface, security or what the user sees. Only a material gap blocks Build Ready. Avoid: major finding, blocker, critical gap.
 - Consequence class: the one of data model, interface, security or user-visible that a material gap's two options differ in. Avoid: severity, impact, category.
 - Questions screen: the one screen that lists everything that blocks Build Ready and needs a person: material gaps, blocking threads and blocking findings. The author answers each item there, and a reviewer comments on it. Avoid: quiz, wizard, answer form, tour.
+- Not needed: the answer that a finding does not apply to this doc, with a reason. It closes at once, with no approval. A waiver is for a real gap that ships open. Avoid: false positive, won't fix.

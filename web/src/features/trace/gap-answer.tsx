@@ -26,8 +26,8 @@ const answers: { key: Answer; label: string }[] = [
 
 // GapAnswer answers a coverage gap in one of three ways. "This doc covers it" adds the line
 // "Covers <ID>." at the end of a section, as a new version, so the ID sits where a builder
-// reads it. "Another doc covers it" and "Out of scope" are Acknowledgements: they follow the
-// profile's waiver policy, and the approval writes the sidecar's trace entry.
+// reads it. "Another doc covers it" and "Out of scope" are Acknowledgements: they close at once,
+// with no approval, and write the sidecar's trace entry.
 export function GapAnswer({
   docId,
   findingId,
@@ -62,8 +62,13 @@ export function GapAnswer({
   });
   const ack = useMutation({
     ...requestWaiverMutation(),
-    // A request never approves itself, so the gap stays open until someone approves it.
-    onSuccess: () => finish(`Asked for approval of ${traceId}. The gap closes when it is approved.`),
+    // An Acknowledgement needs no approval: the gap closes at once.
+    onSuccess: () =>
+      finish(
+        answer === "out"
+          ? `Marked ${traceId} out of scope. The gap is closed.`
+          : `Marked ${traceId} as covered by ${target}. The gap is closed.`,
+      ),
   });
   const sections = trace.data?.sections ?? [];
   const others = (bundles.data?.items ?? []).flatMap((b) => b.docs).filter((d) => d.id !== docId);
@@ -170,7 +175,7 @@ export function GapAnswer({
             className="mt-1 text-xs"
           />
           <span className="mt-1 block text-ink-3">
-            At least {minReason} characters. The profile's waiver policy decides who approves it.
+            At least {minReason} characters. It closes the gap at once and goes in the sidecar.
           </span>
         </label>
       ) : null}
@@ -182,7 +187,7 @@ export function GapAnswer({
       {answer ? (
         <div className="mt-2 flex justify-end">
           <Button size="sm" variant="primary" disabled={!ready || cover.isPending || ack.isPending} onClick={submit}>
-            {answer === "here" ? "Add the line" : "Ask for approval"}
+            {answer === "here" ? "Add the line" : answer === "out" ? "Mark it out of scope" : "Save"}
           </Button>
         </div>
       ) : null}

@@ -4,7 +4,7 @@ description: Answer a trace.coverage finding in one of three ways, and withdraw 
 sidebar: { order: 3 }
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
 
 This guide shows you how to close a coverage gap on a spec doc, and how to undo the answer.
 
@@ -23,10 +23,10 @@ A gap has three answers. Each one closes the gap in the verdict and in the trace
 | Answer | Use it when | What Speccy writes |
 |---|---|---|
 | **This doc covers it** | A section of this doc meets the requirement. | The line `Covers REQ-001.` at the end of that section, as a new version. |
-| **Another doc covers it** | A different spec doc meets the requirement. | An acknowledgement in the sidecar, after approval. |
-| **Out of scope** | No doc meets it, and none has to. | An acknowledgement in the sidecar, after approval. |
+| **Another doc covers it** | A different spec doc meets the requirement. | An acknowledgement in the sidecar, at once. |
+| **Out of scope** | No doc meets it, and none has to. | An acknowledgement in the sidecar, at once. |
 
-The first answer changes the doc text, so a builder reads the ID next to the design. The other two are acknowledgements. They leave the doc text as it is.
+The first answer changes the doc text, so a builder reads the ID next to the design. The other two are acknowledgements. They leave the doc text as it is. An acknowledgement needs no approval, in local mode and in hosted mode.
 
 ## Answer on the questions screen
 
@@ -45,7 +45,10 @@ The first answer changes the doc text, so a builder reads the ID next to the des
 
    A reason needs at least 20 characters.
 
-4. Click **Add the line** for the first answer, or **Ask for approval** for the other two.
+4. Click the button of the answer:
+   - **This doc covers it**: click **Add the line**.
+   - **Another doc covers it**: click **Save**.
+   - **Out of scope**: click **Mark it out of scope**.
 
 </Steps>
 
@@ -59,11 +62,11 @@ The first answer changes the doc text, so a builder reads the ID next to the des
 
 3. Pick the answer and fill in the fields, as on the questions screen.
 
-4. Click **Add the line** or **Ask for approval**. A line above the list says what Speccy did.
+4. Click **Add the line**, **Save** or **Mark it out of scope**. A line above the list says what Speccy did, for example that it marked REQ-003 out of scope.
 
 </Steps>
 
-A coverage gap has no **Ask for a waiver** control. Speccy refuses a plain waiver of `trace.coverage`, because an acknowledgement closes the gap in the verdict and in the matrix with one record.
+A coverage gap has no **Ship it open** control. Speccy refuses a plain waiver of `trace.coverage`, because an acknowledgement closes the gap in the verdict and in the matrix with one record.
 
 ## Answer on the Traceability page
 
@@ -77,40 +80,26 @@ The matrix on the upstream doc's Traceability page shows each gap of each doc th
 
 3. Click **Answer** in the cell. The three answers open for the spec doc of that column.
 
-4. Pick the answer and fill in the fields, as on the questions screen. Click **Add the line** or **Ask for approval**.
+4. Pick the answer and fill in the fields, as on the questions screen. Click **Add the line**, **Save** or **Mark it out of scope**.
 
 </Steps>
 
 **Answer** shows only when you can edit the spec doc of that column. It shows only after a review found the gap.
 
-## Approve an acknowledgement
+## No approval step
 
-The profile's waiver policy decides who approves an acknowledgement. `trace.coverage` is a MUST check. The built-in PRD and SDD profiles give a MUST to a maintainer of the profile.
-
-<Steps>
-
-1. Open the request. It waits in the approver's **Inbox** and on the finding in the findings rail. It also waits at the top of the questions screen, under **Waiting for your decision**.
-
-2. Read the reason on the card. For example: "REQ-002 is out of scope for this doc."
-
-3. Click **Approve**, or click **Reject** and give a decision reason of at least 20 characters.
-
-</Steps>
-
-In local mode, you are the only person, and you have every role. You approve your own request in the same way.
-
-[Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) covers the policies, the inbox and the next waiver control.
+An acknowledgement is a statement of scope or fact, not an exception. So it needs no approval, in local mode and in hosted mode. It closes the gap when you click the button. A profile policy `forbidden` for `trace.coverage` still refuses it.
 
 ## What happens
 
 - **This doc covers it.** Speccy writes the line as a new version of the spec doc. Lint runs on the new version. The finding goes, and the matrix cell reads **Referenced**. For a doc in a GitHub source, the new version is a draft until you publish it.
-- **Another doc covers it** or **Out of scope.** Speccy records a request, and the gap stays open. On the last approval the policy needs, Speccy writes a `trace:` entry to the sidecar, `.speccy/decisions/<doc path>.yaml`. The finding goes, and the matrix cell reads **Covered by another doc** or **Out of scope**, with the reason.
+- **Another doc covers it** or **Out of scope.** Speccy writes a `trace:` entry to the sidecar, `.speccy/decisions/<doc path>.yaml`, at once. The finding goes, and the matrix cell reads **Covered by another doc** or **Out of scope**, with the reason.
 
 The **Traceability** page shows the result. Open it from **More → Traceability**. It shows the matrix and each answer. A **Referenced** cell links to each reference. Click one to open the spec doc at that line.
 
 ![The matrix after the answers: referenced, out of scope, and covered by another doc](../../../assets/shots/linked-ack.png)
 
-An approved acknowledgement names the trace ID, not a section. An edit to the spec doc does not end it. A waiver of a check ends when its section changes, but an acknowledgement stays until a person withdraws it.
+An acknowledgement names the trace ID, not a section. An edit to the spec doc does not end it. A waiver of a check ends when its section changes, but an acknowledgement stays until a person withdraws it.
 
 This is the sidecar entry that Speccy writes:
 
@@ -143,7 +132,7 @@ trace:
 
 </Steps>
 
-A withdrawal takes effect at once. It needs no approval, because it only makes the verdict stricter. Speccy takes the `trace:` entry out of the sidecar with the same write that an approval uses. Lint runs again, the gap opens again, and the verdict counts it. For a doc in a GitHub source, the sidecar change is a draft until you publish it. The waiver list of the spec doc shows the acknowledgement as withdrawn, with the name of the person who withdrew it.
+A withdrawal takes effect at once. It needs no approval, because it only makes the verdict stricter. Speccy takes the `trace:` entry out of the sidecar with the same write that an acknowledgement uses. Lint runs again, the gap opens again, and the verdict counts it. For a doc in a GitHub source, the sidecar change is a draft until you publish it. The waiver list of the spec doc shows the acknowledgement as withdrawn, with the name of the person who withdrew it.
 
 **Withdraw** shows only when you can edit the spec doc of that column. A **Referenced** cell has no **Withdraw**. Its reference is prose in the doc, so you delete it in the doc.
 
@@ -160,10 +149,6 @@ You can also delete the entry from the sidecar yourself:
 </Steps>
 
 Speccy watches the sidecar of a folder that it serves. It lints the doc again, and the gap opens again. A doc in a GitHub source takes the change on its next sync.
-
-<Aside type="caution">
-An open request is not an answer. Until the last approval, the gap still counts in the verdict. The questions screen does not show the gap as an item. The approver sees the request instead.
-</Aside>
 
 ## Related
 

@@ -10,6 +10,8 @@ This guide shows you how to ask for a waiver, how to approve or reject one, and 
 
 A waiver is an approved exception for one check in one section, with a reason. An approved waiver stops the finding from counting in the verdict. Speccy writes it to the sidecar of the doc, and the doc text does not change.
 
+In the app, the control for a waiver is **Ship it open**. Use it when the gap is real, and the doc ships with it. When the finding does not apply to this doc, answer **Not needed** on the questions screen instead. **Not needed** closes at once and needs no approval.
+
 ## Before you start
 
 - The finding is a MUST or a SHOULD. An INFO finding never changes the verdict, so it takes no waiver.
@@ -23,15 +25,17 @@ A waiver is an approved exception for one check in one section, with a reason. A
 
 1. Open the spec doc, and open the **Findings** tab of the rail.
 
-2. Under the finding, click **Ask for a waiver**. The dialog names the check and the section.
+2. Under the finding, click **Ship it open**. The dialog **Ship it open** names the check and the section.
 
-3. Write the reason: why this check does not apply here. The reason needs at least 20 characters, so an approver can judge it.
+3. Write the reason: why the doc can ship with this gap. The reason needs at least 20 characters, so an approver can judge it.
 
-4. Click **Ask**.
+4. In hosted mode, click **Ask for approval**. In local mode, click **Ship it open**.
 
 </Steps>
 
-The questions screen offers the same request. It lists each open MUST finding that blocks Build Ready and needs a person. On a finding item, click **Ask for a waiver**. Write the reason, and click **Ask for the waiver**.
+In hosted mode, the request waits for approval under the profile's waiver policy. In local mode, the waiver closes at once, because you are the approver. Speccy writes it to the sidecar.
+
+The questions screen offers the same request. It lists each open MUST finding that blocks Build Ready and needs a person. On a finding item, click **Ship it open**, and fill in the same dialog. A material gap offers **Ship it open** as a choice next to its options, **Other** and **Not needed**. Pick it, and write the reason.
 
 A waiver is for one check in one section. A failed rubric check can give several findings, one for each shortfall, and one waiver covers all of them there. What the waiver binds to depends on the check:
 
@@ -61,7 +65,7 @@ A waiver is for one check in one section. A failed rubric check can give several
    speccy waive docs/sdd-payments.md 01a110a2-3aeb-719a-b706-5d03631f85a4 --reason "The card network sets this limit, and we cannot change it."
    ```
 
-3. To approve it in the same step, add `--approve`. The profile's waiver policy applies, as in the app.
+3. Read the result. In local mode, you are the approver, so Speccy approves the waiver at once. An upstream request or a send-back still waits for approval. Add `--approve` to approve it in the same step.
 
 4. List the waivers of the doc and their status:
 
@@ -92,8 +96,8 @@ After the approval, the finding reads **Waiting on** and the name of the linked 
 The author of the linked doc answers in one of three ways:
 
 - An edit of the linked doc that removes its quote. The next reviews close the conflict on both docs.
-- **Ask for a waiver** on the `coherence.downstream-request` finding. The waiver says the conflict is acceptable, and it closes the conflict on both docs.
-- **The downstream doc must change** on the `coherence.downstream-request` finding, with a reason. After approval, the conflict blocks your doc again, and your finding shows that reason. Then edit your doc, or ask for a waiver. A second upstream request of the same conflict is not possible.
+- **Ship it open** on the `coherence.downstream-request` finding. The waiver says the conflict is acceptable, and it closes the conflict on both docs.
+- **The downstream doc must change** on the `coherence.downstream-request` finding, with a reason. After approval, the conflict blocks your doc again, and your finding shows that reason. Then edit your doc, or click **Ship it open**. A second upstream request of the same conflict is not possible.
 
 From the terminal, add `--upstream-change` or `--send-back` to `speccy waive`:
 
@@ -115,18 +119,20 @@ The profile's waiver policy decides who approves. `waivers.should` names the pol
 | `non_author` | One member who is not an author of the bundle. |
 | `n_approvals: N` | N different members who are not authors of the bundle. |
 | `maintainer` | A maintainer of the profile, or an admin. |
-| `forbidden` | Nobody. Speccy refuses the request, and you fix the doc. |
+| `forbidden` | Nobody. Speccy refuses **Ship it open** and **Not needed** for the check, and you fix the doc. |
 
 The built-in PRD and SDD profiles use `non_author` for a SHOULD and `maintainer` for a MUST. [Change a profile](/how-to/change-a-profile/#change-who-approves-a-waiver) shows how to change them.
 
-In local mode, you are the only person, and you have every role. You approve your own request in the same way.
+In local mode, you are the only person, and you have every role. **Ship it open** closes at once, so no request waits for you. This applies to verification waivers too.
+
+An acknowledgement needs no approval in either mode. **Another doc covers it**, **Out of scope** and **Mark it standalone** close the finding at once. An upstream request and a send-back still wait for approval under the waiver policy.
 
 ## Approve or reject a request
 
-An approver meets a request in four places:
+In hosted mode, an approver meets a request in four places:
 
 - The **Inbox** holds a **Waiver request** item, with the check and the reason. A click opens the bundle on the finding.
-- The next action in the control row reads "Decide the waiver of" and the check. For an acknowledgement it reads "Decide the acknowledgement of" and the trace ID, or "Decide the standalone acknowledgement".
+- The next action in the control row reads "Decide the waiver of" and the check.
 - The questions screen shows the request card at the top, under **Waiting for your decision**, with **Approve** and **Reject**.
 - The findings rail puts the finding with the request at the top, with the request card under it.
 
@@ -197,4 +203,4 @@ A section that changes between the request and the approval makes the approval f
 - [Waivers and the sidecar](/concepts/waivers-and-the-sidecar/): why a waiver lives beside the doc and not in it.
 - [Sidecar format](/reference/sidecar/): every key of the sidecar.
 - [Reply commands](/reference/reply-commands/): `/speccy waive` asks for a waiver in a pull request.
-- [Close a coverage gap](/how-to/close-a-coverage-gap/): the acknowledgement, which uses the same approval.
+- [Close a coverage gap](/how-to/close-a-coverage-gap/): the acknowledgement, which closes at once with no approval.

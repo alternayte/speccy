@@ -262,7 +262,7 @@ Mark a section that only large docs need in the template, not in the checks. Spe
 
 ## Change who approves a waiver
 
-`waivers` names the policy for a SHOULD and for a MUST. A check can carry its own `waiver`, which wins over the policy of its level.
+`waivers` names the policy for a SHOULD and for a MUST. A check can carry its own `waiver`, which wins over the policy of its level. The policy applies to **Ship it open** in hosted mode. In local mode, **Ship it open** closes at once. `forbidden` refuses **Ship it open** and **Not needed** in both modes.
 
 ```yaml profile
 key: sdd

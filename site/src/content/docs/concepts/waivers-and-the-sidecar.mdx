@@ -1,6 +1,6 @@
 ---
 title: Waivers and the sidecar
-description: What a waiver and an acknowledgement are, who approves them, where Speccy keeps them, and when a waiver ends.
+description: What a waiver and an acknowledgement are, who approves a waiver, where Speccy keeps them, and when a waiver ends.
 sidebar:
   order: 4
 ---
@@ -13,7 +13,7 @@ This page explains waivers and acknowledgements, where Speccy keeps them, and wh
 
 ## A waiver
 
-A waiver is an approved exception for one check in one section, with a reason. A valid waiver takes its finding out of the verdict, and the score counts the check as passed. The reason must have 20 characters or more, so an approver can judge it.
+A waiver is an approved exception for one check in one section, with a reason. In the app, the control for a waiver is **Ship it open**: the gap is real, and the doc ships with it. A valid waiver takes its finding out of the verdict, and the score counts the check as passed. The reason must have 20 characters or more, so an approver can judge it.
 
 A waiver covers a check, not a finding. A failed rubric check gives one finding for each shortfall, and one waiver covers every shortfall of that check in that section. A new finding of the same check in the same section falls under the same waiver.
 
@@ -25,11 +25,13 @@ What a waiver binds to depends on the check:
 - **A check of another stage that reads the whole doc**, such as `links.has-upstream`. The waiver binds to the whole doc body.
 - **`coherence.contradiction`.** The waiver binds to the section of the finding and to the one conflict that the finding names. The conflict is the linked doc, the quote in this doc, and the quote in the linked doc. A new conflict in the same section stays open, and it needs its own waiver. Speccy ignores case and extra spaces when it compares the quotes, so a small change in how the model quotes the text keeps the waiver. A conflict quoted in other words needs a new waiver. A later review keeps the quotes of a conflict that it finds again, so the waiver still matches. See [A conflict from run to run](#a-conflict-from-run-to-run).
 
+A waiver is not the answer for a finding that does not apply to this doc. Answer **Not needed** on the questions screen for that. **Not needed** takes a reason of at least 10 characters, and it closes at once with no approval.
+
 Three kinds of finding take no waiver. An INFO finding never changes the verdict, so it needs none. A coverage gap takes an answer instead: an acknowledgement, or a reference to the trace ID in the doc. A MUST rubric check that the reviewer gave no answer for takes another review: only an answer clears it.
 
 ## The waiver policy
 
-The profile says who may approve a waiver. `waivers.should` applies to a SHOULD finding, and `waivers.must` to a MUST finding. A check can set its own `waiver` policy, and that policy wins.
+In hosted mode, the profile says who may approve a waiver. `waivers.should` applies to a SHOULD finding, and `waivers.must` to a MUST finding. A check can set its own `waiver` policy, and that policy wins.
 
 | Policy | Who approves |
 |---|---|
@@ -37,11 +39,13 @@ The profile says who may approve a waiver. `waivers.should` applies to a SHOULD 
 | `non_author` | Any person who is not an author of the bundle. |
 | `n_approvals` | N different people who are not authors. The waiver holds after the last of them approves. |
 | `maintainer` | A maintainer of the profile, or an admin. |
-| `forbidden` | Nobody. Speccy refuses the request, and the doc needs a fix. |
+| `forbidden` | Nobody. Speccy refuses **Ship it open** and **Not needed** for the check, and the doc needs a fix. |
 
 The built-in profiles use `non_author` for SHOULD and `maintainer` for MUST.
 
-A person who can approve a waiver can also reject it. To reject it, the approver gives a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and at the top of the questions screen. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
+A person who can approve a waiver can also reject it. To reject it, the approver gives a decision reason of 20 characters or more, so the author knows what to change. The request waits in the inbox of each approver, and at the top of the questions screen, under **Waiting for your decision**.
+
+In local mode, you are the only person, and you are the approver. **Ship it open** closes at once, and Speccy writes the waiver to the sidecar. This applies to verification waivers too. [Ask for and approve a waiver](/how-to/ask-for-and-approve-a-waiver/) shows each step.
 
 A waiver that people approve again and again points at a limit that is wrong. Change the limit in the profile instead.
 
@@ -63,7 +67,7 @@ trace:
     acknowledged_by: nathan
 ```
 
-When an approver gives the final approval, Speccy writes the entry into the sidecar. The doc itself does not change. The [Sidecar format](/reference/sidecar/) lists each key.
+When an approver gives the final approval, Speccy writes the entry into the sidecar. An entry that needs no approval goes into the sidecar at once. The doc itself does not change. The [Sidecar format](/reference/sidecar/) lists each key.
 
 ### Why decisions live in the sidecar
 
@@ -111,7 +115,7 @@ A section can also change between the request and the approval. The approval the
 
 ## Acknowledgements
 
-An acknowledgement is an author statement that a link or a trace item is absent on purpose. It uses the waiver mechanism: a reason, the waiver policy, and a record in the sidecar. The sidecar has two kinds.
+An acknowledgement is an author statement that a link or a trace item is absent on purpose. It uses the waiver mechanism: a reason of at least 20 characters and a record in the sidecar. It is a statement of scope or fact, not an exception. So it needs no approval, in local mode and in hosted mode. It closes the finding at once. A profile policy `forbidden` for the check still refuses it. The sidecar has two kinds.
 
 **Standalone** says that the doc has no upstream doc. It meets the `links.has-upstream` check, and coverage, restatement and contradiction no longer apply to the doc.
 
@@ -121,11 +125,13 @@ standalone:
   acknowledged_by: nathan
 ```
 
-In the app, **Mark it standalone** on a `links.has-upstream` finding, or on its item on the questions screen, asks for a standalone acknowledgement. It takes a reason of at least 20 characters. The request waits for approval under the policy of `links.has-upstream` at the level of the finding, as a waiver does. The approval writes `standalone:` to the sidecar. A standalone acknowledgement also comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
+In the app, **Mark it standalone** on a `links.has-upstream` finding, or on its item on the questions screen, writes a standalone acknowledgement. It takes a reason of at least 20 characters. Speccy writes `standalone:` to the sidecar at once, and `links.has-upstream` passes. A standalone acknowledgement also comes from the reply command `/speccy ack <reason>` on a `links.has-upstream` finding, or from an edit of the sidecar.
 
-**Trace** answers a coverage gap for one upstream trace ID. Its status is `out_of_scope`, or `covered_by` with the `target` doc that covers the ID. It closes the `trace.coverage` gap, and the matrix shows the answer with its reason. In the app, a trace acknowledgement is a request that waits for approval under the policy of `trace.coverage`, as a waiver does.
+**Trace** answers a coverage gap for one upstream trace ID. Its status is `out_of_scope`, or `covered_by` with the `target` doc that covers the ID. It closes the `trace.coverage` gap, and the matrix shows the answer with its reason. In the app, **Another doc covers it** and **Out of scope** write the `trace:` entry at once.
 
-An acknowledgement is about the whole doc or an upstream ID, not a section of this doc. An edit of the doc does not end it. [Traceability](/concepts/traceability/) explains coverage and the matrix.
+An acknowledgement is about the whole doc or an upstream ID, not a section of this doc. An edit of the doc does not end it.
+
+Before this rule, an acknowledgement waited for approval as a waiver does. On upgrade, Speccy approves each acknowledgement request that still waits. The actor is "speccy", and the note is "approval no longer needed". Speccy writes the sidecar entry of each one, and the request leaves each inbox. [Traceability](/concepts/traceability/) explains coverage and the matrix.
 
 ## Upstream requests and send-backs
 
@@ -154,8 +160,8 @@ A team that wants the conflict to block until the linked doc changes sets `coher
 The author of the linked doc has three answers:
 
 - **Edit the linked doc.** When an edit of either doc removes a quote of the conflict, the conflict closes on both docs, and the upstream request ends.
-- **Ask for a waiver.** A waiver of the conflict on either doc says that the conflict is acceptable. It closes the conflict on both docs. A waiver asked on the linked doc goes into the sidecar of the downstream doc, as a waiver of `coherence.contradiction`.
-- **The downstream doc must change.** This answer is a send-back. It takes a reason and the same approval policy. The approval writes the send-back into the upstream request, in the sidecar of the downstream doc. The request ends, and the conflict blocks the downstream doc again. The finding there shows the reason of the send-back.
+- **Ship it open.** A waiver of the conflict on either doc says that the conflict is acceptable. It closes the conflict on both docs. A waiver asked on the linked doc goes into the sidecar of the downstream doc, as a waiver of `coherence.contradiction`.
+- **The downstream doc must change.** This answer is a send-back. It takes a reason and the same approval policy. An upstream request and a send-back wait for approval in both modes. The approval writes the send-back into the upstream request, in the sidecar of the downstream doc. The request ends, and the conflict blocks the downstream doc again. The finding there shows the reason of the send-back.
 
 After a send-back, the conflict takes no more answers of this kind. It needs an edit or a waiver.
 
@@ -171,7 +177,7 @@ The model often words the same conflict in other ways. After each new answer, a 
 
 A person who can edit the spec doc withdraws an acknowledgement. **Withdraw** sits on an acknowledged cell of the traceability matrix, and on the "Standalone (acknowledged)" badge of the Traceability page. A withdrawal takes effect at once, with no approval, because it only makes the verdict stricter.
 
-Speccy takes the entry out of the sidecar with the same write that an approval uses. For a doc in a GitHub source, the change is a draft until you publish it. The next lint counts the finding in the verdict again. The event log of the acknowledgement records who withdrew it, and the waiver list shows its status as withdrawn. To close the finding again, answer it again.
+Speccy takes the entry out of the sidecar with the same write that wrote it. For a doc in a GitHub source, the change is a draft until you publish it. The next lint counts the finding in the verdict again. The event log of the acknowledgement records who withdrew it, and the waiver list shows its status as withdrawn. To close the finding again, answer it again.
 
 ## Verification waivers stay out of the sidecar
 

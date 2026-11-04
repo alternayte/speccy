@@ -70,7 +70,13 @@ const minReason = 10;
 
 // Choice is the author's answer to one question.
 type Choice =
-  { kind: "option"; option: 1 | 2 } | { kind: "other"; text: string } | { kind: "not_needed"; reason: string };
+  | { kind: "option"; option: 1 | 2 }
+  | { kind: "other"; text: string }
+  | { kind: "not_needed"; reason: string }
+  | { kind: "ship"; reason: string };
+
+// minShipReason is the shortest reason for a waiver that the server takes (REQ-072).
+const minShipReason = 20;
 
 // Draft is where the patch of one answer stands. The patch starts when the author picks.
 type Draft = { answer: string; state: "writing" | "ready" | "failed"; error?: string };
@@ -191,6 +197,7 @@ export function QuestionsPage({ docId }: { docId: string }) {
     const c = choices[q.fork];
     if (!c) return false;
     if (c.kind === "not_needed") return c.reason.trim().length >= minReason;
+    if (c.kind === "ship") return c.reason.trim().length >= minShipReason;
     return answerOf(q, c) !== "";
   });
 
@@ -199,17 +206,26 @@ export function QuestionsPage({ docId }: { docId: string }) {
     setError(undefined);
     setBusy("Writing the answers into the doc");
     try {
+      // Not needed and Ship it open write no text: they go to the sidecar as decisions.
+      const decided = (q: Question) => {
+        const k = choices[q.fork]?.kind;
+        return k === "not_needed" || k === "ship";
+      };
       for (const q of answered) {
         const c = choices[q.fork];
-        if (c?.kind !== "not_needed" || !q.finding) continue;
+        if (!c || (c.kind !== "not_needed" && c.kind !== "ship") || !q.finding) continue;
         await requestWaiver({
           path: { docId },
-          body: { finding_id: q.finding.id, reason: c.reason.trim(), not_needed: true },
+          body: {
+            finding_id: q.finding.id,
+            reason: c.reason.trim(),
+            ...(c.kind === "not_needed" ? { not_needed: true } : {}),
+          },
           throwOnError: true,
         });
       }
       const answers = answered
-        .filter((q) => choices[q.fork]?.kind !== "not_needed" && q.finding)
+        .filter((q) => !decided(q) && q.finding)
         .map((q) => {
           const c = choices[q.fork]!;
           return { finding_id: q.finding!.id, answer: answerOf(q, c), option: c.kind === "option" ? c.option : 0 };
@@ -596,7 +612,7 @@ function FindingActions({
               </button>
             ) : (
               <button type="button" onClick={() => onAsk({ finding: f })} className="text-xs text-ink-2 hover:text-ink">
-                Ask for a waiver
+                Ship it open
               </button>
             )}
             {f.check_slug === contradictionSlug && !f.upstream_change ? (
@@ -842,6 +858,34 @@ function QuestionCard({
                 />
               ) : (
                 <span className="block text-xs text-ink-3">Say why. It needs no approval.</span>
+              )}
+            </span>
+          </label>
+          <label
+            className={clsx(
+              "flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm",
+              choice?.kind === "ship" ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong",
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              className="mt-1"
+              checked={choice?.kind === "ship"}
+              onChange={() => onChoose({ kind: "ship", reason: choice?.kind === "ship" ? choice.reason : "" }, false)}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="text-ink">Ship it open</span>
+              {choice?.kind === "ship" ? (
+                <Input
+                  value={choice.reason}
+                  autoFocus
+                  placeholder="Why the doc can ship with this gap. At least 20 characters."
+                  className="mt-1.5"
+                  onChange={(e) => onChoose({ kind: "ship", reason: e.target.value }, false)}
+                />
+              ) : (
+                <span className="block text-xs text-ink-3">The gap is real and stays open. It is a waiver.</span>
               )}
             </span>
           </label>
