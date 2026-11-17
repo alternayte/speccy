@@ -50,6 +50,9 @@ type API struct {
 	Local bool
 	// Now is the clock, for tests.
 	Now func() time.Time
+	// WorkItem resolves a work item reference to its doc, its trace IDs and its bundle/item name,
+	// for a run scoped to one work item (#158).
+	WorkItem func(ctx context.Context, ref string) (docID uuid.UUID, traceIDs []string, name string, err error)
 }
 
 func (a *API) now() time.Time {

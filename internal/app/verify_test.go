@@ -320,7 +320,7 @@ func TestVerifyScopedRuns(t *testing.T) {
 			if n := blockingThreads(t, env); n != 0 {
 				t.Errorf("blocking threads = %d; REQ-002 is missing but outside the scope", n)
 			}
-			due, err := env.app.API.VerifyAPI.Due(context.Background(), env.b.ID)
+			due, err := env.app.API.Due(context.Background(), env.b.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -335,7 +335,7 @@ func TestVerifyScopedRuns(t *testing.T) {
 			if n := blockingThreads(t, env); n != 1 {
 				t.Errorf("blocking threads = %d, want 1 for REQ-002", n)
 			}
-			if due, _ := env.app.API.VerifyAPI.Due(context.Background(), env.b.ID); due {
+			if due, _ := env.app.API.Due(context.Background(), env.b.ID); due {
 				t.Error("two scoped runs cover both trace IDs, so no verification is due")
 			}
 

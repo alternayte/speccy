@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -26,6 +27,22 @@ func (a *API) RunVerification(ctx context.Context, req api.RunVerificationReques
 		in.HandoffID = b.HandoffId
 		if b.TraceIds != nil {
 			in.TraceIDs = *b.TraceIds
+		}
+		if b.WorkItem != nil && strings.TrimSpace(*b.WorkItem) != "" {
+			if len(in.TraceIDs) > 0 {
+				return nil, kernel.Invalid("scope_twice", "Name trace_ids or work_item, not both.")
+			}
+			if a.WorkItem == nil {
+				return nil, kernel.Invalid("no_work_items", "This server resolves no work items.")
+			}
+			doc, ids, name, err := a.WorkItem(ctx, *b.WorkItem)
+			if err != nil {
+				return nil, err
+			}
+			if doc != req.DocId {
+				return nil, kernel.Invalid("other_doc", "The work item %s belongs to another doc.", name)
+			}
+			in.TraceIDs, in.WorkItem = ids, name
 		}
 		if b.Claims != nil {
 			for _, c := range *b.Claims {

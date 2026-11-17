@@ -13,6 +13,7 @@ import (
 	"github.com/alternayte/speccy/internal/es"
 	"github.com/alternayte/speccy/internal/features/admin"
 	"github.com/alternayte/speccy/internal/features/approval"
+	"github.com/alternayte/speccy/internal/features/breakdown"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
 	"github.com/alternayte/speccy/internal/features/handoff"
@@ -186,6 +187,10 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		}
 	}
 	go reviews.Work(ctx)
+	breakdownAPI := &breakdown.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway, Reviews: reviews,
+		Questions: reviewAPI, People: people, Connection: adminAPI.ConnectionFor, Hosts: adminAPI.ConnectionHosts,
+		GitHub: reviews.GitHub}
+	verifyAPI.WorkItem = breakdownAPI.TraceIDs
 	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
 		Waiting:   waiverAPI.Waiting,
 		Questions: questionsAPI.List,
@@ -230,6 +235,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			HandoffAPI:   handoffAPI,
 			VerifyAPI:    verifyAPI,
 			PrReviewAPI:  prs,
+			BreakdownAPI: breakdownAPI,
 		},
 	}, nil
 }

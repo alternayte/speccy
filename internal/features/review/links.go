@@ -25,6 +25,7 @@ const (
 	originFrontmatter = "frontmatter"
 	originRule        = "rule"
 	originAdopted     = "adopted"
+	originBreakdown   = "breakdown"
 )
 
 // adoptedLink is a link a person confirmed in Speccy for a doc in a repo source. target is the
@@ -32,6 +33,9 @@ const (
 type adoptedLink struct {
 	kind   string
 	target string
+	// issue is true for a tracker issue a breakdown push created. It is an external target, and
+	// the doc's own links of its kind do not replace it.
+	issue bool
 }
 
 // link is one link of a bundle's version (REQ-050, REQ-132). target is nil for an external
@@ -71,17 +75,28 @@ type bundleRef struct {
 
 // adopted returns the adopted links of b's main doc, when b belongs to a GitHub source.
 func (s *Service) adopted(ctx context.Context, b pgdb.SpecDoc, place docPlace) ([]adoptedLink, error) {
+	// Each issue a breakdown push created is an external link of the doc, so coherence.external
+	// reads it and flags an issue that someone edits to contradict the doc (#157).
+	issues, err := s.DB.Queries().ListBreakdownIssuesOfSpecDoc(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	var out []adoptedLink
+	for _, is := range issues {
+		if is.IssueUrl != "" {
+			out = append(out, adoptedLink{kind: "references", target: is.IssueUrl, issue: true})
+		}
+	}
 	// A bundle that is not in a GitHub source, or whose ref does not parse, has no source id.
 	var r bundleRef
 	_ = json.Unmarshal(b.SourceRef, &r)
 	if r.Source == uuid.Nil {
-		return nil, nil
+		return out, nil
 	}
 	rows, err := s.DB.Queries().ListAdoptedLinks(ctx, r.Source)
 	if err != nil {
 		return nil, err
 	}
-	var out []adoptedLink
 	for _, row := range rows {
 		if row.Path == mainDocPath(b, place) {
 			out = append(out, adoptedLink{kind: row.Kind, target: row.Target})
@@ -335,6 +350,14 @@ func resolveLinksIn(all []pgdb.SpecDoc, place docPlace, b pgdb.SpecDoc, main []b
 	var src bundleRef
 	_ = json.Unmarshal(b.SourceRef, &src)
 	for _, a := range adopted {
+		if a.issue {
+			l := link{kind: a.kind, targetKind: "external", ref: a.target, origin: originBreakdown}
+			if t, err := source.ParseExternalTarget(a.target, patterns); err == nil {
+				l.external = &t
+				add(l)
+			}
+			continue
+		}
 		if named[a.kind] {
 			continue // the repo names its own link of this kind, so it replaces the adopted one
 		}

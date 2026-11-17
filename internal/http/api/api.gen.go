@@ -101,6 +101,24 @@ func (e AskResultStatus) Valid() bool {
 	}
 }
 
+// Defines values for AssigneeKind.
+const (
+	AssigneeKindAgent  AssigneeKind = "agent"
+	AssigneeKindPerson AssigneeKind = "person"
+)
+
+// Valid indicates whether the value is a known member of the AssigneeKind enum.
+func (e AssigneeKind) Valid() bool {
+	switch e {
+	case AssigneeKindAgent:
+		return true
+	case AssigneeKindPerson:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackendInputPromptVia.
 const (
 	BackendInputPromptViaFile  BackendInputPromptVia = "file"
@@ -140,6 +158,129 @@ func (e BackendKind) Valid() bool {
 	case Openai:
 		return true
 	case Openrouter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BreakdownCoverAnswer.
+const (
+	BreakdownCoverAnswerCoveredElsewhere BreakdownCoverAnswer = "covered_elsewhere"
+	BreakdownCoverAnswerNoBuild          BreakdownCoverAnswer = "no_build"
+	BreakdownCoverAnswerOutOfScope       BreakdownCoverAnswer = "out_of_scope"
+)
+
+// Valid indicates whether the value is a known member of the BreakdownCoverAnswer enum.
+func (e BreakdownCoverAnswer) Valid() bool {
+	switch e {
+	case BreakdownCoverAnswerCoveredElsewhere:
+		return true
+	case BreakdownCoverAnswerNoBuild:
+		return true
+	case BreakdownCoverAnswerOutOfScope:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BreakdownFindingLevel.
+const (
+	BreakdownFindingLevelINFO   BreakdownFindingLevel = "INFO"
+	BreakdownFindingLevelMUST   BreakdownFindingLevel = "MUST"
+	BreakdownFindingLevelSHOULD BreakdownFindingLevel = "SHOULD"
+)
+
+// Valid indicates whether the value is a known member of the BreakdownFindingLevel enum.
+func (e BreakdownFindingLevel) Valid() bool {
+	switch e {
+	case BreakdownFindingLevelINFO:
+		return true
+	case BreakdownFindingLevelMUST:
+		return true
+	case BreakdownFindingLevelSHOULD:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BreakdownOpAnswer.
+const (
+	BreakdownOpAnswerCoveredElsewhere BreakdownOpAnswer = "covered_elsewhere"
+	BreakdownOpAnswerNoBuild          BreakdownOpAnswer = "no_build"
+	BreakdownOpAnswerOutOfScope       BreakdownOpAnswer = "out_of_scope"
+)
+
+// Valid indicates whether the value is a known member of the BreakdownOpAnswer enum.
+func (e BreakdownOpAnswer) Valid() bool {
+	switch e {
+	case BreakdownOpAnswerCoveredElsewhere:
+		return true
+	case BreakdownOpAnswerNoBuild:
+		return true
+	case BreakdownOpAnswerOutOfScope:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BreakdownOpOp.
+const (
+	AddEpic         BreakdownOpOp = "add_epic"
+	Cover           BreakdownOpOp = "cover"
+	Merge           BreakdownOpOp = "merge"
+	MoveItem        BreakdownOpOp = "move_item"
+	MoveTrace       BreakdownOpOp = "move_trace"
+	RemoveItem      BreakdownOpOp = "remove_item"
+	RenameEpic      BreakdownOpOp = "rename_epic"
+	Reorder         BreakdownOpOp = "reorder"
+	SetAssignee     BreakdownOpOp = "set_assignee"
+	SetDependencies BreakdownOpOp = "set_dependencies"
+	SetEpicDefault  BreakdownOpOp = "set_epic_default"
+	SetNote         BreakdownOpOp = "set_note"
+	SetRepos        BreakdownOpOp = "set_repos"
+	SetTitle        BreakdownOpOp = "set_title"
+	Split           BreakdownOpOp = "split"
+	Uncover         BreakdownOpOp = "uncover"
+)
+
+// Valid indicates whether the value is a known member of the BreakdownOpOp enum.
+func (e BreakdownOpOp) Valid() bool {
+	switch e {
+	case AddEpic:
+		return true
+	case Cover:
+		return true
+	case Merge:
+		return true
+	case MoveItem:
+		return true
+	case MoveTrace:
+		return true
+	case RemoveItem:
+		return true
+	case RenameEpic:
+		return true
+	case Reorder:
+		return true
+	case SetAssignee:
+		return true
+	case SetDependencies:
+		return true
+	case SetEpicDefault:
+		return true
+	case SetNote:
+		return true
+	case SetRepos:
+		return true
+	case SetTitle:
+		return true
+	case Split:
+		return true
+	case Uncover:
 		return true
 	default:
 		return false
@@ -253,19 +394,22 @@ func (e BundleLinkKind) Valid() bool {
 
 // Defines values for BundleLinkOrigin.
 const (
-	Adopted     BundleLinkOrigin = "adopted"
-	Frontmatter BundleLinkOrigin = "frontmatter"
-	Rule        BundleLinkOrigin = "rule"
+	BundleLinkOriginAdopted     BundleLinkOrigin = "adopted"
+	BundleLinkOriginBreakdown   BundleLinkOrigin = "breakdown"
+	BundleLinkOriginFrontmatter BundleLinkOrigin = "frontmatter"
+	BundleLinkOriginRule        BundleLinkOrigin = "rule"
 )
 
 // Valid indicates whether the value is a known member of the BundleLinkOrigin enum.
 func (e BundleLinkOrigin) Valid() bool {
 	switch e {
-	case Adopted:
+	case BundleLinkOriginAdopted:
 		return true
-	case Frontmatter:
+	case BundleLinkOriginBreakdown:
 		return true
-	case Rule:
+	case BundleLinkOriginFrontmatter:
+		return true
+	case BundleLinkOriginRule:
 		return true
 	default:
 		return false
@@ -485,6 +629,24 @@ func (e ContentReviewRequestStages) Valid() bool {
 	case ContentReviewRequestStagesGrounding:
 		return true
 	case ContentReviewRequestStagesRubric:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreatedIssueKind.
+const (
+	Epic CreatedIssueKind = "epic"
+	Item CreatedIssueKind = "item"
+)
+
+// Valid indicates whether the value is a known member of the CreatedIssueKind enum.
+func (e CreatedIssueKind) Valid() bool {
+	switch e {
+	case Epic:
+		return true
+	case Item:
 		return true
 	default:
 		return false
@@ -1082,6 +1244,48 @@ func (e PrSettingsLevels) Valid() bool {
 	}
 }
 
+// Defines values for PushBreakdownRequestTracker.
+const (
+	PushBreakdownRequestTrackerGithub PushBreakdownRequestTracker = "github"
+	PushBreakdownRequestTrackerJira   PushBreakdownRequestTracker = "jira"
+	PushBreakdownRequestTrackerLinear PushBreakdownRequestTracker = "linear"
+)
+
+// Valid indicates whether the value is a known member of the PushBreakdownRequestTracker enum.
+func (e PushBreakdownRequestTracker) Valid() bool {
+	switch e {
+	case PushBreakdownRequestTrackerGithub:
+		return true
+	case PushBreakdownRequestTrackerJira:
+		return true
+	case PushBreakdownRequestTrackerLinear:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PushedIssueTracker.
+const (
+	PushedIssueTrackerGithub PushedIssueTracker = "github"
+	PushedIssueTrackerJira   PushedIssueTracker = "jira"
+	PushedIssueTrackerLinear PushedIssueTracker = "linear"
+)
+
+// Valid indicates whether the value is a known member of the PushedIssueTracker enum.
+func (e PushedIssueTracker) Valid() bool {
+	switch e {
+	case PushedIssueTrackerGithub:
+		return true
+	case PushedIssueTrackerJira:
+		return true
+	case PushedIssueTrackerLinear:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for QuestionItemKind.
 const (
 	QuestionItemKindBlockingThread QuestionItemKind = "blocking_thread"
@@ -1463,6 +1667,27 @@ func (e TraceCellState) Valid() bool {
 	case TraceCellStateOutOfScope:
 		return true
 	case TraceCellStateReferenced:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TrackerKind.
+const (
+	TrackerKindGithub TrackerKind = "github"
+	TrackerKindJira   TrackerKind = "jira"
+	TrackerKindLinear TrackerKind = "linear"
+)
+
+// Valid indicates whether the value is a known member of the TrackerKind enum.
+func (e TrackerKind) Valid() bool {
+	switch e {
+	case TrackerKindGithub:
+		return true
+	case TrackerKindJira:
+		return true
+	case TrackerKindLinear:
 		return true
 	default:
 		return false
@@ -2022,6 +2247,22 @@ type AskSection struct {
 	HeadingPath []string `json:"heading_path"`
 }
 
+// Assignee defines model for Assignee.
+type Assignee struct {
+	// Id The tracker's ID for the person or the agent.
+	Id   string       `json:"id"`
+	Kind AssigneeKind `json:"kind"`
+	Name string       `json:"name"`
+}
+
+// AssigneeKind defines model for Assignee.Kind.
+type AssigneeKind string
+
+// AssigneeList defines model for AssigneeList.
+type AssigneeList struct {
+	Items []Assignee `json:"items"`
+}
+
 // Backend defines model for Backend.
 type Backend struct {
 	BaseUrl   *string            `json:"base_url,omitempty"`
@@ -2096,12 +2337,134 @@ type BackendTest struct {
 	TokensOut  *int64  `json:"tokens_out,omitempty"`
 }
 
+// Breakdown The epics and work items Speccy proposed from one Build Ready doc. One per doc. It moves forward with the doc's versions.
+type Breakdown struct {
+	// Acknowledged The breakdown was taken from a doc that was not Build Ready.
+	Acknowledged bool   `json:"acknowledged"`
+	Bundle       string `json:"bundle"`
+
+	// CoverAnswers The answers that close a coverage finding.
+	CoverAnswers []string `json:"cover_answers"`
+
+	// Coverage Each trace ID of the doc, with the items that hold it.
+	Coverage []BreakdownCoverage `json:"coverage"`
+
+	// Covered The trace IDs a person said need no work item.
+	Covered              []BreakdownCover   `json:"covered"`
+	CreatedAt            time.Time          `json:"created_at"`
+	CurrentVersionNumber int64              `json:"current_version_number"`
+	DocId                openapi_types.UUID `json:"doc_id"`
+	Epics                []BreakdownEpic    `json:"epics"`
+	Findings             []BreakdownFinding `json:"findings"`
+	Id                   openapi_types.UUID `json:"id"`
+	Items                []WorkItem         `json:"items"`
+
+	// Must The MUST findings. A push is refused while it is above 0.
+	Must int `json:"must"`
+
+	// NewTraceIds The trace IDs a newer doc version added. Empty when the breakdown is not stale.
+	NewTraceIds []string `json:"new_trace_ids"`
+
+	// Revision Pass it as based_on with an edit.
+	Revision int64 `json:"revision"`
+
+	// Stale The doc has a newer version than the one the breakdown quotes.
+	Stale     bool      `json:"stale"`
+	Title     string    `json:"title"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// Verdict The verdict the breakdown was taken at.
+	Verdict string `json:"verdict"`
+
+	// VersionNumber The doc version the breakdown quotes.
+	VersionNumber int64 `json:"version_number"`
+}
+
+// BreakdownCover defines model for BreakdownCover.
+type BreakdownCover struct {
+	Answer  BreakdownCoverAnswer `json:"answer"`
+	By      string               `json:"by"`
+	Reason  string               `json:"reason"`
+	TraceId string               `json:"trace_id"`
+}
+
+// BreakdownCoverAnswer defines model for BreakdownCover.Answer.
+type BreakdownCoverAnswer string
+
+// BreakdownCoverage defines model for BreakdownCoverage.
+type BreakdownCoverage struct {
+	// Cover The answer that says the trace ID needs no item.
+	Cover   *string  `json:"cover,omitempty"`
+	Items   []string `json:"items"`
+	Text    string   `json:"text"`
+	TraceId string   `json:"trace_id"`
+}
+
+// BreakdownEdit defines model for BreakdownEdit.
+type BreakdownEdit struct {
+	// BasedOn The revision the caller read. An edit on an older revision is refused.
+	BasedOn int64         `json:"based_on"`
+	Ops     []BreakdownOp `json:"ops"`
+}
+
+// BreakdownEpic defines model for BreakdownEpic.
+type BreakdownEpic struct {
+	DefaultAssignee *Assignee    `json:"default_assignee,omitempty"`
+	Id              string       `json:"id"`
+	Issue           *PushedIssue `json:"issue,omitempty"`
+	Title           string       `json:"title"`
+}
+
+// BreakdownFinding defines model for BreakdownFinding.
+type BreakdownFinding struct {
+	Items   []string              `json:"items"`
+	Level   BreakdownFindingLevel `json:"level"`
+	Message string                `json:"message"`
+	Slug    string                `json:"slug"`
+	TraceId *string               `json:"trace_id,omitempty"`
+}
+
+// BreakdownFindingLevel defines model for BreakdownFinding.Level.
+type BreakdownFindingLevel string
+
+// BreakdownOp One edit. split moves trace_ids of item to a new item. merge moves item into into. move_trace moves trace_id from one item to another ("" is no item). reorder puts item before before ("" is the end). set_dependencies, set_assignee, set_epic_default, set_note, set_title (of item, or of epic), set_repos and move_item (to epic) set one field. add_epic adds an epic with title. remove_item removes an item with no trace ID. cover says trace_id needs no item, with answer and reason; uncover takes that back.
+type BreakdownOp struct {
+	Answer    *BreakdownOpAnswer `json:"answer,omitempty"`
+	Assignee  *Assignee          `json:"assignee,omitempty"`
+	Before    *string            `json:"before,omitempty"`
+	DependsOn *[]string          `json:"depends_on,omitempty"`
+	Epic      *string            `json:"epic,omitempty"`
+	From      *string            `json:"from,omitempty"`
+	Into      *string            `json:"into,omitempty"`
+	Item      *string            `json:"item,omitempty"`
+	Note      *string            `json:"note,omitempty"`
+	Op        BreakdownOpOp      `json:"op"`
+	Reason    *string            `json:"reason,omitempty"`
+	Repos     *[]string          `json:"repos,omitempty"`
+	Title     *string            `json:"title,omitempty"`
+	To        *string            `json:"to,omitempty"`
+	TraceId   *string            `json:"trace_id,omitempty"`
+	TraceIds  *[]string          `json:"trace_ids,omitempty"`
+}
+
+// BreakdownOpAnswer defines model for BreakdownOp.Answer.
+type BreakdownOpAnswer string
+
+// BreakdownOpOp defines model for BreakdownOp.Op.
+type BreakdownOpOp string
+
 // Budget defines model for Budget.
 type Budget struct {
 	// Month YYYY-MM, in UTC.
 	Month      string `json:"month"`
 	TokenLimit *int64 `json:"token_limit,omitempty"`
 	TokensUsed int64  `json:"tokens_used"`
+}
+
+// BuildAnswer defines model for BuildAnswer.
+type BuildAnswer struct {
+	Answer   string `json:"answer"`
+	Question string `json:"question"`
 }
 
 // BuildPacket What a coding agent needs to build one bundle (REQ-136).
@@ -2548,6 +2911,18 @@ type CreateBundleRequest struct {
 	Profile string  `json:"profile"`
 	Title   *string `json:"title,omitempty"`
 }
+
+// CreatedIssue defines model for CreatedIssue.
+type CreatedIssue struct {
+	Id    string           `json:"id"`
+	Key   string           `json:"key"`
+	Kind  CreatedIssueKind `json:"kind"`
+	Title string           `json:"title"`
+	Url   string           `json:"url"`
+}
+
+// CreatedIssueKind defines model for CreatedIssue.Kind.
+type CreatedIssueKind string
 
 // DeletePlan defines model for DeletePlan.
 type DeletePlan struct {
@@ -3494,6 +3869,53 @@ type ProfileList struct {
 	Problems []string `json:"problems"`
 }
 
+// ProposeBreakdownRequest defines model for ProposeBreakdownRequest.
+type ProposeBreakdownRequest struct {
+	// Acknowledged Propose it from a doc that is not Build Ready. The breakdown stores the verdict.
+	Acknowledged *bool `json:"acknowledged,omitempty"`
+}
+
+// PushBreakdownRequest defines model for PushBreakdownRequest.
+type PushBreakdownRequest struct {
+	// Acknowledged Push from a doc that is not Build Ready. The handoff stores the verdict.
+	Acknowledged *bool `json:"acknowledged,omitempty"`
+	BasedOn      int64 `json:"based_on"`
+
+	// Target The Linear team, the Jira project URL, or the GitHub repo as owner/name.
+	Target  string                      `json:"target"`
+	Tracker PushBreakdownRequestTracker `json:"tracker"`
+}
+
+// PushBreakdownRequestTracker defines model for PushBreakdownRequest.Tracker.
+type PushBreakdownRequestTracker string
+
+// PushResult defines model for PushResult.
+type PushResult struct {
+	// Breakdown The epics and work items Speccy proposed from one Build Ready doc. One per doc. It moves forward with the doc's versions.
+	Breakdown Breakdown `json:"breakdown"`
+
+	// Created The issues this push created. Empty when every item was already pushed.
+	Created []CreatedIssue `json:"created"`
+
+	// HandoffId The handoff the push recorded, with the label breakdown. Empty when nothing was new.
+	HandoffId openapi_types.UUID `json:"handoff_id"`
+}
+
+// PushedIssue defines model for PushedIssue.
+type PushedIssue struct {
+	CreatedAt time.Time          `json:"created_at"`
+	HandoffId openapi_types.UUID `json:"handoff_id"`
+	Key       string             `json:"key"`
+	Tracker   PushedIssueTracker `json:"tracker"`
+	Url       string             `json:"url"`
+
+	// VersionNumber The doc version the issue was pushed from.
+	VersionNumber int64 `json:"version_number"`
+}
+
+// PushedIssueTracker defines model for PushedIssue.Tracker.
+type PushedIssueTracker string
+
 // QuestionAnswer defines model for QuestionAnswer.
 type QuestionAnswer struct {
 	Answer    string             `json:"answer"`
@@ -3553,6 +3975,20 @@ type ReaderAnswer struct {
 	Answered bool         `json:"answered"`
 	Quotes   []QuoteCheck `json:"quotes"`
 	Reader   int          `json:"reader"`
+}
+
+// ReaderCheck defines model for ReaderCheck.
+type ReaderCheck struct {
+	// Current False when the item changed after the readers read it.
+	Current  bool     `json:"current"`
+	Diverge  bool     `json:"diverge"`
+	Readings []string `json:"readings"`
+	Reason   string   `json:"reason"`
+}
+
+// ReaderCheckRequest defines model for ReaderCheckRequest.
+type ReaderCheckRequest struct {
+	Item string `json:"item"`
 }
 
 // ReaderDiversity How many readers answered, and how many distinct models served them (REQ-046). Models are not named (DEC-013).
@@ -4031,6 +4467,28 @@ type TraceView struct {
 	Suggestions []IdSuggestion `json:"suggestions"`
 }
 
+// Tracker defines model for Tracker.
+type Tracker struct {
+	// Host The host of a Jira site.
+	Host *string     `json:"host,omitempty"`
+	Kind TrackerKind `json:"kind"`
+	Name string      `json:"name"`
+
+	// Ready Speccy holds a connection or a credential for this tracker.
+	Ready bool `json:"ready"`
+
+	// Reason What is missing when it is not ready.
+	Reason *string `json:"reason,omitempty"`
+}
+
+// TrackerKind defines model for Tracker.Kind.
+type TrackerKind string
+
+// TrackerList defines model for TrackerList.
+type TrackerList struct {
+	Items []Tracker `json:"items"`
+}
+
 // Trend What the last full review fixed, left open and found new, against the full review before it. The unit is a check in a section, or a build question; only open MUST and SHOULD findings count. Absent when the doc has one full review or none.
 type Trend struct {
 	Fixed int `json:"fixed"`
@@ -4039,6 +4497,12 @@ type Trend struct {
 
 	// SinceVersion The version that the earlier full review read.
 	SinceVersion int64 `json:"since_version"`
+}
+
+// UpdateBreakdownRequest defines model for UpdateBreakdownRequest.
+type UpdateBreakdownRequest struct {
+	Acknowledged *bool `json:"acknowledged,omitempty"`
+	BasedOn      int64 `json:"based_on"`
 }
 
 // UpstreamChange The upstream request of a coherence.contradiction finding: the answer "The linked doc must change". While it waits, the finding reads "Waiting on" the linked doc. A send-back ends it.
@@ -4396,6 +4860,67 @@ type Withdrawal struct {
 	Version *Version `json:"version,omitempty"`
 }
 
+// WorkItem defines model for WorkItem.
+type WorkItem struct {
+	// Answers The agreed build answers for the item's trace IDs and sections.
+	Answers  []BuildAnswer `json:"answers"`
+	Assignee *Assignee     `json:"assignee,omitempty"`
+
+	// Changed What a newer doc version changed in this item.
+	Changed           []string            `json:"changed"`
+	Criteria          []WorkItemCriterion `json:"criteria"`
+	DependsOn         []string            `json:"depends_on"`
+	EffectiveAssignee *Assignee           `json:"effective_assignee,omitempty"`
+	Epic              string              `json:"epic"`
+
+	// HeadingPath The section the item is anchored on, when the doc has no trace IDs.
+	HeadingPath []string     `json:"heading_path"`
+	Id          string       `json:"id"`
+	Issue       *PushedIssue `json:"issue,omitempty"`
+	Note        *string      `json:"note,omitempty"`
+	Questions   []string     `json:"questions"`
+	Readers     *ReaderCheck `json:"readers,omitempty"`
+
+	// Ref bundle/item, which get_work_item takes.
+	Ref      string   `json:"ref"`
+	Repos    []string `json:"repos"`
+	Title    string   `json:"title"`
+	TraceIds []string `json:"trace_ids"`
+}
+
+// WorkItemCriterion defines model for WorkItemCriterion.
+type WorkItemCriterion struct {
+	// Doc The slug of the linked spec doc the quote comes from. Absent for this doc.
+	Doc         *string  `json:"doc,omitempty"`
+	HeadingPath []string `json:"heading_path"`
+	Quote       string   `json:"quote"`
+	TraceId     *string  `json:"trace_id,omitempty"`
+}
+
+// WorkItemPacket The slice of the spec one work item builds. A builder reads it.
+type WorkItemPacket struct {
+	Bundle               string `json:"bundle"`
+	CurrentVersionNumber int64  `json:"current_version_number"`
+
+	// Doc The doc text at the pinned version.
+	Doc           string               `json:"doc"`
+	DocId         openapi_types.UUID   `json:"doc_id"`
+	ExternalLinks []PacketExternalLink `json:"external_links"`
+	HandoffId     *openapi_types.UUID  `json:"handoff_id,omitempty"`
+	Item          WorkItem             `json:"item"`
+	Links         []PacketLink         `json:"links"`
+	MainDoc       string               `json:"main_doc"`
+
+	// NewerVersion The doc has a newer version than the pinned one. Ask the author before building from it.
+	NewerVersion bool `json:"newer_version"`
+
+	// Verdict The verdict at the handoff.
+	Verdict *string `json:"verdict,omitempty"`
+
+	// VersionNumber The doc version the item was pushed from, or the breakdown's version for an unpushed item.
+	VersionNumber int64 `json:"version_number"`
+}
+
 // WriteResult defines model for WriteResult.
 type WriteResult struct {
 	// Changed False when the write left the bundle unchanged, so no version was created.
@@ -4523,6 +5048,20 @@ type WithdrawAcknowledgementJSONBody struct {
 
 // WithdrawAcknowledgementJSONBodyKind defines parameters for WithdrawAcknowledgement.
 type WithdrawAcknowledgementJSONBodyKind string
+
+// ListBreakdownAssigneesParams defines parameters for ListBreakdownAssignees.
+type ListBreakdownAssigneesParams struct {
+	Tracker string `form:"tracker" json:"tracker"`
+
+	// Target The Linear team, the Jira project URL, or the GitHub repo.
+	Target string  `form:"target" json:"target"`
+	Query  *string `form:"query,omitempty" json:"query,omitempty"`
+}
+
+// ExportBreakdownParams defines parameters for ExportBreakdown.
+type ExportBreakdownParams struct {
+	Format string `form:"format" json:"format"`
+}
 
 // DiffVersionsParams defines parameters for DiffVersions.
 type DiffVersionsParams struct {
@@ -4799,6 +5338,12 @@ type RejectWaiverJSONBody struct {
 	Reason string `json:"reason"`
 }
 
+// GetWorkItemParams defines parameters for GetWorkItem.
+type GetWorkItemParams struct {
+	// Ref The work item's Speccy URL, its tracker issue URL or key, or bundle/item.
+	Ref string `form:"ref" json:"ref"`
+}
+
 // CreateBackendJSONRequestBody defines body for CreateBackend for application/json ContentType.
 type CreateBackendJSONRequestBody = BackendInput
 
@@ -4852,6 +5397,21 @@ type DismissDocJSONRequestBody = DismissedDoc
 
 // WithdrawAcknowledgementJSONRequestBody defines body for WithdrawAcknowledgement for application/json ContentType.
 type WithdrawAcknowledgementJSONRequestBody WithdrawAcknowledgementJSONBody
+
+// EditBreakdownJSONRequestBody defines body for EditBreakdown for application/json ContentType.
+type EditBreakdownJSONRequestBody = BreakdownEdit
+
+// ProposeBreakdownJSONRequestBody defines body for ProposeBreakdown for application/json ContentType.
+type ProposeBreakdownJSONRequestBody = ProposeBreakdownRequest
+
+// PushBreakdownJSONRequestBody defines body for PushBreakdown for application/json ContentType.
+type PushBreakdownJSONRequestBody = PushBreakdownRequest
+
+// CheckBreakdownReadersJSONRequestBody defines body for CheckBreakdownReaders for application/json ContentType.
+type CheckBreakdownReadersJSONRequestBody = ReaderCheckRequest
+
+// UpdateBreakdownJSONRequestBody defines body for UpdateBreakdown for application/json ContentType.
+type UpdateBreakdownJSONRequestBody = UpdateBreakdownRequest
 
 // RenameFileJSONRequestBody defines body for RenameFile for application/json ContentType.
 type RenameFileJSONRequestBody = RenameRequest
@@ -5131,6 +5691,33 @@ type ServerInterface interface {
 	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
 	// (GET /docs/{docId}/assumptions)
 	ListAssumptions(w http.ResponseWriter, r *http.Request, docId DocId)
+	// GetBreakdown The breakdown of this doc into epics and work items, with its findings and its coverage.
+	// (GET /docs/{docId}/breakdown)
+	GetBreakdown(w http.ResponseWriter, r *http.Request, docId DocId)
+	// EditBreakdown Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+	// (PATCH /docs/{docId}/breakdown)
+	EditBreakdown(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ProposeBreakdown Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	// (POST /docs/{docId}/breakdown)
+	ProposeBreakdown(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListBreakdownAssignees The people and the agents an item can be assigned to, read from the tracker.
+	// (GET /docs/{docId}/breakdown/assignees)
+	ListBreakdownAssignees(w http.ResponseWriter, r *http.Request, docId DocId, params ListBreakdownAssigneesParams)
+	// ExportBreakdown The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+	// (GET /docs/{docId}/breakdown/export)
+	ExportBreakdown(w http.ResponseWriter, r *http.Request, docId DocId, params ExportBreakdownParams)
+	// PushBreakdown Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+	// (POST /docs/{docId}/breakdown/push)
+	PushBreakdown(w http.ResponseWriter, r *http.Request, docId DocId)
+	// CheckBreakdownReaders Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+	// (POST /docs/{docId}/breakdown/readers)
+	CheckBreakdownReaders(w http.ResponseWriter, r *http.Request, docId DocId)
+	// ListBreakdownTrackers The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+	// (GET /docs/{docId}/breakdown/trackers)
+	ListBreakdownTrackers(w http.ResponseWriter, r *http.Request, docId DocId)
+	// UpdateBreakdown Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+	// (POST /docs/{docId}/breakdown/update)
+	UpdateBreakdown(w http.ResponseWriter, r *http.Request, docId DocId)
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /docs/{docId}/diff)
 	DiffVersions(w http.ResponseWriter, r *http.Request, docId DocId, params DiffVersionsParams)
@@ -5437,6 +6024,9 @@ type ServerInterface interface {
 	// RejectWaiver Reject a waiver, with a decision reason the requester reads.
 	// (POST /waivers/{waiverId}/reject)
 	RejectWaiver(w http.ResponseWriter, r *http.Request, waiverId WaiverId)
+	// GetWorkItem The slice of the spec one work item builds, at the version it was pushed from.
+	// (GET /work-items)
+	GetWorkItem(w http.ResponseWriter, r *http.Request, params GetWorkItemParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -6413,6 +7003,298 @@ func (siw *ServerInterfaceWrapper) ListAssumptions(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListAssumptions(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) GetBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBreakdown(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EditBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) EditBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EditBreakdown(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ProposeBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) ProposeBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ProposeBreakdown(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBreakdownAssignees operation middleware
+func (siw *ServerInterfaceWrapper) ListBreakdownAssignees(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListBreakdownAssigneesParams
+
+	// ------------- Required query parameter "tracker" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "tracker", r.URL.Query(), &params.Tracker, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "tracker"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "tracker", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "target" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "target", r.URL.Query(), &params.Target, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "target"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "target", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "query" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "query", r.URL.Query(), &params.Query, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "query"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "query", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBreakdownAssignees(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExportBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) ExportBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExportBreakdownParams
+
+	// ------------- Required query parameter "format" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "format", r.URL.Query(), &params.Format, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "format"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "format", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExportBreakdown(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PushBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) PushBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PushBreakdown(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CheckBreakdownReaders operation middleware
+func (siw *ServerInterfaceWrapper) CheckBreakdownReaders(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CheckBreakdownReaders(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListBreakdownTrackers operation middleware
+func (siw *ServerInterfaceWrapper) ListBreakdownTrackers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListBreakdownTrackers(w, r, docId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateBreakdown operation middleware
+func (siw *ServerInterfaceWrapper) UpdateBreakdown(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateBreakdown(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9137,6 +10019,39 @@ func (siw *ServerInterfaceWrapper) RejectWaiver(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetWorkItem operation middleware
+func (siw *ServerInterfaceWrapper) GetWorkItem(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetWorkItemParams
+
+	// ------------- Required query parameter "ref" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "ref", r.URL.Query(), &params.Ref, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "ref"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "ref", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetWorkItem(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -9266,6 +10181,16 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.ListHandoffs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.TakeHandoff)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff/zip", wrapper.TakeHandoffZip)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/breakdown", wrapper.GetBreakdown)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/docs/{docId}/breakdown", wrapper.EditBreakdown)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/breakdown", wrapper.ProposeBreakdown)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/breakdown/update", wrapper.UpdateBreakdown)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/breakdown/readers", wrapper.CheckBreakdownReaders)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/breakdown/trackers", wrapper.ListBreakdownTrackers)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/breakdown/assignees", wrapper.ListBreakdownAssignees)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/breakdown/push", wrapper.PushBreakdown)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/breakdown/export", wrapper.ExportBreakdown)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/work-items", wrapper.GetWorkItem)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/verification-waivers", wrapper.RequestVerificationWaiver)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/bundles/{bundleId}/delete-plan", wrapper.DeleteBundlePlan)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/verifications", wrapper.ListVerifications)
@@ -11122,6 +12047,390 @@ type ListAssumptionsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListAssumptionsdefaultApplicationProblemPlusJSONResponse) VisitListAssumptionsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBreakdownRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetBreakdownResponseObject interface {
+	VisitGetBreakdownResponse(w http.ResponseWriter) error
+}
+
+type GetBreakdown200JSONResponse Breakdown
+
+func (response GetBreakdown200JSONResponse) VisitGetBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBreakdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBreakdowndefaultApplicationProblemPlusJSONResponse) VisitGetBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditBreakdownRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *EditBreakdownJSONRequestBody
+}
+
+type EditBreakdownResponseObject interface {
+	VisitEditBreakdownResponse(w http.ResponseWriter) error
+}
+
+type EditBreakdown200JSONResponse Breakdown
+
+func (response EditBreakdown200JSONResponse) VisitEditBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type EditBreakdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response EditBreakdowndefaultApplicationProblemPlusJSONResponse) VisitEditBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ProposeBreakdownRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *ProposeBreakdownJSONRequestBody
+}
+
+type ProposeBreakdownResponseObject interface {
+	VisitProposeBreakdownResponse(w http.ResponseWriter) error
+}
+
+type ProposeBreakdown201JSONResponse Breakdown
+
+func (response ProposeBreakdown201JSONResponse) VisitProposeBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ProposeBreakdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ProposeBreakdowndefaultApplicationProblemPlusJSONResponse) VisitProposeBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBreakdownAssigneesRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params ListBreakdownAssigneesParams
+}
+
+type ListBreakdownAssigneesResponseObject interface {
+	VisitListBreakdownAssigneesResponse(w http.ResponseWriter) error
+}
+
+type ListBreakdownAssignees200JSONResponse AssigneeList
+
+func (response ListBreakdownAssignees200JSONResponse) VisitListBreakdownAssigneesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBreakdownAssigneesdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBreakdownAssigneesdefaultApplicationProblemPlusJSONResponse) VisitListBreakdownAssigneesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExportBreakdownRequestObject struct {
+	DocId  DocId `json:"docId"`
+	Params ExportBreakdownParams
+}
+
+type ExportBreakdownResponseObject interface {
+	VisitExportBreakdownResponse(w http.ResponseWriter) error
+}
+
+type ExportBreakdown200TextcsvResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportBreakdown200TextcsvResponse) VisitExportBreakdownResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/csv")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportBreakdown200TextmarkdownResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response ExportBreakdown200TextmarkdownResponse) VisitExportBreakdownResponse(w http.ResponseWriter) error {
+
+	w.Header().Set("Content-Type", "text/markdown")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type ExportBreakdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ExportBreakdowndefaultApplicationProblemPlusJSONResponse) VisitExportBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PushBreakdownRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *PushBreakdownJSONRequestBody
+}
+
+type PushBreakdownResponseObject interface {
+	VisitPushBreakdownResponse(w http.ResponseWriter) error
+}
+
+type PushBreakdown200JSONResponse PushResult
+
+func (response PushBreakdown200JSONResponse) VisitPushBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PushBreakdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PushBreakdowndefaultApplicationProblemPlusJSONResponse) VisitPushBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CheckBreakdownReadersRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *CheckBreakdownReadersJSONRequestBody
+}
+
+type CheckBreakdownReadersResponseObject interface {
+	VisitCheckBreakdownReadersResponse(w http.ResponseWriter) error
+}
+
+type CheckBreakdownReaders200JSONResponse Breakdown
+
+func (response CheckBreakdownReaders200JSONResponse) VisitCheckBreakdownReadersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CheckBreakdownReadersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CheckBreakdownReadersdefaultApplicationProblemPlusJSONResponse) VisitCheckBreakdownReadersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBreakdownTrackersRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type ListBreakdownTrackersResponseObject interface {
+	VisitListBreakdownTrackersResponse(w http.ResponseWriter) error
+}
+
+type ListBreakdownTrackers200JSONResponse TrackerList
+
+func (response ListBreakdownTrackers200JSONResponse) VisitListBreakdownTrackersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListBreakdownTrackersdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListBreakdownTrackersdefaultApplicationProblemPlusJSONResponse) VisitListBreakdownTrackersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBreakdownRequestObject struct {
+	DocId DocId `json:"docId"`
+	Body  *UpdateBreakdownJSONRequestBody
+}
+
+type UpdateBreakdownResponseObject interface {
+	VisitUpdateBreakdownResponse(w http.ResponseWriter) error
+}
+
+type UpdateBreakdown200JSONResponse Breakdown
+
+func (response UpdateBreakdown200JSONResponse) VisitUpdateBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateBreakdowndefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateBreakdowndefaultApplicationProblemPlusJSONResponse) VisitUpdateBreakdownResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -15252,6 +16561,45 @@ func (response RejectWaiverdefaultApplicationProblemPlusJSONResponse) VisitRejec
 	return err
 }
 
+type GetWorkItemRequestObject struct {
+	Params GetWorkItemParams
+}
+
+type GetWorkItemResponseObject interface {
+	VisitGetWorkItemResponse(w http.ResponseWriter) error
+}
+
+type GetWorkItem200JSONResponse WorkItemPacket
+
+func (response GetWorkItem200JSONResponse) VisitGetWorkItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetWorkItemdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetWorkItemdefaultApplicationProblemPlusJSONResponse) VisitGetWorkItemResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
@@ -15389,6 +16737,33 @@ type StrictServerInterface interface {
 	// ListAssumptions List the sentences of the current main doc that start with "Assumption:" (REQ-033).
 	// (GET /docs/{docId}/assumptions)
 	ListAssumptions(ctx context.Context, request ListAssumptionsRequestObject) (ListAssumptionsResponseObject, error)
+	// GetBreakdown The breakdown of this doc into epics and work items, with its findings and its coverage.
+	// (GET /docs/{docId}/breakdown)
+	GetBreakdown(ctx context.Context, request GetBreakdownRequestObject) (GetBreakdownResponseObject, error)
+	// EditBreakdown Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+	// (PATCH /docs/{docId}/breakdown)
+	EditBreakdown(ctx context.Context, request EditBreakdownRequestObject) (EditBreakdownResponseObject, error)
+	// ProposeBreakdown Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	// (POST /docs/{docId}/breakdown)
+	ProposeBreakdown(ctx context.Context, request ProposeBreakdownRequestObject) (ProposeBreakdownResponseObject, error)
+	// ListBreakdownAssignees The people and the agents an item can be assigned to, read from the tracker.
+	// (GET /docs/{docId}/breakdown/assignees)
+	ListBreakdownAssignees(ctx context.Context, request ListBreakdownAssigneesRequestObject) (ListBreakdownAssigneesResponseObject, error)
+	// ExportBreakdown The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+	// (GET /docs/{docId}/breakdown/export)
+	ExportBreakdown(ctx context.Context, request ExportBreakdownRequestObject) (ExportBreakdownResponseObject, error)
+	// PushBreakdown Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+	// (POST /docs/{docId}/breakdown/push)
+	PushBreakdown(ctx context.Context, request PushBreakdownRequestObject) (PushBreakdownResponseObject, error)
+	// CheckBreakdownReaders Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+	// (POST /docs/{docId}/breakdown/readers)
+	CheckBreakdownReaders(ctx context.Context, request CheckBreakdownReadersRequestObject) (CheckBreakdownReadersResponseObject, error)
+	// ListBreakdownTrackers The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+	// (GET /docs/{docId}/breakdown/trackers)
+	ListBreakdownTrackers(ctx context.Context, request ListBreakdownTrackersRequestObject) (ListBreakdownTrackersResponseObject, error)
+	// UpdateBreakdown Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+	// (POST /docs/{docId}/breakdown/update)
+	UpdateBreakdown(ctx context.Context, request UpdateBreakdownRequestObject) (UpdateBreakdownResponseObject, error)
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	// (GET /docs/{docId}/diff)
 	DiffVersions(ctx context.Context, request DiffVersionsRequestObject) (DiffVersionsResponseObject, error)
@@ -15695,6 +17070,9 @@ type StrictServerInterface interface {
 	// RejectWaiver Reject a waiver, with a decision reason the requester reads.
 	// (POST /waivers/{waiverId}/reject)
 	RejectWaiver(ctx context.Context, request RejectWaiverRequestObject) (RejectWaiverResponseObject, error)
+	// GetWorkItem The slice of the spec one work item builds, at the version it was pushed from.
+	// (GET /work-items)
+	GetWorkItem(ctx context.Context, request GetWorkItemRequestObject) (GetWorkItemResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -16984,6 +18362,280 @@ func (sh *strictHandler) ListAssumptions(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListAssumptionsResponseObject); ok {
 		if err := validResponse.VisitListAssumptionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBreakdown operation middleware
+func (sh *strictHandler) GetBreakdown(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetBreakdownRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBreakdown(ctx, request.(GetBreakdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBreakdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBreakdownResponseObject); ok {
+		if err := validResponse.VisitGetBreakdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EditBreakdown operation middleware
+func (sh *strictHandler) EditBreakdown(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request EditBreakdownRequestObject
+
+	request.DocId = docId
+
+	var body EditBreakdownJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EditBreakdown(ctx, request.(EditBreakdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EditBreakdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EditBreakdownResponseObject); ok {
+		if err := validResponse.VisitEditBreakdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ProposeBreakdown operation middleware
+func (sh *strictHandler) ProposeBreakdown(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ProposeBreakdownRequestObject
+
+	request.DocId = docId
+
+	var body ProposeBreakdownJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ProposeBreakdown(ctx, request.(ProposeBreakdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ProposeBreakdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ProposeBreakdownResponseObject); ok {
+		if err := validResponse.VisitProposeBreakdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBreakdownAssignees operation middleware
+func (sh *strictHandler) ListBreakdownAssignees(w http.ResponseWriter, r *http.Request, docId DocId, params ListBreakdownAssigneesParams) {
+	var request ListBreakdownAssigneesRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBreakdownAssignees(ctx, request.(ListBreakdownAssigneesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBreakdownAssignees")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBreakdownAssigneesResponseObject); ok {
+		if err := validResponse.VisitListBreakdownAssigneesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExportBreakdown operation middleware
+func (sh *strictHandler) ExportBreakdown(w http.ResponseWriter, r *http.Request, docId DocId, params ExportBreakdownParams) {
+	var request ExportBreakdownRequestObject
+
+	request.DocId = docId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExportBreakdown(ctx, request.(ExportBreakdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExportBreakdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExportBreakdownResponseObject); ok {
+		if err := validResponse.VisitExportBreakdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PushBreakdown operation middleware
+func (sh *strictHandler) PushBreakdown(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request PushBreakdownRequestObject
+
+	request.DocId = docId
+
+	var body PushBreakdownJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PushBreakdown(ctx, request.(PushBreakdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PushBreakdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PushBreakdownResponseObject); ok {
+		if err := validResponse.VisitPushBreakdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CheckBreakdownReaders operation middleware
+func (sh *strictHandler) CheckBreakdownReaders(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request CheckBreakdownReadersRequestObject
+
+	request.DocId = docId
+
+	var body CheckBreakdownReadersJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CheckBreakdownReaders(ctx, request.(CheckBreakdownReadersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CheckBreakdownReaders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CheckBreakdownReadersResponseObject); ok {
+		if err := validResponse.VisitCheckBreakdownReadersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListBreakdownTrackers operation middleware
+func (sh *strictHandler) ListBreakdownTrackers(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request ListBreakdownTrackersRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListBreakdownTrackers(ctx, request.(ListBreakdownTrackersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListBreakdownTrackers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListBreakdownTrackersResponseObject); ok {
+		if err := validResponse.VisitListBreakdownTrackersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateBreakdown operation middleware
+func (sh *strictHandler) UpdateBreakdown(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request UpdateBreakdownRequestObject
+
+	request.DocId = docId
+
+	var body UpdateBreakdownJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateBreakdown(ctx, request.(UpdateBreakdownRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateBreakdown")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateBreakdownResponseObject); ok {
+		if err := validResponse.VisitUpdateBreakdownResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -19950,6 +21602,32 @@ func (sh *strictHandler) RejectWaiver(w http.ResponseWriter, r *http.Request, wa
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RejectWaiverResponseObject); ok {
 		if err := validResponse.VisitRejectWaiverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetWorkItem operation middleware
+func (sh *strictHandler) GetWorkItem(w http.ResponseWriter, r *http.Request, params GetWorkItemParams) {
+	var request GetWorkItemRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetWorkItem(ctx, request.(GetWorkItemRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetWorkItem")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetWorkItemResponseObject); ok {
+		if err := validResponse.VisitGetWorkItemResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

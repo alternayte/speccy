@@ -41,6 +41,38 @@ type Blob struct {
 	Size    int64
 }
 
+type Breakdown struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	SpecDocID    uuid.UUID
+	VersionID    uuid.UUID
+	Verdict      string
+	Acknowledged bool
+	Revision     int64
+	Body         dbtype.JSON
+	CreatedBy    string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type BreakdownIssue struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	SpecDocID   uuid.UUID
+	BreakdownID uuid.UUID
+	Kind        string
+	ItemID      string
+	Tracker     string
+	IssueKey    string
+	IssueUrl    string
+	IssueRef    string
+	VersionID   uuid.UUID
+	HandoffID   uuid.UUID
+	TraceIds    dbtype.JSON
+	PushedBy    string
+	CreatedAt   time.Time
+}
+
 type Budget struct {
 	WorkspaceID uuid.UUID
 	Month       string

@@ -145,7 +145,20 @@ var operations = map[string]access{
 	"adoptFrontmatter": bundleEdit,
 	"setBundleProfile": bundleEdit,
 	// A handoff reads the bundle and records who took it (REQ-136).
-	"listHandoffs":   bundleRead,
+	"listHandoffs": bundleRead,
+	// A breakdown is read by anyone who reads the bundle. Only a person who can edit the doc
+	// proposes, edits, checks or pushes it; a reviewer comments through a thread (#156).
+	"getBreakdown":           bundleRead,
+	"exportBreakdown":        bundleRead,
+	"proposeBreakdown":       bundleEdit,
+	"editBreakdown":          bundleEdit,
+	"updateBreakdown":        bundleEdit,
+	"checkBreakdownReaders":  bundleEdit,
+	"listBreakdownTrackers":  bundleEdit,
+	"listBreakdownAssignees": bundleEdit,
+	"pushBreakdown":          bundleEdit,
+	// A work item names no bundle in its path, so the path gives no bundle to scope on.
+	"getWorkItem":    member,
 	"takeHandoff":    bundleAI,
 	"takeHandoffZip": bundleAI,
 	// A verification run reads the bundle and the code, and opens a blocking thread when a

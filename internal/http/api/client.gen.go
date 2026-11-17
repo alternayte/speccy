@@ -474,6 +474,96 @@ type ClientInterface interface {
 	// Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
 	ListAssumptions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetBreakdown The breakdown of this doc into epics and work items, with its findings and its coverage.
+	//
+	// Corresponds with GET /docs/{docId}/breakdown (the `GetBreakdown` operationId).
+	GetBreakdown(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EditBreakdownWithBody Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+	EditBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// EditBreakdown Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+	EditBreakdown(ctx context.Context, docId DocId, body EditBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ProposeBreakdownWithBody Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+	ProposeBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ProposeBreakdown Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+	ProposeBreakdown(ctx context.Context, docId DocId, body ProposeBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListBreakdownAssignees The people and the agents an item can be assigned to, read from the tracker.
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/assignees (the `ListBreakdownAssignees` operationId).
+	ListBreakdownAssignees(ctx context.Context, docId DocId, params *ListBreakdownAssigneesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ExportBreakdown The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
+	ExportBreakdown(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PushBreakdownWithBody Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+	PushBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PushBreakdown Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+	PushBreakdown(ctx context.Context, docId DocId, body PushBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CheckBreakdownReadersWithBody Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+	CheckBreakdownReadersWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CheckBreakdownReaders Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+	CheckBreakdownReaders(ctx context.Context, docId DocId, body CheckBreakdownReadersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListBreakdownTrackers The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/trackers (the `ListBreakdownTrackers` operationId).
+	ListBreakdownTrackers(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateBreakdownWithBody Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+	UpdateBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateBreakdown Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+	UpdateBreakdown(ctx context.Context, docId DocId, body UpdateBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DiffVersions Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	//
 	// Corresponds with GET /docs/{docId}/diff (the `DiffVersions` operationId).
@@ -1420,6 +1510,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
 	RejectWaiver(ctx context.Context, waiverId WaiverId, body RejectWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetWorkItem The slice of the spec one work item builds, at the version it was pushed from.
+	//
+	// Corresponds with GET /work-items (the `GetWorkItem` operationId).
+	GetWorkItem(ctx context.Context, params *GetWorkItemParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // ListBackends List the model backends. Secrets show their last 4 characters only (SDD §14.1).
@@ -2405,6 +2500,236 @@ func (c *Client) ApproveBundle(ctx context.Context, docId DocId, reqEditors ...R
 // Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
 func (c *Client) ListAssumptions(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAssumptionsRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetBreakdown The breakdown of this doc into epics and work items, with its findings and its coverage.
+//
+// Corresponds with GET /docs/{docId}/breakdown (the `GetBreakdown` operationId).
+func (c *Client) GetBreakdown(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBreakdownRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EditBreakdownWithBody Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+func (c *Client) EditBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEditBreakdownRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// EditBreakdown Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+func (c *Client) EditBreakdown(ctx context.Context, docId DocId, body EditBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewEditBreakdownRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ProposeBreakdownWithBody Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+func (c *Client) ProposeBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewProposeBreakdownRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ProposeBreakdown Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+func (c *Client) ProposeBreakdown(ctx context.Context, docId DocId, body ProposeBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewProposeBreakdownRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListBreakdownAssignees The people and the agents an item can be assigned to, read from the tracker.
+//
+// Corresponds with GET /docs/{docId}/breakdown/assignees (the `ListBreakdownAssignees` operationId).
+func (c *Client) ListBreakdownAssignees(ctx context.Context, docId DocId, params *ListBreakdownAssigneesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListBreakdownAssigneesRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ExportBreakdown The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+//
+// Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
+func (c *Client) ExportBreakdown(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewExportBreakdownRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PushBreakdownWithBody Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+func (c *Client) PushBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPushBreakdownRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PushBreakdown Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+func (c *Client) PushBreakdown(ctx context.Context, docId DocId, body PushBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPushBreakdownRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CheckBreakdownReadersWithBody Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+func (c *Client) CheckBreakdownReadersWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCheckBreakdownReadersRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CheckBreakdownReaders Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+func (c *Client) CheckBreakdownReaders(ctx context.Context, docId DocId, body CheckBreakdownReadersJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCheckBreakdownReadersRequest(c.Server, docId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListBreakdownTrackers The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+//
+// Corresponds with GET /docs/{docId}/breakdown/trackers (the `ListBreakdownTrackers` operationId).
+func (c *Client) ListBreakdownTrackers(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListBreakdownTrackersRequest(c.Server, docId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateBreakdownWithBody Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+func (c *Client) UpdateBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBreakdownRequestWithBody(c.Server, docId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateBreakdown Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+func (c *Client) UpdateBreakdown(ctx context.Context, docId DocId, body UpdateBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateBreakdownRequest(c.Server, docId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4852,6 +5177,21 @@ func (c *Client) RejectWaiver(ctx context.Context, waiverId WaiverId, body Rejec
 	return c.Client.Do(req)
 }
 
+// GetWorkItem The slice of the spec one work item builds, at the version it was pushed from.
+//
+// Corresponds with GET /work-items (the `GetWorkItem` operationId).
+func (c *Client) GetWorkItem(ctx context.Context, params *GetWorkItemParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWorkItemRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // NewListBackendsRequest constructs an http.Request for the ListBackends method
 func NewListBackendsRequest(server string) (*http.Request, error) {
 	var err error
@@ -6526,6 +6866,443 @@ func NewListAssumptionsRequest(server string, docId DocId) (*http.Request, error
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewGetBreakdownRequest constructs an http.Request for the GetBreakdown method
+func NewGetBreakdownRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewEditBreakdownRequest calls the generic EditBreakdown builder with application/json body
+func NewEditBreakdownRequest(server string, docId DocId, body EditBreakdownJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewEditBreakdownRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewEditBreakdownRequestWithBody constructs an http.Request for the EditBreakdown method, with any body, and a specified content type
+func NewEditBreakdownRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewProposeBreakdownRequest calls the generic ProposeBreakdown builder with application/json body
+func NewProposeBreakdownRequest(server string, docId DocId, body ProposeBreakdownJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewProposeBreakdownRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewProposeBreakdownRequestWithBody constructs an http.Request for the ProposeBreakdown method, with any body, and a specified content type
+func NewProposeBreakdownRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListBreakdownAssigneesRequest constructs an http.Request for the ListBreakdownAssignees method
+func NewListBreakdownAssigneesRequest(server string, docId DocId, params *ListBreakdownAssigneesParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/assignees", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "tracker", params.Tracker, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "target", params.Target, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.Query != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "query", *params.Query, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewExportBreakdownRequest constructs an http.Request for the ExportBreakdown method
+func NewExportBreakdownRequest(server string, docId DocId, params *ExportBreakdownParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/export", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "format", params.Format, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPushBreakdownRequest calls the generic PushBreakdown builder with application/json body
+func NewPushBreakdownRequest(server string, docId DocId, body PushBreakdownJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPushBreakdownRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewPushBreakdownRequestWithBody constructs an http.Request for the PushBreakdown method, with any body, and a specified content type
+func NewPushBreakdownRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/push", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCheckBreakdownReadersRequest calls the generic CheckBreakdownReaders builder with application/json body
+func NewCheckBreakdownReadersRequest(server string, docId DocId, body CheckBreakdownReadersJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCheckBreakdownReadersRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewCheckBreakdownReadersRequestWithBody constructs an http.Request for the CheckBreakdownReaders method, with any body, and a specified content type
+func NewCheckBreakdownReadersRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/readers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListBreakdownTrackersRequest constructs an http.Request for the ListBreakdownTrackers method
+func NewListBreakdownTrackersRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/trackers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateBreakdownRequest calls the generic UpdateBreakdown builder with application/json body
+func NewUpdateBreakdownRequest(server string, docId DocId, body UpdateBreakdownJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateBreakdownRequestWithBody(server, docId, "application/json", bodyReader)
+}
+
+// NewUpdateBreakdownRequestWithBody constructs an http.Request for the UpdateBreakdown method, with any body, and a specified content type
+func NewUpdateBreakdownRequestWithBody(server string, docId DocId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/update", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -10873,6 +11650,56 @@ func NewRejectWaiverRequestWithBody(server string, waiverId WaiverId, contentTyp
 	return req, nil
 }
 
+// NewGetWorkItemRequest constructs an http.Request for the GetWorkItem method
+func NewGetWorkItemRequest(server string, params *GetWorkItemParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/work-items")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "ref", params.Ref, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -11353,6 +12180,104 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /docs/{docId}/assumptions (the `ListAssumptions` operationId).
 	ListAssumptionsWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListAssumptionsResponse, error)
+
+	// GetBreakdownWithResponse The breakdown of this doc into epics and work items, with its findings and its coverage.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/breakdown (the `GetBreakdown` operationId).
+	GetBreakdownWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetBreakdownResponse, error)
+
+	// EditBreakdownWithBodyWithResponse Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+	EditBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EditBreakdownResponse, error)
+
+	// EditBreakdownWithResponse Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+	EditBreakdownWithResponse(ctx context.Context, docId DocId, body EditBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*EditBreakdownResponse, error)
+
+	// ProposeBreakdownWithBodyWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+	ProposeBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProposeBreakdownResponse, error)
+
+	// ProposeBreakdownWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+	ProposeBreakdownWithResponse(ctx context.Context, docId DocId, body ProposeBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*ProposeBreakdownResponse, error)
+
+	// ListBreakdownAssigneesWithResponse The people and the agents an item can be assigned to, read from the tracker.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/assignees (the `ListBreakdownAssignees` operationId).
+	ListBreakdownAssigneesWithResponse(ctx context.Context, docId DocId, params *ListBreakdownAssigneesParams, reqEditors ...RequestEditorFn) (*ListBreakdownAssigneesResponse, error)
+
+	// ExportBreakdownWithResponse The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
+	ExportBreakdownWithResponse(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*ExportBreakdownResponse, error)
+
+	// PushBreakdownWithBodyWithResponse Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+	PushBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PushBreakdownResponse, error)
+
+	// PushBreakdownWithResponse Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+	PushBreakdownWithResponse(ctx context.Context, docId DocId, body PushBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*PushBreakdownResponse, error)
+
+	// CheckBreakdownReadersWithBodyWithResponse Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+	CheckBreakdownReadersWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CheckBreakdownReadersResponse, error)
+
+	// CheckBreakdownReadersWithResponse Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+	CheckBreakdownReadersWithResponse(ctx context.Context, docId DocId, body CheckBreakdownReadersJSONRequestBody, reqEditors ...RequestEditorFn) (*CheckBreakdownReadersResponse, error)
+
+	// ListBreakdownTrackersWithResponse The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/trackers (the `ListBreakdownTrackers` operationId).
+	ListBreakdownTrackersWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListBreakdownTrackersResponse, error)
+
+	// UpdateBreakdownWithBodyWithResponse Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+	UpdateBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBreakdownResponse, error)
+
+	// UpdateBreakdownWithResponse Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+	UpdateBreakdownWithResponse(ctx context.Context, docId DocId, body UpdateBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBreakdownResponse, error)
 
 	// DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
 	//
@@ -12408,6 +13333,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /waivers/{waiverId}/reject (the `RejectWaiver` operationId).
 	RejectWaiverWithResponse(ctx context.Context, waiverId WaiverId, body RejectWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RejectWaiverResponse, error)
+
+	// GetWorkItemWithResponse The slice of the spec one work item builds, at the version it was pushed from.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /work-items (the `GetWorkItem` operationId).
+	GetWorkItemWithResponse(ctx context.Context, params *GetWorkItemParams, reqEditors ...RequestEditorFn) (*GetWorkItemResponse, error)
 }
 
 type ListBackendsResponse struct {
@@ -14544,6 +15476,431 @@ func (r ListAssumptionsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListAssumptionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetBreakdownResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Breakdown
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetBreakdownResponse) GetJSON200() *Breakdown {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetBreakdownResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetBreakdownResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBreakdownResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBreakdownResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetBreakdownResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type EditBreakdownResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Breakdown
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r EditBreakdownResponse) GetJSON200() *Breakdown {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r EditBreakdownResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r EditBreakdownResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r EditBreakdownResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r EditBreakdownResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r EditBreakdownResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ProposeBreakdownResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *Breakdown
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r ProposeBreakdownResponse) GetJSON201() *Breakdown {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ProposeBreakdownResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ProposeBreakdownResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ProposeBreakdownResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ProposeBreakdownResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ProposeBreakdownResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListBreakdownAssigneesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AssigneeList
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListBreakdownAssigneesResponse) GetJSON200() *AssigneeList {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListBreakdownAssigneesResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListBreakdownAssigneesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListBreakdownAssigneesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListBreakdownAssigneesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListBreakdownAssigneesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ExportBreakdownResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ExportBreakdownResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ExportBreakdownResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ExportBreakdownResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ExportBreakdownResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ExportBreakdownResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PushBreakdownResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PushResult
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PushBreakdownResponse) GetJSON200() *PushResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PushBreakdownResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PushBreakdownResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PushBreakdownResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PushBreakdownResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PushBreakdownResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CheckBreakdownReadersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Breakdown
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CheckBreakdownReadersResponse) GetJSON200() *Breakdown {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CheckBreakdownReadersResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CheckBreakdownReadersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CheckBreakdownReadersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CheckBreakdownReadersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CheckBreakdownReadersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListBreakdownTrackersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *TrackerList
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListBreakdownTrackersResponse) GetJSON200() *TrackerList {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListBreakdownTrackersResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListBreakdownTrackersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListBreakdownTrackersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListBreakdownTrackersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListBreakdownTrackersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateBreakdownResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Breakdown
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateBreakdownResponse) GetJSON200() *Breakdown {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UpdateBreakdownResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateBreakdownResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateBreakdownResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateBreakdownResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateBreakdownResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -19436,6 +20793,54 @@ func (r RejectWaiverResponse) ContentType() string {
 	return ""
 }
 
+type GetWorkItemResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *WorkItemPacket
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetWorkItemResponse) GetJSON200() *WorkItemPacket {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetWorkItemResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetWorkItemResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWorkItemResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWorkItemResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetWorkItemResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListBackendsWithResponse List the model backends. Secrets show their last 4 characters only (SDD §14.1).
 //
 // Returns a wrapper object for the known response body format(s).
@@ -20237,6 +21642,188 @@ func (c *ClientWithResponses) ListAssumptionsWithResponse(ctx context.Context, d
 		return nil, err
 	}
 	return ParseListAssumptionsResponse(rsp)
+}
+
+// GetBreakdownWithResponse The breakdown of this doc into epics and work items, with its findings and its coverage.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/breakdown (the `GetBreakdown` operationId).
+func (c *ClientWithResponses) GetBreakdownWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetBreakdownResponse, error) {
+	rsp, err := c.GetBreakdown(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBreakdownResponse(rsp)
+}
+
+// EditBreakdownWithBodyWithResponse Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+func (c *ClientWithResponses) EditBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*EditBreakdownResponse, error) {
+	rsp, err := c.EditBreakdownWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEditBreakdownResponse(rsp)
+}
+
+// EditBreakdownWithResponse Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /docs/{docId}/breakdown (the `EditBreakdown` operationId).
+func (c *ClientWithResponses) EditBreakdownWithResponse(ctx context.Context, docId DocId, body EditBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*EditBreakdownResponse, error) {
+	rsp, err := c.EditBreakdown(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseEditBreakdownResponse(rsp)
+}
+
+// ProposeBreakdownWithBodyWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+func (c *ClientWithResponses) ProposeBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProposeBreakdownResponse, error) {
+	rsp, err := c.ProposeBreakdownWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseProposeBreakdownResponse(rsp)
+}
+
+// ProposeBreakdownWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
+func (c *ClientWithResponses) ProposeBreakdownWithResponse(ctx context.Context, docId DocId, body ProposeBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*ProposeBreakdownResponse, error) {
+	rsp, err := c.ProposeBreakdown(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseProposeBreakdownResponse(rsp)
+}
+
+// ListBreakdownAssigneesWithResponse The people and the agents an item can be assigned to, read from the tracker.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/breakdown/assignees (the `ListBreakdownAssignees` operationId).
+func (c *ClientWithResponses) ListBreakdownAssigneesWithResponse(ctx context.Context, docId DocId, params *ListBreakdownAssigneesParams, reqEditors ...RequestEditorFn) (*ListBreakdownAssigneesResponse, error) {
+	rsp, err := c.ListBreakdownAssignees(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListBreakdownAssigneesResponse(rsp)
+}
+
+// ExportBreakdownWithResponse The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
+func (c *ClientWithResponses) ExportBreakdownWithResponse(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*ExportBreakdownResponse, error) {
+	rsp, err := c.ExportBreakdown(ctx, docId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseExportBreakdownResponse(rsp)
+}
+
+// PushBreakdownWithBodyWithResponse Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+func (c *ClientWithResponses) PushBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PushBreakdownResponse, error) {
+	rsp, err := c.PushBreakdownWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePushBreakdownResponse(rsp)
+}
+
+// PushBreakdownWithResponse Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown/push (the `PushBreakdown` operationId).
+func (c *ClientWithResponses) PushBreakdownWithResponse(ctx context.Context, docId DocId, body PushBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*PushBreakdownResponse, error) {
+	rsp, err := c.PushBreakdown(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePushBreakdownResponse(rsp)
+}
+
+// CheckBreakdownReadersWithBodyWithResponse Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+func (c *ClientWithResponses) CheckBreakdownReadersWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CheckBreakdownReadersResponse, error) {
+	rsp, err := c.CheckBreakdownReadersWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCheckBreakdownReadersResponse(rsp)
+}
+
+// CheckBreakdownReadersWithResponse Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown/readers (the `CheckBreakdownReaders` operationId).
+func (c *ClientWithResponses) CheckBreakdownReadersWithResponse(ctx context.Context, docId DocId, body CheckBreakdownReadersJSONRequestBody, reqEditors ...RequestEditorFn) (*CheckBreakdownReadersResponse, error) {
+	rsp, err := c.CheckBreakdownReaders(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCheckBreakdownReadersResponse(rsp)
+}
+
+// ListBreakdownTrackersWithResponse The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/breakdown/trackers (the `ListBreakdownTrackers` operationId).
+func (c *ClientWithResponses) ListBreakdownTrackersWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*ListBreakdownTrackersResponse, error) {
+	rsp, err := c.ListBreakdownTrackers(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListBreakdownTrackersResponse(rsp)
+}
+
+// UpdateBreakdownWithBodyWithResponse Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+func (c *ClientWithResponses) UpdateBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateBreakdownResponse, error) {
+	rsp, err := c.UpdateBreakdownWithBody(ctx, docId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBreakdownResponse(rsp)
+}
+
+// UpdateBreakdownWithResponse Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /docs/{docId}/breakdown/update (the `UpdateBreakdown` operationId).
+func (c *ClientWithResponses) UpdateBreakdownWithResponse(ctx context.Context, docId DocId, body UpdateBreakdownJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateBreakdownResponse, error) {
+	rsp, err := c.UpdateBreakdown(ctx, docId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateBreakdownResponse(rsp)
 }
 
 // DiffVersionsWithResponse Compare two versions of a bundle, by file and by section of the main doc (REQ-006).
@@ -22188,6 +23775,19 @@ func (c *ClientWithResponses) RejectWaiverWithResponse(ctx context.Context, waiv
 	return ParseRejectWaiverResponse(rsp)
 }
 
+// GetWorkItemWithResponse The slice of the spec one work item builds, at the version it was pushed from.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /work-items (the `GetWorkItem` operationId).
+func (c *ClientWithResponses) GetWorkItemWithResponse(ctx context.Context, params *GetWorkItemParams, reqEditors ...RequestEditorFn) (*GetWorkItemResponse, error) {
+	rsp, err := c.GetWorkItem(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWorkItemResponse(rsp)
+}
+
 // ParseListBackendsResponse parses an HTTP response from a ListBackendsWithResponse call
 func ParseListBackendsResponse(rsp *http.Response) (*ListBackendsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -23642,6 +25242,296 @@ func ParseListAssumptionsResponse(rsp *http.Response) (*ListAssumptionsResponse,
 		var dest struct {
 			Items []Anchor `json:"items"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBreakdownResponse parses an HTTP response from a GetBreakdownWithResponse call
+func ParseGetBreakdownResponse(rsp *http.Response) (*GetBreakdownResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBreakdownResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Breakdown
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseEditBreakdownResponse parses an HTTP response from a EditBreakdownWithResponse call
+func ParseEditBreakdownResponse(rsp *http.Response) (*EditBreakdownResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &EditBreakdownResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Breakdown
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseProposeBreakdownResponse parses an HTTP response from a ProposeBreakdownWithResponse call
+func ParseProposeBreakdownResponse(rsp *http.Response) (*ProposeBreakdownResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ProposeBreakdownResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest Breakdown
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListBreakdownAssigneesResponse parses an HTTP response from a ListBreakdownAssigneesWithResponse call
+func ParseListBreakdownAssigneesResponse(rsp *http.Response) (*ListBreakdownAssigneesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListBreakdownAssigneesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AssigneeList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseExportBreakdownResponse parses an HTTP response from a ExportBreakdownWithResponse call
+func ParseExportBreakdownResponse(rsp *http.Response) (*ExportBreakdownResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ExportBreakdownResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePushBreakdownResponse parses an HTTP response from a PushBreakdownWithResponse call
+func ParsePushBreakdownResponse(rsp *http.Response) (*PushBreakdownResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PushBreakdownResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PushResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCheckBreakdownReadersResponse parses an HTTP response from a CheckBreakdownReadersWithResponse call
+func ParseCheckBreakdownReadersResponse(rsp *http.Response) (*CheckBreakdownReadersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CheckBreakdownReadersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Breakdown
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListBreakdownTrackersResponse parses an HTTP response from a ListBreakdownTrackersWithResponse call
+func ParseListBreakdownTrackersResponse(rsp *http.Response) (*ListBreakdownTrackersResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListBreakdownTrackersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TrackerList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateBreakdownResponse parses an HTTP response from a UpdateBreakdownWithResponse call
+func ParseUpdateBreakdownResponse(rsp *http.Response) (*UpdateBreakdownResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateBreakdownResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Breakdown
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -26979,6 +28869,39 @@ func ParseRejectWaiverResponse(rsp *http.Response) (*RejectWaiverResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Waiver
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetWorkItemResponse parses an HTTP response from a GetWorkItemWithResponse call
+func ParseGetWorkItemResponse(rsp *http.Response) (*GetWorkItemResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWorkItemResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest WorkItemPacket
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

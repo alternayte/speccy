@@ -59,3 +59,22 @@ func normalize(src []byte) ([]byte, []int) {
 	}
 	return out, pos
 }
+
+// Count returns how many times quote appears in src, with the same matching Find uses: exact,
+// else ignoring differences in whitespace and markdown emphasis marks. A quote shorter than 4
+// characters counts 0.
+func Count(src []byte, quote string) int {
+	q := strings.TrimSpace(quote)
+	if len([]rune(q)) < 4 {
+		return 0
+	}
+	if n := bytes.Count(src, []byte(q)); n > 0 {
+		return n
+	}
+	norm, _ := normalize(src)
+	nq, _ := normalize([]byte(q))
+	if len(nq) == 0 {
+		return 0
+	}
+	return bytes.Count(norm, nq)
+}

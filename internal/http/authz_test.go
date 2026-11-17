@@ -249,10 +249,11 @@ func (env *hostedEnv) do(t *testing.T, op operation, a kernel.Actor) (int, []byt
 		"&from=" + env.bundle.CurrentVersionID.UUID.String() + "&to=" + env.bundle.CurrentVersionID.UUID.String() +
 		// A slug that never matches: the probe reaches the role check and stops before it
 		// deletes the bundle every other case needs.
-		"&slug=not-the-slug&from_version=1&to_version=1&kind=implements&target=prd&url=https://github.com/acme/specs/pull/1"
+		"&slug=not-the-slug&from_version=1&to_version=1&kind=implements&target=prd&url=https://github.com/acme/specs/pull/1" +
+		"&format=markdown&tracker=linear&ref=not-a-work-item"
 	var body *bytes.Reader
 	switch op.method {
-	case "POST", "PUT":
+	case "POST", "PUT", "PATCH":
 		body = bytes.NewReader([]byte("{}"))
 	default:
 		body = bytes.NewReader(nil)

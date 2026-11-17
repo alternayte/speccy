@@ -88,6 +88,14 @@ func (a Adapter) DeleteBackend(ctx context.Context, arg pgdb.DeleteBackendParams
 	return a.q.DeleteBackend(ctx, DeleteBackendParams(arg))
 }
 
+func (a Adapter) DeleteBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteBreakdownIssuesOfSpecDoc(ctx, specDocID)
+}
+
+func (a Adapter) DeleteBreakdownOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
+	return a.q.DeleteBreakdownOfSpecDoc(ctx, specDocID)
+}
+
 func (a Adapter) DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error {
 	return a.q.DeleteBundleAuthors(ctx, bundleID)
 }
@@ -252,6 +260,18 @@ func (a Adapter) FailVerificationRun(ctx context.Context, arg pgdb.FailVerificat
 	return a.q.FailVerificationRun(ctx, FailVerificationRunParams(arg))
 }
 
+func (a Adapter) FindBreakdownIssue(ctx context.Context, arg pgdb.FindBreakdownIssueParams) ([]pgdb.BreakdownIssue, error) {
+	rows, err := a.q.FindBreakdownIssue(ctx, FindBreakdownIssueParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.BreakdownIssue, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.BreakdownIssue(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) FinishJob(ctx context.Context, arg pgdb.FinishJobParams) error {
 	return a.q.FinishJob(ctx, FinishJobParams(arg))
 }
@@ -276,6 +296,16 @@ func (a Adapter) GetBackend(ctx context.Context, arg pgdb.GetBackendParams) (pgd
 
 func (a Adapter) GetBlob(ctx context.Context, sha256 string) ([]byte, error) {
 	return a.q.GetBlob(ctx, sha256)
+}
+
+func (a Adapter) GetBreakdown(ctx context.Context, arg pgdb.GetBreakdownParams) (pgdb.Breakdown, error) {
+	r, err := a.q.GetBreakdown(ctx, GetBreakdownParams(arg))
+	return pgdb.Breakdown(r), err
+}
+
+func (a Adapter) GetBreakdownByID(ctx context.Context, arg pgdb.GetBreakdownByIDParams) (pgdb.Breakdown, error) {
+	r, err := a.q.GetBreakdownByID(ctx, GetBreakdownByIDParams(arg))
+	return pgdb.Breakdown(r), err
 }
 
 func (a Adapter) GetBudget(ctx context.Context, arg pgdb.GetBudgetParams) (pgdb.Budget, error) {
@@ -441,6 +471,14 @@ func (a Adapter) InsertBackend(ctx context.Context, arg pgdb.InsertBackendParams
 
 func (a Adapter) InsertBlob(ctx context.Context, arg pgdb.InsertBlobParams) error {
 	return a.q.InsertBlob(ctx, InsertBlobParams(arg))
+}
+
+func (a Adapter) InsertBreakdown(ctx context.Context, arg pgdb.InsertBreakdownParams) error {
+	return a.q.InsertBreakdown(ctx, InsertBreakdownParams(arg))
+}
+
+func (a Adapter) InsertBreakdownIssue(ctx context.Context, arg pgdb.InsertBreakdownIssueParams) error {
+	return a.q.InsertBreakdownIssue(ctx, InsertBreakdownIssueParams(arg))
 }
 
 func (a Adapter) InsertBudget(ctx context.Context, arg pgdb.InsertBudgetParams) error {
@@ -737,6 +775,18 @@ func (a Adapter) ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]pgd
 	out := make([]pgdb.ModelBackend, len(rows))
 	for i, r := range rows {
 		out[i] = pgdb.ModelBackend(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListBreakdownIssues(ctx context.Context, breakdownID uuid.UUID) ([]pgdb.BreakdownIssue, error) {
+	rows, err := a.q.ListBreakdownIssues(ctx, breakdownID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.BreakdownIssue, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.BreakdownIssue(r)
 	}
 	return out, nil
 }
@@ -1483,6 +1533,10 @@ func (a Adapter) UpdateBackend(ctx context.Context, arg pgdb.UpdateBackendParams
 	return a.q.UpdateBackend(ctx, UpdateBackendParams(arg))
 }
 
+func (a Adapter) UpdateBreakdown(ctx context.Context, arg pgdb.UpdateBreakdownParams) (int64, error) {
+	return a.q.UpdateBreakdown(ctx, UpdateBreakdownParams(arg))
+}
+
 func (a Adapter) UpdateBundle(ctx context.Context, arg pgdb.UpdateBundleParams) error {
 	return a.q.UpdateBundle(ctx, UpdateBundleParams(arg))
 }
@@ -1533,4 +1587,16 @@ func (a Adapter) UpsertWaiverView(ctx context.Context, arg pgdb.UpsertWaiverView
 
 func (a Adapter) WaiverIDsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]uuid.UUID, error) {
 	return a.q.WaiverIDsOfSpecDoc(ctx, specDocID)
+}
+
+func (a Adapter) ListBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]pgdb.BreakdownIssue, error) {
+	rows, err := a.q.ListBreakdownIssuesOfSpecDoc(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.BreakdownIssue, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.BreakdownIssue(r)
+	}
+	return out, nil
 }

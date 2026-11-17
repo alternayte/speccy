@@ -108,6 +108,20 @@ func RunVerify(ctx context.Context, o Options, bundles []VerifyBundle, files []g
 	if err := upsertMarked(ctx, o, verifyMarker, res.Summary, len(bundles) > 0); err != nil {
 		res.Warnings = append(res.Warnings, "Speccy could not post the summary comment: "+err.Error())
 	}
+	checkRuns(ctx, o, bundles, &res)
+	return res
+}
+
+// RunVerifyChecks sets the check run of each verified work item on a commit that has no pull
+// request to comment on, such as the merge commit on the default branch.
+func RunVerifyChecks(ctx context.Context, o Options, bundles []VerifyBundle) Result {
+	res := Result{Summary: verifySummaryComment(bundles, map[string][]string{})}
+	checkRuns(ctx, o, bundles, &res)
+	return res
+}
+
+// checkRuns sets one check run per verified bundle or work item.
+func checkRuns(ctx context.Context, o Options, bundles []VerifyBundle, res *Result) {
 	for _, b := range bundles {
 		conclusion, title := "success", "Verified"
 		switch {
@@ -125,7 +139,6 @@ func RunVerify(ctx context.Context, o Options, bundles []VerifyBundle, files []g
 			res.Warnings = append(res.Warnings, "Speccy could not set the check for "+b.Slug+": "+err.Error())
 		}
 	}
-	return res
 }
 
 // breachedTarget returns the target a breach points at, or nil when none holds.

@@ -175,6 +175,219 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /docs/{docId}/breakdown:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    get:
+      operationId: getBreakdown
+      summary: The breakdown of this doc into epics and work items, with its findings and its coverage.
+      responses:
+        "200":
+          description: The breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: proposeBreakdown
+      summary: Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposeBreakdownRequest"
+      responses:
+        "201":
+          description: The proposed breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      operationId: editBreakdown
+      summary: Apply edits to the breakdown, in order and all or none. based_on is the revision the caller read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BreakdownEdit"
+      responses:
+        "200":
+          description: The edited breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/breakdown/update:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    post:
+      operationId: updateBreakdown
+      summary: Move a stale breakdown to the doc's current version. It quotes each criterion again, keeps the edits, the assignees and the pushed issues, and adds an item for each new trace ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBreakdownRequest"
+      responses:
+        "200":
+          description: The updated breakdown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/breakdown/readers:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    post:
+      operationId: checkBreakdownReaders
+      summary: Run the reader check on one work item. Two readers each read only the item and say what they would build. It costs model calls, so it runs only on request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReaderCheckRequest"
+      responses:
+        "200":
+          description: The breakdown with the item's reader check.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Breakdown"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/breakdown/trackers:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    get:
+      operationId: listBreakdownTrackers
+      summary: The trackers a push can write to, from the admin MCP connections and the GitHub credential.
+      responses:
+        "200":
+          description: The trackers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackerList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/breakdown/assignees:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+      - name: tracker
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [linear, jira, github]
+      - name: target
+        in: query
+        required: true
+        description: The Linear team, the Jira project URL, or the GitHub repo.
+        schema:
+          type: string
+      - name: query
+        in: query
+        required: false
+        schema:
+          type: string
+    get:
+      operationId: listBreakdownAssignees
+      summary: The people and the agents an item can be assigned to, read from the tracker.
+      responses:
+        "200":
+          description: The assignees. Agents are marked apart from people.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssigneeList"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/breakdown/push:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    post:
+      operationId: pushBreakdown
+      summary: Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushBreakdownRequest"
+      responses:
+        "200":
+          description: What the push created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushResult"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /docs/{docId}/breakdown/export:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+      - name: format
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [markdown, csv]
+    get:
+      operationId: exportBreakdown
+      summary: The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
+      responses:
+        "200":
+          description: The export.
+          content:
+            text/markdown:
+              schema:
+                type: string
+            text/csv:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /work-items:
+    get:
+      operationId: getWorkItem
+      summary: The slice of the spec one work item builds, at the version it was pushed from.
+      parameters:
+        - name: ref
+          in: query
+          required: true
+          description: The work item's Speccy URL, its tracker issue URL or key, or bundle/item.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The work item packet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkItemPacket"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /docs/{docId}/verification-waivers:
     parameters:
       - $ref: "#/components/parameters/DocId"
@@ -3215,6 +3428,411 @@ components:
             $ref: "#/components/schemas/Problem"
 
   schemas:
+    Breakdown:
+      type: object
+      description: The epics and work items Speccy proposed from one Build Ready doc. One per doc. It moves forward with the doc's versions.
+      required: [id, doc_id, bundle, title, version_number, current_version_number, stale, verdict, acknowledged, revision, epics, items, covered, findings, coverage, new_trace_ids, must, cover_answers, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        doc_id: { type: string, format: uuid }
+        bundle: { type: string }
+        title: { type: string }
+        version_number:
+          type: integer
+          format: int64
+          description: The doc version the breakdown quotes.
+        current_version_number:
+          type: integer
+          format: int64
+        stale:
+          type: boolean
+          description: The doc has a newer version than the one the breakdown quotes.
+        verdict:
+          type: string
+          description: The verdict the breakdown was taken at.
+        acknowledged:
+          type: boolean
+          description: The breakdown was taken from a doc that was not Build Ready.
+        revision:
+          type: integer
+          format: int64
+          description: Pass it as based_on with an edit.
+        epics:
+          type: array
+          items: { $ref: "#/components/schemas/BreakdownEpic" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WorkItem" }
+        covered:
+          type: array
+          description: The trace IDs a person said need no work item.
+          items: { $ref: "#/components/schemas/BreakdownCover" }
+        findings:
+          type: array
+          items: { $ref: "#/components/schemas/BreakdownFinding" }
+        coverage:
+          type: array
+          description: Each trace ID of the doc, with the items that hold it.
+          items: { $ref: "#/components/schemas/BreakdownCoverage" }
+        new_trace_ids:
+          type: array
+          description: The trace IDs a newer doc version added. Empty when the breakdown is not stale.
+          items: { type: string }
+        must:
+          type: integer
+          description: The MUST findings. A push is refused while it is above 0.
+        cover_answers:
+          type: array
+          description: The answers that close a coverage finding.
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    BreakdownEpic:
+      type: object
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        default_assignee:
+          $ref: "#/components/schemas/Assignee"
+        issue:
+          $ref: "#/components/schemas/PushedIssue"
+
+    WorkItem:
+      type: object
+      required: [id, ref, epic, title, trace_ids, heading_path, criteria, answers, repos, depends_on, questions, changed]
+      properties:
+        id: { type: string }
+        ref:
+          type: string
+          description: bundle/item, which get_work_item takes.
+        epic: { type: string }
+        title: { type: string }
+        trace_ids:
+          type: array
+          items: { type: string }
+        heading_path:
+          type: array
+          description: The section the item is anchored on, when the doc has no trace IDs.
+          items: { type: string }
+        criteria:
+          type: array
+          items: { $ref: "#/components/schemas/WorkItemCriterion" }
+        answers:
+          type: array
+          description: The agreed build answers for the item's trace IDs and sections.
+          items: { $ref: "#/components/schemas/BuildAnswer" }
+        repos:
+          type: array
+          items: { type: string }
+        depends_on:
+          type: array
+          items: { type: string }
+        questions:
+          type: array
+          items: { type: string }
+        note: { type: string }
+        assignee:
+          $ref: "#/components/schemas/Assignee"
+        effective_assignee:
+          $ref: "#/components/schemas/Assignee"
+        changed:
+          type: array
+          description: What a newer doc version changed in this item.
+          items: { type: string }
+        readers:
+          $ref: "#/components/schemas/ReaderCheck"
+        issue:
+          $ref: "#/components/schemas/PushedIssue"
+
+    WorkItemCriterion:
+      type: object
+      required: [quote, heading_path]
+      properties:
+        quote: { type: string }
+        heading_path:
+          type: array
+          items: { type: string }
+        trace_id: { type: string }
+        doc:
+          type: string
+          description: The slug of the linked spec doc the quote comes from. Absent for this doc.
+
+    BuildAnswer:
+      type: object
+      required: [question, answer]
+      properties:
+        question: { type: string }
+        answer: { type: string }
+
+    Assignee:
+      type: object
+      required: [kind, id, name]
+      properties:
+        kind:
+          type: string
+          enum: [person, agent]
+        id:
+          type: string
+          description: The tracker's ID for the person or the agent.
+        name: { type: string }
+
+    AssigneeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Assignee" }
+
+    PushedIssue:
+      type: object
+      required: [tracker, key, url, handoff_id, version_number, created_at]
+      properties:
+        tracker:
+          type: string
+          enum: [linear, jira, github]
+        key: { type: string }
+        url: { type: string }
+        handoff_id: { type: string, format: uuid }
+        version_number:
+          type: integer
+          format: int64
+          description: The doc version the issue was pushed from.
+        created_at: { type: string, format: date-time }
+
+    ReaderCheck:
+      type: object
+      required: [diverge, readings, reason, current]
+      properties:
+        diverge: { type: boolean }
+        readings:
+          type: array
+          items: { type: string }
+        reason: { type: string }
+        current:
+          type: boolean
+          description: False when the item changed after the readers read it.
+
+    BreakdownCover:
+      type: object
+      required: [trace_id, answer, reason, by]
+      properties:
+        trace_id: { type: string }
+        answer:
+          type: string
+          enum: [out_of_scope, covered_elsewhere, no_build]
+        reason: { type: string }
+        by: { type: string }
+
+    BreakdownFinding:
+      type: object
+      required: [slug, level, message, items]
+      properties:
+        slug: { type: string }
+        level:
+          type: string
+          enum: [MUST, SHOULD, INFO]
+        message: { type: string }
+        items:
+          type: array
+          items: { type: string }
+        trace_id: { type: string }
+
+    BreakdownCoverage:
+      type: object
+      required: [trace_id, text, items]
+      properties:
+        trace_id: { type: string }
+        text: { type: string }
+        items:
+          type: array
+          items: { type: string }
+        cover:
+          type: string
+          description: The answer that says the trace ID needs no item.
+
+    ProposeBreakdownRequest:
+      type: object
+      properties:
+        acknowledged:
+          type: boolean
+          description: Propose it from a doc that is not Build Ready. The breakdown stores the verdict.
+
+    UpdateBreakdownRequest:
+      type: object
+      required: [based_on]
+      properties:
+        based_on:
+          type: integer
+          format: int64
+        acknowledged: { type: boolean }
+
+    ReaderCheckRequest:
+      type: object
+      required: [item]
+      properties:
+        item: { type: string }
+
+    BreakdownEdit:
+      type: object
+      required: [based_on, ops]
+      properties:
+        based_on:
+          type: integer
+          format: int64
+          description: The revision the caller read. An edit on an older revision is refused.
+        ops:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/BreakdownOp" }
+
+    BreakdownOp:
+      type: object
+      description: >
+        One edit. split moves trace_ids of item to a new item. merge moves item into into.
+        move_trace moves trace_id from one item to another ("" is no item). reorder puts item
+        before before ("" is the end). set_dependencies, set_assignee, set_epic_default, set_note,
+        set_title (of item, or of epic), set_repos and move_item (to epic) set one field. add_epic
+        adds an epic with title. remove_item removes an item with no trace ID. cover says
+        trace_id needs no item, with answer and reason; uncover takes that back.
+      required: [op]
+      properties:
+        op:
+          type: string
+          enum: [split, merge, move_trace, reorder, set_dependencies, set_assignee, set_epic_default, set_note, set_title, set_repos, move_item, add_epic, rename_epic, remove_item, cover, uncover]
+        item: { type: string }
+        into: { type: string }
+        before: { type: string }
+        epic: { type: string }
+        trace_ids:
+          type: array
+          items: { type: string }
+        trace_id: { type: string }
+        from: { type: string }
+        to: { type: string }
+        title: { type: string }
+        note: { type: string }
+        repos:
+          type: array
+          items: { type: string }
+        depends_on:
+          type: array
+          items: { type: string }
+        assignee:
+          $ref: "#/components/schemas/Assignee"
+        answer:
+          type: string
+          enum: [out_of_scope, covered_elsewhere, no_build]
+        reason: { type: string }
+
+    TrackerList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Tracker" }
+
+    Tracker:
+      type: object
+      required: [kind, name, ready]
+      properties:
+        kind:
+          type: string
+          enum: [linear, jira, github]
+        name: { type: string }
+        host:
+          type: string
+          description: The host of a Jira site.
+        ready:
+          type: boolean
+          description: Speccy holds a connection or a credential for this tracker.
+        reason:
+          type: string
+          description: What is missing when it is not ready.
+
+    PushBreakdownRequest:
+      type: object
+      required: [based_on, tracker, target]
+      properties:
+        based_on:
+          type: integer
+          format: int64
+        tracker:
+          type: string
+          enum: [linear, jira, github]
+        target:
+          type: string
+          description: The Linear team, the Jira project URL, or the GitHub repo as owner/name.
+        acknowledged:
+          type: boolean
+          description: Push from a doc that is not Build Ready. The handoff stores the verdict.
+
+    PushResult:
+      type: object
+      required: [handoff_id, created, breakdown]
+      properties:
+        handoff_id:
+          type: string
+          format: uuid
+          description: The handoff the push recorded, with the label breakdown. Empty when nothing was new.
+        created:
+          type: array
+          description: The issues this push created. Empty when every item was already pushed.
+          items: { $ref: "#/components/schemas/CreatedIssue" }
+        breakdown:
+          $ref: "#/components/schemas/Breakdown"
+
+    CreatedIssue:
+      type: object
+      required: [kind, id, title, key, url]
+      properties:
+        kind:
+          type: string
+          enum: [epic, item]
+        id: { type: string }
+        title: { type: string }
+        key: { type: string }
+        url: { type: string }
+
+    WorkItemPacket:
+      type: object
+      description: The slice of the spec one work item builds. A builder reads it.
+      required: [bundle, doc_id, item, version_number, current_version_number, newer_version, main_doc, doc, links, external_links]
+      properties:
+        bundle: { type: string }
+        doc_id: { type: string, format: uuid }
+        item:
+          $ref: "#/components/schemas/WorkItem"
+        version_number:
+          type: integer
+          format: int64
+          description: The doc version the item was pushed from, or the breakdown's version for an unpushed item.
+        current_version_number:
+          type: integer
+          format: int64
+        newer_version:
+          type: boolean
+          description: The doc has a newer version than the pinned one. Ask the author before building from it.
+        handoff_id:
+          type: string
+          format: uuid
+        verdict:
+          type: string
+          description: The verdict at the handoff.
+        main_doc: { type: string }
+        doc:
+          type: string
+          description: The doc text at the pinned version.
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/PacketLink" }
+        external_links:
+          type: array
+          items: { $ref: "#/components/schemas/PacketExternalLink" }
+
     Meta:
       type: object
       additionalProperties: false
@@ -4083,7 +4701,7 @@ components:
           enum: [implements, refines, references, supersedes, implemented-by]
         origin:
           type: string
-          enum: [frontmatter, rule, adopted]
+          enum: [frontmatter, rule, adopted, breakdown]
         target_kind:
           type: string
           enum: [bundle, external]
