@@ -18,7 +18,7 @@ import (
 // commit, or with none of these the repo the doc's implemented-by link names. Speccy reads the
 // code; it never runs it, and it never runs the tests.
 func runVerify(args []string, stdout, stderr io.Writer) int {
-	var repo, sha, path, handoff string
+	var repo, sha, path, handoff, traceIDs, workItem string
 	summary := false
 	var paths []string
 	for i := 0; i < len(args); i++ {
@@ -44,6 +44,10 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 			path, ok = value("path")
 		case a == "--handoff" || strings.HasPrefix(a, "--handoff="):
 			handoff, ok = value("handoff")
+		case a == "--trace-ids" || strings.HasPrefix(a, "--trace-ids="):
+			traceIDs, ok = value("trace-ids")
+		case a == "--work-item" || strings.HasPrefix(a, "--work-item="):
+			workItem, ok = value("work-item")
 		case a == "--summary":
 			summary = true
 		case strings.HasPrefix(a, "-"):
@@ -57,7 +61,7 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if len(paths) < 1 || len(paths) > 2 || (sha != "" && repo == "") {
-		fmt.Fprint(stderr, "Usage: speccy verify <path> [<GitHub URL or folder>] [--handoff <id>] [--summary]\n"+
+		fmt.Fprint(stderr, "Usage: speccy verify <path> [<GitHub URL or folder>] [--handoff <id>] [--trace-ids <ID,ID>] [--work-item <issue>] [--summary]\n"+
 			"       speccy verify <path> --repo <owner/name> [--sha <sha>] [--summary]\n"+
 			"       speccy verify <path> --path <folder> [--summary]\n"+
 			"With no URL, Speccy verifies the repo that the doc's implemented-by link names.\n")
@@ -83,6 +87,18 @@ func runVerify(args []string, stdout, stderr io.Writer) int {
 	}
 	if path != "" {
 		body.Path = &path
+	}
+	if traceIDs != "" {
+		var ids []string
+		for _, id := range strings.Split(traceIDs, ",") {
+			if id = strings.TrimSpace(id); id != "" {
+				ids = append(ids, id)
+			}
+		}
+		body.TraceIds = &ids
+	}
+	if workItem != "" {
+		body.WorkItem = &workItem
 	}
 	if handoff != "" {
 		id, err := parseUUID(handoff)

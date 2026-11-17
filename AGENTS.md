@@ -96,3 +96,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Consequence class: the one of data model, interface, security or user-visible that a material gap's two options differ in. Avoid: severity, impact, category.
 - Questions screen: the one screen that lists everything that blocks Build Ready and needs a person: material gaps, blocking threads and blocking findings. The author answers each item there, and a reviewer comments on it. Avoid: quiz, wizard, answer form, tour.
 - Not needed: the answer that a finding does not apply to this doc, with a reason. It closes at once, with no approval. A waiver is for a real gap that ships open. Avoid: false positive, won't fix.
+- Breakdown: the epics and work items Speccy proposes from one Build Ready doc. One per bundle, and it moves forward with the doc's versions. Avoid: plan, decomposition, ticket set.
+- Work item: one item of a breakdown, with its trace IDs, its criteria quoted from the doc, and an assignee. Avoid: task, ticket, story.

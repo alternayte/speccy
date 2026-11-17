@@ -56,7 +56,7 @@ func (q *Queries) FinishVerificationRun(ctx context.Context, arg FinishVerificat
 }
 
 const getVerificationRun = `-- name: GetVerificationRun :one
-SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = ?1 AND id = ?2
+SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch, trace_ids, work_item, advisory FROM verification_run WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetVerificationRunParams struct {
@@ -86,6 +86,9 @@ func (q *Queries) GetVerificationRun(ctx context.Context, arg GetVerificationRun
 		&i.Status,
 		&i.Error,
 		&i.Branch,
+		&i.TraceIds,
+		&i.WorkItem,
+		&i.Advisory,
 	)
 	return i, err
 }
@@ -129,10 +132,10 @@ func (q *Queries) InsertVerificationOutcome(ctx context.Context, arg InsertVerif
 
 const insertVerificationRun = `-- name: InsertVerificationRun :exec
 INSERT INTO verification_run (id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
-                              verdict, counts, notes, status, started_by, created_at)
+                              verdict, counts, notes, status, started_by, created_at, trace_ids, work_item, advisory)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, '', '', '', ?9, ?10, 'queued',
-        ?11, ?12)
+        ?11, ?12, ?13, ?14, ?15)
 `
 
 type InsertVerificationRunParams struct {
@@ -148,6 +151,9 @@ type InsertVerificationRunParams struct {
 	Notes       dbtype.JSON
 	StartedBy   string
 	CreatedAt   time.Time
+	TraceIds    dbtype.JSON
+	WorkItem    string
+	Advisory    bool
 }
 
 func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificationRunParams) error {
@@ -164,6 +170,9 @@ func (q *Queries) InsertVerificationRun(ctx context.Context, arg InsertVerificat
 		arg.Notes,
 		arg.StartedBy,
 		arg.CreatedAt,
+		arg.TraceIds,
+		arg.WorkItem,
+		arg.Advisory,
 	)
 	return err
 }
@@ -226,7 +235,7 @@ func (q *Queries) ListVerificationOutcomes(ctx context.Context, runID uuid.UUID)
 }
 
 const listVerificationRuns = `-- name: ListVerificationRuns :many
-SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE spec_doc_id = ?1 ORDER BY created_at DESC, id
+SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch, trace_ids, work_item, advisory FROM verification_run WHERE spec_doc_id = ?1 ORDER BY created_at DESC, id
 `
 
 func (q *Queries) ListVerificationRuns(ctx context.Context, specDocID uuid.UUID) ([]VerificationRun, error) {
@@ -257,6 +266,9 @@ func (q *Queries) ListVerificationRuns(ctx context.Context, specDocID uuid.UUID)
 			&i.Status,
 			&i.Error,
 			&i.Branch,
+			&i.TraceIds,
+			&i.WorkItem,
+			&i.Advisory,
 		); err != nil {
 			return nil, err
 		}
@@ -272,7 +284,7 @@ func (q *Queries) ListVerificationRuns(ctx context.Context, specDocID uuid.UUID)
 }
 
 const listWorkspaceVerificationRuns = `-- name: ListWorkspaceVerificationRuns :many
-SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch FROM verification_run WHERE workspace_id = ?1 AND status = 'done' ORDER BY created_at DESC
+SELECT id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, base_sha, digest, verdict, counts, notes, stale, started_by, created_at, status, error, branch, trace_ids, work_item, advisory FROM verification_run WHERE workspace_id = ?1 AND status = 'done' ORDER BY created_at DESC
 `
 
 func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID uuid.UUID) ([]VerificationRun, error) {
@@ -303,6 +315,9 @@ func (q *Queries) ListWorkspaceVerificationRuns(ctx context.Context, workspaceID
 			&i.Status,
 			&i.Error,
 			&i.Branch,
+			&i.TraceIds,
+			&i.WorkItem,
+			&i.Advisory,
 		); err != nil {
 			return nil, err
 		}

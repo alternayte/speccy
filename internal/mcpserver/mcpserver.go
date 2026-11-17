@@ -49,7 +49,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
-	add(s, t, "verify_build", "Verify one build against the bundle. Call it when the build from a build packet is done, with the handoff ID from HANDOFF.md. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
+	add(s, t, "verify_build", "Verify one build against the bundle. Call it when the build from a build packet is done, with the handoff ID from HANDOFF.md. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle, unless you verify the head of a pull request: that run only advises. When the build covers one work item, pass work_item or trace_ids, and Speccy verifies those trace IDs only. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "request_waiver", "Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. With upstream_change, the answer to a coherence.contradiction finding is that the linked doc must change: after approval the conflict waits on that doc and does not block. With send_back, the answer to a coherence.downstream-request finding is that the downstream doc must change: after approval the conflict blocks that doc again. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs. In local mode the waiver is approved at once, because the one person is the approver; an upstream request or a send-back still waits.", t.requestWaiver)
 	add(s, t, "approve_waiver", "Approve a requested waiver under the profile's waiver policy. Speccy refuses an approval that the policy does not allow to the person. The final approval writes the waiver to the doc's sidecar, and the finding no longer counts in the verdict. Approve only when the person tells you to approve this waiver.", t.approveWaiver)
@@ -369,7 +369,10 @@ type verifyArg struct {
 	Path   string `json:"path,omitempty" jsonschema:"a folder on disk, instead of a repo and a commit"`
 	// Handoff ties the run to the packet the builder took.
 	Handoff string `json:"handoff,omitempty" jsonschema:"the handoff ID from the build packet"`
-	Claims  []struct {
+	// TraceIDs and WorkItem scope the run, for a pull request that builds part of the doc.
+	TraceIDs []string `json:"trace_ids,omitempty" jsonschema:"verify only these trace IDs, when the build covers part of the doc"`
+	WorkItem string   `json:"work_item,omitempty" jsonschema:"verify only the trace IDs of this work item: its issue URL or key, its Speccy URL, or bundle/item"`
+	Claims   []struct {
 		TraceID string `json:"trace_id" jsonschema:"the requirement this claim covers"`
 		Targets []struct {
 			Kind  string `json:"kind" jsonschema:"code or test"`
@@ -404,6 +407,12 @@ func (tools) verifyBuild(ctx context.Context, c *api.ClientWithResponses, in ver
 			return nil, fmt.Errorf("handoff must be the ID from the build packet: %w", err)
 		}
 		body.HandoffId = &id
+	}
+	if len(in.TraceIDs) > 0 {
+		body.TraceIds = &in.TraceIDs
+	}
+	if in.WorkItem != "" {
+		body.WorkItem = &in.WorkItem
 	}
 	if len(in.Claims) > 0 {
 		claims := make([]api.VerificationClaim, 0, len(in.Claims))

@@ -1,9 +1,9 @@
 -- name: InsertVerificationRun :exec
 INSERT INTO verification_run (id, workspace_id, spec_doc_id, version_id, handoff_id, repo, sha, branch, base_sha, digest,
-                              verdict, counts, notes, status, started_by, created_at)
+                              verdict, counts, notes, status, started_by, created_at, trace_ids, work_item, advisory)
 VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), sqlc.arg(version_id), sqlc.narg(handoff_id),
         sqlc.arg(repo), sqlc.arg(sha), sqlc.arg(branch), '', '', '', sqlc.arg(counts), sqlc.arg(notes), 'queued',
-        sqlc.arg(started_by), sqlc.arg(created_at));
+        sqlc.arg(started_by), sqlc.arg(created_at), sqlc.arg(trace_ids), sqlc.arg(work_item), sqlc.arg(advisory));
 
 -- name: StartVerificationRun :exec
 UPDATE verification_run SET status = 'running' WHERE id = sqlc.arg(id);

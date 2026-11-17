@@ -84,6 +84,14 @@ type Input struct {
 	Claims []Claim
 	// APIURL is the GitHub host, empty for github.com.
 	APIURL string
+	// TraceIDs scope the run: it gives outcomes and opens blocking threads for these IDs only.
+	// Empty verifies every trace ID.
+	TraceIDs []string
+	// WorkItem names the work item the scope came from, as bundle/item.
+	WorkItem string
+	// Advisory is true for a run on a pull request head. It reports, and it opens no blocking
+	// thread and does not count toward the handoff: the doc hears only about code that landed.
+	Advisory bool
 }
 
 // Run is one finished verification run.
@@ -102,6 +110,10 @@ type Run struct {
 	Digest  string
 	Stale   bool
 	At      time.Time
+	// TraceIDs, WorkItem and Advisory are the run's scope, as Input holds them.
+	TraceIDs []string
+	WorkItem string
+	Advisory bool
 }
 
 // name is the repo, or the folder, that a run reads.
@@ -147,7 +159,7 @@ func (a *API) Start(ctx context.Context, in Input) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
-	run := Run{ID: kernel.NewID(), Status: StatusQueued, Repo: in.name(), SHA: in.SHA, Branch: in.Branch, At: a.now()}
+	run := in.queued(a.now())
 	payload, _ := json.Marshal(job{RunID: run.ID, Input: in})
 	err = a.DB.InTx(ctx, func(tx store.Tx) error {
 		if err := a.insert(ctx, tx.Queries(), b, run, in.HandoffID); err != nil {
@@ -243,9 +255,13 @@ func (a *API) prepare(ctx context.Context, in *Input) error {
 	if !ok {
 		return kernel.Invalid("no_profile", "No profile is loaded for the doc type %q.", b.ProfileKey)
 	}
-	if reqs, _ := requirements(main, prof.Profile); len(reqs) == 0 {
+	reqs, _ := requirements(main, prof.Profile)
+	if len(reqs) == 0 {
 		return kernel.Invalid("no_trace_ids",
 			"This bundle defines no trace ID that the gate verifies. Accept the suggested IDs on the bundle page, then run this again.")
+	}
+	if in.TraceIDs, err = scope(in.TraceIDs, reqs); err != nil {
+		return err
 	}
 	for _, role := range []string{model.RoleReviewer, model.RoleJudge} {
 		if _, err := a.Gateway.Assigned(ctx, role); err != nil {
@@ -285,6 +301,8 @@ func (a *API) prepare(ctx context.Context, in *Input) error {
 		return err
 	}
 	in.Repo, in.SHA, in.Branch, in.Path, in.APIURL = r.Repo, r.SHA, r.Branch, "", r.APIURL
+	// A pull request head is code that has not landed, so its run only advises.
+	in.Advisory = r.Pull > 0
 	if r.Folder {
 		in.Repo, in.Path = "", r.Repo
 	}
@@ -300,7 +318,7 @@ func (a *API) Verify(ctx context.Context, in Input) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
-	run := Run{ID: kernel.NewID(), Status: StatusQueued, Repo: in.name(), SHA: in.SHA, Branch: in.Branch, At: a.now()}
+	run := in.queued(a.now())
 	if err := a.insert(ctx, a.DB.Queries(), b, run, in.HandoffID); err != nil {
 		return Run{}, err
 	}
@@ -328,6 +346,7 @@ func (a *API) execute(ctx context.Context, id uuid.UUID, in Input) (Run, error) 
 		return Run{}, kernel.Invalid("no_trace_ids",
 			"This bundle defines no trace ID that the gate verifies. Accept the suggested IDs on the bundle page, then run this again.")
 	}
+	reqs = inScope(reqs, in.TraceIDs)
 
 	a.Progress.Publish(id, review.Event{Type: "stage", Stage: "reading", Message: "Reading " + in.name()})
 	repo, err := a.openRepo(ctx, in, prof.Profile.Verify)
@@ -355,7 +374,8 @@ func (a *API) execute(ctx context.Context, id uuid.UUID, in Input) (Run, error) 
 	}
 
 	run := Run{ID: id, Status: StatusDone, Repo: repo.Name(), SHA: repo.SHA(), Branch: in.Branch, BaseSHA: base,
-		Digest: repo.Digest(), Notes: repo.Notes(), At: a.now()}
+		Digest: repo.Digest(), Notes: repo.Notes(), At: a.now(), TraceIDs: in.TraceIDs, WorkItem: in.WorkItem,
+		Advisory: in.Advisory}
 	a.Progress.Publish(id, review.Event{Type: "stage", Stage: "judging", Total: len(reqs)})
 	for i, r := range reqs {
 		a.Progress.Publish(id, review.Event{Type: "progress", Stage: "judging", Message: r.ID, Done: i, Total: len(reqs)})
@@ -379,8 +399,10 @@ func (a *API) execute(ctx context.Context, id uuid.UUID, in Input) (Run, error) 
 	if v, err := q.GetVersion(ctx, pgdb.GetVersionParams{SpecDocID: b.ID, ID: b.CurrentVersionID.UUID}); err == nil {
 		number = v.Number
 	}
-	if _, err := a.openThreads(ctx, b, prof.Profile, main, run, in.HandoffID, number); err != nil {
-		return Run{}, err
+	if !run.Advisory {
+		if _, err := a.openThreads(ctx, b, prof.Profile, main, run, in.HandoffID, number); err != nil {
+			return Run{}, err
+		}
 	}
 	// The run reads as done only after its threads exist, so a reader that sees done sees them.
 	counts, _ := json.Marshal(run.Counts)
@@ -735,16 +757,73 @@ func snapLine(body, quote string) (string, bool) {
 	return "", false
 }
 
+// queued is the run a request starts, before the worker reads the code.
+func (in Input) queued(at time.Time) Run {
+	return Run{ID: kernel.NewID(), Status: StatusQueued, Repo: in.name(), SHA: in.SHA, Branch: in.Branch, At: at,
+		TraceIDs: in.TraceIDs, WorkItem: in.WorkItem, Advisory: in.Advisory}
+}
+
+// scope checks the trace IDs a run is scoped to against the requirements the gate verifies,
+// and returns them sorted with no repeat. An ID the doc does not define, or that the gate does
+// not verify, refuses the run, so a typo never reads as a pass.
+func scope(ids []string, reqs []requirement) ([]string, error) {
+	known := map[string]bool{}
+	for _, r := range reqs {
+		known[r.ID] = true
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	var unknown []string
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		if !known[id] {
+			unknown = append(unknown, id)
+			continue
+		}
+		out = append(out, id)
+	}
+	if len(unknown) > 0 {
+		return nil, kernel.Invalid("unknown_trace_ids",
+			"The doc defines no trace ID that the gate verifies with these names: %s.", strings.Join(unknown, ", "))
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+// inScope keeps the requirements a scope names. An empty scope keeps them all.
+func inScope(reqs []requirement, ids []string) []requirement {
+	if len(ids) == 0 {
+		return reqs
+	}
+	want := map[string]bool{}
+	for _, id := range ids {
+		want[id] = true
+	}
+	var out []requirement
+	for _, r := range reqs {
+		if want[r.ID] {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // insert writes a queued run: the bundle version, and the repo and the commit it will read.
 func (a *API) insert(ctx context.Context, q store.Querier, b pgdb.SpecDoc, run Run, handoff *uuid.UUID) error {
 	var h uuid.NullUUID
 	if handoff != nil {
 		h = uuid.NullUUID{UUID: *handoff, Valid: true}
 	}
+	ids, _ := json.Marshal(nonNil(run.TraceIDs))
 	return q.InsertVerificationRun(ctx, pgdb.InsertVerificationRunParams{
 		ID: run.ID, WorkspaceID: a.Workspace, SpecDocID: b.ID, VersionID: b.CurrentVersionID.UUID,
 		HandoffID: h, Repo: run.Repo, Sha: run.SHA, Branch: run.Branch, Counts: dbtype.JSON("{}"), Notes: dbtype.JSON("[]"),
 		StartedBy: kernel.ActorFrom(ctx).UserID, CreatedAt: run.At,
+		TraceIds: ids, WorkItem: run.WorkItem, Advisory: run.Advisory,
 	})
 }
 

@@ -3748,6 +3748,13 @@ components:
           description: The builder's claims. A claim replaces the derived targets of its trace ID.
           items:
             $ref: "#/components/schemas/VerificationClaim"
+        trace_ids:
+          type: array
+          description: Scope the run to these trace IDs. The run gives outcomes and opens blocking threads for these IDs only. Empty or absent verifies every trace ID.
+          items: { type: string }
+        work_item:
+          type: string
+          description: Scope the run to the trace IDs of one work item, named by its tracker issue URL or key, its Speccy URL, or bundle/item.
 
     VerificationTargetInput:
       type: object
@@ -3878,7 +3885,7 @@ components:
 
     Verification:
       type: object
-      required: [id, doc_id, status, repo, sha, counts, notes, stale, created_at, outcomes]
+      required: [id, doc_id, status, repo, sha, counts, notes, stale, created_at, outcomes, trace_ids, advisory]
       properties:
         id:
           type: string
@@ -3919,6 +3926,16 @@ components:
         stale:
           type: boolean
           description: The bundle got a new version after this run.
+        trace_ids:
+          type: array
+          description: The trace IDs the run was scoped to. Empty when it verified every trace ID.
+          items: { type: string }
+        work_item:
+          type: string
+          description: The work item the run was scoped to, as bundle/item.
+        advisory:
+          type: boolean
+          description: The run read the head of a pull request. It opens no blocking thread and does not count toward the handoff.
         started_by: { type: string }
         created_at:
           type: string

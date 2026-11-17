@@ -4124,6 +4124,9 @@ type VerdictResult string
 
 // Verification defines model for Verification.
 type Verification struct {
+	// Advisory The run read the head of a pull request. It opens no blocking thread and does not count toward the handoff.
+	Advisory bool `json:"advisory"`
+
 	// BaseSha The commit the ranking compared against. Empty when the run had no base.
 	BaseSha *string `json:"base_sha,omitempty"`
 
@@ -4152,8 +4155,14 @@ type Verification struct {
 	StartedBy *string            `json:"started_by,omitempty"`
 	Status    VerificationStatus `json:"status"`
 
+	// TraceIds The trace IDs the run was scoped to. Empty when it verified every trace ID.
+	TraceIds []string `json:"trace_ids"`
+
 	// Verdict The run's own verdict, when the run is done. It is not the bundle's Build Ready verdict.
 	Verdict *VerificationVerdict `json:"verdict,omitempty"`
+
+	// WorkItem The work item the run was scoped to, as bundle/item.
+	WorkItem *string `json:"work_item,omitempty"`
 }
 
 // VerificationStatus defines model for Verification.Status.
@@ -4257,6 +4266,12 @@ type VerificationRequest struct {
 
 	// Target A GitHub URL of a repo, a branch, a file, a commit or a pull request, or owner/name. In local mode, also an absolute folder path.
 	Target *string `json:"target,omitempty"`
+
+	// TraceIds Scope the run to these trace IDs. The run gives outcomes and opens blocking threads for these IDs only. Empty or absent verifies every trace ID.
+	TraceIds *[]string `json:"trace_ids,omitempty"`
+
+	// WorkItem Scope the run to the trace IDs of one work item, named by its tracker issue URL or key, its Speccy URL, or bundle/item.
+	WorkItem *string `json:"work_item,omitempty"`
 }
 
 // VerificationTarget defines model for VerificationTarget.

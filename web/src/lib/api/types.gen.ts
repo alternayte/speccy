@@ -389,6 +389,14 @@ export type VerificationRequest = {
      * The builder's claims. A claim replaces the derived targets of its trace ID.
      */
     claims?: Array<VerificationClaim>;
+    /**
+     * Scope the run to these trace IDs. The run gives outcomes and opens blocking threads for these IDs only. Empty or absent verifies every trace ID.
+     */
+    trace_ids?: Array<string>;
+    /**
+     * Scope the run to the trace IDs of one work item, named by its tracker issue URL or key, its Speccy URL, or bundle/item.
+     */
+    work_item?: string;
 };
 
 export type VerificationTargetInput = {
@@ -521,6 +529,18 @@ export type Verification = {
      * The bundle got a new version after this run.
      */
     stale: boolean;
+    /**
+     * The trace IDs the run was scoped to. Empty when it verified every trace ID.
+     */
+    trace_ids: Array<string>;
+    /**
+     * The work item the run was scoped to, as bundle/item.
+     */
+    work_item?: string;
+    /**
+     * The run read the head of a pull request. It opens no blocking thread and does not count toward the handoff.
+     */
+    advisory: boolean;
     started_by?: string;
     created_at: string;
     outcomes: Array<VerificationOutcome>;

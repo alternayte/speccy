@@ -526,6 +526,9 @@ type VerificationRun struct {
 	Status      string
 	Error       string
 	Branch      string
+	TraceIds    dbtype.JSON
+	WorkItem    string
+	Advisory    bool
 }
 
 type Version struct {
