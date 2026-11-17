@@ -1,0 +1,154 @@
+---
+title: Break a doc into work items
+description: Propose a breakdown of a Build Ready doc, fix its findings, assign each work item, push it to Linear, Jira or GitHub Issues, and verify each pull request against its work item.
+sidebar: { order: 8 }
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+This guide shows you how to split a Build Ready doc into epics and work items. It then shows you how to hand them to people and agents through your tracker.
+
+A breakdown is the set of epics and work items Speccy proposes from one spec doc. A work item adds nothing the doc does not say: each criterion is a quote from the doc, with its heading path. To change a criterion, change the doc.
+
+## Before you start
+
+- The doc is Build Ready. Speccy refuses a doc that is not, and names the MUST count. You can propose it anyway, and the breakdown records the verdict.
+- **Admin** names a model for the reviewer role. The reader check also uses the reader and judge roles.
+- To push, Speccy has a way to write to the tracker:
+  - **Linear:** an MCP connection in **Admin → MCP connections** that lists the host `linear.app`.
+  - **Jira Cloud:** a connection to Atlassian's MCP server that lists your `atlassian.net` host.
+  - **Jira Data Center:** a connection to the `mcp-atlassian` server that lists your Jira host.
+  - **GitHub Issues:** the GitHub credential Speccy already holds. It needs permission to write issues.
+
+With no connection, you can export the breakdown as markdown or CSV.
+
+## Propose the breakdown
+
+On a Build Ready doc of size app or initiative, the next action reads **Break it down**. On a feature-size doc, **Hand it to a builder** opens a dialog with **Break it down** in it.
+
+<Tabs>
+<TabItem label="Web app">
+
+<Steps>
+
+1. Click **Break it down**.
+
+2. Click **Propose a breakdown**. Speccy reads the doc and proposes epics and work items under the profile's `breakdown:` rules.
+
+3. Read the findings at the top. A MUST finding blocks the push.
+
+</Steps>
+
+</TabItem>
+<TabItem label="CLI">
+
+```sh
+speccy breakdown propose specs/notify/SPEC.md
+speccy breakdown show specs/notify/SPEC.md
+```
+
+</TabItem>
+<TabItem label="MCP">
+
+Ask the agent to call `propose_breakdown` with the bundle, then `get_breakdown`.
+
+</TabItem>
+</Tabs>
+
+## Fix the findings
+
+| Check | Level | What to do |
+|---|---|---|
+| `breakdown.coverage` | MUST | Add the trace ID to a work item, or say why it needs none: out of scope, covered elsewhere, or no build work. |
+| `breakdown.orphan` | MUST | Move a trace ID into the item, or remove the item. |
+| `breakdown.cycle` | MUST | Remove one dependency of the loop. |
+| `breakdown.one-repo` | MUST | Split the item into one item per repo. |
+| `breakdown.testable` | SHOULD | Make sure the item holds a criterion a test can check. |
+| `breakdown.size` | SHOULD | Split an item with more trace IDs than `breakdown.max_trace_ids`. |
+| `breakdown.divergence` | SHOULD | Change the doc where two readers read the item in different ways. |
+
+Each item has an **Edit** menu: split, merge, dependencies, assignee, note, and order. Click a trace ID to move it to another item. **Check with readers** gives the item to two readers, who each say what they build from it. It costs model calls, so it runs only when you click it.
+
+A person who cannot edit the doc sees the breakdown and comments on an item. The comment opens a thread on the section the item quotes.
+
+## Assign the work items
+
+Pick the tracker and where the issues go under **Push to a tracker** first: the Linear team, the Jira project URL, or the GitHub repo. Then:
+
+- **Edit → Assignee** on an item picks a person or an agent from the tracker. The list shows agents apart from people.
+- **Default assignee** on an epic gives every item of the epic with no assignee of its own that person or agent.
+
+In Linear, an agent you assign becomes the delegate of the issue, and Linear starts its agent session.
+
+## Push the breakdown
+
+<Steps>
+
+1. Click **Push N work items**.
+
+2. Read the issue keys that the push created.
+
+</Steps>
+
+The push creates an issue for each epic and each work item that has none, with the dependencies as blocking relations and the assignees. It never edits or closes an issue. A second push creates only the new items. The push records one handoff with the label `breakdown`, so History and the false-ready rate count it.
+
+Each issue holds the criteria and the agreed build answers for people, and one Speccy block for a builder:
+
+```html
+<!-- speccy
+bundle: notify-sdd
+version: 3
+handoff: 01a1eb6f-...
+verdict: build_ready
+trace_ids:
+    - REQ-004
+doc: https://speccy.example.com/api/v1/docs/.../files/content?path=SPEC.md&version=...
+work_item: https://speccy.example.com/docs/.../breakdown?item=i4
+-->
+```
+
+Speccy stores each issue as an external link of the doc, so `coherence.external` flags an issue that someone edits to contradict the doc.
+
+<Aside type="caution">
+After a new doc version, the breakdown reads stale and names the items whose trace IDs or quotes changed. **Update to version N** quotes the new text and keeps your edits, the assignees and the pushed issues. Speccy does not edit an issue it pushed: you decide what to do with the issues it names.
+</Aside>
+
+## Build from a work item
+
+A builder reads the slice of the spec one item builds, at the version the push took:
+
+```sh
+speccy work-item ENG-123 --server https://speccy.example.com
+```
+
+The MCP tool `get_work_item` takes the same reference: the issue URL or key, the work item URL, or `bundle/item`. It says when the doc has a newer version.
+
+## Verify each pull request
+
+A pull request that builds one work item verifies only its trace IDs:
+
+```sh
+speccy verify specs/notify/SPEC.md https://github.com/acme/notify/pull/42 --work-item ENG-123
+```
+
+In the code repo, the verify Action finds the work items that a pull request names in its title, its body or its branch:
+
+```yaml workflow
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: alternayte/speccy/verify@v0.31.0
+        with:
+          server: https://speccy.example.com
+          token: ${{ secrets.SPECCY_TOKEN }}
+```
+
+On a pull request, the run reads the head commit and only advises: one comment and a check per work item, and no blocking thread. On the merge commit, the run counts toward the handoff, and a breach of a MUST opens a blocking thread. **Verify the build** clears when the counted runs together cover every trace ID.

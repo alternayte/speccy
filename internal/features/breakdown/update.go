@@ -22,7 +22,7 @@ import (
 func changes(b Body, d docText) map[string][]string {
 	now := map[string]string{}
 	for _, def := range d.defs {
-		now[def.ID] = strings.TrimSpace(def.Text)
+		now[def.ID] = defText(d.main, def)
 	}
 	out := map[string][]string{}
 	for _, it := range b.Items {
@@ -157,7 +157,7 @@ func reQuote(body *Body, d docText) {
 	body.Covered = slices.DeleteFunc(body.Covered, func(c Cover) bool { _, ok := defs[c.TraceID]; return !ok })
 	body.Defs = map[string]string{}
 	for _, def := range d.defs {
-		body.Defs[def.ID] = strings.TrimSpace(def.Text)
+		body.Defs[def.ID] = defText(d.main, def)
 	}
 }
 

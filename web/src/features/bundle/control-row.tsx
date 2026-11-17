@@ -29,6 +29,7 @@ const kindIcon: Record<NextAction["kind"], React.ReactNode> = {
   adopt: <FileText className="size-3.5" />,
   request_review: <MessageSquarePlus className="size-3.5" />,
   handoff: <PackageCheck className="size-3.5" />,
+  breakdown: <Network className="size-3.5" />,
   verify: <ShieldCheck className="size-3.5" />,
 };
 

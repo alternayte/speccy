@@ -178,7 +178,10 @@ func (a *API) block(v View, handoffID uuid.UUID, verdict string, traceIDs []stri
 	}
 	blk := Block{Bundle: v.Bundle.Slug, Version: v.VersionNumber, Handoff: handoffID.String(), Verdict: verdict,
 		TraceIDs: nonNil(traceIDs),
-		Doc:      fmt.Sprintf("%s/docs/%s?version=%d", base, v.Bundle.ID, v.VersionNumber)}
+		// The doc's text at the pinned version, which a person with access or a builder with a
+		// token reads.
+		Doc: fmt.Sprintf("%s/api/v1/docs/%s/files/content?path=%s&version=%s", base, v.Bundle.ID,
+			url.QueryEscape(v.Bundle.DocPath), v.Row.VersionID)}
 	if itemID != "" {
 		blk.WorkItem = fmt.Sprintf("%s/docs/%s/breakdown?item=%s", base, v.Bundle.ID, url.QueryEscape(itemID))
 	}

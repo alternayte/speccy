@@ -20,6 +20,7 @@ export function HandoffDialog({
   open,
   onOpenChange,
   onTaken,
+  onBreakdown,
 }: {
   doc: SpecDoc;
   // folder is the slug of the bundle folder, relative to the served folder.
@@ -30,6 +31,8 @@ export function HandoffDialog({
   onOpenChange: (open: boolean) => void;
   // onTaken runs after the download, so the page can show the new handoff in History.
   onTaken: () => void;
+  // onBreakdown opens the breakdown screen, for a doc that is more than one pull request.
+  onBreakdown?: () => void;
 }) {
   const qc = useQueryClient();
   const labelId = useId();
@@ -132,6 +135,28 @@ export function HandoffDialog({
             </div>
           ) : null}
         </div>
+
+        {onBreakdown ? (
+          <section className="border-t border-line pt-4">
+            <h3 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">
+              More than one pull request
+            </h3>
+            <p className="mt-1 text-xs text-ink-2">
+              Break the doc into epics and work items, and push them to Linear, Jira or GitHub Issues. Each issue quotes
+              its criteria from the doc.
+            </p>
+            <Button
+              size="sm"
+              className="mt-2"
+              onClick={() => {
+                close();
+                onBreakdown();
+              }}
+            >
+              Break it down
+            </Button>
+          </section>
+        ) : null}
 
         <section className="border-t border-line pt-4">
           <h3 className="text-2xs font-semibold tracking-[var(--tracking-caps)] text-ink-3 uppercase">

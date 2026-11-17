@@ -308,7 +308,7 @@ How to answer:
 		sb.WriteString("(none: anchor each item on a section)\n")
 	}
 	for _, def := range d.defs {
-		fmt.Fprintf(&sb, "- %s: %s\n", def.ID, oneLine(def.Text))
+		fmt.Fprintf(&sb, "- %s\n", defText(d.main, def))
 	}
 	sb.WriteString("\nHeadings:\n")
 	for _, s := range d.doc.Sections {
@@ -347,7 +347,7 @@ func build(d docText, p proposal) Body {
 	defs := map[string]lint.Definition{}
 	for _, def := range d.defs {
 		defs[def.ID] = def
-		body.Defs[def.ID] = strings.TrimSpace(def.Text)
+		body.Defs[def.ID] = defText(d.main, def)
 	}
 	epicIDs := map[string]string{}
 	for _, e := range p.Epics {
@@ -392,7 +392,18 @@ func build(d docText, p proposal) Body {
 			item.HeadingPath = it.HeadingPath
 		}
 		for _, c := range it.Criteria {
-			if cr, ok := quote(d, linked, c.Doc, c.Quote); ok && !hasQuote(item.Criteria, cr.Quote) {
+			cr, ok := quote(d, linked, c.Doc, c.Quote)
+			if !ok {
+				continue
+			}
+			// A quote from a definition stands for the whole definition, once.
+			if cr.TraceID != "" {
+				if hasTrace(item.Criteria, cr.TraceID) {
+					continue
+				}
+				cr = definitionCriterion(d, defs[cr.TraceID])
+			}
+			if !hasQuote(item.Criteria, cr.Quote) {
 				item.Criteria = append(item.Criteria, cr)
 			}
 		}
@@ -470,28 +481,58 @@ func quote(d docText, linked map[string][]byte, doc, q string) (Criterion, bool)
 	start, end, _ := anchor.Find(d.main, q)
 	an := anchor.New(d.bundle.DocPath, d.main, d.doc, start, end)
 	c := Criterion{Quote: an.Quote, HeadingPath: nonNil(an.HeadingPath)}
+	// A definition's offsets cover its ID only, so a quote is part of a definition when it starts
+	// after the ID and its words are in the definition's text.
 	for _, def := range d.defs {
-		if def.Start <= start && end <= lineEnd(d.main, def.End) {
+		if def.Start <= start && strings.Contains(plain(defText(d.main, def)), plain(q)) {
 			c.TraceID = def.ID
 		}
 	}
 	return c, true
 }
 
-// lineEnd is the end of the line that holds offset i. A definition's offsets cover its ID only,
-// and its text runs to the end of the line.
-func lineEnd(src []byte, i int) int {
-	for i < len(src) && src[i] != '\n' {
-		i++
-	}
-	return i
+// plain is s with the markdown emphasis marks dropped and the whitespace collapsed, to compare
+// a quote with a definition's text.
+func plain(s string) string {
+	s = strings.NewReplacer("*", "", "_", "", "`", "").Replace(s)
+	return strings.Join(strings.Fields(s), " ")
 }
 
-// definitionCriterion is the definition of a trace ID, as a criterion: its text, which matches
-// the doc with the emphasis marks left out.
+// definitionCriterion is the definition of a trace ID, as a criterion: its source text with the
+// bold marks left out, which matches the doc once.
 func definitionCriterion(d docText, def lint.Definition) Criterion {
 	an := anchor.New(d.bundle.DocPath, d.main, d.doc, def.Start, def.End)
-	return Criterion{Quote: strings.TrimSpace(def.Text), HeadingPath: nonNil(an.HeadingPath), TraceID: def.ID}
+	return Criterion{Quote: defText(d.main, def), HeadingPath: nonNil(an.HeadingPath), TraceID: def.ID}
+}
+
+// defText is the source text of a definition: from its ID to the end of its paragraph or list
+// item, with the bold marks dropped and the whitespace collapsed. A definition's offsets cover
+// its ID only, and its parsed text drops code spans.
+func defText(src []byte, def lint.Definition) string {
+	end := def.End
+	for end < len(src) {
+		if src[end] != '\n' {
+			end++
+			continue
+		}
+		rest := strings.TrimLeft(string(src[end+1:min(len(src), end+12)]), " \t")
+		if rest == "" || rest[0] == '\n' || rest[0] == '#' || rest[0] == '|' || rest[0] == '>' ||
+			strings.HasPrefix(rest, "- ") || strings.HasPrefix(rest, "* ") || strings.HasPrefix(rest, "+ ") || listNumber(rest) {
+			break
+		}
+		end++
+	}
+	text := strings.ReplaceAll(string(src[def.Start:end]), "**", "")
+	return strings.Join(strings.Fields(text), " ")
+}
+
+// listNumber reports whether s starts an ordered list item, such as "12. ".
+func listNumber(s string) bool {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	return i > 0 && i+1 < len(s) && (s[i] == '.' || s[i] == ')') && s[i+1] == ' '
 }
 
 func hasQuote(cs []Criterion, q string) bool {

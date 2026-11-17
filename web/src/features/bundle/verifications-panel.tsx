@@ -161,9 +161,7 @@ function RunRow({
         <p className="mt-1 truncate text-xs text-ink-3">
           {v.advisory ? "Pull request head: advice only, no blocking thread" : ""}
           {v.advisory && v.trace_ids.length > 0 ? " · " : ""}
-          {v.trace_ids.length > 0
-            ? `${v.work_item ? `${v.work_item}: ` : ""}${v.trace_ids.join(", ")}`
-            : ""}
+          {v.trace_ids.length > 0 ? `${v.work_item ? `${v.work_item}: ` : ""}${v.trace_ids.join(", ")}` : ""}
         </p>
       ) : null}
     </>

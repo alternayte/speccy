@@ -791,6 +791,18 @@ func (a Adapter) ListBreakdownIssues(ctx context.Context, breakdownID uuid.UUID)
 	return out, nil
 }
 
+func (a Adapter) ListBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]pgdb.BreakdownIssue, error) {
+	rows, err := a.q.ListBreakdownIssuesOfSpecDoc(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.BreakdownIssue, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.BreakdownIssue(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.ThreadView, error) {
 	rows, err := a.q.ListBuildThreads(ctx, workspaceID)
 	if err != nil {
@@ -1587,16 +1599,4 @@ func (a Adapter) UpsertWaiverView(ctx context.Context, arg pgdb.UpsertWaiverView
 
 func (a Adapter) WaiverIDsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]uuid.UUID, error) {
 	return a.q.WaiverIDsOfSpecDoc(ctx, specDocID)
-}
-
-func (a Adapter) ListBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]pgdb.BreakdownIssue, error) {
-	rows, err := a.q.ListBreakdownIssuesOfSpecDoc(ctx, specDocID)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.BreakdownIssue, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.BreakdownIssue(r)
-	}
-	return out, nil
 }

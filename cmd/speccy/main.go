@@ -117,6 +117,10 @@ Local mode serves the bundles under --dir (default: the current folder). The oth
 on the folder with .speccy.yaml, from the current folder up, or else on the current folder.
 `
 
+// localBaseURL is the address local mode serves the app on, once it listens. A command that
+// owns the state without serving leaves it empty, and the breakdown uses the default address.
+var localBaseURL string
+
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
@@ -224,6 +228,7 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun
 	}
+	localBaseURL = "http://" + ln.Addr().String()
 	handler, err := openLocal(*dir, spa)
 	if err != nil {
 		_ = ln.Close()
@@ -296,6 +301,8 @@ func openApp(ctx context.Context, root *local.Root, stateDir, keyFile string) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	// A pushed issue links back to the app at the address it serves on.
+	a.API.BreakdownAPI.BaseURL = localBaseURL
 	return a, db, nil
 }
 

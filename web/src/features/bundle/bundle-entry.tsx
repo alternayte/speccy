@@ -32,3 +32,18 @@ export function DocEntry({ docId }: { docId: string }) {
   if (doc.isError) return <ErrorState message={problemMessage(doc.error)} />;
   return <Navigate to="/bundles/$bundleId/docs/$docId" params={{ bundleId: doc.data.bundle_id, docId }} replace />;
 }
+
+// BreakdownEntry opens the breakdown screen of one spec doc in its bundle, on one work item.
+export function BreakdownEntry({ docId, item }: { docId: string; item?: string }) {
+  const doc = useQuery(getSpecDocOptions({ path: { docId } }));
+  if (doc.isPending) return <Loading />;
+  if (doc.isError) return <ErrorState message={problemMessage(doc.error)} />;
+  return (
+    <Navigate
+      to="/bundles/$bundleId/docs/$docId/breakdown"
+      params={{ bundleId: doc.data.bundle_id, docId }}
+      search={item ? { item } : {}}
+      replace
+    />
+  );
+}

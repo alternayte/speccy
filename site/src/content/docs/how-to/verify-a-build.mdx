@@ -98,6 +98,19 @@ In a pull request, `speccy action --verify` runs the same check. [Keep the verdi
 
 ![The Verification panel: the field, the resolved commit, and two runs with their outcome counts](../../../assets/shots/verify-a-build-panel.png)
 
+## Verify part of the doc
+
+A pull request that builds one work item covers some trace IDs only. Scope the run to them, so the other trace IDs do not read as missing:
+
+```sh
+speccy verify specs/pay/SPEC.md https://github.com/acme/payments/pull/42 --trace-ids REQ-003,REQ-004
+speccy verify specs/pay/SPEC.md https://github.com/acme/payments/pull/42 --work-item ENG-123
+```
+
+The MCP tool `verify_build` takes `trace_ids` or `work_item` too. A scoped run gives outcomes for its trace IDs only, and opens blocking threads for them only. **Verify the build** clears when the runs of the current version together cover every trace ID.
+
+A run on the head of a pull request only advises, because the code has not landed. It opens no blocking thread, and it does not count. A run on a commit counts. [Break a doc into work items](/how-to/break-a-doc-into-work-items/) shows the Action that verifies each pull request and its merge commit.
+
 ## How Speccy finds the code
 
 A code target is a repo path and an anchor quote: a verbatim string that must appear in that file exactly once. A test target has the same form, anchored on the test declaration line. Speccy finds the targets of each trace ID in one of three ways, in this order:

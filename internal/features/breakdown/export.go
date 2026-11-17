@@ -38,7 +38,9 @@ func (a *API) Export(ctx context.Context, docID uuid.UUID, format string) ([]byt
 				if as := effective(v.Body, it); as != nil {
 					fmt.Fprintf(&sb, "Assignee: %s (%s)\n\n", as.Name, as.Kind)
 				}
-				sb.WriteString(issueBody(it, itemAnswers(v.Answers, it), e.Title, a.exportBlock(v, sum, it)))
+				// The issue's own headings sit under the item's heading.
+				body := issueBody(it, itemAnswers(v.Answers, it), e.Title, a.exportBlock(v, sum, it))
+				sb.WriteString(strings.ReplaceAll("\n"+body, "\n## ", "\n#### ")[1:])
 				sb.WriteString("\n")
 			}
 		}

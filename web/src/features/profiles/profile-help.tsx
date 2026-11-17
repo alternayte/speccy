@@ -14,6 +14,10 @@ const keys: { key: string; text: string }[] = [
   { key: "links", text: "Which doc types this one links up to, and which bundles a large doc must cover." },
   { key: "trace", text: "The trace ID prefixes this doc uses, and the upstream prefixes it must reference." },
   { key: "verify", text: "The post-build gate: the trace IDs it verifies, and the bounds of its repo scan." },
+  {
+    key: "breakdown",
+    text: "How Speccy splits a Build Ready doc into epics and work items: what an epic is, the largest item, and the order rules.",
+  },
   { key: "waivers", text: "Who approves a waiver of a SHOULD, and of a MUST." },
   { key: "approvals", text: "How many human approvals a bundle needs." },
   { key: "divergence", text: "How many readers answer the build questions, how many questions, and their themes." },

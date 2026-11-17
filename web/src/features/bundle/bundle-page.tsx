@@ -232,6 +232,9 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
       case "handoff":
         setHandingOff(true);
         return;
+      case "breakdown":
+        navigate({ to: "/bundles/$bundleId/docs/$docId/breakdown", params: { bundleId, docId } });
+        return;
       case "verify":
         setTab("history");
         setPanel("rail");
@@ -319,6 +322,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         cli={!hosted && b.source_kind === "local"}
         open={handingOff}
         onOpenChange={setHandingOff}
+        onBreakdown={() => navigate({ to: "/bundles/$bundleId/docs/$docId/breakdown", params: { bundleId, docId } })}
         onTaken={() => {
           setTab("history");
           setPanel("rail");
