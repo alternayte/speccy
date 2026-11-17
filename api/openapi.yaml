@@ -4095,8 +4095,8 @@ components:
       properties:
         kind:
           type: string
-          enum: [waiver, questions, review, adopt, request_review, handoff, verify]
-          description: questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
+          enum: [waiver, questions, review, adopt, request_review, handoff, breakdown, verify]
+          description: questions opens the questions screen, with everything that blocks Build Ready and needs the author. breakdown opens the breakdown screen of an app or initiative doc, in place of handoff. verify opens the verify field, after a handoff with no usable verification run.
         sentence:
           type: string
           description: What to do, in words, for a button label or a status line.

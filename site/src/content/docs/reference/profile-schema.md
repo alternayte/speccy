@@ -22,6 +22,7 @@ This page lists each key that a profile file can hold. Speccy checks a profile a
 | `grounding` | object |  | The settings of the grounding stage. |
 | `coherence` | object |  | The settings of the coherence checks. |
 | `verify` | object |  | The post-build verification gate: the trace IDs it verifies, and the bounds of its repo scan. |
+| `breakdown` | object |  | The rules Speccy follows when it proposes epics and work items from a Build Ready doc of this type. |
 | `trace` | object |  | The trace IDs of this doc type. |
 | `waivers` | object |  | Who approves a waiver, by the level of the check. |
 | `approvals` | object |  | The approvals that a spec doc of this type needs. |
@@ -135,6 +136,16 @@ The post-build verification gate: the trace IDs it verifies, and the bounds of i
 | `exclude` | list of string |  | Path globs that the repo scan passes over. A list you set replaces the default, which holds `vendor/**`, `node_modules/**`, `dist/**`, `build/**`, `.git/**`, `**/testdata/**`, `**/*.min.js`, `**/*.lock` and `**/*.sum`. |
 | `max_file_kb` | integer |  | The largest file, in KB, that the repo scan reads. Default 512. |
 | `max_mapper_files` | integer |  | The most files that the model which finds code targets sees, highest ranked first. Default 200. |
+
+## `breakdown`
+
+The rules Speccy follows when it proposes epics and work items from a Build Ready doc of this type.
+
+| Key | Type | Required | Meaning |
+|---|---|---|---|
+| `epic` | string |  | What one epic is for this doc type. Default: one epic per outcome a user or an operator can see, never a layer of the stack. |
+| `max_trace_ids` | integer |  | The largest work item, as a count of trace IDs. A larger item gets the SHOULD finding breakdown.size. Default 4. |
+| `order` | list of string |  | The rules that order the items. A list you set replaces the default: a provider before its consumer, and expand before contract for an interface or a migration. |
 
 ## `trace`
 

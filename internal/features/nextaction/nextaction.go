@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/kernel"
 )
 
 // Inputs are the signals the rule reads. The bundles list fills the cheap ones. One bundle
@@ -40,6 +41,9 @@ type Inputs struct {
 	// VerifyDue is true when the current version can be verified and its newest verification
 	// run is absent, failed or stale. One bundle only.
 	VerifyDue bool
+	// Size is the doc's size. An app or an initiative is broken down before it is built, so its
+	// handoff step is the breakdown. One bundle only: the list does not read it.
+	Size kernel.Size
 }
 
 // ListQuestions is the count of the questions screen that a list row can name without building
@@ -94,6 +98,11 @@ func Of(in Inputs) *api.NextAction {
 		return &api.NextAction{Kind: api.NextActionKindRequestReview, Sentence: "Ask for the reviews this doc needs"}
 	}
 	if in.Handoffs == 0 {
+		// A doc larger than a feature is more than one pull request: the breakdown splits it into
+		// work items, and its push records the handoff (#154).
+		if in.Size == kernel.App || in.Size == kernel.Initiative {
+			return &api.NextAction{Kind: api.NextActionKindBreakdown, Sentence: "Break it down"}
+		}
 		return &api.NextAction{Kind: api.NextActionKindHandoff, Sentence: "Hand it to a builder"}
 	}
 	// The builder's agent verifies when it finishes. When it has not, or a person built, the

@@ -62,13 +62,22 @@ Get the state of a batch of pull request reviews: for each pull request, waiting
 |---|---|---|---|
 | `batch` | string | yes | the batch ID that review_prs gave |
 
-## `get_bundle`
+## `get_breakdown`
 
-Get one bundle: its files, its verdict, and the text of its spec doc.
+Get the breakdown of a doc: its epics, its work items, its findings, its coverage of the doc's trace IDs, the pushed issues, and its revision. stale is true when the doc has a newer version; changed names what the new version changed in each item.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
 | `bundle` | string | yes | the bundle's slug or ID |
+
+## `get_bundle`
+
+Get one bundle: its files, its verdict, and the text of its spec doc. Pass version, a version number, to read the doc as it was at that version, such as the version a work item was pushed from.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `bundle` | string | yes | the bundle's slug or ID |
+| `version` | integer |  | a version number, to read the doc as it was at that version. Absent is the current version |
 
 ## `get_findings`
 
@@ -103,6 +112,14 @@ Get the current verdict of a bundle.
 |---|---|---|---|
 | `bundle` | string | yes | the bundle's slug or ID |
 
+## `get_work_item`
+
+Get the slice of the spec one work item builds: its quoted criteria with their heading paths, the agreed build answers for its trace IDs, the linked docs, the external links, and the doc at the version the item was pushed from. ref is one string: the work item's Speccy URL, its tracker issue URL or key, or bundle/item. newer_version is true when the doc changed after the push: ask the author before you build from the old text.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `ref` | string | yes | the work item's Speccy URL, its tracker issue URL or key, or bundle/item |
+
 ## `handoff_bundle`
 
 Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.
@@ -111,7 +128,7 @@ Take the build packet of a Build Ready bundle: its spec doc, its assets, the spe
 |---|---|---|---|
 | `acknowledged` | boolean |  | take the packet although the bundle is not Build Ready, or its verdict is stale |
 | `bundle` | string | yes | the bundle's slug or ID |
-| `label` | string |  | what you call this work: a repo, a branch, or a ticket |
+| `label` | string |  | what you call this work: a repo, a branch, or an issue |
 
 ## `list_bundles`
 
@@ -153,6 +170,27 @@ Post a message to a thread, or open a thread on a bundle when no thread_id is gi
 | `bundle` | string |  | with no thread_id: the bundle to open a new thread on, by slug or ID |
 | `thread_id` | string |  | the thread to post to |
 | `title` | string |  | with no thread_id: the title of the new thread |
+
+## `propose_breakdown`
+
+Propose a breakdown of a Build Ready doc: epics, and work items under them. Each work item holds its trace IDs, its acceptance criteria quoted from the doc, the agreed build answers, its target repo, its dependencies and its open questions. A doc that is not Build Ready is refused with its MUST count; acknowledged proposes it anyway. The answer is the draft with its findings: a MUST finding blocks the push. A new proposal replaces a breakdown that has no pushed issue.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `acknowledged` | boolean |  | propose it although the doc is not Build Ready. The breakdown stores the verdict |
+| `bundle` | string | yes | the bundle's slug or ID |
+
+## `push_breakdown`
+
+Push the breakdown to a tracker: create the epics and the work items that have no issue yet, with their dependencies and assignees. tracker is linear, jira or github; target is the Linear team, the Jira project URL, or the GitHub repo. A push never edits or closes an issue, and records one handoff with the label breakdown. It is refused while the breakdown has a MUST finding or is stale. Push only when the person tells you to push this breakdown.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `acknowledged` | boolean |  | push although the doc is not Build Ready. The handoff stores the verdict |
+| `based_on` | integer | yes | the revision of the breakdown the person approved |
+| `bundle` | string | yes | the bundle's slug or ID |
+| `target` | string | yes | the Linear team, the Jira project URL, or the GitHub repo as owner/name |
+| `tracker` | string | yes | linear, jira or github |
 
 ## `report_build`
 
@@ -234,9 +272,21 @@ Save one file of a bundle that Speccy stores, as a new version. Give the version
 | `content` | string | yes | the whole new text of the file |
 | `path` | string | yes | the file in the bundle, such as SPEC.md |
 
+## `update_breakdown`
+
+Edit the breakdown of a doc. Pass based_on, the revision you read, and ops, applied in order and all or none: split (item, trace_ids, title), merge (item, into), move_trace (trace_id, from, to; empty is no item), reorder (item, before), set_dependencies (item, depends_on), set_assignee (item, assignee), set_epic_default (epic, assignee), set_note (item, note), set_title (item or epic, title), set_repos (item, repos), move_item (item, epic), add_epic (title), remove_item (item), cover (trace_id, answer out_of_scope, covered_elsewhere or no_build, and the person's reason), uncover (trace_id). A criterion is a quote: to change one, change the doc. Pass to_current_version instead of ops to move a stale breakdown to the doc's current version. Make only the changes the person asked for.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `acknowledged` | boolean |  | with to_current_version: move it although the doc is not Build Ready |
+| `based_on` | integer | yes | the revision of the breakdown you read |
+| `bundle` | string | yes | the bundle's slug or ID |
+| `ops` | null or array |  | the edits, applied in order and all or none |
+| `to_current_version` | boolean |  | move a stale breakdown to the doc's current version instead of applying ops |
+
 ## `verify_build`
 
-Verify one build against the bundle. Call it when the build from a build packet is done, with the handoff ID from HANDOFF.md. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.
+Verify one build against the bundle. Call it when the build from a build packet is done, with the handoff ID from HANDOFF.md. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle, unless you verify the head of a pull request: that run only advises. When the build covers one work item, pass work_item or trace_ids, and Speccy verifies those trace IDs only. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -247,3 +297,5 @@ Verify one build against the bundle. Call it when the build from a build packet 
 | `repo` | string |  | the repo you built, as owner/name |
 | `sha` | string |  | the commit you built |
 | `target` | string |  | the GitHub URL of the repo, branch, commit or pull request you built, or an absolute folder path in local mode. Leave it and repo out to verify the repo that the doc's implemented-by link names |
+| `trace_ids` | null or array |  | verify only these trace IDs, when the build covers part of the doc |
+| `work_item` | string |  | verify only the trace IDs of this work item: its issue URL or key, its Speccy URL, or bundle/item |

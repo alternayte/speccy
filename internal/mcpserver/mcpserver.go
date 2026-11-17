@@ -497,7 +497,7 @@ func (tools) reportBuild(ctx context.Context, c *api.ClientWithResponses, in rep
 
 type handoffArg struct {
 	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
-	Label  string `json:"label,omitempty" jsonschema:"what you call this work: a repo, a branch, or a ticket"`
+	Label  string `json:"label,omitempty" jsonschema:"what you call this work: a repo, a branch, or an issue"`
 	// Acknowledged takes a packet the verdict does not allow. The handoff records it.
 	Acknowledged bool `json:"acknowledged,omitempty" jsonschema:"take the packet although the bundle is not Build Ready, or its verdict is stale"`
 }

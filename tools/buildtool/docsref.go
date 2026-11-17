@@ -20,6 +20,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/alternayte/speccy/internal/engine/lint"
+	"github.com/alternayte/speccy/internal/features/breakdown"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/mcpserver"
@@ -122,13 +123,14 @@ func engineSlugs() []string {
 	for _, r := range lint.Rules {
 		out = append(out, r.Slug)
 	}
-	return append(out, review.FrontmatterReadableSlug, review.HasChildrenSlug, review.ContradictionSlug, review.DownstreamRequestSlug,
+	out = append(out, review.FrontmatterReadableSlug, review.HasChildrenSlug, review.ContradictionSlug, review.DownstreamRequestSlug,
 		review.RestatementSlug, review.DivergenceAmbiguous, review.DivergenceGap,
 		review.GroundingContradicted, review.GroundingFileContradicts, review.GroundingUnverified)
+	return append(out, breakdown.Slugs...)
 }
 
 // stageOrder is the order the review pipeline runs its stages in, and the catalog's order.
-var stageOrder = []string{"lint", "rubric", "grounding", "divergence", "coherence"}
+var stageOrder = []string{"lint", "rubric", "grounding", "divergence", "coherence", "breakdown"}
 
 var stageTitle = map[string]string{
 	"lint":       "Lint",
@@ -136,6 +138,7 @@ var stageTitle = map[string]string{
 	"grounding":  "Grounding",
 	"divergence": "Divergence",
 	"coherence":  "Coherence",
+	"breakdown":  "Breakdown",
 }
 
 var stageIntro = map[string]string{
@@ -144,6 +147,7 @@ var stageIntro = map[string]string{
 	"grounding":  "Grounding checks compare the doc's factual claims with the sources that the profile's source policy accepts.",
 	"divergence": "Divergence checks give the doc to independent readers, who answer the build questions from the doc only.",
 	"coherence":  "Coherence checks read the doc together with the docs it links to.",
+	"breakdown":  "Breakdown checks run on a breakdown, not on the doc. A MUST finding refuses the push to a tracker. The reader check runs only when a person asks.",
 }
 
 // catalogCheck is one entry of the Check catalog.

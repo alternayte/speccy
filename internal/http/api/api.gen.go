@@ -977,6 +977,7 @@ func (e MetaSignInProviders) Valid() bool {
 // Defines values for NextActionKind.
 const (
 	NextActionKindAdopt         NextActionKind = "adopt"
+	NextActionKindBreakdown     NextActionKind = "breakdown"
 	NextActionKindHandoff       NextActionKind = "handoff"
 	NextActionKindQuestions     NextActionKind = "questions"
 	NextActionKindRequestReview NextActionKind = "request_review"
@@ -989,6 +990,8 @@ const (
 func (e NextActionKind) Valid() bool {
 	switch e {
 	case NextActionKindAdopt:
+		return true
+	case NextActionKindBreakdown:
 		return true
 	case NextActionKindHandoff:
 		return true
@@ -3476,7 +3479,7 @@ type MetaSignInProviders string
 
 // NextAction The one thing the caller must do next on this bundle. Absent when nothing is open. The list carries the kind and the sentence; one bundle also carries the target.
 type NextAction struct {
-	// Kind questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
+	// Kind questions opens the questions screen, with everything that blocks Build Ready and needs the author. breakdown opens the breakdown screen of an app or initiative doc, in place of handoff. verify opens the verify field, after a handoff with no usable verification run.
 	Kind NextActionKind `json:"kind"`
 
 	// Sentence What to do, in words, for a button label or a status line.
@@ -3484,7 +3487,7 @@ type NextAction struct {
 	WaiverId *openapi_types.UUID `json:"waiver_id,omitempty"`
 }
 
-// NextActionKind questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
+// NextActionKind questions opens the questions screen, with everything that blocks Build Ready and needs the author. breakdown opens the breakdown screen of an app or initiative doc, in place of handoff. verify opens the verify field, after a handoff with no usable verification run.
 type NextActionKind string
 
 // OpenThread defines model for OpenThread.

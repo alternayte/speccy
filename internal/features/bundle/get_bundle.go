@@ -50,7 +50,7 @@ func (a *API) GetSpecDoc(ctx context.Context, req api.GetSpecDocRequestObject) (
 		return nil, err
 	}
 	out.Adopt = adoptOf(ctx, q, b, a.Profiles(), repo)
-	if err := a.full(ctx, q, b, &out); err != nil {
+	if err := a.full(ctx, q, b, &out, docSize(ctx, q, b, repo)); err != nil {
 		return nil, err
 	}
 	return api.GetSpecDoc200JSONResponse(out), nil

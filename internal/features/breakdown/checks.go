@@ -22,6 +22,9 @@ const (
 	checkLevelMust = kernel.Must
 )
 
+// Slugs are the breakdown checks, for the Check catalog.
+var Slugs = []string{CheckCoverage, CheckOrphan, CheckCycle, CheckOneRepo, CheckTestable, CheckSize, CheckReaders}
+
 // Finding is one failed breakdown check.
 type Finding struct {
 	Slug    string
