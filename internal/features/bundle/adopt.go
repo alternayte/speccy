@@ -163,3 +163,16 @@ func (a *API) SetBundleProfile(ctx context.Context, req api.SetBundleProfileRequ
 	}
 	return api.SetBundleProfile200JSONResponse(out), nil
 }
+
+// docSize is the size of the doc: the one its frontmatter or the repo names, else the one
+// Speccy infers. A doc that does not read is a feature.
+func docSize(ctx context.Context, q store.Querier, b pgdb.SpecDoc, repo source.RepoConfig) kernel.Size {
+	main, err := mainDocContent(ctx, q, b)
+	if err != nil {
+		return kernel.Feature
+	}
+	var ref localRef
+	_ = json.Unmarshal(b.SourceRef, &ref)
+	sz, _, _ := review.DocSize(repo, path.Join(ref.Dir, b.DocPath), main)
+	return sz
+}

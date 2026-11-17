@@ -4,6 +4,307 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}/api/v1` | (string & {});
 };
 
+/**
+ * The epics and work items Speccy proposed from one Build Ready doc. One per doc. It moves forward with the doc's versions.
+ */
+export type Breakdown = {
+    id: string;
+    doc_id: string;
+    bundle: string;
+    title: string;
+    /**
+     * The doc version the breakdown quotes.
+     */
+    version_number: number;
+    current_version_number: number;
+    /**
+     * The doc has a newer version than the one the breakdown quotes.
+     */
+    stale: boolean;
+    /**
+     * The verdict the breakdown was taken at.
+     */
+    verdict: string;
+    /**
+     * The breakdown was taken from a doc that was not Build Ready.
+     */
+    acknowledged: boolean;
+    /**
+     * Pass it as based_on with an edit.
+     */
+    revision: number;
+    epics: Array<BreakdownEpic>;
+    items: Array<WorkItem>;
+    /**
+     * The trace IDs a person said need no work item.
+     */
+    covered: Array<BreakdownCover>;
+    findings: Array<BreakdownFinding>;
+    /**
+     * Each trace ID of the doc, with the items that hold it.
+     */
+    coverage: Array<BreakdownCoverage>;
+    /**
+     * The trace IDs a newer doc version added. Empty when the breakdown is not stale.
+     */
+    new_trace_ids: Array<string>;
+    /**
+     * The MUST findings. A push is refused while it is above 0.
+     */
+    must: number;
+    /**
+     * The answers that close a coverage finding.
+     */
+    cover_answers: Array<string>;
+    created_at: string;
+    updated_at: string;
+};
+
+export type BreakdownEpic = {
+    id: string;
+    title: string;
+    default_assignee?: Assignee;
+    issue?: PushedIssue;
+};
+
+export type WorkItem = {
+    id: string;
+    /**
+     * bundle/item, which get_work_item takes.
+     */
+    ref: string;
+    epic: string;
+    title: string;
+    trace_ids: Array<string>;
+    /**
+     * The section the item is anchored on, when the doc has no trace IDs.
+     */
+    heading_path: Array<string>;
+    criteria: Array<WorkItemCriterion>;
+    /**
+     * The agreed build answers for the item's trace IDs and sections.
+     */
+    answers: Array<BuildAnswer>;
+    repos: Array<string>;
+    depends_on: Array<string>;
+    questions: Array<string>;
+    note?: string;
+    assignee?: Assignee;
+    effective_assignee?: Assignee;
+    /**
+     * What a newer doc version changed in this item.
+     */
+    changed: Array<string>;
+    readers?: ReaderCheck;
+    issue?: PushedIssue;
+};
+
+export type WorkItemCriterion = {
+    quote: string;
+    heading_path: Array<string>;
+    trace_id?: string;
+    /**
+     * The slug of the linked spec doc the quote comes from. Absent for this doc.
+     */
+    doc?: string;
+};
+
+export type BuildAnswer = {
+    question: string;
+    answer: string;
+};
+
+export type Assignee = {
+    kind: 'person' | 'agent';
+    /**
+     * The tracker's ID for the person or the agent.
+     */
+    id: string;
+    name: string;
+};
+
+export type AssigneeList = {
+    items: Array<Assignee>;
+};
+
+export type PushedIssue = {
+    tracker: 'linear' | 'jira' | 'github';
+    key: string;
+    url: string;
+    handoff_id: string;
+    /**
+     * The doc version the issue was pushed from.
+     */
+    version_number: number;
+    created_at: string;
+};
+
+export type ReaderCheck = {
+    diverge: boolean;
+    readings: Array<string>;
+    reason: string;
+    /**
+     * False when the item changed after the readers read it.
+     */
+    current: boolean;
+};
+
+export type BreakdownCover = {
+    trace_id: string;
+    answer: 'out_of_scope' | 'covered_elsewhere' | 'no_build';
+    reason: string;
+    by: string;
+};
+
+export type BreakdownFinding = {
+    slug: string;
+    level: 'MUST' | 'SHOULD' | 'INFO';
+    message: string;
+    items: Array<string>;
+    trace_id?: string;
+};
+
+export type BreakdownCoverage = {
+    trace_id: string;
+    text: string;
+    items: Array<string>;
+    /**
+     * The answer that says the trace ID needs no item.
+     */
+    cover?: string;
+};
+
+export type ProposeBreakdownRequest = {
+    /**
+     * Propose it from a doc that is not Build Ready. The breakdown stores the verdict.
+     */
+    acknowledged?: boolean;
+};
+
+export type UpdateBreakdownRequest = {
+    based_on: number;
+    acknowledged?: boolean;
+};
+
+export type ReaderCheckRequest = {
+    item: string;
+};
+
+export type BreakdownEdit = {
+    /**
+     * The revision the caller read. An edit on an older revision is refused.
+     */
+    based_on: number;
+    ops: Array<BreakdownOp>;
+};
+
+/**
+ * One edit. split moves trace_ids of item to a new item. merge moves item into into. move_trace moves trace_id from one item to another ("" is no item). reorder puts item before before ("" is the end). set_dependencies, set_assignee, set_epic_default, set_note, set_title (of item, or of epic), set_repos and move_item (to epic) set one field. add_epic adds an epic with title. remove_item removes an item with no trace ID. cover says trace_id needs no item, with answer and reason; uncover takes that back.
+ *
+ */
+export type BreakdownOp = {
+    op: 'split' | 'merge' | 'move_trace' | 'reorder' | 'set_dependencies' | 'set_assignee' | 'set_epic_default' | 'set_note' | 'set_title' | 'set_repos' | 'move_item' | 'add_epic' | 'rename_epic' | 'remove_item' | 'cover' | 'uncover';
+    item?: string;
+    into?: string;
+    before?: string;
+    epic?: string;
+    trace_ids?: Array<string>;
+    trace_id?: string;
+    from?: string;
+    to?: string;
+    title?: string;
+    note?: string;
+    repos?: Array<string>;
+    depends_on?: Array<string>;
+    assignee?: Assignee;
+    answer?: 'out_of_scope' | 'covered_elsewhere' | 'no_build';
+    reason?: string;
+};
+
+export type TrackerList = {
+    items: Array<Tracker>;
+};
+
+export type Tracker = {
+    kind: 'linear' | 'jira' | 'github';
+    name: string;
+    /**
+     * The host of a Jira site.
+     */
+    host?: string;
+    /**
+     * Speccy holds a connection or a credential for this tracker.
+     */
+    ready: boolean;
+    /**
+     * What is missing when it is not ready.
+     */
+    reason?: string;
+};
+
+export type PushBreakdownRequest = {
+    based_on: number;
+    tracker: 'linear' | 'jira' | 'github';
+    /**
+     * The Linear team, the Jira project URL, or the GitHub repo as owner/name.
+     */
+    target: string;
+    /**
+     * Push from a doc that is not Build Ready. The handoff stores the verdict.
+     */
+    acknowledged?: boolean;
+};
+
+export type PushResult = {
+    /**
+     * The handoff the push recorded, with the label breakdown. Empty when nothing was new.
+     */
+    handoff_id: string;
+    /**
+     * The issues this push created. Empty when every item was already pushed.
+     */
+    created: Array<CreatedIssue>;
+    breakdown: Breakdown;
+};
+
+export type CreatedIssue = {
+    kind: 'epic' | 'item';
+    id: string;
+    title: string;
+    key: string;
+    url: string;
+};
+
+/**
+ * The slice of the spec one work item builds. A builder reads it.
+ */
+export type WorkItemPacket = {
+    bundle: string;
+    doc_id: string;
+    item: WorkItem;
+    /**
+     * The doc version the item was pushed from, or the breakdown's version for an unpushed item.
+     */
+    version_number: number;
+    current_version_number: number;
+    /**
+     * The doc has a newer version than the pinned one. Ask the author before building from it.
+     */
+    newer_version: boolean;
+    handoff_id?: string;
+    /**
+     * The verdict at the handoff.
+     */
+    verdict?: string;
+    main_doc: string;
+    /**
+     * The doc text at the pinned version.
+     */
+    doc: string;
+    links: Array<PacketLink>;
+    external_links: Array<PacketExternalLink>;
+};
+
 export type Meta = {
     /**
      * The build version of the binary.
@@ -188,9 +489,9 @@ export type SkippedDoc = {
  */
 export type NextAction = {
     /**
-     * questions opens the questions screen, with everything that blocks Build Ready and needs the author. verify opens the verify field, after a handoff with no usable verification run.
+     * questions opens the questions screen, with everything that blocks Build Ready and needs the author. breakdown opens the breakdown screen of an app or initiative doc, in place of handoff. verify opens the verify field, after a handoff with no usable verification run.
      */
-    kind: 'waiver' | 'questions' | 'review' | 'adopt' | 'request_review' | 'handoff' | 'verify';
+    kind: 'waiver' | 'questions' | 'review' | 'adopt' | 'request_review' | 'handoff' | 'breakdown' | 'verify';
     /**
      * What to do, in words, for a button label or a status line.
      */
@@ -389,6 +690,14 @@ export type VerificationRequest = {
      * The builder's claims. A claim replaces the derived targets of its trace ID.
      */
     claims?: Array<VerificationClaim>;
+    /**
+     * Scope the run to these trace IDs. The run gives outcomes and opens blocking threads for these IDs only. Empty or absent verifies every trace ID.
+     */
+    trace_ids?: Array<string>;
+    /**
+     * Scope the run to the trace IDs of one work item, named by its tracker issue URL or key, its Speccy URL, or bundle/item.
+     */
+    work_item?: string;
 };
 
 export type VerificationTargetInput = {
@@ -521,6 +830,18 @@ export type Verification = {
      * The bundle got a new version after this run.
      */
     stale: boolean;
+    /**
+     * The trace IDs the run was scoped to. Empty when it verified every trace ID.
+     */
+    trace_ids: Array<string>;
+    /**
+     * The work item the run was scoped to, as bundle/item.
+     */
+    work_item?: string;
+    /**
+     * The run read the head of a pull request. It opens no blocking thread and does not count toward the handoff.
+     */
+    advisory: boolean;
     started_by?: string;
     created_at: string;
     outcomes: Array<VerificationOutcome>;
@@ -615,7 +936,7 @@ export type BundleRef = {
 
 export type BundleLink = {
     kind: 'implements' | 'refines' | 'references' | 'supersedes' | 'implemented-by';
-    origin: 'frontmatter' | 'rule' | 'adopted';
+    origin: 'frontmatter' | 'rule' | 'adopted' | 'breakdown';
     target_kind: 'bundle' | 'external';
     /**
      * The target as written. For an incoming link, the source bundle's slug.
@@ -2909,6 +3230,315 @@ export type TakeHandoffZipResponses = {
 };
 
 export type TakeHandoffZipResponse = TakeHandoffZipResponses[keyof TakeHandoffZipResponses];
+
+export type GetBreakdownData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown';
+};
+
+export type GetBreakdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetBreakdownError = GetBreakdownErrors[keyof GetBreakdownErrors];
+
+export type GetBreakdownResponses = {
+    /**
+     * The breakdown.
+     */
+    200: Breakdown;
+};
+
+export type GetBreakdownResponse = GetBreakdownResponses[keyof GetBreakdownResponses];
+
+export type EditBreakdownData = {
+    body: BreakdownEdit;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown';
+};
+
+export type EditBreakdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type EditBreakdownError = EditBreakdownErrors[keyof EditBreakdownErrors];
+
+export type EditBreakdownResponses = {
+    /**
+     * The edited breakdown.
+     */
+    200: Breakdown;
+};
+
+export type EditBreakdownResponse = EditBreakdownResponses[keyof EditBreakdownResponses];
+
+export type ProposeBreakdownData = {
+    body?: ProposeBreakdownRequest;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown';
+};
+
+export type ProposeBreakdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ProposeBreakdownError = ProposeBreakdownErrors[keyof ProposeBreakdownErrors];
+
+export type ProposeBreakdownResponses = {
+    /**
+     * The proposed breakdown.
+     */
+    201: Breakdown;
+};
+
+export type ProposeBreakdownResponse = ProposeBreakdownResponses[keyof ProposeBreakdownResponses];
+
+export type UpdateBreakdownData = {
+    body: UpdateBreakdownRequest;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown/update';
+};
+
+export type UpdateBreakdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UpdateBreakdownError = UpdateBreakdownErrors[keyof UpdateBreakdownErrors];
+
+export type UpdateBreakdownResponses = {
+    /**
+     * The updated breakdown.
+     */
+    200: Breakdown;
+};
+
+export type UpdateBreakdownResponse = UpdateBreakdownResponses[keyof UpdateBreakdownResponses];
+
+export type CheckBreakdownReadersData = {
+    body: ReaderCheckRequest;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown/readers';
+};
+
+export type CheckBreakdownReadersErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CheckBreakdownReadersError = CheckBreakdownReadersErrors[keyof CheckBreakdownReadersErrors];
+
+export type CheckBreakdownReadersResponses = {
+    /**
+     * The breakdown with the item's reader check.
+     */
+    200: Breakdown;
+};
+
+export type CheckBreakdownReadersResponse = CheckBreakdownReadersResponses[keyof CheckBreakdownReadersResponses];
+
+export type ListBreakdownTrackersData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown/trackers';
+};
+
+export type ListBreakdownTrackersErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListBreakdownTrackersError = ListBreakdownTrackersErrors[keyof ListBreakdownTrackersErrors];
+
+export type ListBreakdownTrackersResponses = {
+    /**
+     * The trackers.
+     */
+    200: TrackerList;
+};
+
+export type ListBreakdownTrackersResponse = ListBreakdownTrackersResponses[keyof ListBreakdownTrackersResponses];
+
+export type ListBreakdownAssigneesData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query: {
+        tracker: 'linear' | 'jira' | 'github';
+        /**
+         * The Linear team, the Jira project URL, or the GitHub repo.
+         */
+        target: string;
+        query?: string;
+    };
+    url: '/docs/{docId}/breakdown/assignees';
+};
+
+export type ListBreakdownAssigneesErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListBreakdownAssigneesError = ListBreakdownAssigneesErrors[keyof ListBreakdownAssigneesErrors];
+
+export type ListBreakdownAssigneesResponses = {
+    /**
+     * The assignees. Agents are marked apart from people.
+     */
+    200: AssigneeList;
+};
+
+export type ListBreakdownAssigneesResponse = ListBreakdownAssigneesResponses[keyof ListBreakdownAssigneesResponses];
+
+export type PushBreakdownData = {
+    body: PushBreakdownRequest;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown/push';
+};
+
+export type PushBreakdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PushBreakdownError = PushBreakdownErrors[keyof PushBreakdownErrors];
+
+export type PushBreakdownResponses = {
+    /**
+     * What the push created.
+     */
+    200: PushResult;
+};
+
+export type PushBreakdownResponse = PushBreakdownResponses[keyof PushBreakdownResponses];
+
+export type ExportBreakdownData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query: {
+        format: 'markdown' | 'csv';
+    };
+    url: '/docs/{docId}/breakdown/export';
+};
+
+export type ExportBreakdownErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ExportBreakdownError = ExportBreakdownErrors[keyof ExportBreakdownErrors];
+
+export type ExportBreakdownResponses = {
+    /**
+     * The export.
+     */
+    200: string;
+};
+
+export type ExportBreakdownResponse = ExportBreakdownResponses[keyof ExportBreakdownResponses];
+
+export type GetWorkItemData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * The work item's Speccy URL, its tracker issue URL or key, or bundle/item.
+         */
+        ref: string;
+    };
+    url: '/work-items';
+};
+
+export type GetWorkItemErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetWorkItemError = GetWorkItemErrors[keyof GetWorkItemErrors];
+
+export type GetWorkItemResponses = {
+    /**
+     * The work item packet.
+     */
+    200: WorkItemPacket;
+};
+
+export type GetWorkItemResponse = GetWorkItemResponses[keyof GetWorkItemResponses];
 
 export type RequestVerificationWaiverData = {
     body: {

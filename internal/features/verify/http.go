@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -24,6 +25,25 @@ func (a *API) RunVerification(ctx context.Context, req api.RunVerificationReques
 	if b := req.Body; b != nil {
 		in.Target, in.Repo, in.SHA, in.Path = str(b.Target), str(b.Repo), str(b.Sha), str(b.Path)
 		in.HandoffID = b.HandoffId
+		if b.TraceIds != nil {
+			in.TraceIDs = *b.TraceIds
+		}
+		if b.WorkItem != nil && strings.TrimSpace(*b.WorkItem) != "" {
+			if len(in.TraceIDs) > 0 {
+				return nil, kernel.Invalid("scope_twice", "Name trace_ids or work_item, not both.")
+			}
+			if a.WorkItem == nil {
+				return nil, kernel.Invalid("no_work_items", "This server resolves no work items.")
+			}
+			doc, ids, name, err := a.WorkItem(ctx, *b.WorkItem)
+			if err != nil {
+				return nil, err
+			}
+			if doc != req.DocId {
+				return nil, kernel.Invalid("other_doc", "The work item %s belongs to another doc.", name)
+			}
+			in.TraceIDs, in.WorkItem = ids, name
+		}
 		if b.Claims != nil {
 			for _, c := range *b.Claims {
 				cl := Claim{TraceID: c.TraceId}
@@ -165,9 +185,7 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 		stale = stale || b.CurrentVersionID.UUID != row.VersionID
 	}
 	row.Stale = stale
-	run := Run{ID: row.ID, Status: row.Status, Error: row.Error, Branch: row.Branch,
-		Verdict: verify.Verdict(row.Verdict), Repo: row.Repo, SHA: row.Sha,
-		BaseSHA: row.BaseSha, Digest: row.Digest, Stale: row.Stale, At: row.CreatedAt}
+	run := runOf(row)
 	_ = json.Unmarshal(row.Counts, &run.Counts)
 	_ = json.Unmarshal(row.Notes, &run.Notes)
 	for _, o := range rows {
@@ -187,11 +205,25 @@ func (a *API) stored(ctx context.Context, row pgdb.VerificationRun) (api.Verific
 	return v, nil
 }
 
+// runOf reads the stored fields of a run, without its outcomes.
+func runOf(row pgdb.VerificationRun) Run {
+	run := Run{ID: row.ID, Status: row.Status, Error: row.Error, Branch: row.Branch,
+		Verdict: verify.Verdict(row.Verdict), Repo: row.Repo, SHA: row.Sha,
+		BaseSHA: row.BaseSha, Digest: row.Digest, Stale: row.Stale, At: row.CreatedAt,
+		WorkItem: row.WorkItem, Advisory: row.Advisory}
+	_ = json.Unmarshal(row.TraceIds, &run.TraceIDs)
+	return run
+}
+
 func runAPI(bundle uuid.UUID, run Run, handoff *uuid.UUID, stale bool) api.Verification {
 	out := api.Verification{
 		Id: run.ID, DocId: bundle, HandoffId: handoff, Status: api.VerificationStatus(run.Status),
 		Repo: run.Repo, Sha: run.SHA, Counts: countsAPI(run.Counts), Notes: nonNil(run.Notes),
 		Stale: stale, CreatedAt: run.At, Outcomes: []api.VerificationOutcome{},
+		TraceIds: nonNil(run.TraceIDs), Advisory: run.Advisory,
+	}
+	if run.WorkItem != "" {
+		out.WorkItem = &run.WorkItem
 	}
 	if run.Status == StatusDone {
 		v := api.VerificationVerdict(run.Verdict)
@@ -266,8 +298,10 @@ func str(p *string) string {
 }
 
 // Due reports whether the author must verify the current version: the profile's gate can read
-// a trace ID in the main doc, and the newest run of the current version is absent, failed or
-// stale. A queued or running run is waiting, and a done run has answered.
+// a trace ID in the main doc, and some of those trace IDs have no outcome from a done run of the
+// current version that counts. A scoped run covers its own IDs, so several scoped runs together
+// cover the doc. A run on a pull request head advises and covers nothing. A queued or running run
+// that counts is waiting, so nothing is due.
 func (a *API) Due(ctx context.Context, docID uuid.UUID) (bool, error) {
 	q := a.DB.Queries()
 	b, err := version.Bundle(ctx, q, a.Workspace, docID)
@@ -282,18 +316,36 @@ func (a *API) Due(ctx context.Context, docID uuid.UUID) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if reqs, _ := requirements(cur.File(b.DocPath), prof.Profile); len(reqs) == 0 {
+	reqs, _ := requirements(cur.File(b.DocPath), prof.Profile)
+	if len(reqs) == 0 {
 		return false, nil
 	}
 	rows, err := q.ListVerificationRuns(ctx, docID)
 	if err != nil {
 		return false, err
 	}
+	covered := map[string]bool{}
 	for _, r := range rows {
-		if r.VersionID != b.CurrentVersionID.UUID {
+		if r.VersionID != b.CurrentVersionID.UUID || r.Stale || r.Advisory {
 			continue
 		}
-		return r.Stale || r.Status == StatusFailed, nil
+		switch r.Status {
+		case StatusQueued, StatusRunning:
+			return false, nil
+		case StatusDone:
+			outs, err := q.ListVerificationOutcomes(ctx, r.ID)
+			if err != nil {
+				return false, err
+			}
+			for _, o := range outs {
+				covered[o.TraceID] = true
+			}
+		}
 	}
-	return true, nil
+	for _, r := range reqs {
+		if !covered[r.ID] {
+			return true, nil
+		}
+	}
+	return false, nil
 }

@@ -65,4 +65,11 @@ export const catalogSlugs: ReadonlySet<string> = new Set([
   "links.has-children",
   "links.has-upstream",
   "trace.coverage",
+  "breakdown.coverage",
+  "breakdown.cycle",
+  "breakdown.divergence",
+  "breakdown.one-repo",
+  "breakdown.orphan",
+  "breakdown.size",
+  "breakdown.testable",
 ]);

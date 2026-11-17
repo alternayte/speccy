@@ -690,3 +690,77 @@ It passes when: An implements link to a PRD exists, or a standalone acknowledgem
 The check asks: Is every upstream REQ and NFR referenced or acknowledged?
 
 It passes when: Every upstream REQ and NFR is referenced or acknowledged.
+
+## Breakdown
+
+Breakdown checks run on a breakdown, not on the doc. A MUST finding refuses the push to a tracker. The reader check runs only when a person asks.
+
+<h3 id="breakdown.coverage"><code>breakdown.coverage</code></h3>
+
+- Level: MUST
+- Profiles: every profile
+- Fix kind: answer
+
+Each trace ID of the doc is in a work item, or a person said why it needs none.
+
+To fix a finding: Move the trace ID into a work item, or answer out of scope, covered elsewhere, or no build work, with a reason.
+
+<h3 id="breakdown.cycle"><code>breakdown.cycle</code></h3>
+
+- Level: MUST
+- Profiles: every profile
+- Fix kind: answer
+
+No work items depend on each other in a loop.
+
+To fix a finding: Remove one dependency of the loop.
+
+<h3 id="breakdown.divergence"><code>breakdown.divergence</code></h3>
+
+- Level: SHOULD
+- Profiles: every profile
+- Fix kind: answer
+
+Two readers who read only the work item would build the same thing.
+
+To fix a finding: Change the doc so the item's criteria answer the point the readers read differently, then update the breakdown.
+
+<h3 id="breakdown.one-repo"><code>breakdown.one-repo</code></h3>
+
+- Level: MUST
+- Profiles: every profile
+- Fix kind: answer
+
+Each work item changes one repo.
+
+To fix a finding: Split the item into one item per repo.
+
+<h3 id="breakdown.orphan"><code>breakdown.orphan</code></h3>
+
+- Level: MUST
+- Profiles: every profile
+- Fix kind: answer
+
+Each work item has a trace ID or a section, so the doc says what it builds.
+
+To fix a finding: Move a trace ID into the item, or remove the item.
+
+<h3 id="breakdown.size"><code>breakdown.size</code></h3>
+
+- Level: SHOULD
+- Profiles: every profile
+- Fix kind: answer
+
+No work item holds more trace IDs than the profile's breakdown.max_trace_ids.
+
+To fix a finding: Split the item.
+
+<h3 id="breakdown.testable"><code>breakdown.testable</code></h3>
+
+- Level: SHOULD
+- Profiles: every profile
+- Fix kind: answer
+
+Each work item has a criterion a test can check. With the requirement grammar check on, the criterion states a trigger and a response.
+
+To fix a finding: Add the trace ID that states the testable behaviour to the item, or make the definition in the doc testable.

@@ -126,3 +126,38 @@ checks:
     level: SHOULD
     what: Each factual claim in the doc has a source. A file of the bundle or a linked doc that states the claim is one, and so is a source that the profile's source policy accepts.
     fix: Reference the doc that states the claim, or state it as an assumption.
+  - slug: breakdown.coverage
+    stage: breakdown
+    level: MUST
+    what: Each trace ID of the doc is in a work item, or a person said why it needs none.
+    fix: Move the trace ID into a work item, or answer out of scope, covered elsewhere, or no build work, with a reason.
+  - slug: breakdown.orphan
+    stage: breakdown
+    level: MUST
+    what: Each work item has a trace ID or a section, so the doc says what it builds.
+    fix: Move a trace ID into the item, or remove the item.
+  - slug: breakdown.cycle
+    stage: breakdown
+    level: MUST
+    what: No work items depend on each other in a loop.
+    fix: Remove one dependency of the loop.
+  - slug: breakdown.one-repo
+    stage: breakdown
+    level: MUST
+    what: Each work item changes one repo.
+    fix: Split the item into one item per repo.
+  - slug: breakdown.testable
+    stage: breakdown
+    level: SHOULD
+    what: Each work item has a criterion a test can check. With the requirement grammar check on, the criterion states a trigger and a response.
+    fix: Add the trace ID that states the testable behaviour to the item, or make the definition in the doc testable.
+  - slug: breakdown.size
+    stage: breakdown
+    level: SHOULD
+    what: No work item holds more trace IDs than the profile's breakdown.max_trace_ids.
+    fix: Split the item.
+  - slug: breakdown.divergence
+    stage: breakdown
+    level: SHOULD
+    what: Two readers who read only the work item would build the same thing.
+    fix: Change the doc so the item's criteria answer the point the readers read differently, then update the breakdown.

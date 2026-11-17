@@ -1,0 +1,64 @@
+name: Speccy verify
+description: Verify a pull request in a code repo against the trace IDs of the work items it names. Speccy reads the code; it never runs it.
+author: alternayte
+branding:
+  icon: check-circle
+  color: green
+
+# Run it on pull_request and on push to the default branch. A pull request names its work items
+# in its title, its body or its branch: an issue URL, a key such as ENG-123, or #12. On a pull
+# request the run reads the head commit and only advises: one comment and a check per work item.
+# On the merge commit the run counts toward the handoff, and a breach opens a blocking thread.
+inputs:
+  server:
+    description: The Speccy server that holds the breakdown. Required.
+    required: true
+  token:
+    description: A personal API token for the server.
+    required: true
+  enforcement:
+    description: "advisory: a result never fails the job. blocking: a work item that is not verified fails it."
+    default: advisory
+  version:
+    description: The Speccy release to run, such as v0.31.0.
+    default: latest
+  github-token:
+    description: The token that reads the pull request and posts the comment and the checks. It needs pull-requests and checks write permissions.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download Speccy
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "$RUNNER_OS/$RUNNER_ARCH" in
+          Linux/X64) platform=linux_amd64 ;;
+          Linux/ARM64) platform=linux_arm64 ;;
+          macOS/ARM64) platform=darwin_arm64 ;;
+          macOS/X64) platform=darwin_amd64 ;;
+          *) echo "::error::Speccy has no release for $RUNNER_OS on $RUNNER_ARCH."; exit 2 ;;
+        esac
+        tag="$VERSION"
+        if [ "$tag" = latest ]; then
+          tag=$(gh release view -R alternayte/speccy --json tagName -q .tagName)
+        fi
+        mkdir -p "$RUNNER_TEMP/speccy"
+        gh release download "$tag" -R alternayte/speccy -p "speccy_*_${platform}.tar.gz" -D "$RUNNER_TEMP/speccy" --clobber
+        tar -xzf "$RUNNER_TEMP"/speccy/speccy_*_"${platform}".tar.gz -C "$RUNNER_TEMP/speccy"
+        echo "$RUNNER_TEMP/speccy" >> "$GITHUB_PATH"
+
+    - name: Verify the work items
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SPECCY_TOKEN: ${{ inputs.token }}
+        SERVER: ${{ inputs.server }}
+        ENFORCEMENT: ${{ inputs.enforcement }}
+      run: |
+        set -euo pipefail
+        speccy action --work-items --server "$SERVER" --enforcement "$ENFORCEMENT"

@@ -11,7 +11,7 @@ Speccy never runs the build. A person or a coding agent builds the thing. Speccy
 
 ## The handoff
 
-A handoff is one record that a builder took a build packet for one version of a spec doc. It holds the version, the verdict at that moment, who took it, and a label such as a repo, a branch or a ticket.
+A handoff is one record that a builder took a build packet for one version of a spec doc. It holds the version, the verdict at that moment, who took it, and a label such as a repo, a branch or an issue.
 
 A builder takes the packet with the MCP tool `handoff_bundle`, or with `speccy handoff <path> --out <folder>`. Speccy gives the packet only for a current Build Ready verdict. A builder can take it anyway with the `acknowledged` flag, and the handoff records that.
 

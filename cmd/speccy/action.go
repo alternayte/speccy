@@ -59,6 +59,8 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	// --verify runs the post-build verification gate instead of the review (the spec contract
 	// gate). It reads the same Actions environment.
 	verifyMode := false
+	// --work-items verifies the work items a pull request in a code repo names (#158).
+	workItems := false
 	// --pr reviews a pull request from a laptop, and --pending or --dry-run says what to do with
 	// the findings (#91).
 	prURL, pending, dryRun, prMode := "", false, false, false
@@ -69,6 +71,8 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 		switch a := args[i]; {
 		case a == "--verify":
 			verifyMode = true
+		case a == "--work-items":
+			workItems = true
 		case a == "--pending":
 			pending = true
 		case a == "--dry-run":
@@ -102,6 +106,9 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	fl.paths = nil
 	if prMode || pending || dryRun {
 		return runActionPR(prURL, pending, dryRun, fl, pf, stdout, stderr)
+	}
+	if workItems {
+		return runActionWorkItems(fl.server, fl.enforcement == "blocking", stdout, stderr)
 	}
 	if pf.noAttribution || pf.levelsSet {
 		fmt.Fprintf(stderr, "speccy action: --levels and --no-attribution work with --pr only. In CI, set pr.levels in %s.\n", source.RepoConfigFile)

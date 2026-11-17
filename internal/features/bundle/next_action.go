@@ -61,7 +61,7 @@ func (a *API) brief(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *a
 
 // full names the next action of one bundle. It adds what the list is too big to read: the items
 // of the questions screen, and the handoffs.
-func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *api.SpecDoc) error {
+func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *api.SpecDoc, size kernel.Size) error {
 	canEdit, err := share.CanEdit(ctx, q, kernel.ActorFrom(ctx), b)
 	if err != nil {
 		return err
@@ -73,6 +73,7 @@ func (a *API) full(ctx context.Context, q store.Querier, b pgdb.SpecDoc, out *ap
 		Adopt:          out.Adopt,
 		CanEdit:        canEdit,
 		Hosted:         a.Service.Local == nil,
+		Size:           size,
 	}
 	if out.Status != nil {
 		in.Status = *out.Status

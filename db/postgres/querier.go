@@ -33,6 +33,8 @@ type Querier interface {
 	DeleteAnswersOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteAssignment(ctx context.Context, arg DeleteAssignmentParams) error
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
+	DeleteBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteBreakdownOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error
 	DeleteBundleRow(ctx context.Context, arg DeleteBundleRowParams) error
 	DeleteClaimsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
@@ -77,12 +79,16 @@ type Querier interface {
 	// Ends a run that its job left queued or running. A run that reached an end stays as it is.
 	FailActiveRun(ctx context.Context, arg FailActiveRunParams) error
 	FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error
+	// A work item by its issue key or URL, across the workspace.
+	FindBreakdownIssue(ctx context.Context, arg FindBreakdownIssueParams) ([]BreakdownIssue, error)
 	FinishJob(ctx context.Context, arg FinishJobParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
 	FinishVerificationRun(ctx context.Context, arg FinishVerificationRunParams) error
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
 	GetBackend(ctx context.Context, arg GetBackendParams) (ModelBackend, error)
 	GetBlob(ctx context.Context, sha256 string) ([]byte, error)
+	GetBreakdown(ctx context.Context, arg GetBreakdownParams) (Breakdown, error)
+	GetBreakdownByID(ctx context.Context, arg GetBreakdownByIDParams) (Breakdown, error)
 	GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error)
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
@@ -117,6 +123,8 @@ type Querier interface {
 	InsertAnswer(ctx context.Context, arg InsertAnswerParams) error
 	InsertBackend(ctx context.Context, arg InsertBackendParams) error
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
+	InsertBreakdown(ctx context.Context, arg InsertBreakdownParams) error
+	InsertBreakdownIssue(ctx context.Context, arg InsertBreakdownIssueParams) error
 	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
 	InsertBundleAuthor(ctx context.Context, arg InsertBundleAuthorParams) error
@@ -181,6 +189,8 @@ type Querier interface {
 	ListAssignments(ctx context.Context, workspaceID uuid.UUID) ([]RoleAssignment, error)
 	ListAuthorBundles(ctx context.Context, userID string) ([]uuid.UUID, error)
 	ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]ModelBackend, error)
+	ListBreakdownIssues(ctx context.Context, breakdownID uuid.UUID) ([]BreakdownIssue, error)
+	ListBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) ([]BreakdownIssue, error)
 	ListBuildThreads(ctx context.Context, workspaceID uuid.UUID) ([]ThreadView, error)
 	ListBundleAuthors(ctx context.Context, bundleID uuid.UUID) ([]string, error)
 	ListBundles(ctx context.Context, arg ListBundlesParams) ([]Bundle, error)
@@ -283,6 +293,8 @@ type Querier interface {
 	ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error)
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
+	// The edit applies only when the caller read the newest revision.
+	UpdateBreakdown(ctx context.Context, arg UpdateBreakdownParams) (int64, error)
 	// A scan keeps the title and the source of a bundle in step, and un-archives it.
 	UpdateBundle(ctx context.Context, arg UpdateBundleParams) error
 	UpdateMCPConnection(ctx context.Context, arg UpdateMCPConnectionParams) error

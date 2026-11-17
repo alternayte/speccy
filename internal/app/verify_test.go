@@ -268,12 +268,15 @@ func TestVerifyWaiverNamesTheRunItCameFrom(t *testing.T) {
 	}
 }
 
-func runVerify(t *testing.T, e *env, repo string) api.Verification {
+func runVerify(t *testing.T, e *env, repo string, traceIDs ...string) api.Verification {
 	t.Helper()
 	// A folder run is local mode only; the test env serves hosted mode otherwise.
 	e.app.API.Local = true
-	res, err := e.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{
-		DocId: e.b.ID, Body: &api.RunVerificationJSONRequestBody{Target: ptr(repo)}})
+	body := &api.RunVerificationJSONRequestBody{Target: ptr(repo)}
+	if len(traceIDs) > 0 {
+		body.TraceIds = &traceIDs
+	}
+	res, err := e.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{DocId: e.b.ID, Body: body})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,6 +298,54 @@ func runVerify(t *testing.T, e *env, repo string) api.Verification {
 	}
 	t.Fatal("the run did not end")
 	return api.Verification{}
+}
+
+// TestVerifyScopedRuns checks a run scoped to some trace IDs: it gives outcomes and opens
+// blocking threads for those IDs only, and the bundle needs a verification until scoped runs
+// together cover every trace ID (#158).
+func TestVerifyScopedRuns(t *testing.T) {
+	for _, eng := range storetest.Engines() {
+		t.Run(eng.Name, func(t *testing.T) {
+			env := newEnv(t, eng)
+			env.edit(t, specDoc)
+			fakeModels(t, env)
+			tracePrefixes(t, env)
+			repo := t.TempDir()
+			write(t, repo, "gateway.go", "package gateway\n\n// REQ-001: reject a request with no token.\nfunc Reject() bool { return true }\n")
+
+			v := runVerify(t, env, repo, "REQ-001")
+			if len(v.Outcomes) != 1 || v.Outcomes[0].TraceId != "REQ-001" {
+				t.Fatalf("outcomes = %+v, want REQ-001 only", v.Outcomes)
+			}
+			if n := blockingThreads(t, env); n != 0 {
+				t.Errorf("blocking threads = %d; REQ-002 is missing but outside the scope", n)
+			}
+			due, err := env.app.API.Due(context.Background(), env.b.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !due {
+				t.Error("REQ-002 has no outcome yet, so the build still needs a verification")
+			}
+
+			v = runVerify(t, env, repo, "REQ-002")
+			if len(v.Outcomes) != 1 || v.Outcomes[0].Outcome != api.Missing {
+				t.Fatalf("outcomes = %+v, want REQ-002 missing", v.Outcomes)
+			}
+			if n := blockingThreads(t, env); n != 1 {
+				t.Errorf("blocking threads = %d, want 1 for REQ-002", n)
+			}
+			if due, _ := env.app.API.Due(context.Background(), env.b.ID); due {
+				t.Error("two scoped runs cover both trace IDs, so no verification is due")
+			}
+
+			_, err = env.app.API.RunVerification(as("member"), api.RunVerificationRequestObject{DocId: env.b.ID,
+				Body: &api.RunVerificationJSONRequestBody{Target: ptr(repo), TraceIds: &[]string{"REQ-404"}}})
+			if ke, ok := kernel.AsError(err); !ok || ke.Code != "unknown_trace_ids" {
+				t.Fatalf("err = %v, want unknown_trace_ids", err)
+			}
+		})
+	}
 }
 
 // The mapper finds code that names no trace ID in two steps: it picks files from the paths,

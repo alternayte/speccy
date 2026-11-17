@@ -53,6 +53,9 @@ const usage = `Usage:
                                                          The GitHub Action: review the bundles a pull request
                                                          changes, and comment on it. --verify runs the
                                                          verification gate instead of the review.
+  speccy action --work-items --server URL [--enforcement advisory|blocking]
+                                                         The verify Action of a code repo: verify the work
+                                                         items a pull request names, scoped to their IDs.
   speccy action --pr <pull request URL> --pending | --dry-run [--stages …]
                 [--levels must,should] [--no-attribution]
                                                          Review a pull request from this machine. --pending
@@ -85,6 +88,13 @@ const usage = `Usage:
   speccy export <path> --format zip|html                 Export a bundle, or its HTML report.
   speccy handoff <path> --out <folder>                   Write a bundle's build packet for a coding agent.
                 [--label <name>] [--acknowledged]
+  speccy breakdown propose|show|edit|update|readers|push|export <path>
+                                                         Propose, check, edit and push a breakdown of a
+                                                         Build Ready doc into epics and work items. Run
+                                                         speccy breakdown for the flags of each step.
+  speccy work-item <issue URL, key or bundle/item> [--server URL] [--json]
+                                                         Print the slice of the spec one work item builds,
+                                                         at the version it was pushed from.
   speccy report <path> --handoff <id> --text <text>      Report what a build learned about the doc.
                 [--blocked | --note] [--section "A › B"] [--trace-id REQ-012]
   speccy waive <doc path> <finding ID> --reason "<reason>" [--approve]
@@ -96,7 +106,9 @@ const usage = `Usage:
                                                          request: the downstream doc must change.
   speccy waivers list <doc path>                         List the waivers of a spec doc, with their status.
   speccy verify <path> [<GitHub URL or folder>]          Verify one build against the bundle. With no URL,
+                [--trace-ids REQ-1,REQ-2 | --work-item <issue>]
                                                          the repo the doc's implemented-by link names.
+                                                         --trace-ids or --work-item verifies those IDs only.
   speccy admin invite --role admin|member                Print an invite link (hosted).
   speccy admin reset-link <email>                        Print a password reset link (hosted).
   speccy version                                         Print the version.
@@ -104,6 +116,10 @@ const usage = `Usage:
 Local mode serves the bundles under --dir (default: the current folder). The other commands work
 on the folder with .speccy.yaml, from the current folder up, or else on the current folder.
 `
+
+// localBaseURL is the address local mode serves the app on, once it listens. A command that
+// owns the state without serving leaves it empty, and the breakdown uses the default address.
+var localBaseURL string
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -147,6 +163,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return runHandoff(args[1:], stdout, stderr)
 	case "report":
 		return runReport(args[1:], stdout, stderr)
+	case "breakdown":
+		return runBreakdown(args[1:], stdout, stderr)
+	case "work-item":
+		return runWorkItem(args[1:], stdout, stderr)
 	case "verify":
 		return runVerify(args[1:], stdout, stderr)
 	case "waive":
@@ -208,6 +228,7 @@ func runLocal(args []string, openBrowser bool, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun
 	}
+	localBaseURL = "http://" + ln.Addr().String()
 	handler, err := openLocal(*dir, spa)
 	if err != nil {
 		_ = ln.Close()
@@ -280,6 +301,8 @@ func openApp(ctx context.Context, root *local.Root, stateDir, keyFile string) (*
 	if err != nil {
 		return nil, nil, err
 	}
+	// A pushed issue links back to the app at the address it serves on.
+	a.API.BreakdownAPI.BaseURL = localBaseURL
 	return a, db, nil
 }
 

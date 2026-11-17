@@ -427,3 +427,46 @@ func (m *mcpFetcher) Fetch(ctx context.Context, target string) (string, error) {
 	}
 	return "", fmt.Errorf("%s has no tool named %s", m.name, m.tool)
 }
+
+// ConnectionFor returns the connection that lists host, for a breakdown push (#157). ok is false
+// when no connection lists it. Speccy matches by host, so no model picks the server.
+func (a *API) ConnectionFor(ctx context.Context, host string) (mcpclient.Connection, bool, error) {
+	rows, err := a.DB.Queries().ListMCPConnections(ctx, a.Workspace)
+	if err != nil {
+		return mcpclient.Connection{}, false, err
+	}
+	host = strings.ToLower(host)
+	for _, c := range rows {
+		hosts := []string{}
+		_ = json.Unmarshal(c.Hosts, &hosts)
+		if !slices.Contains(hosts, host) {
+			continue
+		}
+		conn, err := a.connection(c)
+		if err != nil {
+			return mcpclient.Connection{}, false, err
+		}
+		return conn, true, nil
+	}
+	return mcpclient.Connection{}, false, nil
+}
+
+// ConnectionHosts lists every host an MCP connection names, sorted.
+func (a *API) ConnectionHosts(ctx context.Context) ([]string, error) {
+	rows, err := a.DB.Queries().ListMCPConnections(ctx, a.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, c := range rows {
+		hosts := []string{}
+		_ = json.Unmarshal(c.Hosts, &hosts)
+		for _, h := range hosts {
+			if !slices.Contains(out, h) {
+				out = append(out, h)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out, nil
+}

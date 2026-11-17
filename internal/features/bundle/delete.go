@@ -134,6 +134,8 @@ func (s *Service) DeleteBundleData(ctx context.Context, id uuid.UUID) error {
 		for _, step := range []func(context.Context, uuid.UUID) error{
 			q.DeleteVerificationOutcomesOfSpecDoc,
 			q.DeleteVerificationRunsOfSpecDoc,
+			q.DeleteBreakdownIssuesOfSpecDoc,
+			q.DeleteBreakdownOfSpecDoc,
 			q.DeleteHandoffsOfSpecDoc,
 			q.DeleteVerdictsOfSpecDoc,
 			q.DeleteAnswersOfSpecDoc,

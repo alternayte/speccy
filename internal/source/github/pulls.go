@@ -313,3 +313,39 @@ func (c *Client) ReplyToThread(ctx context.Context, id, body string) error {
 func (c *Client) DeleteIssueComment(ctx context.Context, repo string, id int64) error {
 	return c.do(ctx, "DELETE", fmt.Sprintf("%s/issues/comments/%d", repoPath(repo), id), nil, nil)
 }
+
+// PullText is the text of a pull request that can name an issue: its title, its body and its
+// head branch.
+type PullText struct {
+	Number  int
+	Title   string
+	Body    string
+	HeadRef string
+	Merged  bool
+}
+
+// CommitPulls lists the pull requests a commit belongs to, such as the one a merge commit
+// merged.
+func (c *Client) CommitPulls(ctx context.Context, repo, sha string) ([]PullText, error) {
+	var raw []struct {
+		Number   int     `json:"number"`
+		Title    string  `json:"title"`
+		Body     *string `json:"body"`
+		MergedAt *string `json:"merged_at"`
+		Head     struct {
+			Ref string `json:"ref"`
+		} `json:"head"`
+	}
+	if err := c.do(ctx, "GET", fmt.Sprintf("%s/commits/%s/pulls", repoPath(repo), sha), nil, &raw); err != nil {
+		return nil, err
+	}
+	out := make([]PullText, 0, len(raw))
+	for _, r := range raw {
+		p := PullText{Number: r.Number, Title: r.Title, HeadRef: r.Head.Ref, Merged: r.MergedAt != nil}
+		if r.Body != nil {
+			p.Body = *r.Body
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}

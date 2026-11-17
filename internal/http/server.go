@@ -18,6 +18,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/features/admin"
 	"github.com/alternayte/speccy/internal/features/approval"
+	"github.com/alternayte/speccy/internal/features/breakdown"
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/export"
 	"github.com/alternayte/speccy/internal/features/handoff"
@@ -58,6 +59,7 @@ type API struct {
 	*HandoffAPI
 	*VerifyAPI
 	*PrReviewAPI
+	*BreakdownAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -78,6 +80,7 @@ type (
 	HandoffAPI   = handoff.API
 	VerifyAPI    = verify.API
 	PrReviewAPI  = prreview.API
+	BreakdownAPI = breakdown.API
 )
 
 // Core serves the operations that belong to no feature.

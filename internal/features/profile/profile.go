@@ -46,6 +46,7 @@ type Profile struct {
 	Grounding  Grounding  `yaml:"grounding" json:"grounding"`
 	Coherence  Coherence  `yaml:"coherence" json:"coherence"`
 	Verify     Verify     `yaml:"verify" json:"verify"`
+	Breakdown  Breakdown  `yaml:"breakdown" json:"breakdown"`
 	Lint       Lint       `yaml:"lint" json:"lint"`
 	Checks     []Check    `yaml:"checks" json:"checks"`
 }
@@ -113,6 +114,18 @@ type Verify struct {
 	MaxFileKB int `yaml:"max_file_kb" json:"max_file_kb"`
 	// MaxMapperFiles bounds the files the AI mapper sees, highest ranked first.
 	MaxMapperFiles int `yaml:"max_mapper_files" json:"max_mapper_files"`
+}
+
+// Breakdown holds the rules Speccy follows when it proposes epics and work items from a Build
+// Ready doc of this type (#154).
+type Breakdown struct {
+	// Epic says what one epic is for this doc type, in words the proposing model reads.
+	Epic string `yaml:"epic" json:"epic"`
+	// MaxTraceIDs is the largest work item, as a count of trace IDs. A larger item gets the
+	// SHOULD finding breakdown.size.
+	MaxTraceIDs int `yaml:"max_trace_ids" json:"max_trace_ids"`
+	// Order are the rules that order the items, in words the proposing model reads.
+	Order []string `yaml:"order" json:"order"`
 }
 
 type Trace struct {
@@ -262,6 +275,14 @@ var defaults = Profile{
 		MaxFileKB:      512,
 		MaxMapperFiles: 200,
 	},
+	Breakdown: Breakdown{
+		Epic:        "One epic per outcome a user or an operator can see, built from one or more top-level sections. An epic is never a layer of the stack.",
+		MaxTraceIDs: 4,
+		Order: []string{
+			"A provider comes before its consumer: the item that builds a table, an API or an event comes before the item that uses it.",
+			"Expand before contract: for a change to an interface or a migration, the item that adds the new shape comes before the item that removes the old one.",
+		},
+	},
 }
 
 func init() {
@@ -344,6 +365,12 @@ func Parse(origin string, src []byte, readTemplate func(string) ([]byte, error))
 	}
 	if p.Verify.MaxMapperFiles <= 0 {
 		p.Verify.MaxMapperFiles = defaults.Verify.MaxMapperFiles
+	}
+	if p.Breakdown.MaxTraceIDs <= 0 {
+		p.Breakdown.MaxTraceIDs = defaults.Breakdown.MaxTraceIDs
+	}
+	if strings.TrimSpace(p.Breakdown.Epic) == "" {
+		p.Breakdown.Epic = defaults.Breakdown.Epic
 	}
 	// A children check with no min needs one link. The schema refuses 0, so 0 means left out.
 	if p.Links.Children != nil && p.Links.Children.Min <= 0 {

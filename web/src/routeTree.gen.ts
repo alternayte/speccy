@@ -23,7 +23,9 @@ import { Route as ProfilesKeyRouteImport } from './routes/profiles/$key'
 import { Route as ReviewsReviewIdRouteImport } from './routes/reviews/$reviewId'
 import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
+import { Route as DocsDocIdBreakdownRouteImport } from './routes/docs/$docId_.breakdown'
 import { Route as BundlesBundleIdDocsDocIdIndexRouteImport } from './routes/bundles/$bundleId/docs/$docId/index'
+import { Route as BundlesBundleIdDocsDocIdBreakdownRouteImport } from './routes/bundles/$bundleId/docs/$docId/breakdown'
 import { Route as BundlesBundleIdDocsDocIdDiffRouteImport } from './routes/bundles/$bundleId/docs/$docId/diff'
 import { Route as BundlesBundleIdDocsDocIdQuestionsRouteImport } from './routes/bundles/$bundleId/docs/$docId/questions'
 import { Route as BundlesBundleIdDocsDocIdTraceRouteImport } from './routes/bundles/$bundleId/docs/$docId/trace'
@@ -99,10 +101,21 @@ const BundlesBundleIdIndexRoute = BundlesBundleIdIndexRouteImport.update({
   path: '/bundles/$bundleId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsDocIdBreakdownRoute = DocsDocIdBreakdownRouteImport.update({
+  id: '/docs/$docId_/breakdown',
+  path: '/docs/$docId/breakdown',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BundlesBundleIdDocsDocIdIndexRoute =
   BundlesBundleIdDocsDocIdIndexRouteImport.update({
     id: '/bundles/$bundleId/docs/$docId/',
     path: '/bundles/$bundleId/docs/$docId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const BundlesBundleIdDocsDocIdBreakdownRoute =
+  BundlesBundleIdDocsDocIdBreakdownRouteImport.update({
+    id: '/bundles/$bundleId/docs/$docId/breakdown',
+    path: '/bundles/$bundleId/docs/$docId/breakdown',
     getParentRoute: () => rootRouteImport,
   } as any)
 const BundlesBundleIdDocsDocIdDiffRoute =
@@ -144,7 +157,9 @@ export interface FileRoutesByFullPath {
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
+  '/docs/$docId/breakdown': typeof DocsDocIdBreakdownRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
+  '/bundles/$bundleId/docs/$docId/breakdown': typeof BundlesBundleIdDocsDocIdBreakdownRoute
   '/bundles/$bundleId/docs/$docId/diff': typeof BundlesBundleIdDocsDocIdDiffRoute
   '/bundles/$bundleId/docs/$docId/questions': typeof BundlesBundleIdDocsDocIdQuestionsRoute
   '/bundles/$bundleId/docs/$docId/trace': typeof BundlesBundleIdDocsDocIdTraceRoute
@@ -165,7 +180,9 @@ export interface FileRoutesByTo {
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles': typeof ProfilesIndexRoute
+  '/docs/$docId/breakdown': typeof DocsDocIdBreakdownRoute
   '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
+  '/bundles/$bundleId/docs/$docId/breakdown': typeof BundlesBundleIdDocsDocIdBreakdownRoute
   '/bundles/$bundleId/docs/$docId/diff': typeof BundlesBundleIdDocsDocIdDiffRoute
   '/bundles/$bundleId/docs/$docId/questions': typeof BundlesBundleIdDocsDocIdQuestionsRoute
   '/bundles/$bundleId/docs/$docId/trace': typeof BundlesBundleIdDocsDocIdTraceRoute
@@ -187,7 +204,9 @@ export interface FileRoutesById {
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
+  '/docs/$docId_/breakdown': typeof DocsDocIdBreakdownRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
+  '/bundles/$bundleId/docs/$docId/breakdown': typeof BundlesBundleIdDocsDocIdBreakdownRoute
   '/bundles/$bundleId/docs/$docId/diff': typeof BundlesBundleIdDocsDocIdDiffRoute
   '/bundles/$bundleId/docs/$docId/questions': typeof BundlesBundleIdDocsDocIdQuestionsRoute
   '/bundles/$bundleId/docs/$docId/trace': typeof BundlesBundleIdDocsDocIdTraceRoute
@@ -210,7 +229,9 @@ export interface FileRouteTypes {
     | '/reviews/$reviewId'
     | '/share/$token'
     | '/profiles/'
+    | '/docs/$docId/breakdown'
     | '/bundles/$bundleId/'
+    | '/bundles/$bundleId/docs/$docId/breakdown'
     | '/bundles/$bundleId/docs/$docId/diff'
     | '/bundles/$bundleId/docs/$docId/questions'
     | '/bundles/$bundleId/docs/$docId/trace'
@@ -231,7 +252,9 @@ export interface FileRouteTypes {
     | '/reviews/$reviewId'
     | '/share/$token'
     | '/profiles'
+    | '/docs/$docId/breakdown'
     | '/bundles/$bundleId'
+    | '/bundles/$bundleId/docs/$docId/breakdown'
     | '/bundles/$bundleId/docs/$docId/diff'
     | '/bundles/$bundleId/docs/$docId/questions'
     | '/bundles/$bundleId/docs/$docId/trace'
@@ -252,7 +275,9 @@ export interface FileRouteTypes {
     | '/reviews/$reviewId'
     | '/share/$token'
     | '/profiles/'
+    | '/docs/$docId_/breakdown'
     | '/bundles/$bundleId/'
+    | '/bundles/$bundleId/docs/$docId/breakdown'
     | '/bundles/$bundleId/docs/$docId/diff'
     | '/bundles/$bundleId/docs/$docId/questions'
     | '/bundles/$bundleId/docs/$docId/trace'
@@ -274,7 +299,9 @@ export interface RootRouteChildren {
   ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ProfilesIndexRoute: typeof ProfilesIndexRoute
+  DocsDocIdBreakdownRoute: typeof DocsDocIdBreakdownRoute
   BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
+  BundlesBundleIdDocsDocIdBreakdownRoute: typeof BundlesBundleIdDocsDocIdBreakdownRoute
   BundlesBundleIdDocsDocIdDiffRoute: typeof BundlesBundleIdDocsDocIdDiffRoute
   BundlesBundleIdDocsDocIdQuestionsRoute: typeof BundlesBundleIdDocsDocIdQuestionsRoute
   BundlesBundleIdDocsDocIdTraceRoute: typeof BundlesBundleIdDocsDocIdTraceRoute
@@ -382,11 +409,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BundlesBundleIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/$docId_/breakdown': {
+      id: '/docs/$docId_/breakdown'
+      path: '/docs/$docId/breakdown'
+      fullPath: '/docs/$docId/breakdown'
+      preLoaderRoute: typeof DocsDocIdBreakdownRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bundles/$bundleId/docs/$docId/': {
       id: '/bundles/$bundleId/docs/$docId/'
       path: '/bundles/$bundleId/docs/$docId'
       fullPath: '/bundles/$bundleId/docs/$docId/'
       preLoaderRoute: typeof BundlesBundleIdDocsDocIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bundles/$bundleId/docs/$docId/breakdown': {
+      id: '/bundles/$bundleId/docs/$docId/breakdown'
+      path: '/bundles/$bundleId/docs/$docId/breakdown'
+      fullPath: '/bundles/$bundleId/docs/$docId/breakdown'
+      preLoaderRoute: typeof BundlesBundleIdDocsDocIdBreakdownRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bundles/$bundleId/docs/$docId/diff': {
@@ -434,7 +475,10 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewsReviewIdRoute: ReviewsReviewIdRoute,
   ShareTokenRoute: ShareTokenRoute,
   ProfilesIndexRoute: ProfilesIndexRoute,
+  DocsDocIdBreakdownRoute: DocsDocIdBreakdownRoute,
   BundlesBundleIdIndexRoute: BundlesBundleIdIndexRoute,
+  BundlesBundleIdDocsDocIdBreakdownRoute:
+    BundlesBundleIdDocsDocIdBreakdownRoute,
   BundlesBundleIdDocsDocIdDiffRoute: BundlesBundleIdDocsDocIdDiffRoute,
   BundlesBundleIdDocsDocIdQuestionsRoute:
     BundlesBundleIdDocsDocIdQuestionsRoute,

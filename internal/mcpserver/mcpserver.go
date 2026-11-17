@@ -38,7 +38,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	})
 	t := tools{clientFor: clientFor}
 	add(s, t, "list_bundles", "List the bundles with their verdicts.", t.listBundles)
-	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its spec doc.", t.getBundle)
+	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its spec doc. Pass version, a version number, to read the doc as it was at that version, such as the version a work item was pushed from.", t.getBundle)
 	add(s, t, "review_bundle", "Run a review of a saved bundle and wait for the verdict. The model stages can take minutes.", t.reviewBundle)
 	add(s, t, "review_content", "Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.", t.reviewContent)
 	add(s, t, "review_url", "Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line.", t.reviewURL)
@@ -49,7 +49,12 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
-	add(s, t, "verify_build", "Verify one build against the bundle. Call it when the build from a build packet is done, with the handoff ID from HANDOFF.md. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
+	add(s, t, "propose_breakdown", "Propose a breakdown of a Build Ready doc: epics, and work items under them. Each work item holds its trace IDs, its acceptance criteria quoted from the doc, the agreed build answers, its target repo, its dependencies and its open questions. A doc that is not Build Ready is refused with its MUST count; acknowledged proposes it anyway. The answer is the draft with its findings: a MUST finding blocks the push. A new proposal replaces a breakdown that has no pushed issue.", t.proposeBreakdown)
+	add(s, t, "get_breakdown", "Get the breakdown of a doc: its epics, its work items, its findings, its coverage of the doc's trace IDs, the pushed issues, and its revision. stale is true when the doc has a newer version; changed names what the new version changed in each item.", t.getBreakdown)
+	add(s, t, "update_breakdown", "Edit the breakdown of a doc. Pass based_on, the revision you read, and ops, applied in order and all or none: split (item, trace_ids, title), merge (item, into), move_trace (trace_id, from, to; empty is no item), reorder (item, before), set_dependencies (item, depends_on), set_assignee (item, assignee), set_epic_default (epic, assignee), set_note (item, note), set_title (item or epic, title), set_repos (item, repos), move_item (item, epic), add_epic (title), remove_item (item), cover (trace_id, answer out_of_scope, covered_elsewhere or no_build, and the person's reason), uncover (trace_id). A criterion is a quote: to change one, change the doc. Pass to_current_version instead of ops to move a stale breakdown to the doc's current version. Make only the changes the person asked for.", t.updateBreakdown)
+	add(s, t, "push_breakdown", "Push the breakdown to a tracker: create the epics and the work items that have no issue yet, with their dependencies and assignees. tracker is linear, jira or github; target is the Linear team, the Jira project URL, or the GitHub repo. A push never edits or closes an issue, and records one handoff with the label breakdown. It is refused while the breakdown has a MUST finding or is stale. Push only when the person tells you to push this breakdown.", t.pushBreakdown)
+	add(s, t, "get_work_item", "Get the slice of the spec one work item builds: its quoted criteria with their heading paths, the agreed build answers for its trace IDs, the linked docs, the external links, and the doc at the version the item was pushed from. ref is one string: the work item's Speccy URL, its tracker issue URL or key, or bundle/item. newer_version is true when the doc changed after the push: ask the author before you build from the old text.", t.getWorkItem)
+	add(s, t, "verify_build", "Verify one build against the bundle. Call it when the build from a build packet is done, with the handoff ID from HANDOFF.md. Paste the URL of the repo, branch, commit or pull request you built, or name a folder; with neither, Speccy reads the repo the doc's implemented-by link names. Speccy finds where each requirement is implemented and tested, and gives each one an outcome: implemented, untested, unproven, missing or breached. Speccy reads the code; it never runs it and never runs the tests, so a cited test is a citation and not a pass. A missing or breached MUST opens a blocking thread on the bundle, unless you verify the head of a pull request: that run only advises. When the build covers one work item, pass work_item or trace_ids, and Speccy verifies those trace IDs only. Give a claim for a requirement when you know where it lives; leave the claims out and Speccy finds them.", t.verifyBuild)
 	add(s, t, "report_build", "Report what you learned about the doc while you built from a build packet. kind blocked means you cannot build the section without an answer, and it opens a blocking thread. kind note means you built something and the doc was unclear. Name the section or the trace ID, so the question lands on that text.", t.reportBuild)
 	add(s, t, "request_waiver", "Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exception for its check in its section, with a reason. A waiver of coherence.contradiction excuses only the one conflict of the finding. With upstream_change, the answer to a coherence.contradiction finding is that the linked doc must change: after approval the conflict waits on that doc and does not block. With send_back, the answer to a coherence.downstream-request finding is that the downstream doc must change: after approval the conflict blocks that doc again. The reason must come from the person: ask them why the check does not apply here, and pass their words. Never write a reason yourself. The reason needs at least 20 characters. A coverage gap takes no waiver. The answer is the waiver, with the approvals its policy needs. In local mode the waiver is approved at once, because the one person is the approver; an upstream request or a send-back still waits.", t.requestWaiver)
 	add(s, t, "approve_waiver", "Approve a requested waiver under the profile's waiver policy. Speccy refuses an approval that the policy does not allow to the person. The final approval writes the waiver to the doc's sidecar, and the finding no longer counts in the verdict. Approve only when the person tells you to approve this waiver.", t.approveWaiver)
@@ -149,26 +154,185 @@ func (tools) listBundles(ctx context.Context, c *api.ClientWithResponses, _ stru
 	return map[string]any{"items": all}, nil
 }
 
-func (tools) getBundle(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {
+type getBundleArg struct {
+	Bundle  string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Version int64  `json:"version,omitempty" jsonschema:"a version number, to read the doc as it was at that version. Absent is the current version"`
+}
+
+func (tools) getBundle(ctx context.Context, c *api.ClientWithResponses, in getBundleArg) (any, error) {
 	b, err := bundle(ctx, c, in.Bundle)
 	if err != nil {
 		return nil, err
 	}
-	files, err := c.ListFilesWithResponse(ctx, b.Id, &api.ListFilesParams{})
+	var at *api.VersionQuery
+	if in.Version > 0 {
+		id, err := versionID(ctx, c, b.Id, in.Version)
+		if err != nil {
+			return nil, err
+		}
+		at = &id
+	}
+	files, err := c.ListFilesWithResponse(ctx, b.Id, &api.ListFilesParams{Version: at})
 	if err != nil {
 		return nil, err
 	}
 	if files.JSON200 == nil {
 		return nil, problem(files.ApplicationproblemJSONDefault, files.StatusCode())
 	}
-	text, err := c.GetFileContentWithResponse(ctx, b.Id, &api.GetFileContentParams{Path: b.Path})
+	text, err := c.GetFileContentWithResponse(ctx, b.Id, &api.GetFileContentParams{Path: b.Path, Version: at})
 	if err != nil {
 		return nil, err
 	}
 	if text.StatusCode() != http.StatusOK {
 		return nil, fmt.Errorf("the spec doc %s does not read: status %d", b.Path, text.StatusCode())
 	}
-	return map[string]any{"bundle": b, "files": files.JSON200.Items, "main_doc_text": string(text.Body)}, nil
+	out := map[string]any{"bundle": b, "files": files.JSON200.Items, "main_doc_text": string(text.Body)}
+	if in.Version > 0 {
+		out["version"] = in.Version
+	}
+	return out, nil
+}
+
+// versionID finds the ID of a bundle's version by its number.
+func versionID(ctx context.Context, c *api.ClientWithResponses, docID uuid.UUID, number int64) (uuid.UUID, error) {
+	var cursor *api.Cursor
+	for {
+		res, err := c.ListVersionsWithResponse(ctx, docID, &api.ListVersionsParams{Cursor: cursor})
+		if err != nil {
+			return uuid.Nil, err
+		}
+		if res.JSON200 == nil {
+			return uuid.Nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+		}
+		for _, v := range res.JSON200.Items {
+			if v.Number == number {
+				return v.Id, nil
+			}
+		}
+		if res.JSON200.NextCursor == nil || *res.JSON200.NextCursor == "" {
+			return uuid.Nil, fmt.Errorf("the bundle has no version %d", number)
+		}
+		next := *res.JSON200.NextCursor
+		cursor = &next
+	}
+}
+
+type proposeArg struct {
+	Bundle       string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Acknowledged bool   `json:"acknowledged,omitempty" jsonschema:"propose it although the doc is not Build Ready. The breakdown stores the verdict"`
+}
+
+func (tools) proposeBreakdown(ctx context.Context, c *api.ClientWithResponses, in proposeArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	body := api.ProposeBreakdownJSONRequestBody{}
+	if in.Acknowledged {
+		body.Acknowledged = &in.Acknowledged
+	}
+	res, err := c.ProposeBreakdownWithResponse(ctx, b.Id, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON201 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON201, nil
+}
+
+func (tools) getBreakdown(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.GetBreakdownWithResponse(ctx, b.Id)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type updateBreakdownArg struct {
+	Bundle           string            `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	BasedOn          int64             `json:"based_on" jsonschema:"the revision of the breakdown you read"`
+	Ops              []api.BreakdownOp `json:"ops,omitempty" jsonschema:"the edits, applied in order and all or none"`
+	ToCurrentVersion bool              `json:"to_current_version,omitempty" jsonschema:"move a stale breakdown to the doc's current version instead of applying ops"`
+	Acknowledged     bool              `json:"acknowledged,omitempty" jsonschema:"with to_current_version: move it although the doc is not Build Ready"`
+}
+
+func (tools) updateBreakdown(ctx context.Context, c *api.ClientWithResponses, in updateBreakdownArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	if in.ToCurrentVersion {
+		body := api.UpdateBreakdownJSONRequestBody{BasedOn: in.BasedOn}
+		if in.Acknowledged {
+			body.Acknowledged = &in.Acknowledged
+		}
+		res, err := c.UpdateBreakdownWithResponse(ctx, b.Id, body)
+		if err != nil {
+			return nil, err
+		}
+		if res.JSON200 == nil {
+			return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+		}
+		return res.JSON200, nil
+	}
+	res, err := c.EditBreakdownWithResponse(ctx, b.Id, api.EditBreakdownJSONRequestBody{BasedOn: in.BasedOn, Ops: in.Ops})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type pushArg struct {
+	Bundle       string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	BasedOn      int64  `json:"based_on" jsonschema:"the revision of the breakdown the person approved"`
+	Tracker      string `json:"tracker" jsonschema:"linear, jira or github"`
+	Target       string `json:"target" jsonschema:"the Linear team, the Jira project URL, or the GitHub repo as owner/name"`
+	Acknowledged bool   `json:"acknowledged,omitempty" jsonschema:"push although the doc is not Build Ready. The handoff stores the verdict"`
+}
+
+func (tools) pushBreakdown(ctx context.Context, c *api.ClientWithResponses, in pushArg) (any, error) {
+	b, err := bundle(ctx, c, in.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	body := api.PushBreakdownJSONRequestBody{BasedOn: in.BasedOn, Tracker: api.PushBreakdownRequestTracker(in.Tracker), Target: in.Target}
+	if in.Acknowledged {
+		body.Acknowledged = &in.Acknowledged
+	}
+	res, err := c.PushBreakdownWithResponse(ctx, b.Id, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type workItemArg struct {
+	Ref string `json:"ref" jsonschema:"the work item's Speccy URL, its tracker issue URL or key, or bundle/item"`
+}
+
+func (tools) getWorkItem(ctx context.Context, c *api.ClientWithResponses, in workItemArg) (any, error) {
+	res, err := c.GetWorkItemWithResponse(ctx, &api.GetWorkItemParams{Ref: in.Ref})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
 }
 
 type reviewArg struct {
@@ -333,7 +497,7 @@ func (tools) reportBuild(ctx context.Context, c *api.ClientWithResponses, in rep
 
 type handoffArg struct {
 	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
-	Label  string `json:"label,omitempty" jsonschema:"what you call this work: a repo, a branch, or a ticket"`
+	Label  string `json:"label,omitempty" jsonschema:"what you call this work: a repo, a branch, or an issue"`
 	// Acknowledged takes a packet the verdict does not allow. The handoff records it.
 	Acknowledged bool `json:"acknowledged,omitempty" jsonschema:"take the packet although the bundle is not Build Ready, or its verdict is stale"`
 }
@@ -369,7 +533,10 @@ type verifyArg struct {
 	Path   string `json:"path,omitempty" jsonschema:"a folder on disk, instead of a repo and a commit"`
 	// Handoff ties the run to the packet the builder took.
 	Handoff string `json:"handoff,omitempty" jsonschema:"the handoff ID from the build packet"`
-	Claims  []struct {
+	// TraceIDs and WorkItem scope the run, for a pull request that builds part of the doc.
+	TraceIDs []string `json:"trace_ids,omitempty" jsonschema:"verify only these trace IDs, when the build covers part of the doc"`
+	WorkItem string   `json:"work_item,omitempty" jsonschema:"verify only the trace IDs of this work item: its issue URL or key, its Speccy URL, or bundle/item"`
+	Claims   []struct {
 		TraceID string `json:"trace_id" jsonschema:"the requirement this claim covers"`
 		Targets []struct {
 			Kind  string `json:"kind" jsonschema:"code or test"`
@@ -404,6 +571,12 @@ func (tools) verifyBuild(ctx context.Context, c *api.ClientWithResponses, in ver
 			return nil, fmt.Errorf("handoff must be the ID from the build packet: %w", err)
 		}
 		body.HandoffId = &id
+	}
+	if len(in.TraceIDs) > 0 {
+		body.TraceIds = &in.TraceIDs
+	}
+	if in.WorkItem != "" {
+		body.WorkItem = &in.WorkItem
 	}
 	if len(in.Claims) > 0 {
 		claims := make([]api.VerificationClaim, 0, len(in.Claims))
