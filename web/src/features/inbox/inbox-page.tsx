@@ -107,7 +107,9 @@ function Row({ item: i }: { item: InboxItem }) {
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2 text-xs">
             <span className={clsx("font-semibold", i.unread ? "text-ink" : "text-ink-2")}>{kindLabel[i.kind]}</span>
-            <span className="truncate text-ink-3">{i.bundle_title}</span>
+            <span title={i.bundle_title} className="truncate text-ink-3">
+              {i.bundle_title}
+            </span>
             <span className="ml-auto shrink-0 text-ink-3">{relativeTime(i.at)}</span>
           </span>
           <span className="mt-0.5 block text-sm text-ink">{i.text}</span>
