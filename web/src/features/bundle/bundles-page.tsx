@@ -96,7 +96,7 @@ export function BundlesPage() {
         make.mutate(e.dataTransfer);
       }}
     >
-      <div className="mx-auto max-w-[960px] px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-[1200px] px-4 py-8 sm:px-6">
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Bundles</h1>
@@ -164,8 +164,13 @@ export function BundlesPage() {
                     className="flex flex-col gap-1.5 px-4 py-3 transition-colors hover:bg-sunken sm:grid sm:grid-cols-[1fr_11rem_12rem_14rem_6rem] sm:items-center sm:gap-x-4 sm:gap-y-1"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate font-medium text-ink">{b.title}</span>
-                      <span className="block truncate font-mono text-xs text-ink-3">{b.slug}</span>
+                      <span title={b.title} className="block truncate font-medium text-ink">
+                        {b.title}
+                      </span>
+                      {/* A deep slug differs at its end, so the cut falls at the start. */}
+                      <span title={b.slug} dir="rtl" className="block truncate text-left font-mono text-xs text-ink-3">
+                        <bdi>{b.slug}</bdi>
+                      </span>
                     </span>
                     {/* The title leads the row. Below it, the state and the spec docs sit on
                         one line, so a narrow screen keeps the same order as a wide one. */}
@@ -364,7 +369,9 @@ function SkippedDocs() {
             <ul className="mt-1 space-y-1">
               {marked.map((d) => (
                 <li key={d.path} className="flex flex-wrap items-center gap-2">
-                  <span className="min-w-0 truncate font-mono text-xs text-ink-2">{d.path}</span>
+                  <span title={d.path} className="min-w-0 truncate font-mono text-xs text-ink-2">
+                    {d.path}
+                  </span>
                   <Button
                     size="sm"
                     variant="ghost"
