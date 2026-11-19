@@ -23,6 +23,10 @@ type Settings struct {
 	MaxBundleMB   int `json:"max_bundle_mb"`
 	InviteTTLDays int `json:"invite_ttl_days"`
 	ParallelCalls int `json:"parallel_calls"`
+	// ReviewsInteractive and ReviewsPR are the reviews at a time of each queue
+	// (docs/specs/hosted-pr-review.md).
+	ReviewsInteractive int `json:"reviews_interactive,omitempty"`
+	ReviewsPR          int `json:"reviews_pr,omitempty"`
 	// ResolveSources turns the grounding source resolver on or off. Nil is on.
 	ResolveSources *bool `json:"resolve_sources,omitempty"`
 }
@@ -31,7 +35,7 @@ type Settings struct {
 func (s Settings) ResolveSourcesOn() bool { return s.ResolveSources == nil || *s.ResolveSources }
 
 // DefaultSettings are the SDD defaults.
-var DefaultSettings = Settings{MaxFileMB: 10, MaxBundleMB: 50, InviteTTLDays: 7, ParallelCalls: 8}
+var DefaultSettings = Settings{MaxFileMB: 10, MaxBundleMB: 50, InviteTTLDays: 7, ParallelCalls: 8, ReviewsInteractive: 3, ReviewsPR: 2}
 
 // LoadSettings reads the settings; a missing value takes its default.
 func LoadSettings(ctx context.Context, q store.Querier, workspace uuid.UUID) (Settings, error) {
@@ -58,6 +62,12 @@ func (s Settings) withDefaults() Settings {
 	if s.ParallelCalls <= 0 {
 		s.ParallelCalls = d.ParallelCalls
 	}
+	if s.ReviewsInteractive <= 0 {
+		s.ReviewsInteractive = d.ReviewsInteractive
+	}
+	if s.ReviewsPR <= 0 {
+		s.ReviewsPR = d.ReviewsPR
+	}
 	return s
 }
 
@@ -72,7 +82,7 @@ func (s Settings) InviteTTL() time.Duration { return time.Duration(s.InviteTTLDa
 func settingsAPI(s Settings) api.Settings {
 	on := s.ResolveSourcesOn()
 	return api.Settings{MaxFileMb: s.MaxFileMB, MaxBundleMb: s.MaxBundleMB, InviteTtlDays: s.InviteTTLDays,
-		ParallelCalls: s.ParallelCalls, ResolveSources: &on}
+		ParallelCalls: s.ParallelCalls, ResolveSources: &on, ReviewsInteractive: &s.ReviewsInteractive, ReviewsPr: &s.ReviewsPR}
 }
 
 // GetSettings returns the workspace settings.
@@ -89,6 +99,18 @@ func (a *API) SetSettings(ctx context.Context, req api.SetSettingsRequestObject)
 	b := req.Body
 	s := Settings{MaxFileMB: b.MaxFileMb, MaxBundleMB: b.MaxBundleMb, InviteTTLDays: b.InviteTtlDays,
 		ParallelCalls: b.ParallelCalls, ResolveSources: b.ResolveSources}
+	if b.ReviewsInteractive != nil {
+		s.ReviewsInteractive = *b.ReviewsInteractive
+	}
+	if b.ReviewsPr != nil {
+		s.ReviewsPR = *b.ReviewsPr
+	}
+	if s.ReviewsInteractive <= 0 {
+		s.ReviewsInteractive = DefaultSettings.ReviewsInteractive
+	}
+	if s.ReviewsPR <= 0 {
+		s.ReviewsPR = DefaultSettings.ReviewsPR
+	}
 	switch {
 	case s.MaxFileMB < 1 || int64(s.MaxFileMB)<<20 > source.CeilingFileBytes:
 		return nil, kernel.Invalid("bad_setting", "The file limit must be 1 to %d MB.", source.CeilingFileBytes>>20)
@@ -98,10 +120,15 @@ func (a *API) SetSettings(ctx context.Context, req api.SetSettingsRequestObject)
 		return nil, kernel.Invalid("bad_setting", "Invite links must expire after 1 to 90 days.")
 	case s.ParallelCalls < 1 || s.ParallelCalls > 16:
 		return nil, kernel.Invalid("bad_setting", "Parallel model calls must be 1 to 16.")
+	case s.ReviewsInteractive > 20 || s.ReviewsPR > 20:
+		return nil, kernel.Invalid("bad_setting", "Reviews at a time must be 1 to 20.")
 	}
 	raw, _ := json.Marshal(s)
 	if err := a.DB.Queries().SetWorkspaceSettings(ctx, pgdb.SetWorkspaceSettingsParams{ID: a.Workspace, Settings: dbtype.JSON(raw)}); err != nil {
 		return nil, err
+	}
+	if a.SettingsChanged != nil {
+		a.SettingsChanged(ctx, s)
 	}
 	return api.SetSettings200JSONResponse(settingsAPI(s)), nil
 }

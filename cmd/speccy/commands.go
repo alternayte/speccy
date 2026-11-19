@@ -253,20 +253,58 @@ const defaultRepoConfig = `# Speccy repo configuration. The format is at https:/
 # adoption:
 #   relaxed: [links.has-upstream]
 
-mode: standalone        # standalone | connected
+# Who reviews pull requests: action (the Speccy GitHub Action in this repo) or app (the
+# GitHub App of a hosted Speccy). Empty: both may run.
+# mode: action
 enforcement: advisory   # advisory | blocking
 `
+
+// askReviewer asks who reviews the repo's pull requests. With no terminal, the Action does, as
+// before the App could review.
+func askReviewer(stdin io.Reader, stdout io.Writer, interactive bool) string {
+	if !interactive {
+		fmt.Fprintln(stdout, "No terminal to ask, so the Speccy GitHub Action reviews pull requests. Pass --reviewer app for the GitHub App of a hosted Speccy.")
+		return source.ModeAction
+	}
+	in := bufio.NewReader(stdin)
+	for {
+		fmt.Fprint(stdout, "Who reviews pull requests?\n  1. The Speccy GitHub Action in this repo, with your model key\n  2. The GitHub App of your hosted Speccy\nChoose 1 or 2: ")
+		line, err := in.ReadString('\n')
+		switch strings.TrimSpace(line) {
+		case "1":
+			return source.ModeAction
+		case "2":
+			return source.ModeApp
+		}
+		if err != nil {
+			fmt.Fprintln(stdout)
+			return source.ModeAction
+		}
+	}
+}
 
 // runInit is speccy init (SDD §12.2): it writes .speccy.yaml, adds .speccy/state/ to
 // .gitignore, and offers to turn loose markdown files into bundles.
 func runInit(args []string, stdin io.Reader, stdout, stderr io.Writer, interactive bool) int {
 	forGitHub := false
-	for _, a := range args {
-		if a == "--github" {
+	reviewer := ""
+	usage := "Usage: speccy init [--github [--reviewer action|app]]\n"
+	for i := 0; i < len(args); i++ {
+		switch a := args[i]; {
+		case a == "--github":
 			forGitHub = true
-			continue
+		case a == "--reviewer" && i+1 < len(args):
+			i++
+			reviewer = args[i]
+		case strings.HasPrefix(a, "--reviewer="):
+			reviewer = strings.TrimPrefix(a, "--reviewer=")
+		default:
+			fmt.Fprint(stderr, usage)
+			return exitUsage
 		}
-		fmt.Fprint(stderr, "Usage: speccy init [--github]\n")
+	}
+	if reviewer != "" && (!forGitHub || (reviewer != source.ModeAction && reviewer != source.ModeApp)) {
+		fmt.Fprint(stderr, "speccy init: --reviewer takes action or app, with --github.\n"+usage)
 		return exitUsage
 	}
 	dir, err := os.Getwd()
@@ -275,7 +313,10 @@ func runInit(args []string, stdin io.Reader, stdout, stderr io.Writer, interacti
 		return exitUsage
 	}
 	if forGitHub {
-		return initGitHub(dir, stdout, stderr)
+		if reviewer == "" {
+			reviewer = askReviewer(stdin, stdout, interactive)
+		}
+		return initGitHub(dir, reviewer, stdout, stderr)
 	}
 	cfgPath := filepath.Join(dir, source.RepoConfigFile)
 	if _, err := os.Stat(cfgPath); err == nil {

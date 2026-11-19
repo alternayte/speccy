@@ -14,42 +14,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const claimJob = `-- name: ClaimJob :one
-UPDATE job
-SET status = 'running', attempts = attempts + 1, locked_until = ?1
-WHERE id = (
-    SELECT id FROM job
-    WHERE status = 'queued' OR (status = 'running' AND job.locked_until < ?2)
-    ORDER BY created_at
-    LIMIT 1
-    
-)
-RETURNING id, workspace_id, kind, payload, status, attempts, locked_until, last_error, created_at
-`
-
-type ClaimJobParams struct {
-	LockUntil sql.NullTime
-	Now       sql.NullTime
-}
-
-// The oldest queued job, or a running job whose lock expired (its worker died).
-func (q *Queries) ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error) {
-	row := q.db.QueryRowContext(ctx, claimJob, arg.LockUntil, arg.Now)
-	var i Job
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.Kind,
-		&i.Payload,
-		&i.Status,
-		&i.Attempts,
-		&i.LockedUntil,
-		&i.LastError,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const deleteLinkStates = `-- name: DeleteLinkStates :exec
 DELETE FROM link_state WHERE spec_doc_id = ?1
 `
@@ -96,22 +60,6 @@ type FailActiveRunParams struct {
 // Ends a run that its job left queued or running. A run that reached an end stays as it is.
 func (q *Queries) FailActiveRun(ctx context.Context, arg FailActiveRunParams) error {
 	_, err := q.db.ExecContext(ctx, failActiveRun, arg.Error, arg.FinishedAt, arg.ID)
-	return err
-}
-
-const finishJob = `-- name: FinishJob :exec
-UPDATE job SET status = ?1, last_error = ?2, locked_until = NULL
-WHERE id = ?3
-`
-
-type FinishJobParams struct {
-	Status    string
-	LastError string
-	ID        uuid.UUID
-}
-
-func (q *Queries) FinishJob(ctx context.Context, arg FinishJobParams) error {
-	_, err := q.db.ExecContext(ctx, finishJob, arg.Status, arg.LastError, arg.ID)
 	return err
 }
 
@@ -289,30 +237,6 @@ func (q *Queries) InsertClaim(ctx context.Context, arg InsertClaimParams) error 
 		arg.Class,
 		arg.Sources,
 		arg.Anchor,
-	)
-	return err
-}
-
-const insertJob = `-- name: InsertJob :exec
-INSERT INTO job (id, workspace_id, kind, payload, status, created_at)
-VALUES (?1, ?2, ?3, ?4, 'queued', ?5)
-`
-
-type InsertJobParams struct {
-	ID          uuid.UUID
-	WorkspaceID uuid.UUID
-	Kind        string
-	Payload     dbtype.JSON
-	CreatedAt   time.Time
-}
-
-func (q *Queries) InsertJob(ctx context.Context, arg InsertJobParams) error {
-	_, err := q.db.ExecContext(ctx, insertJob,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.Kind,
-		arg.Payload,
-		arg.CreatedAt,
 	)
 	return err
 }
@@ -517,45 +441,6 @@ func (q *Queries) LatestQuestionResult(ctx context.Context, questionID uuid.UUID
 		&i.Groups,
 	)
 	return i, err
-}
-
-const listActiveJobs = `-- name: ListActiveJobs :many
-SELECT id, workspace_id, kind, payload, status, attempts, locked_until, last_error, created_at FROM job WHERE status IN ('queued', 'running') ORDER BY created_at
-`
-
-// The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
-// that a process before it left, and an owner that wants to exit waits until there is none.
-func (q *Queries) ListActiveJobs(ctx context.Context) ([]Job, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveJobs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Job
-	for rows.Next() {
-		var i Job
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Kind,
-			&i.Payload,
-			&i.Status,
-			&i.Attempts,
-			&i.LockedUntil,
-			&i.LastError,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listAnswers = `-- name: ListAnswers :many
@@ -1004,8 +889,20 @@ func (q *Queries) ListRunQuestions(ctx context.Context, runID uuid.UUID) ([]Ques
 	return items, nil
 }
 
+const pruneCache = `-- name: PruneCache :execrows
+DELETE FROM cache_entry WHERE last_used_at < ?1
+`
+
+func (q *Queries) PruneCache(ctx context.Context, before time.Time) (int64, error) {
+	result, err := q.db.ExecContext(ctx, pruneCache, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const putCache = `-- name: PutCache :exec
-INSERT INTO cache_entry (key_hash, result, created_at) VALUES (?1, ?2, ?3)
+INSERT INTO cache_entry (key_hash, result, created_at, last_used_at) VALUES (?1, ?2, ?3, ?3)
 ON CONFLICT (key_hash) DO NOTHING
 `
 
@@ -1114,6 +1011,22 @@ type StartRunExecutionParams struct {
 
 func (q *Queries) StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error {
 	_, err := q.db.ExecContext(ctx, startRunExecution, arg.Stage, arg.ProfileVersion, arg.ID)
+	return err
+}
+
+const touchCache = `-- name: TouchCache :exec
+UPDATE cache_entry SET last_used_at = ?1 WHERE key_hash = ?2 AND last_used_at < ?3
+`
+
+type TouchCacheParams struct {
+	Now     time.Time
+	KeyHash string
+	Stale   time.Time
+}
+
+// A review read the entry, so it stays past the next prune. One write a day at most.
+func (q *Queries) TouchCache(ctx context.Context, arg TouchCacheParams) error {
+	_, err := q.db.ExecContext(ctx, touchCache, arg.Now, arg.KeyHash, arg.Stale)
 	return err
 }
 

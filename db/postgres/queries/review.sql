@@ -100,3 +100,20 @@ SELECT * FROM content_review WHERE workspace_id = sqlc.arg(workspace_id) AND id 
 
 -- name: DeleteContentReviewsBefore :exec
 DELETE FROM content_review WHERE workspace_id = sqlc.arg(workspace_id) AND created_at < sqlc.arg(before);
+
+-- name: InsertReviewRequest :exec
+INSERT INTO review_request (id, workspace_id, kind, request, status, created_by, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(kind), sqlc.arg(request), 'queued', sqlc.arg(created_by), sqlc.arg(created_at));
+
+-- name: GetReviewRequest :one
+SELECT * FROM review_request WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: StartReviewRequest :exec
+UPDATE review_request SET status = 'running' WHERE id = sqlc.arg(id) AND status IN ('queued', 'running');
+
+-- name: FinishReviewRequest :exec
+UPDATE review_request SET status = sqlc.arg(status), result = sqlc.arg(result), error = sqlc.arg(error), finished_at = sqlc.arg(finished_at)
+WHERE id = sqlc.arg(id);
+
+-- name: DeleteReviewRequestsBefore :exec
+DELETE FROM review_request WHERE workspace_id = sqlc.arg(workspace_id) AND created_at < sqlc.arg(before);

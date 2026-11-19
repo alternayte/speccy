@@ -20,7 +20,7 @@ When the team builds from an unclear doc, each builder fills the gaps in a diffe
 
 **It runs one set of rules for everyone.** A profile holds the checks for one doc type, such as `prd` or `sdd`. The profile is a file in the repo. The author's machine, the approver's machine and CI read the same file. When a rule is wrong, change it in a pull request like any other change.
 
-**It lets the author get to Build Ready alone.** The GitHub Action reviews each pull request that changes a spec doc. It puts each finding as a comment on the line it is about, and it gives the doc a check with the verdict. The author fixes the findings and pushes again. An approver reads the doc when it is Build Ready, not before. In blocking mode, a doc that is Not Build Ready fails the job.
+**It lets the author get to Build Ready alone.** The GitHub Action, or the GitHub App of a hosted Speccy, reviews each pull request that changes a spec doc. It puts each finding as a comment on the line it is about, and it gives the doc a check with the verdict. The author fixes the findings and pushes again. An approver reads the doc when it is Build Ready, not before. In blocking mode, a doc that is Not Build Ready fails the job.
 
 **It remembers decisions.** Sometimes a finding is correct but the author has a reason to leave the doc as it is. The author replies `/speccy waive <reason>` to the comment. The next run writes a waiver into a file next to the doc in the repo. Later reviews do not raise that finding again. When someone changes that section, the waiver ends and the check runs again.
 
@@ -89,7 +89,7 @@ The agent can then review a doc on disk or a GitHub URL, read the findings, and 
 speccy init --github
 ```
 
-Run it in a clone. It writes `.speccy.yaml`, which maps the docs to their profiles, and the workflow for the Action. It changes no doc. Lint checks that fail on the docs you already have start as relaxed, so the gate does not block the team on the first day. See [Keep the verdict in CI](https://speccy-docs.pages.dev/how-to/keep-the-verdict-in-ci/).
+Run it in a clone. It asks who reviews pull requests: the Action, or the GitHub App of a hosted Speccy. It writes `.speccy.yaml`, which maps the docs to their profiles and names the reviewer. For the Action, it also writes the workflow. It changes no doc. Lint checks that fail on the docs you already have start as relaxed, so the gate does not block the team on the first day. See [Keep the verdict in CI](https://speccy-docs.pages.dev/how-to/keep-the-verdict-in-ci/).
 
 ## Documentation
 

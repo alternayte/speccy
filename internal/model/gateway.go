@@ -22,10 +22,19 @@ import (
 
 // REQ-103 limits.
 const (
-	CallTimeout      = 120 * time.Second
-	transientRetries = 2
-	parseRetries     = 1
+	CallTimeout = 120 * time.Second
+	// transientRetries bounds the retries of a call with no deadline. A call inside a run
+	// retries until the run's time ends (docs/specs/hosted-pr-review.md).
+	transientRetries = 6
+	// maxBackoff caps the wait between two tries when the backend names none.
+	maxBackoff   = 30 * time.Second
+	parseRetries = 1
 )
+
+// ErrPRBudgetSpent means the pr queue spent its monthly token budget: the App's pull request
+// reviews stop, and a person's reviews go on (docs/specs/hosted-operations.md).
+var ErrPRBudgetSpent = kernel.Conflict("budget_spent",
+	"Review stopped: the monthly token budget for pull request reviews is spent. An admin can raise it in Admin → Models.")
 
 // ErrBudgetSpent means the workspace spent its monthly token budget (REQ-104).
 var ErrBudgetSpent = kernel.Conflict("budget_spent",
@@ -56,6 +65,8 @@ type Gateway struct {
 	// Fake is the backend that a "fake" backend row uses: a scripted Fake or a BackendFunc.
 	// Tests set it; it is never reachable through the API.
 	Fake Backend
+	// Warn hears when a queue's spend passes 80% of its monthly limit.
+	Warn func(ctx context.Context, queue string, used, limit int64)
 
 	// now and backoff are fixed in tests.
 	now     func() time.Time
@@ -73,15 +84,16 @@ func (g *Gateway) clock() time.Time {
 	return time.Now().UTC()
 }
 
-func (g *Gateway) wait(ctx context.Context, attempt int) error {
+func (g *Gateway) wait(ctx context.Context, attempt int, asked time.Duration) error {
 	d := time.Duration(0)
 	if g.backoff != nil {
 		d = g.backoff(attempt)
 	} else {
-		// 1 s, then 2 s, with up to 25% jitter.
-		base := time.Second << attempt
+		// 1 s, 2 s, 4 s … up to maxBackoff, with up to 25% jitter.
+		base := min(time.Second<<min(attempt, 5), maxBackoff)
 		d = base + time.Duration(rand.Int64N(int64(base/4)+1))
 	}
+	d = max(d, asked)
 	t := time.NewTimer(d)
 	defer t.Stop()
 	select {
@@ -90,6 +102,23 @@ func (g *Gateway) wait(ctx context.Context, attempt int) error {
 	case <-t.C:
 		return nil
 	}
+}
+
+// retryable reports whether a transient error gets another try: while the context's deadline
+// leaves room for the wait, or, with no deadline, while retries are left.
+func retryable(ctx context.Context, err error, left int, now time.Time) bool {
+	if !Transient(err) {
+		return false
+	}
+	if dl, ok := ctx.Deadline(); ok {
+		var se *StatusError
+		wait := time.Second
+		if errors.As(err, &se) && se.RetryAfter > wait {
+			wait = se.RetryAfter
+		}
+		return now.Add(wait + CallTimeout/4).Before(dl)
+	}
+	return left > 0
 }
 
 // Assignment is a role's backend and model.
@@ -153,6 +182,7 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		c.Temperature = &zero
 	}
 	transientLeft, parseLeft := transientRetries, parseRetries
+	transient := 0
 	cutOff := false
 	var lastParse error
 	for attempt := 0; ; attempt++ {
@@ -177,11 +207,17 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 				c.Temperature = nil
 				continue
 			}
-			if Transient(err) && transientLeft > 0 {
+			if retryable(ctx, err, transientLeft, time.Now()) {
 				transientLeft--
-				if err := g.wait(ctx, transientRetries-transientLeft-1); err != nil {
+				var asked time.Duration
+				var se *StatusError
+				if errors.As(err, &se) {
+					asked = se.RetryAfter
+				}
+				if err := g.wait(ctx, transient, asked); err != nil {
 					return res, err
 				}
+				transient++
 				continue
 			}
 			return res, fmt.Errorf("the %s backend failed: %w", row.Name, err)
@@ -189,7 +225,7 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 		res.TokensIn += raw.TokensIn
 		res.TokensOut += raw.TokensOut
 		res.Estimated = res.Estimated || raw.Estimated
-		if err := g.spend(ctx, raw.TokensIn+raw.TokensOut); err != nil {
+		if err := g.spend(ctx, c.Role, raw.TokensIn, raw.TokensOut); err != nil {
 			return res, err
 		}
 		// A cut-off answer is not broken JSON: the model ran out of tokens, often on its own
@@ -268,11 +304,17 @@ func checkAnswer(text string, schema *jsonschema.Schema) (json.RawMessage, error
 
 func (g *Gateway) month() string { return g.clock().Format("2006-01") }
 
-// Budget returns this month's row, and creates it with last month's limit.
+// Budget returns this month's row of the queue of ctx, and creates it with the queue's last
+// limit.
 func (g *Gateway) Budget(ctx context.Context) (pgdb.Budget, error) {
+	return g.QueueBudget(ctx, kernel.QueueFrom(ctx))
+}
+
+// QueueBudget returns this month's row of one queue, and creates it with its last limit.
+func (g *Gateway) QueueBudget(ctx context.Context, queue string) (pgdb.Budget, error) {
 	q := g.DB.Queries()
 	month := g.month()
-	b, err := q.GetBudget(ctx, pgdb.GetBudgetParams{WorkspaceID: g.Workspace, Month: month})
+	b, err := q.GetBudget(ctx, pgdb.GetBudgetParams{WorkspaceID: g.Workspace, Month: month, Queue: queue})
 	if err == nil {
 		return b, nil
 	}
@@ -280,16 +322,19 @@ func (g *Gateway) Budget(ctx context.Context) (pgdb.Budget, error) {
 		return b, err
 	}
 	var limit sql.NullInt64
-	if last, err := q.LatestBudget(ctx, g.Workspace); err == nil {
+	if last, err := q.LatestBudget(ctx, pgdb.LatestBudgetParams{WorkspaceID: g.Workspace, Queue: queue}); err == nil {
 		limit = last.TokenLimit
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return b, err
 	}
-	if err := q.InsertBudget(ctx, pgdb.InsertBudgetParams{WorkspaceID: g.Workspace, Month: month, TokenLimit: limit}); err != nil {
+	if err := q.InsertBudget(ctx, pgdb.InsertBudgetParams{WorkspaceID: g.Workspace, Month: month, Queue: queue, TokenLimit: limit}); err != nil {
 		return b, err
 	}
-	return q.GetBudget(ctx, pgdb.GetBudgetParams{WorkspaceID: g.Workspace, Month: month})
+	return q.GetBudget(ctx, pgdb.GetBudgetParams{WorkspaceID: g.Workspace, Month: month, Queue: queue})
 }
+
+// Month is this month as the budget keys it: YYYY-MM in UTC.
+func (g *Gateway) Month() string { return g.month() }
 
 func (g *Gateway) checkBudget(ctx context.Context) error {
 	b, err := g.Budget(ctx)
@@ -297,16 +342,45 @@ func (g *Gateway) checkBudget(ctx context.Context) error {
 		return err
 	}
 	if b.TokenLimit.Valid && b.TokensUsed >= b.TokenLimit.Int64 {
+		if b.Queue == kernel.QueuePR {
+			return ErrPRBudgetSpent
+		}
 		return ErrBudgetSpent
 	}
 	return nil
 }
 
-func (g *Gateway) spend(ctx context.Context, tokens int64) error {
-	if _, err := g.Budget(ctx); err != nil {
+// spend adds the tokens of one call to the budget of its queue, and to the spend of the person
+// and the repo. The first call that takes a queue past 80% of its limit calls Warn.
+func (g *Gateway) spend(ctx context.Context, role string, in, out int64) error {
+	before, err := g.Budget(ctx)
+	if err != nil {
 		return err
 	}
-	return g.DB.Queries().AddBudgetTokens(ctx, pgdb.AddBudgetTokensParams{WorkspaceID: g.Workspace, Month: g.month(), Tokens: tokens})
+	queue, month, tokens := before.Queue, g.month(), in+out
+	q := g.DB.Queries()
+	if err := q.AddBudgetTokens(ctx, pgdb.AddBudgetTokensParams{WorkspaceID: g.Workspace, Month: month, Queue: queue, Tokens: tokens}); err != nil {
+		return err
+	}
+	cost := 0.0
+	if a, err := q.GetAssignment(ctx, pgdb.GetAssignmentParams{WorkspaceID: g.Workspace, Role: role}); err == nil {
+		cost = (float64(in)*a.PriceInPerMtok + float64(out)*a.PriceOutPerMtok) / 1e6
+	}
+	actor := kernel.ActorFrom(ctx).UserID
+	if actor == "" {
+		actor = "app"
+	}
+	if err := q.AddSpend(ctx, pgdb.AddSpendParams{WorkspaceID: g.Workspace, Month: month, Queue: queue, Actor: actor,
+		Repo: kernel.RepoFrom(ctx), Tokens: tokens, CostUsd: cost}); err != nil {
+		return err
+	}
+	if l := before.TokenLimit; l.Valid && l.Int64 > 0 && g.Warn != nil {
+		mark := (l.Int64*8 + 9) / 10 // 80%, rounded up
+		if before.TokensUsed < mark && before.TokensUsed+tokens >= mark {
+			g.Warn(context.WithoutCancel(ctx), queue, before.TokensUsed+tokens, l.Int64)
+		}
+	}
+	return nil
 }
 
 // backendFor builds the backend for a stored row, with its secret decrypted.

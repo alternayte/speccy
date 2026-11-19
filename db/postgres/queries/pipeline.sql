@@ -1,35 +1,16 @@
--- name: InsertJob :exec
-INSERT INTO job (id, workspace_id, kind, payload, status, created_at)
-VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(kind), sqlc.arg(payload), 'queued', sqlc.arg(created_at));
-
--- name: ClaimJob :one
--- The oldest queued job, or a running job whose lock expired (its worker died).
-UPDATE job
-SET status = 'running', attempts = attempts + 1, locked_until = sqlc.arg(lock_until)
-WHERE id = (
-    SELECT id FROM job
-    WHERE status = 'queued' OR (status = 'running' AND job.locked_until < sqlc.arg(now))
-    ORDER BY created_at
-    LIMIT 1
-    FOR UPDATE SKIP LOCKED
-)
-RETURNING *;
-
--- name: ListActiveJobs :many
--- The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
--- that a process before it left, and an owner that wants to exit waits until there is none.
-SELECT * FROM job WHERE status IN ('queued', 'running') ORDER BY created_at;
-
--- name: FinishJob :exec
-UPDATE job SET status = sqlc.arg(status), last_error = sqlc.arg(last_error), locked_until = NULL
-WHERE id = sqlc.arg(id);
-
 -- name: GetCache :one
 SELECT result FROM cache_entry WHERE key_hash = sqlc.arg(key_hash);
 
 -- name: PutCache :exec
-INSERT INTO cache_entry (key_hash, result, created_at) VALUES (sqlc.arg(key_hash), sqlc.arg(result), sqlc.arg(created_at))
+INSERT INTO cache_entry (key_hash, result, created_at, last_used_at) VALUES (sqlc.arg(key_hash), sqlc.arg(result), sqlc.arg(created_at), sqlc.arg(created_at))
 ON CONFLICT (key_hash) DO NOTHING;
+
+-- name: TouchCache :exec
+-- A review read the entry, so it stays past the next prune. One write a day at most.
+UPDATE cache_entry SET last_used_at = sqlc.arg(now) WHERE key_hash = sqlc.arg(key_hash) AND last_used_at < sqlc.arg(stale);
+
+-- name: PruneCache :execrows
+DELETE FROM cache_entry WHERE last_used_at < sqlc.arg(before);
 
 -- name: ListMCPConnections :many
 SELECT * FROM mcp_connection WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY name;

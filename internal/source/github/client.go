@@ -253,6 +253,16 @@ type PullRequest struct {
 	URL    string `json:"html_url"`
 }
 
+// Exists reports whether a file or a folder is at p at a ref.
+func (c *Client) Exists(ctx context.Context, repo, ref, p string) (bool, error) {
+	var out json.RawMessage
+	err := c.do(ctx, "GET", repoPath(repo)+"/contents/"+url.PathEscape(p)+"?ref="+url.QueryEscape(ref), nil, &out)
+	if IsNotFound(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // FileAt reads a file at a ref (a branch, a tag, or a commit). ok is false when the ref has
 // no such file.
 func (c *Client) FileAt(ctx context.Context, repo, ref, p string) (content []byte, ok bool, err error) {

@@ -21,7 +21,7 @@ Lint calls no model. It runs on every save and costs nothing. Every other step c
 | A verification run | reviewer, judge | The reviewer maps trace IDs to the code. The judge reads each cited target. A contradiction gets a second judgement from the model of another role. |
 | **Test** on a backend | the tested backend | One short call. |
 
-Speccy retries a call up to 2 times after an HTTP 429 or 5xx answer. It asks again once when an answer is not valid JSON for the step. Every attempt counts.
+After an HTTP 429 or 5xx answer, Speccy retries the call. When the answer has a `retry-after` header, Speccy waits that long first. Otherwise it waits longer after each try, up to 30 seconds. A call in a review run retries while the run has time left. A call outside a run retries up to 6 times. Speccy asks again once when an answer is not valid JSON for the step. Every attempt counts.
 
 An agent CLI that reports no token counts gets an estimate: the length of the prompt and the answer, divided by 4.
 
@@ -60,13 +60,30 @@ After the run, the verdict shows the real count: `Full review of v3: 48,210 toke
 
 The budget caps the tokens of one workspace in one calendar month, in UTC. Every model call counts against it: reviews, verification runs, writer calls and **Test**. A cached step does not count.
 
+Hosted mode has one limit for each queue:
+
+| Limit | Queue | What counts against it |
+|---|---|---|
+| **Reviews a person waits for** | `interactive` | The reviews from the app, the CLI and MCP, the AI answers in threads, the verification runs, and **Test**. |
+| **Pull request reviews of the GitHub App** | `pr` | The pull request reviews of the GitHub App. |
+
+A spent limit stops its own queue only. A flood of pull requests cannot stop the reviews of people, and the reviews of people cannot stop the pull request checks. Local mode shows only **Reviews a person waits for**.
+
 ### Set the budget
 
 1. Open **Admin → Models**.
-2. Under **Monthly token budget**, type the limit in tokens.
+2. Under **Monthly token budget**, type the limit of each queue in tokens.
 3. Select **Save**.
 
 An empty field means no limit. The section shows the tokens used this month, and a bar when a limit exists. The bar turns red at 90%.
+
+At 80% of a limit, Speccy posts one message to the workspace channel, when the workspace has one. [Run hosted mode](/how-to/run-hosted-mode/#send-notifications-to-a-channel) sets the channel.
+
+An upgrade from a release with one limit copies that limit to both queues.
+
+### See where the tokens went
+
+In hosted mode, the section also shows the spend of this month in one table. Each row is one queue, one person and one repo, with the tokens and the cost. The person of a pull request review is **GitHub App**. A review with no repo shows `—` in the repo column.
 
 The limit carries into the next month. The count of used tokens starts at 0 on the first day of each month.
 
@@ -80,11 +97,19 @@ Speccy checks the budget before each model call. When the used tokens reach the 
 Review stopped: the monthly token budget is spent. An admin can raise it in Admin → Models.
 ```
 
+When the `pr` limit is spent, the review of the GitHub App stops with this message:
+
+```text
+Review stopped: the monthly token budget for pull request reviews is spent. An admin can raise it in Admin → Models.
+```
+
+In blocking mode, the check of the pull request then fails. A review that cannot finish fails, because lint alone can show Build Ready while a material gap is open. The reviews of people go on.
+
 - A review run fails at the stage that made the call, and gives no verdict. The control row shows **The last review failed**, and the verdict details show the cause.
 - Lint still runs on every save.
 - **Test**, a suggested fix and an AI answer in a thread fail with the same message.
 
-Speccy checks before each call, not during it. Calls that already started finish and count, so the used tokens can pass the limit by the size of those calls. **Model calls at a time** in **Admin → Workspace settings** sets how many calls one review runs at once. The default is 4.
+Speccy checks before each call, not during it. Calls that already started finish and count, so the used tokens can pass the limit by the size of those calls. **Model calls at a time** in **Admin → Workspace settings** sets how many calls one review runs at once. The default is 8.
 
 To go on, raise the limit or clear the field, and select **Save**. Then run the review again.
 
@@ -94,10 +119,10 @@ Each store has its own budget. `speccy review` and `speccy action` use the budge
 
 - With `.speccy/state/` in the folder, they share the budget of local mode.
 - With `SPECCY_STATE_DIR`, they use the budget in that folder.
-- With `--server`, the server spends its own budget.
+- `speccy review --server` runs the review on the server, so it spends the server's `interactive` budget.
 - With no store, they use a temporary one with no limit.
 
-The GitHub Action sets no budget.
+The GitHub Action sets no budget. The GitHub App of a hosted Speccy spends the `pr` budget.
 
 ## Spend less
 

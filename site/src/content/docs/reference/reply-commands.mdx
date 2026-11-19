@@ -1,9 +1,9 @@
 ---
 title: Reply commands
-description: Each /speccy reply that the GitHub Action turns into a commit, where it goes, what it writes, and why the Action refuses one.
+description: Each /speccy reply that the GitHub Action or the GitHub App turns into a commit, where it goes, what it writes, and why the Action refuses one.
 ---
 
-This page lists each reply command that the Speccy GitHub Action reads in a pull request. It gives where each one goes, what the next run commits, and each reason for a refusal. [Adopt a repo and decide in a pull request](/how-to/adopt-a-repo/) shows the commands in use.
+This page lists each reply command that the Speccy GitHub Action reads in a pull request. It gives where each one goes, what the next run commits, and each reason for a refusal. The GitHub App of a hosted Speccy reads the same commands, and it follows the same rules. Where this page says the Action, the App does the same, except where the page says otherwise. [Adopt a repo and decide in a pull request](/how-to/adopt-a-repo/) shows the commands in use.
 
 ## The commands
 
@@ -26,6 +26,8 @@ The sidecar of a doc is `.speccy/decisions/<doc path>.yaml`, at the root of the 
 - A word after `/speccy` that is not `waive`, `ack` or `enforce` does nothing.
 
 The Action reads replies when it runs. The workflow runs on `pull_request` events, so a reply alone does not start it. Push to the branch, or run the job again.
+
+The App acts on a reply at once, with no push. A comment with a line that starts with `/speccy ` starts a review of the head commit, and that review commits the decision.
 
 ## What each command writes
 
@@ -116,7 +118,7 @@ Any person who can comment on the pull request can write a reply command. Speccy
 
 A decision takes effect for the repo only when the pull request merges. Your branch protection and your CODEOWNERS file decide who may approve that merge. Name owners for `/.speccy/decisions/` and `/.speccy.yaml`.
 
-The workflow needs `contents: write` for the commit.
+The workflow needs `contents: write` for the commit. The App commits with its own permission.
 
 ## Why the Action refuses a command
 
@@ -132,6 +134,6 @@ The Action writes nothing for a refused command. The summary comment gives the r
 
 In these cases the Action writes nothing:
 
-- **A pull request from a fork.** The Action has no write token. For `waive` and `ack`, the summary comment prints the sidecar text instead, under `This pull request comes from a fork, so Speccy cannot commit to its branch. Put this in your branch:`. For `enforce`, the job log says `Remove the slug from .speccy.yaml yourself.`
+- **A pull request from a fork.** The Action has no write token. The App never commits to a fork. For `waive` and `ack`, the summary comment prints the sidecar text instead, under `This pull request comes from a fork, so Speccy cannot commit to its branch. Put this in your branch:`. For `enforce`, the job log says `Remove the slug from .speccy.yaml yourself.`
 - **A commit that fails**, such as with no `contents: write` permission. The job log says `Speccy could not commit the decisions:` and the error from GitHub.
 - **Review threads that the Action cannot read.** The Action records no decision and posts no inline comment.

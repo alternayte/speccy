@@ -77,7 +77,7 @@ func TestModel_InvalidJSONRetryOnce(t *testing.T) {
 	}
 }
 
-// REQ-103: HTTP 429 and 5xx get 2 retries.
+// REQ-103: HTTP 429 and 5xx get retries: 6 for a call with no deadline.
 func TestGateway_RetriesTransientErrors(t *testing.T) {
 	ctx := context.Background()
 	g, fake := newGateway(t, []string{"!429", "!500", `{"answer":"Paris"}`})
@@ -85,8 +85,23 @@ func TestGateway_RetriesTransientErrors(t *testing.T) {
 		t.Fatalf("429, 500, then OK: err = %v after %d calls", err, len(fake.Calls()))
 	}
 	g, fake = newGateway(t, []string{"!429"})
-	if _, err := g.Call(ctx, call()); err == nil || len(fake.Calls()) != 3 {
-		t.Errorf("always 429: err = %v after %d calls, want a failure after 3", err, len(fake.Calls()))
+	if _, err := g.Call(ctx, call()); err == nil || len(fake.Calls()) != 7 {
+		t.Errorf("always 429: err = %v after %d calls, want a failure after 7", err, len(fake.Calls()))
+	}
+}
+
+// A 429 with retry-after waits that long, and a call inside a run keeps trying while the
+// run has time: a burst against the provider's limit slows the review instead of failing it.
+func TestGateway_HonoursRetryAfter(t *testing.T) {
+	g, fake := newGateway(t, []string{"!429wait", "!429wait", "!429wait", "!429wait", "!429wait", "!429wait", "!429wait", `{"answer":"Paris"}`})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	defer cancel()
+	start := time.Now()
+	if _, err := g.Call(ctx, call()); err != nil || len(fake.Calls()) != 8 {
+		t.Fatalf("7 times 429, then OK: err = %v after %d calls", err, len(fake.Calls()))
+	}
+	if took := time.Since(start); took < 700*time.Millisecond {
+		t.Errorf("took %s, want at least 7 waits of 100ms", took)
 	}
 }
 
@@ -108,7 +123,8 @@ func TestGateway_Budget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := g.DB.Queries().SetBudgetLimit(ctx, pgdb.SetBudgetLimitParams{WorkspaceID: g.Workspace, Month: b.Month, TokenLimit: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+	if err := g.DB.Queries().SetBudgetLimit(ctx, pgdb.SetBudgetLimitParams{WorkspaceID: g.Workspace, Month: b.Month, Queue: kernel.QueueInteractive,
+		TokenLimit: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := g.Call(ctx, call()); err != nil {
@@ -123,6 +139,47 @@ func TestGateway_Budget(t *testing.T) {
 	b, _ = g.Budget(ctx)
 	if b.TokensUsed == 0 {
 		t.Error("tokens were not counted")
+	}
+}
+
+// Each queue stops on its own budget: a spent pr budget stops the App's reviews, and a
+// person's calls go on (docs/specs/hosted-operations.md). Spend is kept by person and repo.
+func TestGateway_BudgetPerQueue(t *testing.T) {
+	ctx := kernel.WithActor(context.Background(), kernel.Actor{UserID: "kim"})
+	g, _ := newGateway(t, []string{`{"answer":"Paris"}`})
+	pr := kernel.WithRepo(kernel.WithQueue(ctx, kernel.QueuePR), "acme/specs")
+	b, err := g.QueueBudget(ctx, kernel.QueuePR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.DB.Queries().SetBudgetLimit(ctx, pgdb.SetBudgetLimitParams{WorkspaceID: g.Workspace, Month: b.Month, Queue: kernel.QueuePR,
+		TokenLimit: sql.NullInt64{Int64: 1, Valid: true}}); err != nil {
+		t.Fatal(err)
+	}
+	var warned string
+	g.Warn = func(_ context.Context, queue string, _, _ int64) { warned = queue }
+	if _, err := g.Call(pr, call()); err != nil {
+		t.Fatalf("first pr call under the limit: %v", err)
+	}
+	if warned != kernel.QueuePR {
+		t.Errorf("warned %q, want the pr queue past 80%%", warned)
+	}
+	if _, err := g.Call(pr, call()); !errors.Is(err, ErrPRBudgetSpent) {
+		t.Fatalf("pr call after its budget is spent: err = %v, want ErrPRBudgetSpent", err)
+	}
+	if _, err := g.Call(ctx, call()); err != nil {
+		t.Fatalf("an interactive call while the pr budget is spent: %v", err)
+	}
+	rows, err := g.DB.Queries().ListSpend(ctx, pgdb.ListSpendParams{WorkspaceID: g.Workspace, Month: b.Month})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, r := range rows {
+		got[r.Queue+"/"+r.Actor+"/"+r.Repo] = r.Tokens > 0
+	}
+	if !got["pr/kim/acme/specs"] || !got["interactive/kim/"] {
+		t.Errorf("spend %v, want the pr spend under the repo and the interactive spend", got)
 	}
 }
 

@@ -7,18 +7,26 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/thread"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 )
 
-const jobKindAnswer = "thread_answer"
+// JobKindAnswer is the job kind of an AI answer in a thread.
+const JobKindAnswer = "thread_answer"
+
+// HandleAnswer is the handler of an AI answer job.
+func (s *Service) HandleAnswer(ctx context.Context, payload []byte) error {
+	var p runJob
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return nil //nolint:nilerr // a payload that does not parse names no thread
+	}
+	return s.answerThread(ctx, uuidOf(p.ThreadID))
+}
 
 // PromptAnswer is the prompt of an AI answer in a thread (REQ-088).
 const PromptAnswer = "answer-v2"
@@ -33,12 +41,10 @@ func (s *Service) Ask(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	payload, _ := json.Marshal(map[string]string{"thread_id": id.String()})
-	if err := s.DB.Queries().InsertJob(ctx, pgdb.InsertJobParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Kind: jobKindAnswer,
-		Payload: dbtype.JSON(payload), CreatedAt: time.Now().UTC()}); err != nil {
+	if _, err := s.Queue.Insert(ctx, nil, JobKindAnswer, payload, nil); err != nil {
 		return err
 	}
 	answering.Store(id, true)
-	s.notify()
 	return nil
 }
 

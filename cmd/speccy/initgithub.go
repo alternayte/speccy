@@ -75,7 +75,7 @@ func workflowFor(version string) string {
 // lint pass to find the checks that fail today, puts them in adoption mode, and writes the
 // workflow. The first comment on a pull request then names the checks the team opted into,
 // not every finding in the repo (REQ-130, REQ-133).
-func initGitHub(dir string, stdout, stderr io.Writer) int {
+func initGitHub(dir, reviewer string, stdout, stderr io.Writer) int {
 	profiles, err := profile.LoadLocal(filepath.Join(dir, ".speccy", "profiles"))
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy init: %v.\n", err)
@@ -115,9 +115,12 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 		})
 	}
 	mappings := mapDocs(dir, docs)
-	next := []byte(repoConfigFor(mappings, nil))
+	next := []byte(repoConfigFor(mappings, nil, reviewer))
 	if existing {
-		if next, err = source.AddMappings(was, mappings); err != nil {
+		if next, err = source.AddMappings(was, mappings); err == nil {
+			next, err = source.SetKey(next, "mode", reviewer)
+		}
+		if err != nil {
 			fmt.Fprintf(stderr, "speccy init: %v.\n", err)
 			return exitRun
 		}
@@ -141,7 +144,7 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy init: the first review did not run, so no check is relaxed: %v.\n", err)
 	} else if len(relaxed) > 0 {
-		out := []byte(repoConfigFor(mappings, relaxed))
+		out := []byte(repoConfigFor(mappings, relaxed, reviewer))
 		if existing {
 			if out, err = source.Relax(next, relaxed); err != nil {
 				fmt.Fprintf(stderr, "speccy init: %v.\n", err)
@@ -157,7 +160,12 @@ func initGitHub(dir string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "A reply of /speccy enforce <slug> in a pull request turns one back on.")
 	}
 
-	if _, err := os.Stat(filepath.Join(dir, workflowPath)); err == nil {
+	if reviewer == source.ModeApp {
+		fmt.Fprintf(stdout, "mode: app in %s: the GitHub App of your hosted Speccy reviews pull requests. Install the App on this repo in Admin → GitHub.\n", source.RepoConfigFile)
+		if _, err := os.Stat(filepath.Join(dir, workflowPath)); err == nil {
+			fmt.Fprintf(stdout, "%s exists. With mode: app, the Action in it posts nothing; you can delete it.\n", workflowPath)
+		}
+	} else if _, err := os.Stat(filepath.Join(dir, workflowPath)); err == nil {
 		fmt.Fprintf(stdout, "%s exists. Speccy did not change it.\n", workflowPath)
 	} else {
 		if err := os.MkdirAll(filepath.Join(dir, filepath.FromSlash(path.Dir(workflowPath))), 0o755); err != nil {
@@ -275,10 +283,12 @@ func markdownCount(root, dir string) int {
 }
 
 // repoConfigFor is the .speccy.yaml of an adopted repo.
-func repoConfigFor(mappings []source.Mapping, relaxed []string) string {
+func repoConfigFor(mappings []source.Mapping, relaxed []string, reviewer string) string {
 	var b strings.Builder
 	b.WriteString("# Speccy repo configuration, written by speccy init --github.\n# The format is at https://speccy-docs.pages.dev/reference/speccy-yaml/\n\n" +
-		"# Each markdown file that matches a glob is a bundle, reviewed with that profile.\n" +
+		"# Who reviews pull requests: action (the Speccy GitHub Action) or app (the GitHub App\n# of a hosted Speccy).\n")
+	fmt.Fprintf(&b, "mode: %s\n\n", reviewer)
+	b.WriteString("# Each markdown file that matches a glob is a bundle, reviewed with that profile.\n" +
 		"# A frontmatter type in the file wins over the mapping.\nmap:\n")
 	for _, m := range mappings {
 		fmt.Fprintf(&b, "  - glob: %q\n    profile: %s\n", m.Glob, m.Profile)

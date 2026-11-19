@@ -227,7 +227,7 @@ export function SettingsSection({ hosted }: { hosted: boolean }) {
         id={key}
         inputMode="numeric"
         className="w-28"
-        value={String(s[key])}
+        value={String(s[key] ?? "")}
         onChange={(e) => setDraft({ ...s, [key]: Number(e.target.value.replace(/[^0-9]/g, "")) || 0 })}
       />
       <p className="mt-1 text-xs text-ink-3">{help}</p>
@@ -243,6 +243,18 @@ export function SettingsSection({ hosted }: { hosted: boolean }) {
         }}
       >
         {field("parallel_calls", "Model calls at a time", "Per review run. 1 to 16.")}
+        {field(
+          "reviews_interactive",
+          "Reviews at a time",
+          "The reviews and answers a person waits for. 1 to 20. A change waits for the running ones.",
+        )}
+        {hosted
+          ? field(
+              "reviews_pr",
+              "Pull request reviews at a time",
+              "The reviews of the GitHub App. 1 to 20. A change waits for the running ones.",
+            )
+          : null}
         {hosted ? (
           <>
             {field("max_file_mb", "Largest file (MB)", "1 to 50.")}

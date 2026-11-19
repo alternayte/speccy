@@ -78,6 +78,7 @@ type Budget struct {
 	Month       string
 	TokenLimit  sql.NullInt64
 	TokensUsed  int64
+	Queue       string
 }
 
 type Bundle struct {
@@ -101,9 +102,10 @@ type BundleAuthor struct {
 }
 
 type CacheEntry struct {
-	KeyHash   string
-	Result    dbtype.JSON
-	CreatedAt time.Time
+	KeyHash    string
+	Result     dbtype.JSON
+	CreatedAt  time.Time
+	LastUsedAt time.Time
 }
 
 type Claim struct {
@@ -254,18 +256,6 @@ type Invite struct {
 	RevokedAt   sql.NullTime
 }
 
-type Job struct {
-	ID          uuid.UUID
-	WorkspaceID uuid.UUID
-	Kind        string
-	Payload     dbtype.JSON
-	Status      string
-	Attempts    int64
-	LockedUntil sql.NullTime
-	LastError   string
-	CreatedAt   time.Time
-}
-
 type Link struct {
 	ID              uuid.UUID
 	WorkspaceID     uuid.UUID
@@ -315,6 +305,24 @@ type ModelBackend struct {
 	SecretEncrypted []byte
 	SecretLast4     string
 	CreatedAt       time.Time
+}
+
+type ModelSpend struct {
+	WorkspaceID uuid.UUID
+	Month       string
+	Queue       string
+	Actor       string
+	Repo        string
+	Tokens      int64
+	CostUsd     float64
+}
+
+type NotifyWebhook struct {
+	WorkspaceID  uuid.UUID
+	Kind         string
+	UrlEncrypted []byte
+	UrlLast4     string
+	UpdatedAt    time.Time
 }
 
 type PrBatch struct {
@@ -420,6 +428,19 @@ type ResetLink struct {
 	CreatedBy   string
 	CreatedAt   time.Time
 	UsedAt      sql.NullTime
+}
+
+type ReviewRequest struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Kind        string
+	Request     dbtype.JSON
+	Status      string
+	Result      dbtype.JSON
+	Error       string
+	CreatedBy   string
+	CreatedAt   time.Time
+	FinishedAt  sql.NullTime
 }
 
 type ReviewRun struct {

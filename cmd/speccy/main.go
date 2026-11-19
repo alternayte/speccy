@@ -41,15 +41,16 @@ const usage = `Usage:
   speccy serve --hosted                                  Start hosted mode (SPECCY_ environment variables).
   speccy init                                            Write .speccy.yaml and ignore .speccy/state/.
   speccy add <url> [--profile <key>]                     Make a GitHub source from a URL, and sync it once.
-  speccy init --github                                   Adopt this repo: map its docs, relax the checks that
-                                                         fail today, and write the Action's workflow.
+  speccy init --github [--reviewer action|app]           Adopt this repo: map its docs, relax the checks that
+                                                         fail today, and set who reviews pull requests: the
+                                                         Action, with its workflow, or a hosted Speccy's App.
   speccy review <path…> [--format text|json|md] [--summary] [--server URL] [--adopt]
                 [--stages lint,rubric,grounding,divergence,coherence] [--enforcement advisory|blocking]
                                                          Review bundles. Exit codes: 0 Build Ready or advisory,
                                                          1 Not Build Ready in blocking mode, 2 usage, 3 run error.
                                                          --adopt writes the type and the size the review used
                                                          into each doc's frontmatter.
-  speccy action [--server URL] [--stages …] [--enforcement advisory|blocking] [--verify]
+  speccy action [--stages …] [--enforcement advisory|blocking] [--verify]
                                                          The GitHub Action: review the bundles a pull request
                                                          changes, and comment on it. --verify runs the
                                                          verification gate instead of the review.
@@ -288,7 +289,13 @@ func openApp(ctx context.Context, root *local.Root, stateDir, keyFile string) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	context.AfterFunc(ctx, func() { _ = db.Close() })
+	var a *app.App
+	context.AfterFunc(ctx, func() {
+		if a != nil {
+			<-a.Queue.Done() // the workers stop before the store closes
+		}
+		_ = db.Close()
+	})
 	if err := db.Migrate(ctx); err != nil {
 		return nil, nil, err
 	}
@@ -297,7 +304,7 @@ func openApp(ctx context.Context, root *local.Root, stateDir, keyFile string) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	a, err := app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles"), FolderRepo: actionRepo})
+	a, err = app.New(ctx, db, sealer, app.Options{Root: root, ProfilesDir: filepath.Join(root.Dir(), ".speccy", "profiles"), FolderRepo: actionRepo})
 	if err != nil {
 		return nil, nil, err
 	}

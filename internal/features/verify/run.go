@@ -27,6 +27,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/queue"
 	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store"
 )
@@ -44,8 +45,8 @@ type API struct {
 	Threads *thread.API
 	// Progress receives the events of a running verification, for the bundle page.
 	Progress *review.Broker
-	// Wake tells the worker that a job is queued.
-	Wake func()
+	// Queue runs the verification jobs.
+	Queue *queue.Queue
 	// Local is true in local mode, where a run may read a folder on disk.
 	Local bool
 	// Now is the clock, for tests.
@@ -168,16 +169,13 @@ func (a *API) Start(ctx context.Context, in Input) (Run, error) {
 		if err := a.insert(ctx, tx.Queries(), b, run, in.HandoffID); err != nil {
 			return err
 		}
-		return tx.Queries().InsertJob(ctx, pgdb.InsertJobParams{ID: kernel.NewID(), WorkspaceID: a.Workspace,
-			Kind: JobKind, Payload: dbtype.JSON(payload), CreatedAt: run.At})
+		_, err := a.Queue.Insert(ctx, &tx, JobKind, payload, nil)
+		return err
 	})
 	if err != nil {
 		return Run{}, err
 	}
 	a.Progress.Publish(run.ID, review.Event{Type: "stage", Stage: StatusQueued})
-	if a.Wake != nil {
-		a.Wake()
-	}
 	return run, nil
 }
 
@@ -204,6 +202,9 @@ func (a *API) Execute(ctx context.Context, payload []byte) error {
 	}
 	a.Progress.Publish(j.RunID, review.Event{Type: "stage", Stage: StatusRunning})
 	run, err := a.execute(ctx, j.RunID, j.Input)
+	if err != nil && ctx.Err() != nil {
+		return ctx.Err() // the process stops: River tries the job again, or EndOrphan ends it
+	}
 	if err != nil {
 		msg := err.Error()
 		if ke, ok := kernel.AsError(err); ok {

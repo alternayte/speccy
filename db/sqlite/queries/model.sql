@@ -39,19 +39,31 @@ SET backend_id = excluded.backend_id, model = excluded.model, price_in_per_mtok 
 DELETE FROM role_assignment WHERE workspace_id = sqlc.arg(workspace_id) AND role = sqlc.arg(role);
 
 -- name: GetBudget :one
-SELECT * FROM budget WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month);
+SELECT * FROM budget WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month) AND queue = sqlc.arg(queue);
 
 -- name: LatestBudget :one
-SELECT * FROM budget WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY month DESC LIMIT 1;
+SELECT * FROM budget WHERE workspace_id = sqlc.arg(workspace_id) AND queue = sqlc.arg(queue) ORDER BY month DESC LIMIT 1;
 
 -- name: InsertBudget :exec
-INSERT INTO budget (workspace_id, month, token_limit, tokens_used)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(month), sqlc.narg(token_limit), 0)
-ON CONFLICT (workspace_id, month) DO NOTHING;
+INSERT INTO budget (workspace_id, month, queue, token_limit, tokens_used)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(month), sqlc.arg(queue), sqlc.narg(token_limit), 0)
+ON CONFLICT (workspace_id, month, queue) DO NOTHING;
 
 -- name: SetBudgetLimit :exec
-UPDATE budget SET token_limit = sqlc.narg(token_limit) WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month);
+UPDATE budget SET token_limit = sqlc.narg(token_limit)
+WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month) AND queue = sqlc.arg(queue);
 
 -- name: AddBudgetTokens :exec
 UPDATE budget SET tokens_used = tokens_used + sqlc.arg(tokens)
-WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month);
+WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month) AND queue = sqlc.arg(queue);
+
+-- name: AddSpend :exec
+INSERT INTO model_spend (workspace_id, month, queue, actor, repo, tokens, cost_usd)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(month), sqlc.arg(queue), sqlc.arg(actor), sqlc.arg(repo), sqlc.arg(tokens), sqlc.arg(cost_usd))
+ON CONFLICT (workspace_id, month, queue, actor, repo)
+DO UPDATE SET tokens = model_spend.tokens + excluded.tokens, cost_usd = model_spend.cost_usd + excluded.cost_usd;
+
+-- name: ListSpend :many
+SELECT * FROM model_spend WHERE workspace_id = sqlc.arg(workspace_id) AND month = sqlc.arg(month)
+ORDER BY tokens DESC;
+

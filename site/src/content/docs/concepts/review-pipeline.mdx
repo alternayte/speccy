@@ -191,4 +191,4 @@ Before a full review, Speccy shows an estimate: the model calls, the steps from 
 
 The cache keeps the cost of a second run low. Each step has a key from its input, the profile version, the model and the prompt version. A section whose text did not change goes to no model again. A second run of an unchanged doc costs almost nothing. After an edit to one section, a full review calls a model for the checks of that section and for the whole-doc checks. It also calls the readers for the build questions that cite the section or were open.
 
-An admin can set a monthly token budget in **Admin → Models**. When the workspace spends it, Speccy stops the review and says so. [Budget and model cost](/operations/budget-and-model-cost/) explains the budget and the prices.
+An admin sets a monthly token budget for each queue in **Admin → Models**. One budget covers the reviews that people wait for. In hosted mode, a second budget covers the pull request reviews of the GitHub App. When a queue spends its budget, Speccy stops the reviews of that queue and says so. [Budget and model cost](/operations/budget-and-model-cost/) explains the budget and the prices.

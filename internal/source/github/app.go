@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -120,6 +121,30 @@ type Installation struct {
 		Type  string `json:"type"`
 	} `json:"account"`
 	SuspendedAt *time.Time `json:"suspended_at"`
+	// Permissions are the permissions the installation granted, such as "checks": "write".
+	Permissions map[string]string `json:"permissions"`
+	// Events are the webhook events the installation receives.
+	Events []string `json:"events"`
+}
+
+// Missing lists what the installation lacks of the manifest of NewManifest: a permission
+// below the level it asks for, or an event it does not receive. GitHub has no API to change
+// an existing App, so its owner adds them on the App's settings page.
+func (in Installation) Missing() []string {
+	var out []string
+	for name, level := range NewManifest("", "", "", false).DefaultPermissions {
+		got := in.Permissions[name]
+		if got == "" || (level == "write" && got != "write" && got != "admin") {
+			out = append(out, name+": "+level)
+		}
+	}
+	for _, e := range NewManifest("", "", "", false).DefaultEvents {
+		if !slices.Contains(in.Events, e) {
+			out = append(out, "event "+e)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // GetInstallation reads one installation of this App. GitHub answers 404 for an installation
@@ -276,6 +301,7 @@ func NewManifest(name, baseURL, callbackURL string, org bool) Manifest {
 		"contents":      "write", // read sources, commit doc changes
 		"pull_requests": "write", // open the publish pull request, read its state
 		"issues":        "write", // the breakdown's work items
+		"checks":        "write", // one check per bundle on a pull request (docs/specs/hosted-pr-review.md)
 		"metadata":      "read",
 		"emails":        "read", // the verified address of a person who signs in
 	}
@@ -291,7 +317,7 @@ func NewManifest(name, baseURL, callbackURL string, org bool) Manifest {
 		SetupOnUpdate:      true,
 		Public:             false,
 		DefaultPermissions: perms,
-		DefaultEvents:      []string{"push", "pull_request"},
+		DefaultEvents:      []string{"push", "pull_request", "issue_comment", "pull_request_review_comment"},
 	}
 }
 

@@ -98,10 +98,15 @@ func runActionPR(prURL string, pending, dryRun bool, fl reviewFlags, pf prFlagsA
 		fmt.Fprintf(stderr, "speccy action: %v.\n", err)
 		return exitRun
 	}
-	if res.JSON200 == nil {
+	if res.JSON202 == nil {
 		return problemExit(stderr, prURL, res.ApplicationproblemJSONDefault)
 	}
-	rev := res.JSON200
+	done, err := api.WaitReview(ctx, s.client, res.JSON202.Id, reviewPoll, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "speccy action: %v\n", sentence(err))
+		return exitRun
+	}
+	rev := done.Url
 	files, err := gh.PRFiles(ctx, rev.Repo, build.Pull)
 	if err != nil {
 		fmt.Fprintf(stderr, "speccy action: the files of the pull request do not read: %v.\n", err)

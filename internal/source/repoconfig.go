@@ -45,11 +45,29 @@ type RepoConfig struct {
 		// Relaxed lists check slugs that report at level INFO (REQ-133).
 		Relaxed []string `yaml:"relaxed"`
 	} `yaml:"adoption"`
-	Mode        string   `yaml:"mode"`
+	// Mode names who reviews the pull requests of the repo: app, the GitHub App of a hosted
+	// Speccy, or action, the standalone Action (docs/specs/hosted-pr-review.md). Empty: both
+	// may run. standalone is an older name of action.
+	Mode string `yaml:"mode"`
+	// Server is the key of the removed connected mode. It stays in the struct so a config
+	// that still has it gets a message, not an unknown key error.
 	Server      string   `yaml:"server"`
 	Enforcement string   `yaml:"enforcement"`
 	PR          PRConfig `yaml:"pr"`
 }
+
+// The values of mode.
+const (
+	ModeApp    = "app"
+	ModeAction = "action"
+)
+
+// ReviewedByApp reports whether the GitHub App reviews the repo's pull requests: mode app, or
+// no mode.
+func (c RepoConfig) ReviewedByApp() bool { return c.Mode == "" || c.Mode == ModeApp }
+
+// ReviewedByAction reports whether the standalone Action reviews the repo's pull requests.
+func (c RepoConfig) ReviewedByAction() bool { return c.Mode != ModeApp }
 
 // PRConfig is the pr section of .speccy.yaml: how Speccy comments on a pull request.
 type PRConfig struct {
@@ -174,9 +192,14 @@ func ParseRepoConfig(src []byte) (RepoConfig, error) {
 		}
 	}
 	switch c.Mode {
-	case "", "standalone", "connected":
+	case "", ModeApp, ModeAction, "standalone":
+	case "connected":
+		problems = append(problems, "mode connected is gone: a hosted Speccy reviews pull requests with its GitHub App. Set mode: app, and remove server")
 	default:
-		problems = append(problems, fmt.Sprintf("mode %q is not standalone or connected", c.Mode))
+		problems = append(problems, fmt.Sprintf("mode %q is not app or action", c.Mode))
+	}
+	if c.Server != "" && c.Mode != "connected" {
+		problems = append(problems, "server is gone with connected mode: a hosted Speccy reviews pull requests with its GitHub App. Remove server, and set mode: app")
 	}
 	switch c.Enforcement {
 	case "", "advisory", "blocking":
@@ -480,6 +503,34 @@ func AddMappings(was []byte, add []Mapping) ([]byte, error) {
 			{Kind: yaml.ScalarNode, Value: "profile"}, {Kind: yaml.ScalarNode, Value: m.Profile},
 		}}
 		list.Content = append(list.Content, entry)
+	}
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
+		return nil, err
+	}
+	if err := enc.Close(); err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
+}
+
+// SetKey sets a top-level scalar key of the repo's .speccy.yaml and returns the new file. The
+// other keys and their comments stay.
+func SetKey(src []byte, key, value string) ([]byte, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(src, &doc); err != nil {
+		return nil, fmt.Errorf("%s does not parse: %w", RepoConfigFile, err)
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("%s is not a mapping", RepoConfigFile)
+	}
+	root := doc.Content[0]
+	if n := findKey(root, key); n != nil {
+		n.Kind, n.Tag, n.Value, n.Content = yaml.ScalarNode, "", value, nil
+	} else {
+		root.Content = append([]*yaml.Node{{Kind: yaml.ScalarNode, Value: key}, {Kind: yaml.ScalarNode, Value: value}}, root.Content...)
 	}
 	var out bytes.Buffer
 	enc := yaml.NewEncoder(&out)

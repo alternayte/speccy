@@ -15,6 +15,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/es"
+	"github.com/alternayte/speccy/internal/features/notify"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -29,7 +30,10 @@ type API struct {
 	DB        *store.DB
 	ES        *es.Store
 	Workspace uuid.UUID
-	People    kernel.Directory
+	// Notify tells the workspace channel about a step someone must act on
+	// (docs/specs/channel-notifications.md). Nil posts nothing.
+	Notify func(ctx context.Context, n notify.Notice)
+	People kernel.Directory
 	// Ask queues an AI answer for a thread (REQ-088). Nil when no worker runs.
 	Ask func(ctx context.Context, thread uuid.UUID) error
 	// Answering reports whether an AI answer for a thread is queued or running.
@@ -97,6 +101,10 @@ func (a *API) open(ctx context.Context, bundleID *uuid.UUID, profileKey string, 
 	s, err := a.run(ctx, c.ID, func(s State) ([]es.Event, error) { return DecideOpen(s, c) })
 	if err != nil {
 		return api.ThreadDetail{}, err
+	}
+	if c.Blocking && bundleID != nil && a.Notify != nil {
+		a.Notify(ctx, notify.Notice{Doc: *bundleID, Actor: by.ID, Event: "opened a blocking thread: " + c.Title + ".",
+			People: a.authors(ctx, *bundleID)})
 	}
 	if s.AddressedTo == AI && a.Ask != nil {
 		if err := a.Ask(ctx, s.ID); err != nil {
@@ -415,4 +423,15 @@ func (a *API) openFrom(ctx context.Context, bundleID uuid.UUID, handoffID *uuid.
 		return api.ThreadDetail{}, err
 	}
 	return a.detail(ctx, s.ID)
+}
+
+// authors are the user IDs of the authors of a spec doc's bundle.
+func (a *API) authors(ctx context.Context, docID uuid.UUID) []string {
+	q := a.DB.Queries()
+	d, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: docID})
+	if err != nil {
+		return nil
+	}
+	ids, _ := q.ListBundleAuthors(ctx, d.BundleID)
+	return ids
 }

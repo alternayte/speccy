@@ -80,12 +80,35 @@ func add[In any](s *mcp.Server, t tools, name, description string, h func(contex
 		if err != nil {
 			return nil, nil, err
 		}
+		if req != nil && req.Params != nil && req.Session != nil {
+			if token := req.Params.GetProgressToken(); token != nil {
+				n := 0
+				ctx = context.WithValue(ctx, progressKey{}, func(msg string) {
+					n++
+					_ = req.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{ProgressToken: token, Message: msg, Progress: float64(n)})
+				})
+			}
+		}
 		out, err := h(ctx, c, in)
 		return nil, out, err
 	})
 }
 
 type tools struct{ clientFor ClientFor }
+
+// progressKey holds the progress function of a tool call whose client asked for progress.
+type progressKey struct{}
+
+// waitReview waits for a queued review and tells the client each new stage, so a long review
+// sends bytes through a proxy before its timeout.
+func waitReview(ctx context.Context, c *api.ClientWithResponses, queued *api.ReviewRequest) (*api.ReviewRequest, error) {
+	progress, _ := ctx.Value(progressKey{}).(func(string))
+	return api.WaitReview(ctx, c, queued.Id, 2*time.Second, func(stage string) {
+		if progress != nil {
+			progress("Review " + stage)
+		}
+	})
+}
 
 // problem turns an API error answer into a tool error with its detail.
 func problem(p *api.Problem, status int) error {
@@ -429,10 +452,14 @@ func (tools) reviewContent(ctx context.Context, c *api.ClientWithResponses, in c
 	if err != nil {
 		return nil, err
 	}
-	if res.JSON200 == nil {
+	if res.JSON202 == nil {
 		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 	}
-	return res.JSON200, nil
+	done, err := waitReview(ctx, c, res.JSON202)
+	if err != nil {
+		return nil, err
+	}
+	return done.Content, nil
 }
 
 type urlArg struct {
@@ -454,10 +481,14 @@ func (tools) reviewURL(ctx context.Context, c *api.ClientWithResponses, in urlAr
 	if err != nil {
 		return nil, err
 	}
-	if res.JSON200 == nil {
+	if res.JSON202 == nil {
 		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 	}
-	return res.JSON200, nil
+	done, err := waitReview(ctx, c, res.JSON202)
+	if err != nil {
+		return nil, err
+	}
+	return done.Url, nil
 }
 
 type reportArg struct {

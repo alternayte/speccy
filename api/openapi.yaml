@@ -1133,7 +1133,11 @@ paths:
   /reviews:
     post:
       operationId: reviewContent
-      summary: Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+      summary: >
+        Queue a review of bundle files that are not saved on the server (SDD §12.2 --server,
+        REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state,
+        then the result. The server keeps the files and the result for 90 days for the report
+        (SDD §12.4); it changes no bundle.
       requestBody:
         required: true
         content:
@@ -1141,12 +1145,33 @@ paths:
             schema:
               $ref: "#/components/schemas/ContentReviewRequest"
       responses:
-        "200":
-          description: The findings and the verdict.
+        "202":
+          description: The review is queued.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ContentReview"
+                $ref: "#/components/schemas/ReviewRequest"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /reviews/{reviewId}:
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getReviewRequest
+      summary: The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+      responses:
+        "200":
+          description: The review.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReviewRequest"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -1177,8 +1202,8 @@ paths:
     post:
       operationId: reviewUrl
       summary: >
-        Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the
-        head commit. Speccy reads the files with the GitHub credential it holds, and saves no
+        Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull
+        request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no
         bundle. For a pull request, it reviews the spec docs that the pull request changes.
       requestBody:
         required: true
@@ -1187,12 +1212,12 @@ paths:
             schema:
               $ref: "#/components/schemas/UrlReviewRequest"
       responses:
-        "200":
-          description: The repo, the commit, and the review of each spec doc.
+        "202":
+          description: The review is queued. GET /reviews/{reviewId} gives the repo, the commit, and the review of each spec doc when it is complete.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UrlReview"
+                $ref: "#/components/schemas/ReviewRequest"
         default:
           $ref: "#/components/responses/Problem"
 
@@ -3092,10 +3117,79 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /admin/notifications:
+    get:
+      operationId: getNotifications
+      summary: The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+      responses:
+        "200":
+          description: The webhook, with the last 4 characters of its URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotifyWebhook"
+        default:
+          $ref: "#/components/responses/Problem"
+    put:
+      operationId: setNotifications
+      summary: Set the channel webhook. The URL is a secret, stored encrypted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, url]
+              properties:
+                kind:
+                  type: string
+                  enum: [slack, teams]
+                url:
+                  type: string
+                  description: The incoming webhook URL, https.
+      responses:
+        "200":
+          description: The webhook.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotifyWebhook"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteNotifications
+      summary: Remove the channel webhook. Speccy then posts nothing.
+      responses:
+        "204":
+          description: Removed.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/notifications/test:
+    post:
+      operationId: testNotifications
+      summary: Post one test message to the channel webhook, and give the HTTP status it answered with.
+      responses:
+        "200":
+          description: The answer of the webhook.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: integer
+                    description: The HTTP status, or 0 when the webhook did not answer.
+                  error:
+                    type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
   /admin/budget:
     get:
       operationId: getBudget
-      summary: Get this month's token budget and use (REQ-104).
+      summary: Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
       responses:
         "200":
           description: The budget.
@@ -3107,7 +3201,7 @@ paths:
           $ref: "#/components/responses/Problem"
     put:
       operationId: setBudget
-      summary: Set the monthly token limit. No limit means no budget.
+      summary: Set the monthly token limit of one queue. No limit means no budget.
       requestBody:
         required: true
         content:
@@ -3115,6 +3209,10 @@ paths:
             schema:
               type: object
               properties:
+                queue:
+                  type: string
+                  enum: [interactive, pr]
+                  description: The queue whose limit this sets. Default interactive.
                 token_limit:
                   type: integer
                   format: int64
@@ -4054,7 +4152,17 @@ components:
           type: integer
           minimum: 1
           maximum: 16
-          description: REQ-105. Model calls at a time per run. Default 4.
+          description: REQ-105. Model calls at a time per run. Default 8.
+        reviews_interactive:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Reviews at a time in the interactive queue, the reviews and answers a person waits for. Default 3.
+        reviews_pr:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Reviews at a time in the pr queue, the pull request reviews of the GitHub App. Default 2.
 
     Problem:
       type: object
@@ -5738,6 +5846,34 @@ components:
             type: string
             enum: [rubric, grounding, divergence, coherence]
 
+    ReviewRequest:
+      type: object
+      description: A review that a job runs. Poll it until its status is complete or failed.
+      required: [id, kind, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        kind:
+          type: string
+          enum: [content, url]
+        status:
+          type: string
+          enum: [queued, running, complete, failed]
+        stage:
+          type: string
+          description: The stage that runs now, while the status is running.
+        error:
+          type: string
+          description: Why the review failed, when the status is failed.
+        content:
+          $ref: "#/components/schemas/ContentReview"
+        url:
+          $ref: "#/components/schemas/UrlReview"
+        created_at:
+          type: string
+          format: date-time
+
     UrlReview:
       type: object
       required: [repo, commit, docs, config]
@@ -5953,6 +6089,14 @@ components:
         from_env:
           type: boolean
           description: The App comes from the SPECCY_GITHUB_APP_ variables, so the UI cannot change it.
+        missing:
+          type: array
+          items:
+            type: string
+          description: >
+            What the installation lacks for pull request reviews and the other features, such
+            as "checks: write" or "event issue_comment". GitHub cannot change an existing App by
+            API, so its owner adds them on the settings page.
 
     Setup:
       type: object
@@ -7062,7 +7206,7 @@ components:
 
     Budget:
       type: object
-      required: [month, tokens_used]
+      required: [month, tokens_used, queues, spend]
       properties:
         month:
           type: string
@@ -7070,9 +7214,72 @@ components:
         token_limit:
           type: integer
           format: int64
+          description: The interactive queue's limit.
         tokens_used:
           type: integer
           format: int64
+          description: The interactive queue's use.
+        queues:
+          type: array
+          description: The limit and use of each queue (docs/specs/hosted-operations.md).
+          items:
+            $ref: "#/components/schemas/QueueBudget"
+        spend:
+          type: array
+          description: This month's spend by queue, person and repo, largest first.
+          items:
+            $ref: "#/components/schemas/Spend"
+
+    NotifyWebhook:
+      type: object
+      required: [configured, from_env]
+      properties:
+        configured:
+          type: boolean
+        kind:
+          type: string
+          enum: [slack, teams]
+        url_last4:
+          type: string
+        from_env:
+          type: boolean
+          description: SPECCY_NOTIFY_WEBHOOK_URL sets the webhook, so the UI cannot change it.
+
+    QueueBudget:
+      type: object
+      required: [queue, tokens_used]
+      properties:
+        queue:
+          type: string
+          enum: [interactive, pr]
+        token_limit:
+          type: integer
+          format: int64
+        tokens_used:
+          type: integer
+          format: int64
+
+    Spend:
+      type: object
+      required: [queue, actor, repo, tokens, cost_usd]
+      properties:
+        queue:
+          type: string
+          enum: [interactive, pr]
+        actor:
+          type: string
+          description: The user ID of the person, or "app" for the GitHub App.
+        actor_name:
+          type: string
+        repo:
+          type: string
+          description: The GitHub repo as owner/name, or empty when the work named none.
+        tokens:
+          type: integer
+          format: int64
+        cost_usd:
+          type: number
+          format: double
 
     BundleList:
       type: object

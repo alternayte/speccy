@@ -28,7 +28,6 @@ A new hosted Speccy opens /setup with a setup token. The operator makes the firs
 - Local mode does not change: the `gh` login, then a pasted token — local mode has no public URL for webhooks.
 
 ## Out
-- PR review by the server. The Action keeps the review comments and check runs.
 - Pending reviews in hosted mode. They stay refused.
 - A public App, or more than one installation.
 - A webhook relay, a delivery list, and redelivery.

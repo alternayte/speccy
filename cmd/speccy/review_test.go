@@ -320,7 +320,7 @@ func TestInitGitHub_WorkflowPinsTheRelease(t *testing.T) {
 }
 
 // speccy init --github on a repo with a .speccy.yaml adds its mappings and relaxed checks to
-// the file, and keeps the keys and comments that are there.
+// the file, keeps the keys and comments that are there, and sets mode to the reviewer it chose.
 func TestCLI_InitGitHubKeepsTheRepoConfig(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, content string) {
@@ -346,7 +346,8 @@ func TestCLI_InitGitHubKeepsTheRepoConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v:\n%s", err, raw)
 	}
-	if cfg.Mode != "standalone" || cfg.LinkPatterns["jira"] == "" || !strings.Contains(string(raw), "the team's own comment") {
+	// With no terminal, init sets the Action as the reviewer: standalone becomes action.
+	if cfg.Mode != source.ModeAction || cfg.LinkPatterns["jira"] == "" || !strings.Contains(string(raw), "the team's own comment") {
 		t.Errorf("the keys of the file are gone:\n%s", raw)
 	}
 	if len(cfg.Map) != 1 || cfg.Map[0].Glob != "docs/*.md" {

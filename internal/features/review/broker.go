@@ -2,6 +2,7 @@ package review
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -29,10 +30,13 @@ type StreamedQuestion struct {
 }
 
 // Broker fans run events out to live listeners. It keeps each run's events, so a listener that
-// joins late gets the history first. It lives in one process (SDD §19 Q10: one replica).
+// joins late gets the history first, until Keep after the run ends. It lives in one process:
+// hosted mode runs one replica (docs/specs/hosted-pr-review.md).
 type Broker struct {
 	mu   sync.Mutex
 	runs map[uuid.UUID]*runEvents
+	// Keep is how long the events of an ended run stay. Zero is 5 minutes.
+	Keep time.Duration
 }
 
 type runEvents struct {
@@ -77,6 +81,17 @@ func (b *Broker) Publish(id uuid.UUID, e Event) {
 			close(ch)
 		}
 		r.subs = nil
+		keep := b.Keep
+		if keep == 0 {
+			keep = 5 * time.Minute
+		}
+		time.AfterFunc(keep, func() {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if b.runs[id] == r {
+				delete(b.runs, id)
+			}
+		})
 	}
 }
 

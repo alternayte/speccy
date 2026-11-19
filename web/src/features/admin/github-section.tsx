@@ -211,6 +211,15 @@ function AppCard({ app }: { app: GithubApp }) {
             </Button>
           )}
         </div>
+        {app.missing?.length ? (
+          <div className="rounded border border-warn/40 bg-warn/5 p-3 text-ink-1">
+            <p className="font-medium">The App lacks {app.missing.join(", ")}.</p>
+            <p className="mt-1 text-ink-2">
+              Speccy needs them to review pull requests. GitHub does not let Speccy change an App, so add them on the
+              App's settings page under Permissions &amp; events. Then accept the new permissions on the installation.
+            </p>
+          </div>
+        ) : null}
         {app.from_env ? (
           <p className="text-xs text-ink-3">The SPECCY_GITHUB_APP_ variables set this App, so it cannot change here.</p>
         ) : null}

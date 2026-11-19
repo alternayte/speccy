@@ -83,6 +83,9 @@ func OpenSQLite(ctx context.Context, path string) (*DB, error) {
 	return &DB{SQL: sqldb, Engine: SQLite, path: path}, nil
 }
 
+// DefaultMaxConns is the most Postgres connections Speccy opens. SPECCY_DB_MAX_CONNS changes it.
+const DefaultMaxConns = 20
+
 // OpenPostgres opens the Postgres database at dsn.
 func OpenPostgres(ctx context.Context, dsn string) (*DB, error) {
 	sqldb, err := sql.Open("pgx", dsn)
@@ -93,6 +96,10 @@ func OpenPostgres(ctx context.Context, dsn string) (*DB, error) {
 		_ = sqldb.Close()
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
+	// A burst of reviews must not use up the server's max_connections
+	// (docs/specs/hosted-operations.md). The job queue shares this pool.
+	sqldb.SetMaxOpenConns(DefaultMaxConns)
+	sqldb.SetMaxIdleConns(DefaultMaxConns)
 	return &DB{SQL: sqldb, Engine: Postgres}, nil
 }
 

@@ -21,7 +21,9 @@ You need a clone of the repo and the `speccy` binary. The repo needs no Speccy f
    speccy init --github
    ```
 
-2. Read the output. It names what Speccy wrote:
+2. Answer `Who reviews pull requests?`. Type `1` for the Speccy GitHub Action in this repo, with your model key. Type `2` for the GitHub App of your hosted Speccy. `--reviewer action` or `--reviewer app` gives the answer with no question. With no terminal, Speccy picks the Action and says so.
+
+3. Read the output. It names what Speccy wrote:
 
    ```text
    Wrote .speccy.yaml: 2 mappings for 7 docs.
@@ -32,16 +34,16 @@ You need a clone of the repo and the `speccy` binary. The repo needs no Speccy f
    Open a pull request with these files. Speccy reviews the specs it changes.
    ```
 
-3. Commit the files on a branch, and open a pull request.
-4. Merge the pull request. The repo is now an adopted repo.
+4. Commit the files on a branch, and open a pull request.
+5. Merge the pull request. The repo is now an adopted repo.
 
 </Steps>
 
 `speccy init --github` changes no doc. It writes these files:
 
-- **`.speccy.yaml`**, with the mappings. Speccy guesses a profile for each markdown file from its headings. A folder whose markdown files all guess the same profile gets one glob, such as `docs/*.md`. Any other file gets one mapping of its own. A file that names a type in its frontmatter needs no mapping.
+- **`.speccy.yaml`**, with `mode` and the mappings. `mode` is `action` or `app`, from your answer. Speccy guesses a profile for each markdown file from its headings. A folder whose markdown files all guess the same profile gets one glob, such as `docs/*.md`. Any other file gets one mapping of its own. A file that names a type in its frontmatter needs no mapping.
 - **`adoption.relaxed`** in `.speccy.yaml`. Speccy runs the lint checks on every spec doc of the repo. Each check that reports a MUST or a SHOULD finding on at least one doc goes into this list.
-- **`.github/workflows/speccy.yml`**, the workflow. If the file exists, Speccy leaves it as it is.
+- **`.github/workflows/speccy.yml`**, the workflow, when the Action reviews. If the file exists, Speccy leaves it as it is. With `app`, Speccy writes no workflow. [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/#the-action-or-the-app) compares the two.
 - **`.speccy/state/`** in `.gitignore`, when the line is not there yet.
 
 The scan passes over hidden folders, `node_modules`, and files such as `README.md` and `CHANGELOG.md`. If no file without a type reads like a spec, the command says so and writes nothing.
@@ -53,6 +55,8 @@ The scan passes over hidden folders, `node_modules`, and files such as `README.m
 A `.speccy.yaml` after the run looks like this:
 
 ```yaml speccy-config
+mode: action
+
 map:
   - glob: "docs/*.md"
     profile: prd
@@ -105,7 +109,7 @@ jobs:
 
 The file pins the Action and the binary it downloads at one release: the release of the `speccy` that wrote the file. A `speccy` that is not a release writes `@main` and no `version`. A comment in the file then says to pin a release tag.
 
-With no model and no key, the Action runs the lint checks only. The check of each bundle then says `Lint checks only.` [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) adds the models, blocking enforcement, and connected mode.
+With no model and no key, the Action runs the lint checks only. The check of each bundle then says `Lint checks only.` [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) adds the models and blocking enforcement.
 
 | Permission | Why the Action needs it |
 |---|---|
@@ -167,7 +171,7 @@ Reply to a Speccy inline comment to settle the finding it points at:
 <Steps>
 
 1. Reply to the Speccy comment with the command and a reason of 20 characters or more.
-2. Push to the branch, or run the job again. The workflow runs on `pull_request` events, so a reply alone does not start it.
+2. Push to the branch, or run the job again. The workflow runs on `pull_request` events, so a reply alone does not start it. With the GitHub App of a hosted Speccy, skip this step: the App acts on the reply at once.
 3. The Action writes the entry into the sidecar of the doc, `.speccy/decisions/<doc path>.yaml`. It commits the sidecar to the branch of the pull request, and resolves the comment.
 
 </Steps>
@@ -223,11 +227,11 @@ These relaxed checks now pass on every mapped doc. Reply to turn one back on:
 
 You can turn back on any relaxed check this way, not only one that the comment offers. You can also delete the slug from `.speccy.yaml` yourself.
 
-In connected mode, the summary comment offers no check, because the lint pass over the whole repo runs only in standalone mode. The `/speccy enforce` reply still works.
+With the GitHub App of a hosted Speccy, you do not push. The App acts on the reply at once and commits the change.
 
 ## Next steps
 
 - [Reply commands](/reference/reply-commands/) lists each reply and each reason for a refusal.
-- [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) adds models, blocking enforcement, and connected mode.
+- [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/) adds models and blocking enforcement, and sets the GitHub App to review.
 - [Review docs you already have](/how-to/review-docs-you-already-have/) reads the repo from Speccy, with no commit to it.
 - [Waivers and the sidecar](/concepts/waivers-and-the-sidecar/) explains what a waiver covers and when it ends.

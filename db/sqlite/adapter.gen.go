@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
+	"time"
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 )
@@ -22,14 +23,13 @@ func (a Adapter) AddBudgetTokens(ctx context.Context, arg pgdb.AddBudgetTokensPa
 	return a.q.AddBudgetTokens(ctx, AddBudgetTokensParams(arg))
 }
 
+func (a Adapter) AddSpend(ctx context.Context, arg pgdb.AddSpendParams) error {
+	return a.q.AddSpend(ctx, AddSpendParams(arg))
+}
+
 func (a Adapter) BundleByShareToken(ctx context.Context, arg pgdb.BundleByShareTokenParams) (pgdb.Bundle, error) {
 	r, err := a.q.BundleByShareToken(ctx, BundleByShareTokenParams(arg))
 	return pgdb.Bundle(r), err
-}
-
-func (a Adapter) ClaimJob(ctx context.Context, arg pgdb.ClaimJobParams) (pgdb.Job, error) {
-	r, err := a.q.ClaimJob(ctx, ClaimJobParams(arg))
-	return pgdb.Job(r), err
 }
 
 func (a Adapter) ClearSpecDocHead(ctx context.Context, id uuid.UUID) error {
@@ -168,6 +168,10 @@ func (a Adapter) DeleteMCPConnection(ctx context.Context, arg pgdb.DeleteMCPConn
 	return a.q.DeleteMCPConnection(ctx, DeleteMCPConnectionParams(arg))
 }
 
+func (a Adapter) DeleteNotifyWebhook(ctx context.Context, workspaceID uuid.UUID) error {
+	return a.q.DeleteNotifyWebhook(ctx, workspaceID)
+}
+
 func (a Adapter) DeleteOrphanBlobs(ctx context.Context) error {
 	return a.q.DeleteOrphanBlobs(ctx)
 }
@@ -202,6 +206,10 @@ func (a Adapter) DeleteQuestionResultsOfSpecDoc(ctx context.Context, specDocID u
 
 func (a Adapter) DeleteQuestionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
 	return a.q.DeleteQuestionsOfSpecDoc(ctx, specDocID)
+}
+
+func (a Adapter) DeleteReviewRequestsBefore(ctx context.Context, arg pgdb.DeleteReviewRequestsBeforeParams) error {
+	return a.q.DeleteReviewRequestsBefore(ctx, DeleteReviewRequestsBeforeParams(arg))
 }
 
 func (a Adapter) DeleteReviewRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
@@ -284,8 +292,8 @@ func (a Adapter) FindBreakdownIssue(ctx context.Context, arg pgdb.FindBreakdownI
 	return out, nil
 }
 
-func (a Adapter) FinishJob(ctx context.Context, arg pgdb.FinishJobParams) error {
-	return a.q.FinishJob(ctx, FinishJobParams(arg))
+func (a Adapter) FinishReviewRequest(ctx context.Context, arg pgdb.FinishReviewRequestParams) error {
+	return a.q.FinishReviewRequest(ctx, FinishReviewRequestParams(arg))
 }
 
 func (a Adapter) FinishRun(ctx context.Context, arg pgdb.FinishRunParams) error {
@@ -384,6 +392,11 @@ func (a Adapter) GetMCPConnection(ctx context.Context, arg pgdb.GetMCPConnection
 	return pgdb.McpConnection(r), err
 }
 
+func (a Adapter) GetNotifyWebhook(ctx context.Context, workspaceID uuid.UUID) (pgdb.NotifyWebhook, error) {
+	r, err := a.q.GetNotifyWebhook(ctx, workspaceID)
+	return pgdb.NotifyWebhook(r), err
+}
+
 func (a Adapter) GetPrBatch(ctx context.Context, arg pgdb.GetPrBatchParams) (pgdb.PrBatch, error) {
 	r, err := a.q.GetPrBatch(ctx, GetPrBatchParams(arg))
 	return pgdb.PrBatch(r), err
@@ -397,6 +410,11 @@ func (a Adapter) GetProfileByKey(ctx context.Context, arg pgdb.GetProfileByKeyPa
 func (a Adapter) GetProfileVersion(ctx context.Context, arg pgdb.GetProfileVersionParams) (pgdb.ProfileVersion, error) {
 	r, err := a.q.GetProfileVersion(ctx, GetProfileVersionParams(arg))
 	return pgdb.ProfileVersion(r), err
+}
+
+func (a Adapter) GetReviewRequest(ctx context.Context, arg pgdb.GetReviewRequestParams) (pgdb.ReviewRequest, error) {
+	r, err := a.q.GetReviewRequest(ctx, GetReviewRequestParams(arg))
+	return pgdb.ReviewRequest(r), err
 }
 
 func (a Adapter) GetRun(ctx context.Context, arg pgdb.GetRunParams) (pgdb.ReviewRun, error) {
@@ -551,10 +569,6 @@ func (a Adapter) InsertInvite(ctx context.Context, arg pgdb.InsertInviteParams) 
 	return a.q.InsertInvite(ctx, InsertInviteParams(arg))
 }
 
-func (a Adapter) InsertJob(ctx context.Context, arg pgdb.InsertJobParams) error {
-	return a.q.InsertJob(ctx, InsertJobParams(arg))
-}
-
 func (a Adapter) InsertLink(ctx context.Context, arg pgdb.InsertLinkParams) error {
 	return a.q.InsertLink(ctx, InsertLinkParams(arg))
 }
@@ -601,6 +615,10 @@ func (a Adapter) InsertQuestionResult(ctx context.Context, arg pgdb.InsertQuesti
 
 func (a Adapter) InsertResetLink(ctx context.Context, arg pgdb.InsertResetLinkParams) error {
 	return a.q.InsertResetLink(ctx, InsertResetLinkParams(arg))
+}
+
+func (a Adapter) InsertReviewRequest(ctx context.Context, arg pgdb.InsertReviewRequestParams) error {
+	return a.q.InsertReviewRequest(ctx, InsertReviewRequestParams(arg))
 }
 
 func (a Adapter) InsertRun(ctx context.Context, arg pgdb.InsertRunParams) error {
@@ -671,8 +689,8 @@ func (a Adapter) IsProfileMaintainer(ctx context.Context, arg pgdb.IsProfileMain
 	return a.q.IsProfileMaintainer(ctx, IsProfileMaintainerParams(arg))
 }
 
-func (a Adapter) LatestBudget(ctx context.Context, workspaceID uuid.UUID) (pgdb.Budget, error) {
-	r, err := a.q.LatestBudget(ctx, workspaceID)
+func (a Adapter) LatestBudget(ctx context.Context, arg pgdb.LatestBudgetParams) (pgdb.Budget, error) {
+	r, err := a.q.LatestBudget(ctx, LatestBudgetParams(arg))
 	return pgdb.Budget(r), err
 }
 
@@ -703,18 +721,6 @@ func (a Adapter) LatestRunFor(ctx context.Context, arg pgdb.LatestRunForParams) 
 
 func (a Adapter) LatestVerificationSHA(ctx context.Context, arg pgdb.LatestVerificationSHAParams) (string, error) {
 	return a.q.LatestVerificationSHA(ctx, LatestVerificationSHAParams(arg))
-}
-
-func (a Adapter) ListActiveJobs(ctx context.Context) ([]pgdb.Job, error) {
-	rows, err := a.q.ListActiveJobs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]pgdb.Job, len(rows))
-	for i, r := range rows {
-		out[i] = pgdb.Job(r)
-	}
-	return out, nil
 }
 
 func (a Adapter) ListActivePrBatches(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.PrBatch, error) {
@@ -1293,6 +1299,18 @@ func (a Adapter) ListSpecDocsUsingProfile(ctx context.Context, arg pgdb.ListSpec
 	return out, nil
 }
 
+func (a Adapter) ListSpend(ctx context.Context, arg pgdb.ListSpendParams) ([]pgdb.ModelSpend, error) {
+	rows, err := a.q.ListSpend(ctx, ListSpendParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.ModelSpend, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.ModelSpend(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.Link, error) {
 	rows, err := a.q.ListSupersedesLinks(ctx, workspaceID)
 	if err != nil {
@@ -1444,6 +1462,10 @@ func (a Adapter) PreviousFullReview(ctx context.Context, arg pgdb.PreviousFullRe
 	return pgdb.ReviewRun(r), err
 }
 
+func (a Adapter) PruneCache(ctx context.Context, before time.Time) (int64, error) {
+	return a.q.PruneCache(ctx, before)
+}
+
 func (a Adapter) PutCache(ctx context.Context, arg pgdb.PutCacheParams) error {
 	return a.q.PutCache(ctx, PutCacheParams(arg))
 }
@@ -1521,6 +1543,10 @@ func (a Adapter) SetMessageDecision(ctx context.Context, arg pgdb.SetMessageDeci
 	return a.q.SetMessageDecision(ctx, SetMessageDecisionParams(arg))
 }
 
+func (a Adapter) SetNotifyWebhook(ctx context.Context, arg pgdb.SetNotifyWebhookParams) error {
+	return a.q.SetNotifyWebhook(ctx, SetNotifyWebhookParams(arg))
+}
+
 func (a Adapter) SetPrBatchStatus(ctx context.Context, arg pgdb.SetPrBatchStatusParams) error {
 	return a.q.SetPrBatchStatus(ctx, SetPrBatchStatusParams(arg))
 }
@@ -1563,6 +1589,10 @@ func (a Adapter) StaleVerificationRuns(ctx context.Context, arg pgdb.StaleVerifi
 	return a.q.StaleVerificationRuns(ctx, StaleVerificationRunsParams(arg))
 }
 
+func (a Adapter) StartReviewRequest(ctx context.Context, id uuid.UUID) error {
+	return a.q.StartReviewRequest(ctx, id)
+}
+
 func (a Adapter) StartRunExecution(ctx context.Context, arg pgdb.StartRunExecutionParams) error {
 	return a.q.StartRunExecution(ctx, StartRunExecutionParams(arg))
 }
@@ -1577,6 +1607,10 @@ func (a Adapter) StopPrBatchItems(ctx context.Context, arg pgdb.StopPrBatchItems
 
 func (a Adapter) ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error) {
 	return a.q.ThreadIDsOfSpecDoc(ctx, specDocID)
+}
+
+func (a Adapter) TouchCache(ctx context.Context, arg pgdb.TouchCacheParams) error {
+	return a.q.TouchCache(ctx, TouchCacheParams(arg))
 }
 
 func (a Adapter) UnspendInvite(ctx context.Context, id uuid.UUID) error {

@@ -77,11 +77,10 @@ func TestSeat_OwnerClientAndTakeover(t *testing.T) {
 		Notes: dbtype.JSON(`[]`), StartedAt: now, FinishedAt: sql.NullTime{}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.InsertJob(ctx, pgdb.InsertJobParams{ID: kernel.NewID(), WorkspaceID: first.own.app.Workspace, Kind: "review_run",
-		Payload: dbtype.JSON(`{"run_id":"` + run.String() + `"}`), CreatedAt: now}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := q.ClaimJob(ctx, pgdb.ClaimJobParams{LockUntil: sql.NullTime{Time: now.Add(time.Hour), Valid: true}, Now: sql.NullTime{Time: now, Valid: true}}); err != nil {
+	// A running job as River holds it: no worker of this process picks it up.
+	if _, err := first.own.app.Reviews.DB.SQL.ExecContext(ctx,
+		`INSERT INTO river_job (args, kind, max_attempts, queue, state, attempt, attempted_at) VALUES (jsonb(?), 'review_run', 3, 'interactive', 'running', 1, CURRENT_TIMESTAMP)`,
+		`{"payload":{"run_id":"`+run.String()+`"}}`); err != nil {
 		t.Fatal(err)
 	}
 	// The owner stops with no drain, as a kill does: its listener and its lock go.

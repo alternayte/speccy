@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-This page lists every key of `.speccy.yaml`, the repo configuration file. The file says which markdown files are spec docs, how docs link by path, and how the GitHub Action reports.
+This page lists every key of `.speccy.yaml`, the repo configuration file. The file says which markdown files are spec docs, how docs link by path, who reviews pull requests, and how the review reports on GitHub.
 
 Every key is optional. A missing file is an empty configuration: every folder with a spec doc is a bundle, and Speccy relaxes no check.
 
@@ -23,7 +23,7 @@ link_patterns:
   jira: https://company.atlassian.net/browse/{key}
 adoption:
   relaxed: [links.has-upstream]
-mode: standalone
+mode: action
 enforcement: advisory
 pr:
   inline_limit: 15
@@ -45,8 +45,7 @@ pr:
 | `link_rules` | list of text | empty | Links spec docs by path: `"<from> <kind> <to>"`. |
 | `link_patterns` | map of scheme to URL pattern | empty | Turns a short external link target, such as `jira:PAY-412`, into a URL. |
 | `adoption.relaxed` | list of check slugs | empty | Each check in the list reports at level INFO. |
-| `mode` | `standalone` or `connected` | `standalone` | With `connected`, `speccy action` sends the files to `server`. |
-| `server` | URL | none | The Speccy server of connected mode. |
+| `mode` | `action` or `app` | none | Who reviews pull requests: the GitHub Action, or the GitHub App of a hosted Speccy. With no key, both can run. |
 | `enforcement` | `advisory` or `blocking` | `advisory` | Whether a Not Build Ready verdict fails `speccy review` and `speccy action`. |
 | `pr.inline_limit` | integer | 15 | The most inline comments that `speccy action` posts on one bundle. |
 | `pr.levels` | list of `must` and `should` | MUST findings, and SHOULD findings with a fix | The finding levels that go inline as comments. |
@@ -107,9 +106,10 @@ An SDD and its PRD often go into review at the same time, in two pull requests. 
 
 - `speccy action --pr`, `speccy review-prs`, the `review_url` tool and `POST /reviews/url`.
 - A GitHub source.
-- `speccy action` in GitHub Actions, in standalone mode.
+- `speccy action` in GitHub Actions.
+- The GitHub App of a hosted Speccy, in a pull request review.
 
-A local folder review does not look, because the folder names no repo that Speccy can trust. Connected mode does not look either.
+A local folder review does not look, because the folder names no repo that Speccy can trust.
 
 - Speccy looks only when the tree holds no file at the target path. A doc in the tree always wins.
 - A pull request matches when its changed files add or change exactly the target path. A draft pull request counts.
@@ -136,18 +136,29 @@ A full URL target needs no pattern. [Frontmatter](/reference/frontmatter/#extern
 
 Each check slug in the list reports at level INFO, whatever its level in the profile. A relaxed check never blocks the verdict. `speccy init --github` fills the list with the checks that fail on the first lint pass.
 
-A reply of `/speccy enforce <slug>` in a pull request removes one slug from the list, and the Action commits the change. [Reply commands](/reference/reply-commands/) has the details. Speccy does not check the slugs in the list.
+A reply of `/speccy enforce <slug>` in a pull request removes one slug from the list, and the Action or the App commits the change. [Reply commands](/reference/reply-commands/) has the details. Speccy does not check the slugs in the list.
 
-### mode and server
+### mode
 
-`mode` and `server` apply to `speccy action` only.
+`mode` says who reviews the pull requests of the repo.
 
-| `mode` | What `speccy action` does |
-|---|---|
-| `standalone` | It reviews the bundles in the runner. The HTML report is an artifact of the run. |
-| `connected` | With no `--server` flag, it sends the files to `server`. The server reviews them with its models and its linked docs, and the comment links to its report. |
+| `mode` | The GitHub Action | The GitHub App of a hosted Speccy |
+|---|---|---|
+| `action` | Reviews the bundles in the runner. The HTML report is an artifact of the run. | Skips the repo. |
+| `app` | Exits at once and posts nothing. | Reviews the pull request with the workspace profiles and models. |
+| No key | Reviews. | Reviews. |
 
-Connected mode needs a personal API token in `SPECCY_TOKEN`. A `--server` flag wins over both keys.
+With `mode: app`, the Action prints `The Speccy App reviews this repo (mode: app in .speccy.yaml), so the Action posts nothing.` [Keep the verdict in CI](/how-to/keep-the-verdict-in-ci/#the-action-or-the-app) compares the two.
+
+`standalone` is an older name of `action`, and Speccy still reads it. Connected mode is gone. `mode: connected` and the `server` key are errors, and the message names `mode: app`.
+
+#### Which branch the App reads
+
+A pull request cannot change its own gate. So the App reads some keys from the base branch, and the rest from the head commit.
+
+- From the base branch: `enforcement`, `adoption.relaxed` and `mode`.
+- From the head commit: `map`, `size`, `link_rules` and the sidecars.
+- A pull request that adds `.speccy.yaml` for the first time uses its own file.
 
 ### enforcement
 
@@ -203,11 +214,11 @@ The folder that holds the file is the root. Every glob and path in the file is r
 
 ## What speccy init writes
 
-`speccy init` writes `.speccy.yaml` in the current folder, when the folder has none. The file sets `mode: standalone` and `enforcement: advisory`. It holds commented examples of `bundles`, `map`, `link_rules` and `adoption`. When the file exists, `speccy init` prints `.speccy.yaml exists. Speccy did not change it.`
+`speccy init` writes `.speccy.yaml` in the current folder, when the folder has none. The file sets `enforcement: advisory`. It holds commented examples of `bundles`, `map`, `link_rules`, `adoption` and `mode`. When the file exists, `speccy init` prints `.speccy.yaml exists. Speccy did not change it.`
 
 `speccy init` also adds `.speccy/state/` to `.gitignore`.
 
-`speccy init --github` writes `map` entries for the markdown files that read like a spec. It lints the mapped docs once, and it writes each check that fails into `adoption.relaxed`. It replaces a `.speccy.yaml` that exists.
+`speccy init --github` asks who reviews pull requests: 1 for the Action, 2 for the App. `--reviewer action` or `--reviewer app` gives the answer with no question. With no terminal, it picks the Action and says so. It writes the answer as `mode`. With `app`, it writes no workflow. It also writes `map` entries for the markdown files that read like a spec. It lints the mapped docs once, and it writes each check that fails into `adoption.relaxed`. It replaces a `.speccy.yaml` that exists.
 
 ## Errors
 
@@ -237,7 +248,9 @@ Speccy checks every entry, and it joins the problems with `;` after `.speccy.yam
 | A built-in scheme | `link_patterns: the scheme "github" is built in, so a pattern cannot replace it` |
 | A pattern with no `{key}` | `link_patterns: the pattern "https://x/" has no {key}` |
 | A pattern that is not a web URL | `link_patterns: the pattern "ftp://x/{key}" is not an http or https URL` |
-| Another `mode` | `mode "remote" is not standalone or connected` |
+| Another `mode` | `mode "remote" is not app or action` |
+| `mode: connected` | `mode connected is gone: a hosted Speccy reviews pull requests with its GitHub App. Set mode: app, and remove server` |
+| A `server` key | `server is gone with connected mode: a hosted Speccy reviews pull requests with its GitHub App. Remove server, and set mode: app` |
 | Another `enforcement` | `enforcement "strict" is not advisory or blocking` |
 | Another level in `pr.levels` | `pr.levels "info" is not must or should` |
 | An empty `pr.levels` | `pr.levels names no level. Name must, should, or both` |

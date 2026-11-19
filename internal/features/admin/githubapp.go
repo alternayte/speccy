@@ -46,6 +46,9 @@ type GitHubApp struct {
 	GitHubAccount func(ctx context.Context, userID string) (string, bool, error)
 	// Changed runs when a push or a closed pull request reaches a repo and branch.
 	Changed func(ctx context.Context, repo, branch string)
+	// PullRequest queues the App's review of a pull request: a push to it names its head SHA,
+	// and a comment with a reply command names none (docs/specs/hosted-pr-review.md).
+	PullRequest func(ctx context.Context, apiURL, repo string, pull int, sha string) error
 	// Life is the server's context, for the work a webhook starts after its answer.
 	Life context.Context
 	HTTP *http.Client
@@ -487,10 +490,24 @@ func (a *API) Webhook(w http.ResponseWriter, r *http.Request) {
 			FullName string `json:"full_name"`
 		} `json:"repository"`
 		PullRequest struct {
-			Base struct {
+			Number int  `json:"number"`
+			Draft  bool `json:"draft"`
+			Base   struct {
 				Ref string `json:"ref"`
 			} `json:"base"`
+			Head struct {
+				SHA string `json:"sha"`
+			} `json:"head"`
 		} `json:"pull_request"`
+		Issue struct {
+			Number      int `json:"number"`
+			PullRequest *struct {
+				URL string `json:"url"`
+			} `json:"pull_request"`
+		} `json:"issue"`
+		Comment struct {
+			Body string `json:"body"`
+		} `json:"comment"`
 	}
 	if err := json.Unmarshal(body, &ev); err != nil {
 		http.Error(w, "bad JSON", http.StatusBadRequest)
@@ -532,11 +549,44 @@ func (a *API) Webhook(w http.ResponseWriter, r *http.Request) {
 			changed(ev.Repository.FullName, branch)
 		}
 	case "pull_request":
-		if ev.Action == "closed" {
+		switch ev.Action {
+		case "closed":
 			changed(ev.Repository.FullName, ev.PullRequest.Base.Ref)
+		case "opened", "synchronize", "reopened", "ready_for_review":
+			a.reviewPull(ctx, c, ev.Repository.FullName, ev.PullRequest.Number, ev.PullRequest.Head.SHA)
+		}
+	case "issue_comment":
+		if ev.Action == "created" && ev.Issue.PullRequest != nil && replyCommand(ev.Comment.Body) {
+			a.reviewPull(ctx, c, ev.Repository.FullName, ev.Issue.Number, "")
+		}
+	case "pull_request_review_comment":
+		if ev.Action == "created" && replyCommand(ev.Comment.Body) {
+			a.reviewPull(ctx, c, ev.Repository.FullName, ev.PullRequest.Number, "")
 		}
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// reviewPull queues the App's review of a pull request. A failure to queue is logged: GitHub
+// does not send the event again.
+func (a *API) reviewPull(ctx context.Context, c *appConn, repo string, pull int, sha string) {
+	if a.GitHubApp.PullRequest == nil || repo == "" || pull == 0 {
+		return
+	}
+	if err := a.GitHubApp.PullRequest(ctx, c.app.API, repo, pull, sha); err != nil {
+		slog.ErrorContext(ctx, "the App's review of a pull request was not queued", "repo", repo, "pull", pull, "err", err)
+	}
+}
+
+// replyCommand reports whether a comment holds a line that starts with /speccy, which the next
+// review turns into a decision.
+func replyCommand(body string) bool {
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "/speccy ") {
+			return true
+		}
+	}
+	return false
 }
 
 // DeleteGithubApp disconnects the App: Speccy forgets its keys and every person's GitHub
@@ -564,8 +614,17 @@ func (a *API) appState(ctx context.Context) (*api.GithubApp, error) {
 	if err != nil || c == nil {
 		return nil, err
 	}
-	return &api.GithubApp{
+	out := &api.GithubApp{
 		Slug: c.app.Slug, Owner: c.owner, OwnerIsOrg: c.ownerIsOrg, Installed: c.installation != 0, ApiUrl: c.app.API,
 		InstallUrl: c.app.InstallURL(), SettingsUrl: github.SettingsURL(c.app.API, c.app.Slug, c.owner, c.ownerIsOrg), FromEnv: c.env,
-	}, nil
+	}
+	if c.installation != 0 {
+		// An App made before a Speccy release asked for more lacks the new permissions.
+		if in, err := c.app.GetInstallation(ctx, c.installation); err == nil {
+			if missing := in.Missing(); len(missing) > 0 {
+				out.Missing = &missing
+			}
+		}
+	}
+	return out, nil
 }

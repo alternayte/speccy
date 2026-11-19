@@ -103,7 +103,7 @@ func TestRubric_FailedBatchKeepsTheOthers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pe.reviews.RunNext(ctx); err != nil {
+	if _, err := pe.reviews.Queue.RunNext(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if run, _ := q.GetRunByID(ctx, started.ID); run.Status != "failed" || !strings.Contains(run.Error, "rubric stage failed") {

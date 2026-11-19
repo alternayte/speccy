@@ -19,6 +19,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/queue"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
 
@@ -444,7 +445,7 @@ func (pe *pipelineEnv) run(t *testing.T, slug string) (pgdb.ReviewRun, []pgdb.Fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ran, err := pe.reviews.RunNext(ctx); !ran || err != nil {
+	if ran, err := pe.reviews.Queue.RunNext(ctx); !ran || err != nil {
 		t.Fatalf("run the job: ran %v, err %v", ran, err)
 	}
 	run, err := q.GetRunByID(ctx, started.ID)
@@ -837,7 +838,7 @@ func TestRun_FailureNamesStage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pe.reviews.RunNext(ctx); err != nil {
+	if _, err := pe.reviews.Queue.RunNext(ctx); err != nil {
 		t.Fatal(err)
 	}
 	run, _ := q.GetRunByID(ctx, started.ID)
@@ -898,11 +899,11 @@ func TestAJobThatEndsWithAnErrorFreesItsDoc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pe.reviews.Jobs = map[string]func(context.Context, []byte) error{
-		"review_run": func(context.Context, []byte) error { return errors.New("database is locked") },
-	}
-	if ran, err := pe.reviews.RunNext(ctx); !ran || err == nil {
-		t.Fatalf("run the job: ran %v, err %v, want the job's error", ran, err)
+	pe.reviews.Queue.Register(review.JobKindRun, queue.Interactive, 1, func(ctx context.Context, payload []byte) error {
+		return pe.reviews.EndFailedRun(ctx, payload, errors.New("database is locked"))
+	}, nil)
+	if ran, err := pe.reviews.Queue.RunNext(ctx); !ran || err != nil {
+		t.Fatalf("run the job: ran %v, err %v", ran, err)
 	}
 	run, err := q.GetRunByID(ctx, started.ID)
 	if err != nil {
@@ -911,7 +912,7 @@ func TestAJobThatEndsWithAnErrorFreesItsDoc(t *testing.T) {
 	if run.Status != "failed" || !strings.Contains(run.Error, "database is locked") {
 		t.Errorf("run status %q, error %q, want failed with the cause", run.Status, run.Error)
 	}
-	pe.reviews.Jobs = nil
+	pe.reviews.RegisterJobs()
 	if _, err := pe.reviews.StartRun(ctx, b, nil); err != nil {
 		t.Errorf("a new review after the failed job: %v", err)
 	}

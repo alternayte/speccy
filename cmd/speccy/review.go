@@ -535,6 +535,9 @@ func reviewRemote(ctx context.Context, fl reviewFlags, stages review.Stages, sel
 	return out, exitOK
 }
 
+// reviewPoll is how often a command asks for the state of a queued review.
+const reviewPoll = 500 * time.Millisecond
+
 // lintOnly reports whether the caller asked for the lint stage alone.
 func lintOnly(stages review.Stages) bool { return stages != nil && len(stages) == 0 }
 
@@ -571,10 +574,15 @@ func reviewOne(ctx context.Context, c *api.ClientWithResponses, fl reviewFlags, 
 		fmt.Fprintf(stderr, "speccy review: %v.\n", err)
 		return reviewed{}, exitRun
 	}
-	if res.JSON200 == nil {
+	if res.JSON202 == nil {
 		return reviewed{}, problemExit(stderr, b.Slug, res.ApplicationproblemJSONDefault)
 	}
-	v := res.JSON200
+	done, err := api.WaitReview(ctx, c, res.JSON202.Id, reviewPoll, nil)
+	if err != nil {
+		fmt.Fprintf(stderr, "speccy review: %s: %s\n", b.Slug, sentence(err))
+		return reviewed{}, exitRun
+	}
+	v := done.Content
 	kind := "full"
 	if lint {
 		kind = "lint"

@@ -16,7 +16,5 @@ This page lists each input of the Speccy GitHub Action, `alternayte/speccy`. [Ke
 | `openai-api-key` | empty | The OpenAI API key, when models uses openai. |
 | `openrouter-api-key` | empty | The OpenRouter API key, when models uses openrouter. |
 | `deepseek-api-key` | empty | The DeepSeek API key, when models uses deepseek. |
-| `server` | empty | Connected mode: the Speccy server that reviews the files with its models. Empty: mode and server in .speccy.yaml, else standalone. |
-| `token` | empty | Connected mode: a personal API token for the server. |
 | `version` | `latest` | The Speccy release to run, such as v0.1.0. |
 | `github-token` | `${{ github.token }}` | The token that posts comments and checks. It needs pull-requests and checks write permissions. |

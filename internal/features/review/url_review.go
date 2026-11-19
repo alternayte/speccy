@@ -92,6 +92,8 @@ type URLItem struct {
 // ReviewPlan reviews each doc of the plan. A doc takes a slot of slots for its review, so one
 // set of slots limits the reviews of many plans together. The docs keep their order.
 func (s *Service) ReviewPlan(ctx context.Context, plan URLPlan, stages Stages, slots chan struct{}) URLReview {
+	// The model calls of the review spend under the repo (docs/specs/hosted-operations.md).
+	ctx = kernel.WithRepo(ctx, plan.Review.Repo)
 	out := plan.Review
 	out.Docs = make([]URLDoc, len(plan.Items))
 	var wg sync.WaitGroup
