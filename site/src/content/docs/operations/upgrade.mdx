@@ -76,13 +76,13 @@ The image is `ghcr.io/alternayte/speccy`. Each release has a tag with its versio
 
 1. Back up the database with `pg_dump`.
 
-2. Stop the old version before the new one starts. Speccy supports one replica, and two versions must not share one database. On Kubernetes, give the deployment the `Recreate` strategy. [Run hosted mode](/how-to/run-hosted-mode/) has a sample.
+2. Stop the old version before the new one starts. Speccy supports one replica, and two versions must not share one database. On Kubernetes, give the deployment the `Recreate` strategy. A review that the stop interrupts runs again on the new version. [Run hosted mode](/how-to/run-hosted-mode/) has a sample.
 
 3. Change the image tag, and deploy.
 
 4. Read the start log. Speccy prints `Speccy (hosted) is listening on` when the migrations are done. When a migration fails, Speccy prints `Speccy did not start:` with the cause, and exits.
 
-5. Check `GET /healthz`. It answers `ok`.
+5. Check `GET /readyz`. It answers `200` when Speccy reaches Postgres and its job workers run. Otherwise it answers `503`.
 
 </Steps>
 

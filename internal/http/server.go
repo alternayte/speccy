@@ -24,6 +24,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/handoff"
 	"github.com/alternayte/speccy/internal/features/inbox"
 	"github.com/alternayte/speccy/internal/features/insights"
+	"github.com/alternayte/speccy/internal/features/notify"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/prreview"
 	"github.com/alternayte/speccy/internal/features/questions"
@@ -60,6 +61,7 @@ type API struct {
 	*VerifyAPI
 	*PrReviewAPI
 	*BreakdownAPI
+	*NotifyAPI
 }
 
 // The aliases give each embedded feature API its own field name.
@@ -81,6 +83,7 @@ type (
 	VerifyAPI    = verify.API
 	PrReviewAPI  = prreview.API
 	BreakdownAPI = breakdown.API
+	NotifyAPI    = notify.API
 )
 
 // Core serves the operations that belong to no feature.
@@ -108,7 +111,15 @@ type Options struct {
 	// GitHubApp serves the GitHub App's routes in hosted mode: the webhook, which its
 	// signature authenticates, and the manifest and install redirects, which get the actor.
 	GitHubApp *GitHubAppRoutes
+	// Ready reports whether the server can serve: its store answers and its workers run.
+	// /readyz answers 503 when it fails. Nil: /readyz answers as /healthz.
+	Ready func(ctx context.Context) error
+	// Queues is River UI, mounted at QueuesPath for admins only (docs/specs/hosted-operations.md).
+	Queues nethttp.Handler
 }
+
+// QueuesPath is where River UI is served.
+const QueuesPath = "/admin/queues"
 
 // GitHubAppRoutes are the browser and webhook routes of the GitHub App
 // (docs/specs/github-app.md). They are not in the OpenAPI document: GitHub calls them, with
@@ -132,6 +143,30 @@ func Handler(spa fs.FS, a API, opts Options) nethttp.Handler {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok\n"))
 	})
+	mux.HandleFunc("GET /readyz", func(w nethttp.ResponseWriter, r *nethttp.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		if opts.Ready != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+			defer cancel()
+			if err := opts.Ready(ctx); err != nil {
+				w.WriteHeader(nethttp.StatusServiceUnavailable)
+				_, _ = w.Write([]byte("not ready: " + err.Error() + "\n"))
+				return
+			}
+		}
+		_, _ = w.Write([]byte("ok\n"))
+	})
+	if opts.Queues != nil {
+		admin := opts.Actor(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			if !kernel.ActorFrom(r.Context()).IsAdmin() {
+				writeProblem(w, nethttp.StatusForbidden, "forbidden", "Only an admin sees the queues.")
+				return
+			}
+			opts.Queues.ServeHTTP(w, r)
+		}))
+		mux.Handle(QueuesPath, admin)
+		mux.Handle(QueuesPath+"/", admin)
+	}
 	strict := api.NewStrictHandlerWithOptions(a, []api.StrictMiddlewareFunc{opts.Authz.Middleware}, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w nethttp.ResponseWriter, _ *nethttp.Request, err error) {
 			writeProblem(w, nethttp.StatusBadRequest, "bad_request", err.Error())

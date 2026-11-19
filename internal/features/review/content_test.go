@@ -50,7 +50,8 @@ func TestReviewContent_NotSaved(t *testing.T) {
 	}
 }
 
-// POST /reviews keeps the files and the result, so connected mode links to a report (SDD
+// POST /reviews queues the review, and GET /reviews/{id} gives its result. It keeps the files
+// and the result, so the CLI links to a report (SDD
 // §12.4). A stored review older than 90 days is removed on the next review.
 func TestReviewContent_StoredReport(t *testing.T) {
 	for _, e := range storetest.Engines() {
@@ -65,13 +66,29 @@ func TestReviewContent_StoredReport(t *testing.T) {
 				t.Fatal(err)
 			}
 			reviews := &review.API{DB: db, Workspace: ws, Service: en.reviews}
+			reviews.RegisterJobs()
 			lint := []api.ContentReviewRequestStages{}
 			res, err := reviews.ReviewContent(ctx, api.ReviewContentRequestObject{Body: &api.ContentReviewRequest{
 				Slug: ptr("pay"), Stages: &lint, Files: []api.ContentFile{{Path: "SPEC.md", Content: groundedSDD}}}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			out := res.(api.ReviewContent200JSONResponse)
+			queued := res.(api.ReviewContent202JSONResponse)
+			if queued.Status != api.ReviewRequestStatusQueued {
+				t.Fatalf("status %s, want queued", queued.Status)
+			}
+			if ran, err := en.reviews.Queue.RunNext(ctx); !ran || err != nil {
+				t.Fatalf("run the job: ran %v, err %v", ran, err)
+			}
+			got, err := reviews.GetReviewRequest(ctx, api.GetReviewRequestRequestObject{ReviewId: queued.Id})
+			if err != nil {
+				t.Fatal(err)
+			}
+			done := got.(api.GetReviewRequest200JSONResponse)
+			if done.Status != api.ReviewRequestStatusComplete || done.Content == nil {
+				t.Fatalf("status %s, error %v, want complete with the content review", done.Status, done.Error)
+			}
+			out := *done.Content
 			if out.ReportPath != "/reviews/"+out.Id.String() {
 				t.Errorf("report_path = %q", out.ReportPath)
 			}

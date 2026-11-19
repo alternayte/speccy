@@ -387,9 +387,17 @@ export type Settings = {
      */
     resolve_sources?: boolean;
     /**
-     * REQ-105. Model calls at a time per run. Default 4.
+     * REQ-105. Model calls at a time per run. Default 8.
      */
     parallel_calls: number;
+    /**
+     * Reviews at a time in the interactive queue, the reviews and answers a person waits for. Default 3.
+     */
+    reviews_interactive?: number;
+    /**
+     * Reviews at a time in the pr queue, the pull request reviews of the GitHub App. Default 2.
+     */
+    reviews_pr?: number;
 };
 
 /**
@@ -1620,6 +1628,26 @@ export type UrlReviewRequest = {
     stages?: Array<'rubric' | 'grounding' | 'divergence' | 'coherence'>;
 };
 
+/**
+ * A review that a job runs. Poll it until its status is complete or failed.
+ */
+export type ReviewRequest = {
+    id: string;
+    kind: 'content' | 'url';
+    status: 'queued' | 'running' | 'complete' | 'failed';
+    /**
+     * The stage that runs now, while the status is running.
+     */
+    stage?: string;
+    /**
+     * Why the review failed, when the status is failed.
+     */
+    error?: string;
+    content?: ContentReview;
+    url?: UrlReview;
+    created_at: string;
+};
+
 export type UrlReview = {
     /**
      * The repo, as owner/name.
@@ -1787,6 +1815,11 @@ export type GithubApp = {
      * The App comes from the SPECCY_GITHUB_APP_ variables, so the UI cannot change it.
      */
     from_env: boolean;
+    /**
+     * What the installation lacks for pull request reviews and the other features, such as "checks: write" or "event issue_comment". GitHub cannot change an existing App by API, so its owner adds them on the settings page.
+     *
+     */
+    missing?: Array<string>;
 };
 
 export type Setup = {
@@ -2579,8 +2612,53 @@ export type Budget = {
      * YYYY-MM, in UTC.
      */
     month: string;
+    /**
+     * The interactive queue's limit.
+     */
+    token_limit?: number;
+    /**
+     * The interactive queue's use.
+     */
+    tokens_used: number;
+    /**
+     * The limit and use of each queue (docs/specs/hosted-operations.md).
+     */
+    queues: Array<QueueBudget>;
+    /**
+     * This month's spend by queue, person and repo, largest first.
+     */
+    spend: Array<Spend>;
+};
+
+export type NotifyWebhook = {
+    configured: boolean;
+    kind?: 'slack' | 'teams';
+    url_last4?: string;
+    /**
+     * SPECCY_NOTIFY_WEBHOOK_URL sets the webhook, so the UI cannot change it.
+     */
+    from_env: boolean;
+};
+
+export type QueueBudget = {
+    queue: 'interactive' | 'pr';
     token_limit?: number;
     tokens_used: number;
+};
+
+export type Spend = {
+    queue: 'interactive' | 'pr';
+    /**
+     * The user ID of the person, or "app" for the GitHub App.
+     */
+    actor: string;
+    actor_name?: string;
+    /**
+     * The GitHub repo as owner/name, or empty when the work named none.
+     */
+    repo: string;
+    tokens: number;
+    cost_usd: number;
 };
 
 export type BundleList = {
@@ -4683,12 +4761,39 @@ export type ReviewContentError = ReviewContentErrors[keyof ReviewContentErrors];
 
 export type ReviewContentResponses = {
     /**
-     * The findings and the verdict.
+     * The review is queued.
      */
-    200: ContentReview;
+    202: ReviewRequest;
 };
 
 export type ReviewContentResponse = ReviewContentResponses[keyof ReviewContentResponses];
+
+export type GetReviewRequestData = {
+    body?: never;
+    path: {
+        reviewId: string;
+    };
+    query?: never;
+    url: '/reviews/{reviewId}';
+};
+
+export type GetReviewRequestErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetReviewRequestError = GetReviewRequestErrors[keyof GetReviewRequestErrors];
+
+export type GetReviewRequestResponses = {
+    /**
+     * The review.
+     */
+    200: ReviewRequest;
+};
+
+export type GetReviewRequestResponse = GetReviewRequestResponses[keyof GetReviewRequestResponses];
 
 export type FindCheckConflictsData = {
     body: CheckConflictsRequest;
@@ -4733,9 +4838,9 @@ export type ReviewUrlError = ReviewUrlErrors[keyof ReviewUrlErrors];
 
 export type ReviewUrlResponses = {
     /**
-     * The repo, the commit, and the review of each spec doc.
+     * The review is queued. GET /reviews/{reviewId} gives the repo, the commit, and the review of each spec doc when it is complete.
      */
-    200: UrlReview;
+    202: ReviewRequest;
 };
 
 export type ReviewUrlResponse = ReviewUrlResponses[keyof ReviewUrlResponses];
@@ -7395,6 +7500,118 @@ export type DiscardDraftResponses = {
 
 export type DiscardDraftResponse = DiscardDraftResponses[keyof DiscardDraftResponses];
 
+export type DeleteNotificationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/notifications';
+};
+
+export type DeleteNotificationsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteNotificationsError = DeleteNotificationsErrors[keyof DeleteNotificationsErrors];
+
+export type DeleteNotificationsResponses = {
+    /**
+     * Removed.
+     */
+    204: void;
+};
+
+export type DeleteNotificationsResponse = DeleteNotificationsResponses[keyof DeleteNotificationsResponses];
+
+export type GetNotificationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/notifications';
+};
+
+export type GetNotificationsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetNotificationsError = GetNotificationsErrors[keyof GetNotificationsErrors];
+
+export type GetNotificationsResponses = {
+    /**
+     * The webhook, with the last 4 characters of its URL.
+     */
+    200: NotifyWebhook;
+};
+
+export type GetNotificationsResponse = GetNotificationsResponses[keyof GetNotificationsResponses];
+
+export type SetNotificationsData = {
+    body: {
+        kind: 'slack' | 'teams';
+        /**
+         * The incoming webhook URL, https.
+         */
+        url: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/admin/notifications';
+};
+
+export type SetNotificationsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type SetNotificationsError = SetNotificationsErrors[keyof SetNotificationsErrors];
+
+export type SetNotificationsResponses = {
+    /**
+     * The webhook.
+     */
+    200: NotifyWebhook;
+};
+
+export type SetNotificationsResponse = SetNotificationsResponses[keyof SetNotificationsResponses];
+
+export type TestNotificationsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/notifications/test';
+};
+
+export type TestNotificationsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type TestNotificationsError = TestNotificationsErrors[keyof TestNotificationsErrors];
+
+export type TestNotificationsResponses = {
+    /**
+     * The answer of the webhook.
+     */
+    200: {
+        /**
+         * The HTTP status, or 0 when the webhook did not answer.
+         */
+        status: number;
+        error?: string;
+    };
+};
+
+export type TestNotificationsResponse = TestNotificationsResponses[keyof TestNotificationsResponses];
+
 export type GetBudgetData = {
     body?: never;
     path?: never;
@@ -7422,6 +7639,10 @@ export type GetBudgetResponse = GetBudgetResponses[keyof GetBudgetResponses];
 
 export type SetBudgetData = {
     body: {
+        /**
+         * The queue whose limit this sets. Default interactive.
+         */
+        queue?: 'interactive' | 'pr';
         /**
          * Leave it out for no limit.
          */

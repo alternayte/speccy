@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/alternayte/speccy/db/dbtype"
@@ -40,7 +41,27 @@ func (s *Service) cached(ctx context.Context, k cacheKey, out any) (bool, error)
 	if err != nil {
 		return false, err
 	}
+	// The entry stays while reviews read it (docs/specs/hosted-operations.md). A failed touch
+	// costs at most an early prune, so it does not fail the review.
+	now := time.Now().UTC()
+	_ = s.DB.Queries().TouchCache(ctx, pgdb.TouchCacheParams{KeyHash: k.hash(), Now: now, Stale: now.Add(-24 * time.Hour)})
 	return json.Unmarshal(raw, out) == nil, nil
+}
+
+// CacheDays is how long a cache entry that no review reads stays.
+const CacheDays = 90
+
+// JobKindPruneCache is the daily job that deletes the cache entries no review read for
+// CacheDays.
+const JobKindPruneCache = "prune_cache"
+
+// PruneCache deletes the cache entries no review read for CacheDays.
+func (s *Service) PruneCache(ctx context.Context, _ []byte) error {
+	n, err := s.DB.Queries().PruneCache(ctx, time.Now().UTC().AddDate(0, 0, -CacheDays))
+	if err == nil && n > 0 {
+		slog.InfoContext(ctx, "pruned the review cache", "entries", n)
+	}
+	return err
 }
 
 func (s *Service) putCache(ctx context.Context, k cacheKey, v any) error {

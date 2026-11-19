@@ -168,7 +168,7 @@ func TestStageSubsetKeepsTheOtherStages(t *testing.T) {
 	if _, err := pe.reviews.StartRun(ctx, b, review.Stages{review.StageDivergence}); err != nil {
 		t.Fatal(err)
 	}
-	if ran, err := pe.reviews.RunNext(ctx); !ran || err != nil {
+	if ran, err := pe.reviews.Queue.RunNext(ctx); !ran || err != nil {
 		t.Fatalf("run the job: ran %v, err %v", ran, err)
 	}
 	ids, v := pe.current(t, "pay")
@@ -199,7 +199,7 @@ func TestAReviewOfAnOldVersionReachesTheCurrentVerdict(t *testing.T) {
 		t.Fatal(err)
 	}
 	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "with the order ID", "with the order ID and the time", 1))
-	if ran, err := pe.reviews.RunNext(ctx); !ran || err != nil {
+	if ran, err := pe.reviews.Queue.RunNext(ctx); !ran || err != nil {
 		t.Fatalf("run the job: ran %v, err %v", ran, err)
 	}
 	_, v := pe.current(t, "pay")

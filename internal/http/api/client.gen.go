@@ -148,19 +148,19 @@ type ClientInterface interface {
 	// Corresponds with POST /admin/backends/{backendId}/test (the `TestBackend` operationId).
 	TestBackend(ctx context.Context, backendId BackendId, body TestBackendJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetBudget Get this month's token budget and use (REQ-104).
+	// GetBudget Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
 	//
 	// Corresponds with GET /admin/budget (the `GetBudget` operationId).
 	GetBudget(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// SetBudgetWithBody Set the monthly token limit. No limit means no budget.
+	// SetBudgetWithBody Set the monthly token limit of one queue. No limit means no budget.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with PUT /admin/budget (the `SetBudget` operationId).
 	SetBudgetWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// SetBudget Set the monthly token limit. No limit means no budget.
+	// SetBudget Set the monthly token limit of one queue. No limit means no budget.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -276,6 +276,35 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /admin/mcp/{connectionId}/tools (the `ListMCPTools` operationId).
 	ListMCPTools(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteNotifications Remove the channel webhook. Speccy then posts nothing.
+	//
+	// Corresponds with DELETE /admin/notifications (the `DeleteNotifications` operationId).
+	DeleteNotifications(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNotifications The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+	//
+	// Corresponds with GET /admin/notifications (the `GetNotifications` operationId).
+	GetNotifications(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetNotificationsWithBody Set the channel webhook. The URL is a secret, stored encrypted.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+	SetNotificationsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetNotifications Set the channel webhook. The URL is a secret, stored encrypted.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+	SetNotifications(ctx context.Context, body SetNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestNotifications Post one test message to the channel webhook, and give the HTTP status it answered with.
+	//
+	// Corresponds with POST /admin/notifications/test (the `TestNotifications` operationId).
+	TestNotifications(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	//
@@ -1269,33 +1298,38 @@ type ClientInterface interface {
 	// Corresponds with POST /render (the `RenderMarkdown` operationId).
 	RenderMarkdown(ctx context.Context, body RenderMarkdownJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReviewContentWithBody Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+	// ReviewContentWithBody Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+	// ReviewContent Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContent(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReviewUrlWithBody Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// ReviewUrlWithBody Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
 	ReviewUrlWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// ReviewUrl Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
 	ReviewUrl(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetReviewRequest The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+	//
+	// Corresponds with GET /reviews/{reviewId} (the `GetReviewRequest` operationId).
+	GetReviewRequest(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	//
@@ -1702,7 +1736,7 @@ func (c *Client) TestBackend(ctx context.Context, backendId BackendId, body Test
 	return c.Client.Do(req)
 }
 
-// GetBudget Get this month's token budget and use (REQ-104).
+// GetBudget Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
 //
 // Corresponds with GET /admin/budget (the `GetBudget` operationId).
 func (c *Client) GetBudget(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1717,7 +1751,7 @@ func (c *Client) GetBudget(ctx context.Context, reqEditors ...RequestEditorFn) (
 	return c.Client.Do(req)
 }
 
-// SetBudgetWithBody Set the monthly token limit. No limit means no budget.
+// SetBudgetWithBody Set the monthly token limit of one queue. No limit means no budget.
 //
 // Takes any type of body and a specified content type.
 //
@@ -1734,7 +1768,7 @@ func (c *Client) SetBudgetWithBody(ctx context.Context, contentType string, body
 	return c.Client.Do(req)
 }
 
-// SetBudget Set the monthly token limit. No limit means no budget.
+// SetBudget Set the monthly token limit of one queue. No limit means no budget.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2031,6 +2065,85 @@ func (c *Client) UpdateMCPConnection(ctx context.Context, connectionId Connectio
 // Corresponds with GET /admin/mcp/{connectionId}/tools (the `ListMCPTools` operationId).
 func (c *Client) ListMCPTools(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListMCPToolsRequest(c.Server, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteNotifications Remove the channel webhook. Speccy then posts nothing.
+//
+// Corresponds with DELETE /admin/notifications (the `DeleteNotifications` operationId).
+func (c *Client) DeleteNotifications(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteNotificationsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetNotifications The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+//
+// Corresponds with GET /admin/notifications (the `GetNotifications` operationId).
+func (c *Client) GetNotifications(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNotificationsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetNotificationsWithBody Set the channel webhook. The URL is a secret, stored encrypted.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+func (c *Client) SetNotificationsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetNotificationsRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetNotifications Set the channel webhook. The URL is a secret, stored encrypted.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+func (c *Client) SetNotifications(ctx context.Context, body SetNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetNotificationsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// TestNotifications Post one test message to the channel webhook, and give the HTTP status it answered with.
+//
+// Corresponds with POST /admin/notifications/test (the `TestNotifications` operationId).
+func (c *Client) TestNotifications(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestNotificationsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -4593,7 +4706,7 @@ func (c *Client) RenderMarkdown(ctx context.Context, body RenderMarkdownJSONRequ
 	return c.Client.Do(req)
 }
 
-// ReviewContentWithBody Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+// ReviewContentWithBody Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4610,7 +4723,7 @@ func (c *Client) ReviewContentWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+// ReviewContent Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -4627,7 +4740,7 @@ func (c *Client) ReviewContent(ctx context.Context, body ReviewContentJSONReques
 	return c.Client.Do(req)
 }
 
-// ReviewUrlWithBody Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+// ReviewUrlWithBody Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4644,13 +4757,28 @@ func (c *Client) ReviewUrlWithBody(ctx context.Context, contentType string, body
 	return c.Client.Do(req)
 }
 
-// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+// ReviewUrl Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 //
 // Takes a body of the `application/json` content type.
 //
 // Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
 func (c *Client) ReviewUrl(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReviewUrlRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetReviewRequest The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+//
+// Corresponds with GET /reviews/{reviewId} (the `GetReviewRequest` operationId).
+func (c *Client) GetReviewRequest(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetReviewRequestRequest(c.Server, reviewId)
 	if err != nil {
 		return nil, err
 	}
@@ -6061,6 +6189,127 @@ func NewListMCPToolsRequest(server string, connectionId ConnectionId) (*http.Req
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteNotificationsRequest constructs an http.Request for the DeleteNotifications method
+func NewDeleteNotificationsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/notifications")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetNotificationsRequest constructs an http.Request for the GetNotifications method
+func NewGetNotificationsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/notifications")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetNotificationsRequest calls the generic SetNotifications builder with application/json body
+func NewSetNotificationsRequest(server string, body SetNotificationsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetNotificationsRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewSetNotificationsRequestWithBody constructs an http.Request for the SetNotifications method, with any body, and a specified content type
+func NewSetNotificationsRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/notifications")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTestNotificationsRequest constructs an http.Request for the TestNotifications method
+func NewTestNotificationsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/notifications/test")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -10847,6 +11096,40 @@ func NewReviewUrlRequestWithBody(server string, contentType string, body io.Read
 	return req, nil
 }
 
+// NewGetReviewRequestRequest constructs an http.Request for the GetReviewRequest method
+func NewGetReviewRequestRequest(server string, reviewId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "reviewId", reviewId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/reviews/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetContentReviewReportRequest constructs an http.Request for the GetContentReviewReport method
 func NewGetContentReviewReportRequest(server string, reviewId openapi_types.UUID) (*http.Request, error) {
 	var err error
@@ -12077,21 +12360,21 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /admin/backends/{backendId}/test (the `TestBackend` operationId).
 	TestBackendWithResponse(ctx context.Context, backendId BackendId, body TestBackendJSONRequestBody, reqEditors ...RequestEditorFn) (*TestBackendResponse, error)
 
-	// GetBudgetWithResponse Get this month's token budget and use (REQ-104).
+	// GetBudgetWithResponse Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /admin/budget (the `GetBudget` operationId).
 	GetBudgetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBudgetResponse, error)
 
-	// SetBudgetWithBodyWithResponse Set the monthly token limit. No limit means no budget.
+	// SetBudgetWithBodyWithResponse Set the monthly token limit of one queue. No limit means no budget.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PUT /admin/budget (the `SetBudget` operationId).
 	SetBudgetWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetBudgetResponse, error)
 
-	// SetBudgetWithResponse Set the monthly token limit. No limit means no budget.
+	// SetBudgetWithResponse Set the monthly token limit of one queue. No limit means no budget.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -12223,6 +12506,41 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /admin/mcp/{connectionId}/tools (the `ListMCPTools` operationId).
 	ListMCPToolsWithResponse(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*ListMCPToolsResponse, error)
+
+	// DeleteNotificationsWithResponse Remove the channel webhook. Speccy then posts nothing.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/notifications (the `DeleteNotifications` operationId).
+	DeleteNotificationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteNotificationsResponse, error)
+
+	// GetNotificationsWithResponse The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/notifications (the `GetNotifications` operationId).
+	GetNotificationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetNotificationsResponse, error)
+
+	// SetNotificationsWithBodyWithResponse Set the channel webhook. The URL is a secret, stored encrypted.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+	SetNotificationsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetNotificationsResponse, error)
+
+	// SetNotificationsWithResponse Set the channel webhook. The URL is a secret, stored encrypted.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+	SetNotificationsWithResponse(ctx context.Context, body SetNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetNotificationsResponse, error)
+
+	// TestNotificationsWithResponse Post one test message to the channel webhook, and give the HTTP status it answered with.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/notifications/test (the `TestNotifications` operationId).
+	TestNotificationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TestNotificationsResponse, error)
 
 	// ListPresetsWithResponse List the agent CLI presets and whether each CLI is installed (REQ-102).
 	//
@@ -13338,33 +13656,40 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /render (the `RenderMarkdown` operationId).
 	RenderMarkdownWithResponse(ctx context.Context, body RenderMarkdownJSONRequestBody, reqEditors ...RequestEditorFn) (*RenderMarkdownResponse, error)
 
-	// ReviewContentWithBodyWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+	// ReviewContentWithBodyWithResponse Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReviewContentResponse, error)
 
-	// ReviewContentWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+	// ReviewContentWithResponse Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /reviews (the `ReviewContent` operationId).
 	ReviewContentWithResponse(ctx context.Context, body ReviewContentJSONRequestBody, reqEditors ...RequestEditorFn) (*ReviewContentResponse, error)
 
-	// ReviewUrlWithBodyWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// ReviewUrlWithBodyWithResponse Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
 	ReviewUrlWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReviewUrlResponse, error)
 
-	// ReviewUrlWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// ReviewUrlWithResponse Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /reviews/url (the `ReviewUrl` operationId).
 	ReviewUrlWithResponse(ctx context.Context, body ReviewUrlJSONRequestBody, reqEditors ...RequestEditorFn) (*ReviewUrlResponse, error)
+
+	// GetReviewRequestWithResponse The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /reviews/{reviewId} (the `GetReviewRequest` operationId).
+	GetReviewRequestWithResponse(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetReviewRequestResponse, error)
 
 	// GetContentReviewReportWithResponse The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	//
@@ -14649,6 +14974,201 @@ func (r ListMCPToolsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListMCPToolsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteNotificationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteNotificationsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteNotificationsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteNotificationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteNotificationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteNotificationsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetNotificationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotifyWebhook
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNotificationsResponse) GetJSON200() *NotifyWebhook {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetNotificationsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNotificationsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNotificationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNotificationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNotificationsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetNotificationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *NotifyWebhook
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetNotificationsResponse) GetJSON200() *NotifyWebhook {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetNotificationsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetNotificationsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetNotificationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetNotificationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetNotificationsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type TestNotificationsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Error *string `json:"error,omitempty"`
+
+		// Status The HTTP status, or 0 when the webhook did not answer.
+		Status int `json:"status"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r TestNotificationsResponse) GetJSON200() *struct {
+	Error *string `json:"error,omitempty"`
+
+	// Status The HTTP status, or 0 when the webhook did not answer.
+	Status int `json:"status"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r TestNotificationsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r TestNotificationsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r TestNotificationsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestNotificationsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r TestNotificationsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -19916,15 +20436,15 @@ func (r RenderMarkdownResponse) ContentType() string {
 type ReviewContentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *ContentReview
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *ReviewRequest
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ReviewContentResponse) GetJSON200() *ContentReview {
-	return r.JSON200
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r ReviewContentResponse) GetJSON202() *ReviewRequest {
+	return r.JSON202
 }
 
 // GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
@@ -19964,15 +20484,15 @@ func (r ReviewContentResponse) ContentType() string {
 type ReviewUrlResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *UrlReview
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *ReviewRequest
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
-// GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r ReviewUrlResponse) GetJSON200() *UrlReview {
-	return r.JSON200
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r ReviewUrlResponse) GetJSON202() *ReviewRequest {
+	return r.JSON202
 }
 
 // GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
@@ -20003,6 +20523,54 @@ func (r ReviewUrlResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ReviewUrlResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetReviewRequestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ReviewRequest
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetReviewRequestResponse) GetJSON200() *ReviewRequest {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetReviewRequestResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetReviewRequestResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetReviewRequestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetReviewRequestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetReviewRequestResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -21469,7 +22037,7 @@ func (c *ClientWithResponses) TestBackendWithResponse(ctx context.Context, backe
 	return ParseTestBackendResponse(rsp)
 }
 
-// GetBudgetWithResponse Get this month's token budget and use (REQ-104).
+// GetBudgetWithResponse Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -21482,7 +22050,7 @@ func (c *ClientWithResponses) GetBudgetWithResponse(ctx context.Context, reqEdit
 	return ParseGetBudgetResponse(rsp)
 }
 
-// SetBudgetWithBodyWithResponse Set the monthly token limit. No limit means no budget.
+// SetBudgetWithBodyWithResponse Set the monthly token limit of one queue. No limit means no budget.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -21495,7 +22063,7 @@ func (c *ClientWithResponses) SetBudgetWithBodyWithResponse(ctx context.Context,
 	return ParseSetBudgetResponse(rsp)
 }
 
-// SetBudgetWithResponse Set the monthly token limit. No limit means no budget.
+// SetBudgetWithResponse Set the monthly token limit of one queue. No limit means no budget.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -21740,6 +22308,71 @@ func (c *ClientWithResponses) ListMCPToolsWithResponse(ctx context.Context, conn
 		return nil, err
 	}
 	return ParseListMCPToolsResponse(rsp)
+}
+
+// DeleteNotificationsWithResponse Remove the channel webhook. Speccy then posts nothing.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/notifications (the `DeleteNotifications` operationId).
+func (c *ClientWithResponses) DeleteNotificationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteNotificationsResponse, error) {
+	rsp, err := c.DeleteNotifications(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteNotificationsResponse(rsp)
+}
+
+// GetNotificationsWithResponse The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/notifications (the `GetNotifications` operationId).
+func (c *ClientWithResponses) GetNotificationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetNotificationsResponse, error) {
+	rsp, err := c.GetNotifications(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNotificationsResponse(rsp)
+}
+
+// SetNotificationsWithBodyWithResponse Set the channel webhook. The URL is a secret, stored encrypted.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+func (c *ClientWithResponses) SetNotificationsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetNotificationsResponse, error) {
+	rsp, err := c.SetNotificationsWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetNotificationsResponse(rsp)
+}
+
+// SetNotificationsWithResponse Set the channel webhook. The URL is a secret, stored encrypted.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/notifications (the `SetNotifications` operationId).
+func (c *ClientWithResponses) SetNotificationsWithResponse(ctx context.Context, body SetNotificationsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetNotificationsResponse, error) {
+	rsp, err := c.SetNotifications(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetNotificationsResponse(rsp)
+}
+
+// TestNotificationsWithResponse Post one test message to the channel webhook, and give the HTTP status it answered with.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/notifications/test (the `TestNotifications` operationId).
+func (c *ClientWithResponses) TestNotificationsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*TestNotificationsResponse, error) {
+	rsp, err := c.TestNotifications(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestNotificationsResponse(rsp)
 }
 
 // ListPresetsWithResponse List the agent CLI presets and whether each CLI is installed (REQ-102).
@@ -23792,7 +24425,7 @@ func (c *ClientWithResponses) RenderMarkdownWithResponse(ctx context.Context, bo
 	return ParseRenderMarkdownResponse(rsp)
 }
 
-// ReviewContentWithBodyWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+// ReviewContentWithBodyWithResponse Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23805,7 +24438,7 @@ func (c *ClientWithResponses) ReviewContentWithBodyWithResponse(ctx context.Cont
 	return ParseReviewContentResponse(rsp)
 }
 
-// ReviewContentWithResponse Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+// ReviewContentWithResponse Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23818,7 +24451,7 @@ func (c *ClientWithResponses) ReviewContentWithResponse(ctx context.Context, bod
 	return ParseReviewContentResponse(rsp)
 }
 
-// ReviewUrlWithBodyWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+// ReviewUrlWithBodyWithResponse Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23831,7 +24464,7 @@ func (c *ClientWithResponses) ReviewUrlWithBodyWithResponse(ctx context.Context,
 	return ParseReviewUrlResponse(rsp)
 }
 
-// ReviewUrlWithResponse Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+// ReviewUrlWithResponse Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23842,6 +24475,19 @@ func (c *ClientWithResponses) ReviewUrlWithResponse(ctx context.Context, body Re
 		return nil, err
 	}
 	return ParseReviewUrlResponse(rsp)
+}
+
+// GetReviewRequestWithResponse The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /reviews/{reviewId} (the `GetReviewRequest` operationId).
+func (c *ClientWithResponses) GetReviewRequestWithResponse(ctx context.Context, reviewId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetReviewRequestResponse, error) {
+	rsp, err := c.GetReviewRequest(ctx, reviewId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetReviewRequestResponse(rsp)
 }
 
 // GetContentReviewReportWithResponse The self-contained HTML report of a review from POST /reviews (SDD §12.4).
@@ -25046,6 +25692,139 @@ func ParseListMCPToolsResponse(rsp *http.Response) (*ListMCPToolsResponse, error
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
 			Items []MCPTool `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteNotificationsResponse parses an HTTP response from a DeleteNotificationsWithResponse call
+func ParseDeleteNotificationsResponse(rsp *http.Response) (*DeleteNotificationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteNotificationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNotificationsResponse parses an HTTP response from a GetNotificationsWithResponse call
+func ParseGetNotificationsResponse(rsp *http.Response) (*GetNotificationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNotificationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotifyWebhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetNotificationsResponse parses an HTTP response from a SetNotificationsWithResponse call
+func ParseSetNotificationsResponse(rsp *http.Response) (*SetNotificationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetNotificationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest NotifyWebhook
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestNotificationsResponse parses an HTTP response from a TestNotificationsWithResponse call
+func ParseTestNotificationsResponse(rsp *http.Response) (*TestNotificationsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestNotificationsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Error *string `json:"error,omitempty"`
+
+			// Status The HTTP status, or 0 when the webhook did not answer.
+			Status int `json:"status"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
@@ -28678,12 +29457,12 @@ func ParseReviewContentResponse(rsp *http.Response) (*ReviewContentResponse, err
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ContentReview
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest ReviewRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON200 = &dest
+		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
@@ -28711,8 +29490,41 @@ func ParseReviewUrlResponse(rsp *http.Response) (*ReviewUrlResponse, error) {
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest ReviewRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetReviewRequestResponse parses an HTTP response from a GetReviewRequestWithResponse call
+func ParseGetReviewRequestResponse(rsp *http.Response) (*GetReviewRequestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetReviewRequestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest UrlReview
+		var dest ReviewRequest
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

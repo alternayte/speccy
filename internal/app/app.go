@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -19,6 +20,8 @@ import (
 	"github.com/alternayte/speccy/internal/features/handoff"
 	"github.com/alternayte/speccy/internal/features/inbox"
 	"github.com/alternayte/speccy/internal/features/insights"
+	"github.com/alternayte/speccy/internal/features/notify"
+	"github.com/alternayte/speccy/internal/features/prcheck"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/prreview"
 	"github.com/alternayte/speccy/internal/features/questions"
@@ -32,6 +35,7 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/queue"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/sourceresolve"
@@ -47,7 +51,12 @@ type App struct {
 	Admin     *admin.API
 	Share     *share.API
 	PRs       *prreview.API
-	API       speccyhttp.API
+	Queue     *queue.Queue
+	// PRCheck is the GitHub App's pull request review, in hosted mode only.
+	PRCheck *prcheck.Service
+	// Notify posts to the workspace channel. Hosted mode sets its base URL and env webhook.
+	Notify *notify.API
+	API    speccyhttp.API
 }
 
 // Options are what differs between local and hosted mode.
@@ -92,7 +101,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		return nil, err
 	}
 	svc := &bundle.Service{DB: db, Workspace: ws, Local: root}
-	adminAPI := &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway}
+	adminAPI := &admin.API{DB: db, Workspace: ws, Sealer: sealer, Gateway: gateway, People: people}
 	reviews := &review.Service{
 		DB: db, Workspace: ws, Profiles: profiles.Current, Repo: svc.RepoConfig, Decisions: svc.Decisions,
 		Gateway: gateway, Search: adminAPI.SearchSource, Fetch: adminAPI.FetchSource, Progress: review.NewBroker(),
@@ -136,12 +145,25 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	}
 	// A full review that passes a whole-doc check ends the waiver of that check, and one that
 	// fails it again brings the waiver back.
+	// A doc that becomes Build Ready tells the channel (docs/specs/channel-notifications.md).
+	notifyAPI := &notify.API{DB: db, Workspace: ws, Sealer: sealer, People: people}
 	reviews.AfterReview = func(ctx context.Context, b pgdb.SpecDoc) error {
 		cur, err := db.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: ws, ID: b.ID})
 		if err != nil {
 			return err
 		}
+		if becameReady(ctx, db, b.ID) {
+			authors, _ := db.Queries().ListBundleAuthors(ctx, cur.BundleID)
+			notifyAPI.Post(ctx, notify.Notice{Doc: b.ID, Event: "This spec is Build Ready.", People: authors})
+		}
 		return waiver.Invalidate(ctx, db, events, cur, svc.Decisions, profiles.Current)
+	}
+	gateway.Warn = func(ctx context.Context, queue string, used, limit int64) {
+		name := "people's reviews"
+		if queue == kernel.QueuePR {
+			name = "pull request reviews"
+		}
+		notifyAPI.Post(ctx, notify.Notice{Event: fmt.Sprintf("The monthly token budget for %s is at 80%%: %d of %d tokens used. An admin can raise it in Admin → Models.", name, used, limit)})
 	}
 	// Local mode has one user, who asked for the review: a link to an upstream doc on GitHub
 	// adds its source (#97). In hosted mode only an admin adds a source. The bundle API that
@@ -165,28 +187,51 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			return nil, err
 		}
 	}
-	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering}
+	threadAPI := &thread.API{DB: db, ES: events, Workspace: ws, People: people, Ask: reviews.Ask, Answering: reviews.Answering, Notify: notifyAPI.Post}
 	waiverAPI := &waiver.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Change: svc.Change,
-		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions, Solo: root != nil}
+		Decisions: svc.Decisions, SetDecisions: svc.SetDecisions, Solo: root != nil, Notify: notifyAPI.Post}
 	// An Acknowledgement closes at once now: one that waits from before gets its approval.
 	if err := waiverAPI.ApproveWaitingAcknowledgements(ctx); err != nil {
 		return nil, err
 	}
-	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people}
+	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Notify: notifyAPI.Post}
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
 	questionsAPI := &questions.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
 	verifyAPI := &verify.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway,
-		GitHub: reviews.GitHub, Threads: threadAPI, Progress: reviews.Progress, Wake: reviews.Wake, Local: root != nil}
-	// SDD §7.2: one worker runs queued reviews, and the queued verification runs with them.
-	reviews.Jobs = map[string]func(context.Context, []byte) error{verify.JobKind: verifyAPI.Execute}
+		GitHub: reviews.GitHub, Threads: threadAPI, Progress: reviews.Progress, Local: root != nil}
+	// River runs the reviews, the answers and the verifications (docs/specs/hosted-pr-review.md).
+	st := settings(ctx)
+	jobs, err := queue.Open(ctx, db, queue.Config{
+		Workers:     map[string]int{queue.Interactive: st.ReviewsInteractive, queue.PR: st.ReviewsPR},
+		JobTimeout:  review.JobRescueAfter,
+		RescueAfter: review.JobRescueAfter,
+	})
+	if err != nil {
+		return nil, err
+	}
+	reviews.Queue, verifyAPI.Queue = jobs, jobs
+	reviews.RegisterJobs()
+	jobs.Register(verify.JobKind, queue.Interactive, 3, verifyAPI.Execute, verifyAPI.EndOrphan)
+	reviewAPI.RegisterJobs()
+	notifyAPI.Queue = jobs
+	notifyAPI.Register()
+	var prChecks *prcheck.Service
+	if root == nil {
+		// Hosted mode: the GitHub App reviews pull requests (docs/specs/hosted-pr-review.md).
+		prChecks = &prcheck.Service{Reviews: reviews, API: reviewAPI, Queue: jobs, GitHub: adminAPI.GitHubClient, Profiles: profiles.Current}
+		prChecks.Register()
+	}
+	adminAPI.SettingsChanged = func(ctx context.Context, s admin.Settings) {
+		jobs.SetWorkers(ctx, queue.Interactive, s.ReviewsInteractive)
+		jobs.SetWorkers(ctx, queue.PR, s.ReviewsPR)
+	}
 	if root != nil {
 		// One process owns a local state. A job it finds at its start belongs to a process that
 		// stopped, so its run ends now and the doc can be reviewed again at once (#87).
-		if err := reviews.EndOrphans(ctx, map[string]func(context.Context, []byte) error{verify.JobKind: verifyAPI.EndOrphan}); err != nil {
+		if err := jobs.EndOrphans(ctx); err != nil {
 			return nil, err
 		}
 	}
-	go reviews.Work(ctx)
 	breakdownAPI := &breakdown.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway, Reviews: reviews,
 		Questions: reviewAPI, People: people, Connection: adminAPI.ConnectionFor, Hosts: adminAPI.ConnectionHosts,
 		GitHub: reviews.GitHub}
@@ -202,8 +247,12 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		_, err := bundleAPI.AddGithubSource(ctx, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: url}})
 		return err
 	}
+	// The workers start last: an error above leaves no worker on a store that closes.
+	if err := jobs.Start(ctx); err != nil {
+		return nil, err
+	}
 	return &App{
-		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI, PRs: prs,
+		Workspace: ws, Bundles: svc, Profiles: profiles, Reviews: reviews, Admin: adminAPI, Share: shareAPI, PRs: prs, Queue: jobs, PRCheck: prChecks, Notify: notifyAPI,
 		API: speccyhttp.API{
 			Core: speccyhttp.Core{Maintainer: func(ctx context.Context, userID string) bool {
 				ok, _ := db.Queries().IsAnyMaintainer(ctx, pgdb.IsAnyMaintainerParams{WorkspaceID: ws, UserID: userID})
@@ -236,6 +285,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 			VerifyAPI:    verifyAPI,
 			PrReviewAPI:  prs,
 			BreakdownAPI: breakdownAPI,
+			NotifyAPI:    notifyAPI,
 		},
 	}, nil
 }
@@ -246,7 +296,7 @@ func (a *App) Idle(ctx context.Context) (bool, error) {
 	if !a.PRs.Idle() {
 		return false, nil
 	}
-	return a.Reviews.Idle(ctx)
+	return a.Queue.Idle(ctx)
 }
 
 // invalidateWaivers ends the approved waivers of every bundle whose section changed (REQ-074),
@@ -271,4 +321,28 @@ func invalidateWaivers(ctx context.Context, db *store.DB, events *es.Store, ws u
 		}
 	}
 	return nil
+}
+
+// becameReady reports whether the newest full review of a doc is Build Ready and the full
+// review before it was not, so the channel hears once.
+func becameReady(ctx context.Context, db *store.DB, docID uuid.UUID) bool {
+	q := db.Queries()
+	runs, err := q.ListRuns(ctx, pgdb.ListRunsParams{SpecDocID: docID, Before: time.Now().UTC().Add(time.Minute), PageSize: 20})
+	if err != nil {
+		return false
+	}
+	var results []string
+	for _, r := range runs {
+		if r.Kind != "full" || r.Status != "complete" {
+			continue
+		}
+		v, err := q.GetVerdict(ctx, r.ID)
+		if err != nil {
+			continue
+		}
+		if results = append(results, v.Result); len(results) == 2 {
+			break
+		}
+	}
+	return len(results) > 0 && results[0] == "build_ready" && (len(results) == 1 || results[1] != "build_ready")
 }

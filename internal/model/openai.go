@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // openAICompatible calls a chat completions API: OpenAI, OpenRouter, and DeepSeek share it.
@@ -79,7 +80,7 @@ func (b *openAICompatible) Call(ctx context.Context, model string, c Call) (Raw,
 		return Raw{}, err
 	}
 	if resp.StatusCode/100 != 2 {
-		return Raw{}, &StatusError{Status: resp.StatusCode, Message: errorMessage(raw)}
+		return Raw{}, &StatusError{Status: resp.StatusCode, Message: errorMessage(raw), RetryAfter: RetryAfter(resp.Header, time.Now())}
 	}
 	var out struct {
 		Choices []struct {

@@ -14,23 +14,25 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/queue"
 	"github.com/alternayte/speccy/internal/store"
 )
 
 // RunTimeout bounds a full run (REQ-103).
 const RunTimeout = 15 * time.Minute
 
-// jobLock is how long a claimed job stays locked; a worker that dies frees it after this.
-const jobLock = RunTimeout + 5*time.Minute
+// JobRescueAfter is how long a job may stay running before River gives it to a worker again:
+// the process that ran it stopped with no chance to say so.
+const JobRescueAfter = RunTimeout + 5*time.Minute
 
-const jobKindRun = "review_run"
+// JobKindRun is the job kind of a review run.
+const JobKindRun = "review_run"
 
 // ErrRunActive means the bundle already has a queued or running full run.
 var ErrRunActive = kernel.Conflict("run_active", "A review of this bundle is already running. Wait for it to finish.")
@@ -134,101 +136,65 @@ func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (
 		}); err != nil {
 			return err
 		}
-		return tq.InsertJob(ctx, pgdb.InsertJobParams{ID: kernel.NewID(), WorkspaceID: s.Workspace, Kind: jobKindRun, Payload: dbtype.JSON(payload), CreatedAt: now})
+		_, err := s.Queue.Insert(ctx, &tx, JobKindRun, payload, nil)
+		return err
 	})
 	if err != nil {
 		return pgdb.ReviewRun{}, err
 	}
 	s.Progress.Publish(run.ID, Event{Type: "stage", Stage: "queued"})
-	s.notify()
 	return run, nil
 }
 
-func (s *Service) wakeChan() chan struct{} {
-	s.wakeMu.Lock()
-	defer s.wakeMu.Unlock()
-	if s.wake == nil {
-		s.wake = make(chan struct{}, 1)
-	}
-	return s.wake
+// RegisterJobs registers the review and answer jobs on s.Queue.
+func (s *Service) RegisterJobs() {
+	s.Queue.Register(JobKindRun, queue.Interactive, 3, s.HandleRun, s.EndOrphanRun)
+	s.Queue.Register(JobKindAnswer, queue.Interactive, 1, s.HandleAnswer, nil)
+	s.Queue.Register(JobKindPruneCache, queue.Interactive, 1, s.PruneCache, nil)
+	s.Queue.Every(JobKindPruneCache, 24*time.Hour)
 }
 
-// Wake tells the worker that a job is queued.
-func (s *Service) Wake() { s.notify() }
-
-func (s *Service) notify() {
-	select {
-	case s.wakeChan() <- struct{}{}:
-	default:
-	}
-}
-
-// Work runs queued jobs until ctx ends. SDD §7.2: one worker; Postgres claims with
-// SKIP LOCKED, so a second process would not take the same job.
-func (s *Service) Work(ctx context.Context) {
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		ran, err := s.RunNext(ctx)
-		if err != nil && ctx.Err() == nil {
-			slog.Error("review job failed", "err", err)
-		}
-		if ran {
-			continue
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.wakeChan():
-		case <-time.After(2 * time.Second):
-		}
-	}
-}
-
-// RunNext claims and runs one job. ran is false when the queue is empty.
-func (s *Service) RunNext(ctx context.Context) (ran bool, err error) {
-	now := time.Now().UTC()
-	job, err := s.DB.Queries().ClaimJob(ctx, pgdb.ClaimJobParams{LockUntil: sql.NullTime{Time: now.Add(jobLock), Valid: true}, Now: sql.NullTime{Time: now, Valid: true}})
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
+// HandleRun is the handler of a review job. A run that cannot finish ends as failed, with
+// its cause, so the doc can be reviewed again. A job whose context ends, because the process
+// stops or the job was cancelled, leaves its run for River to try again or for EndOrphan.
+func (s *Service) HandleRun(ctx context.Context, payload []byte) error {
 	var p runJob
-	var runErr error
-	if h, ok := s.Jobs[job.Kind]; ok {
-		runErr = h(ctx, job.Payload)
-	} else if runErr = json.Unmarshal(job.Payload, &p); runErr == nil {
-		switch job.Kind {
-		case jobKindAnswer:
-			runErr = s.answerThread(ctx, uuidOf(p.ThreadID))
-		default:
-			runErr = s.execute(ctx, p.RunID, p.Stages)
-		}
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return nil //nolint:nilerr // a payload that does not parse names no run
 	}
-	status, msg := "done", ""
-	if runErr != nil {
-		status, msg = "failed", runErr.Error()
-		// execute ends its run itself when a stage fails. An error from it means the run has
-		// no end yet, for example a store error at its first read. A run left queued or running
-		// would refuse every later review of the doc.
-		if job.Kind == jobKindRun && json.Unmarshal(job.Payload, &p) == nil && p.RunID != "" {
-			cause := "The review stopped before it ended: " + strings.TrimSuffix(msg, ".")
-			if err := s.DB.Queries().FailActiveRun(context.WithoutCancel(ctx), pgdb.FailActiveRunParams{
-				ID: uuidOf(p.RunID), Error: cause, FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
-			}); err != nil {
-				slog.Error("end the run of a failed job", "run", p.RunID, "err", err)
-			}
-			s.Progress.Publish(uuidOf(p.RunID), Event{Type: "failed", Message: cause})
-		}
+	err := s.execute(ctx, p.RunID, p.Stages)
+	if err == nil || ctx.Err() != nil {
+		return err
 	}
-	// A job's own failure is stored on its run; the job only records that it ended.
-	if err := s.DB.Queries().FinishJob(context.WithoutCancel(ctx), pgdb.FinishJobParams{ID: job.ID, Status: status, LastError: msg}); err != nil {
-		return true, err
+	return s.EndFailedRun(ctx, payload, err)
+}
+
+// EndFailedRun ends the run of a review job that returned err before the run reached an end,
+// for example a store error at its first read. A run left queued or running would refuse
+// every later review of the doc.
+func (s *Service) EndFailedRun(ctx context.Context, payload []byte, err error) error {
+	var p runJob
+	if json.Unmarshal(payload, &p) != nil || p.RunID == "" {
+		return nil //nolint:nilerr // a payload that names no run leaves no run to end
 	}
-	return true, runErr
+	cause := "The review stopped before it ended: " + strings.TrimSuffix(err.Error(), ".")
+	if err := s.DB.Queries().FailActiveRun(context.WithoutCancel(ctx), pgdb.FailActiveRunParams{
+		ID: uuidOf(p.RunID), Error: cause, FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
+	}); err != nil {
+		return err
+	}
+	s.Progress.Publish(uuidOf(p.RunID), Event{Type: "failed", Message: cause})
+	return nil
+}
+
+// EndOrphanRun ends the run of a review job that no process runs any more.
+func (s *Service) EndOrphanRun(ctx context.Context, payload []byte) error {
+	var p runJob
+	if json.Unmarshal(payload, &p) != nil || p.RunID == "" {
+		return nil //nolint:nilerr // a payload that names no run leaves no run to end
+	}
+	return s.DB.Queries().FailActiveRun(ctx, pgdb.FailActiveRunParams{ID: uuidOf(p.RunID), Error: StoppedCause,
+		FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}})
 }
 
 // runJob is the payload of a review job: the run and its stages, or a thread to answer.
@@ -257,6 +223,11 @@ func (s *Service) execute(parent context.Context, runIDText string, stages Stage
 	}
 	stage := StageLint
 	fail := func(cause error) error {
+		// The process stops or the job was cancelled: the run stays for River to try again,
+		// or for EndOrphanRun.
+		if parent.Err() != nil {
+			return parent.Err()
+		}
 		msg := cause.Error()
 		if ke, ok := kernel.AsError(cause); ok {
 			msg = ke.Detail

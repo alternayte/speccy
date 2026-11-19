@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 )
 
 // Fake answers from a script (BUILD §5). Tests never call a real model.
@@ -13,6 +14,7 @@ import (
 //
 //	"!timeout"  wait until the call's deadline
 //	"!429"      HTTP 429
+//	"!429wait"  HTTP 429 with retry-after 100ms
 //	"!500"      HTTP 500
 //	"!invalid"  text that is not JSON
 type Fake struct {
@@ -59,6 +61,8 @@ func (f *Fake) Call(ctx context.Context, _ string, c Call) (Raw, error) {
 		return Raw{}, ctx.Err()
 	case "!429":
 		return Raw{}, &StatusError{Status: 429, Message: "rate limited (fake)"}
+	case "!429wait":
+		return Raw{}, &StatusError{Status: 429, Message: "rate limited (fake)", RetryAfter: 100 * time.Millisecond}
 	case "!500":
 		return Raw{}, &StatusError{Status: 500, Message: "server error (fake)"}
 	case "!invalid":

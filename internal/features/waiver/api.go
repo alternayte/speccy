@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/es"
+	"github.com/alternayte/speccy/internal/features/notify"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
@@ -32,9 +34,12 @@ type API struct {
 	DB        *store.DB
 	ES        *es.Store
 	Workspace uuid.UUID
-	Profiles  func() map[string]profile.Versioned
-	People    kernel.Directory
-	Change    Change
+	// Notify tells the workspace channel about a step someone must act on
+	// (docs/specs/channel-notifications.md). Nil posts nothing.
+	Notify   func(ctx context.Context, n notify.Notice)
+	Profiles func() map[string]profile.Versioned
+	People   kernel.Directory
+	Change   Change
 	// Decisions reads a bundle's sidecar, and SetDecisions writes it (DEC-009).
 	Decisions    func(ctx context.Context, b pgdb.SpecDoc) (source.Decisions, error)
 	SetDecisions func(ctx context.Context, b pgdb.SpecDoc, d source.Decisions, by, message string) error
@@ -59,6 +64,21 @@ func PolicyFor(p profile.Profile, check string, level kernel.Level) profile.Poli
 
 func (a *API) bundle(ctx context.Context, id uuid.UUID) (pgdb.SpecDoc, error) {
 	return a.DB.Queries().GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: a.Workspace, ID: id})
+}
+
+// approvers are the people a waiver with policy p waits for, when the policy names them: the
+// maintainers of the profile. Other policies let many people approve, so they name nobody.
+func (a *API) approvers(ctx context.Context, b pgdb.SpecDoc, p profile.Policy) []string {
+	if p.Name != "maintainer" {
+		return nil
+	}
+	q := a.DB.Queries()
+	prof, err := q.GetProfileByKey(ctx, pgdb.GetProfileByKeyParams{WorkspaceID: a.Workspace, Key: b.ProfileKey})
+	if err != nil {
+		return nil
+	}
+	ids, _ := q.ListProfileMaintainers(ctx, prof.ID)
+	return ids
 }
 
 // approver is the actor as an approver of a waiver on b.
@@ -210,6 +230,10 @@ func (a *API) RequestWaiver(ctx context.Context, req api.RequestWaiverRequestObj
 	}
 	if _, err := es.Run(ctx, a.ES, StreamType, r.ID, func(s State) ([]es.Event, error) { return DecideRequest(s, r) }, Evolve); err != nil {
 		return nil, err
+	}
+	if s.Status != StatusApproved && a.Notify != nil {
+		a.Notify(ctx, notify.Notice{Doc: b.ID, Actor: r.By, Event: fmt.Sprintf("asks for a waiver of %s.", r.Check),
+			People: a.approvers(ctx, b, r.Policy)})
 	}
 	w, err := a.waiver(ctx, r.ID)
 	if err != nil {

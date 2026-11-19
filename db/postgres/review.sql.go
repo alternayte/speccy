@@ -28,6 +28,44 @@ func (q *Queries) DeleteContentReviewsBefore(ctx context.Context, arg DeleteCont
 	return err
 }
 
+const deleteReviewRequestsBefore = `-- name: DeleteReviewRequestsBefore :exec
+DELETE FROM review_request WHERE workspace_id = $1 AND created_at < $2
+`
+
+type DeleteReviewRequestsBeforeParams struct {
+	WorkspaceID uuid.UUID
+	Before      time.Time
+}
+
+func (q *Queries) DeleteReviewRequestsBefore(ctx context.Context, arg DeleteReviewRequestsBeforeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteReviewRequestsBefore, arg.WorkspaceID, arg.Before)
+	return err
+}
+
+const finishReviewRequest = `-- name: FinishReviewRequest :exec
+UPDATE review_request SET status = $1, result = $2, error = $3, finished_at = $4
+WHERE id = $5
+`
+
+type FinishReviewRequestParams struct {
+	Status     string
+	Result     dbtype.JSON
+	Error      string
+	FinishedAt sql.NullTime
+	ID         uuid.UUID
+}
+
+func (q *Queries) FinishReviewRequest(ctx context.Context, arg FinishReviewRequestParams) error {
+	_, err := q.db.ExecContext(ctx, finishReviewRequest,
+		arg.Status,
+		arg.Result,
+		arg.Error,
+		arg.FinishedAt,
+		arg.ID,
+	)
+	return err
+}
+
 const getContentReview = `-- name: GetContentReview :one
 SELECT id, workspace_id, slug, title, main_doc, profile_key, profile_version, files, result, created_by, created_at FROM content_review WHERE workspace_id = $1 AND id = $2
 `
@@ -98,6 +136,33 @@ func (q *Queries) GetProfileVersion(ctx context.Context, arg GetProfileVersionPa
 		&i.Origin,
 		&i.CreatedBy,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getReviewRequest = `-- name: GetReviewRequest :one
+SELECT id, workspace_id, kind, request, status, result, error, created_by, created_at, finished_at FROM review_request WHERE workspace_id = $1 AND id = $2
+`
+
+type GetReviewRequestParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetReviewRequest(ctx context.Context, arg GetReviewRequestParams) (ReviewRequest, error) {
+	row := q.db.QueryRowContext(ctx, getReviewRequest, arg.WorkspaceID, arg.ID)
+	var i ReviewRequest
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Kind,
+		&i.Request,
+		&i.Status,
+		&i.Result,
+		&i.Error,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.FinishedAt,
 	)
 	return i, err
 }
@@ -286,6 +351,32 @@ func (q *Queries) InsertProfileVersion(ctx context.Context, arg InsertProfileVer
 		arg.Yaml,
 		arg.Template,
 		arg.Origin,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertReviewRequest = `-- name: InsertReviewRequest :exec
+INSERT INTO review_request (id, workspace_id, kind, request, status, created_by, created_at)
+VALUES ($1, $2, $3, $4, 'queued', $5, $6)
+`
+
+type InsertReviewRequestParams struct {
+	ID          uuid.UUID
+	WorkspaceID uuid.UUID
+	Kind        string
+	Request     dbtype.JSON
+	CreatedBy   string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) InsertReviewRequest(ctx context.Context, arg InsertReviewRequestParams) error {
+	_, err := q.db.ExecContext(ctx, insertReviewRequest,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Kind,
+		arg.Request,
 		arg.CreatedBy,
 		arg.CreatedAt,
 	)
@@ -749,5 +840,14 @@ type SetProfileVersionParams struct {
 
 func (q *Queries) SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error {
 	_, err := q.db.ExecContext(ctx, setProfileVersion, arg.Name, arg.CurrentVersion, arg.ID)
+	return err
+}
+
+const startReviewRequest = `-- name: StartReviewRequest :exec
+UPDATE review_request SET status = 'running' WHERE id = $1 AND status IN ('queued', 'running')
+`
+
+func (q *Queries) StartReviewRequest(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, startReviewRequest, id)
 	return err
 }

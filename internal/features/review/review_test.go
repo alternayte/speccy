@@ -10,6 +10,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
+	"github.com/alternayte/speccy/internal/queue"
 	"github.com/alternayte/speccy/internal/source/local"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
@@ -49,6 +50,12 @@ func newEnv(t *testing.T, e storetest.Engine, files map[string]string) *env {
 	en.bundles = &bundle.Service{DB: db, Workspace: ws, Local: root}
 	en.reviews = &review.Service{DB: db, Workspace: ws,
 		Profiles: func() map[string]profile.Versioned { return versions }, Repo: en.bundles.RepoConfig, Decisions: en.bundles.Decisions}
+	jobs, err := queue.Open(ctx, db, queue.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	en.reviews.Queue = jobs
+	en.reviews.RegisterJobs()
 	en.bundles.AfterChange = en.reviews.EnsureLinted
 	if err := en.bundles.Sync(ctx); err != nil {
 		t.Fatal(err)

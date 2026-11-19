@@ -100,7 +100,7 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	args = kept
 	fl, err := parseReviewFlags(append(args, "."))
 	if err != nil {
-		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--server URL] [--stages …] [--enforcement advisory|blocking]\n       %s", err, actionPRUsage)
+		fmt.Fprintf(stderr, "speccy action: %v.\n\nUsage: speccy action [--stages …] [--enforcement advisory|blocking]\n       speccy action --work-items --server URL [--enforcement advisory|blocking]\n       %s", err, actionPRUsage)
 		return exitUsage
 	}
 	fl.paths = nil
@@ -109,6 +109,10 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	}
 	if workItems {
 		return runActionWorkItems(fl.server, fl.enforcement == "blocking", stdout, stderr)
+	}
+	if fl.server != "" {
+		fmt.Fprintln(stderr, "speccy action: --server works with --work-items only. The Action reviews in the runner; a hosted Speccy reviews pull requests with its GitHub App (mode: app).")
+		return exitUsage
 	}
 	if pf.noAttribution || pf.levelsSet {
 		fmt.Fprintf(stderr, "speccy action: --levels and --no-attribution work with --pr only. In CI, set pr.levels in %s.\n", source.RepoConfigFile)
@@ -152,8 +156,9 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	if enforcement == "" {
 		enforcement = cfg.Enforcement
 	}
-	if fl.server == "" && cfg.Mode == "connected" {
-		fl.server = cfg.Server
+	if !cfg.ReviewedByAction() {
+		fmt.Fprintf(stdout, "The Speccy App reviews this repo (mode: app in %s), so the Action posts nothing.\n", source.RepoConfigFile)
+		return exitOK
 	}
 	root, err := local.Open(rootDir)
 	if err != nil {
@@ -196,16 +201,12 @@ func runAction(args []string, stdout, stderr io.Writer) int {
 	var code int
 	reports := map[string]string{}
 	var s *session
-	if fl.server != "" {
-		results, code = reviewRemote(ctx, fl, stages, selected, stderr)
-	} else {
-		actionRepo = &review.FolderRepo{Client: gh, Repo: repo, Dir: root.Dir(), Pull: prNumber(event)}
-		if s, err = openSession(ctx, root.Dir()); err != nil {
-			fmt.Fprintf(stderr, "speccy action: %v.\n", problemText(err))
-			return exitRun
-		}
-		results, code = reviewWith(ctx, s, fl, stages, lintOnly, selected, stderr)
+	actionRepo = &review.FolderRepo{Client: gh, Repo: repo, Dir: root.Dir(), Pull: prNumber(event)}
+	if s, err = openSession(ctx, root.Dir()); err != nil {
+		fmt.Fprintf(stderr, "speccy action: %v.\n", problemText(err))
+		return exitRun
 	}
+	results, code = reviewWith(ctx, s, fl, stages, lintOnly, selected, stderr)
 	if code != exitOK {
 		return code
 	}

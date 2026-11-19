@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -57,7 +58,11 @@ func (b *anthropicBackend) Call(ctx context.Context, model string, c Call) (Raw,
 		if err != nil {
 			var apierr *anthropic.Error
 			if errors.As(err, &apierr) {
-				return Raw{}, &StatusError{Status: apierr.StatusCode, Message: apierr.Error()}
+				se := &StatusError{Status: apierr.StatusCode, Message: apierr.Error()}
+				if apierr.Response != nil {
+					se.RetryAfter = RetryAfter(apierr.Response.Header, time.Now())
+				}
+				return Raw{}, se
 			}
 			return Raw{}, err
 		}

@@ -30,6 +30,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/queue"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store"
@@ -86,9 +87,8 @@ type Service struct {
 	Parallel func(context.Context) int
 	// ES stores thread events; the AI posts its answers there (REQ-088).
 	ES *es.Store
-	// Jobs runs the queued jobs of other features, by job kind. The one worker runs them in
-	// turn with the reviews, so model calls stay within one queue.
-	Jobs map[string]func(ctx context.Context, payload []byte) error
+	// Queue runs the reviews and the AI thread answers as jobs (docs/specs/hosted-pr-review.md).
+	Queue *queue.Queue
 	// AddSource adds a GitHub URL as a source, for the upstream doc of a link (#97). It is set in
 	// local mode only: in hosted mode an admin adds a source.
 	AddSource func(ctx context.Context, url string) error
@@ -102,8 +102,6 @@ type Service struct {
 
 	mu      sync.Mutex // one lint pass at a time
 	startMu sync.Mutex // one start of a run at a time
-	wakeMu  sync.Mutex
-	wake    chan struct{}
 }
 
 // categories maps each lint rule to its radar axis (SDD §8.7).

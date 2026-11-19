@@ -16,17 +16,53 @@ import (
 
 const addBudgetTokens = `-- name: AddBudgetTokens :exec
 UPDATE budget SET tokens_used = tokens_used + $1
-WHERE workspace_id = $2 AND month = $3
+WHERE workspace_id = $2 AND month = $3 AND queue = $4
 `
 
 type AddBudgetTokensParams struct {
 	Tokens      int64
 	WorkspaceID uuid.UUID
 	Month       string
+	Queue       string
 }
 
 func (q *Queries) AddBudgetTokens(ctx context.Context, arg AddBudgetTokensParams) error {
-	_, err := q.db.ExecContext(ctx, addBudgetTokens, arg.Tokens, arg.WorkspaceID, arg.Month)
+	_, err := q.db.ExecContext(ctx, addBudgetTokens,
+		arg.Tokens,
+		arg.WorkspaceID,
+		arg.Month,
+		arg.Queue,
+	)
+	return err
+}
+
+const addSpend = `-- name: AddSpend :exec
+INSERT INTO model_spend (workspace_id, month, queue, actor, repo, tokens, cost_usd)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (workspace_id, month, queue, actor, repo)
+DO UPDATE SET tokens = model_spend.tokens + excluded.tokens, cost_usd = model_spend.cost_usd + excluded.cost_usd
+`
+
+type AddSpendParams struct {
+	WorkspaceID uuid.UUID
+	Month       string
+	Queue       string
+	Actor       string
+	Repo        string
+	Tokens      int64
+	CostUsd     float64
+}
+
+func (q *Queries) AddSpend(ctx context.Context, arg AddSpendParams) error {
+	_, err := q.db.ExecContext(ctx, addSpend,
+		arg.WorkspaceID,
+		arg.Month,
+		arg.Queue,
+		arg.Actor,
+		arg.Repo,
+		arg.Tokens,
+		arg.CostUsd,
+	)
 	return err
 }
 
@@ -126,22 +162,24 @@ func (q *Queries) GetBackend(ctx context.Context, arg GetBackendParams) (ModelBa
 }
 
 const getBudget = `-- name: GetBudget :one
-SELECT workspace_id, month, token_limit, tokens_used FROM budget WHERE workspace_id = $1 AND month = $2
+SELECT workspace_id, month, token_limit, tokens_used, queue FROM budget WHERE workspace_id = $1 AND month = $2 AND queue = $3
 `
 
 type GetBudgetParams struct {
 	WorkspaceID uuid.UUID
 	Month       string
+	Queue       string
 }
 
 func (q *Queries) GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error) {
-	row := q.db.QueryRowContext(ctx, getBudget, arg.WorkspaceID, arg.Month)
+	row := q.db.QueryRowContext(ctx, getBudget, arg.WorkspaceID, arg.Month, arg.Queue)
 	var i Budget
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.Month,
 		&i.TokenLimit,
 		&i.TokensUsed,
+		&i.Queue,
 	)
 	return i, err
 }
@@ -178,34 +216,46 @@ func (q *Queries) InsertBackend(ctx context.Context, arg InsertBackendParams) er
 }
 
 const insertBudget = `-- name: InsertBudget :exec
-INSERT INTO budget (workspace_id, month, token_limit, tokens_used)
-VALUES ($1, $2, $3, 0)
-ON CONFLICT (workspace_id, month) DO NOTHING
+INSERT INTO budget (workspace_id, month, queue, token_limit, tokens_used)
+VALUES ($1, $2, $3, $4, 0)
+ON CONFLICT (workspace_id, month, queue) DO NOTHING
 `
 
 type InsertBudgetParams struct {
 	WorkspaceID uuid.UUID
 	Month       string
+	Queue       string
 	TokenLimit  sql.NullInt64
 }
 
 func (q *Queries) InsertBudget(ctx context.Context, arg InsertBudgetParams) error {
-	_, err := q.db.ExecContext(ctx, insertBudget, arg.WorkspaceID, arg.Month, arg.TokenLimit)
+	_, err := q.db.ExecContext(ctx, insertBudget,
+		arg.WorkspaceID,
+		arg.Month,
+		arg.Queue,
+		arg.TokenLimit,
+	)
 	return err
 }
 
 const latestBudget = `-- name: LatestBudget :one
-SELECT workspace_id, month, token_limit, tokens_used FROM budget WHERE workspace_id = $1 ORDER BY month DESC LIMIT 1
+SELECT workspace_id, month, token_limit, tokens_used, queue FROM budget WHERE workspace_id = $1 AND queue = $2 ORDER BY month DESC LIMIT 1
 `
 
-func (q *Queries) LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error) {
-	row := q.db.QueryRowContext(ctx, latestBudget, workspaceID)
+type LatestBudgetParams struct {
+	WorkspaceID uuid.UUID
+	Queue       string
+}
+
+func (q *Queries) LatestBudget(ctx context.Context, arg LatestBudgetParams) (Budget, error) {
+	row := q.db.QueryRowContext(ctx, latestBudget, arg.WorkspaceID, arg.Queue)
 	var i Budget
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.Month,
 		&i.TokenLimit,
 		&i.TokensUsed,
+		&i.Queue,
 	)
 	return i, err
 }
@@ -280,18 +330,66 @@ func (q *Queries) ListBackends(ctx context.Context, workspaceID uuid.UUID) ([]Mo
 	return items, nil
 }
 
+const listSpend = `-- name: ListSpend :many
+SELECT workspace_id, month, queue, actor, repo, tokens, cost_usd FROM model_spend WHERE workspace_id = $1 AND month = $2
+ORDER BY tokens DESC
+`
+
+type ListSpendParams struct {
+	WorkspaceID uuid.UUID
+	Month       string
+}
+
+func (q *Queries) ListSpend(ctx context.Context, arg ListSpendParams) ([]ModelSpend, error) {
+	rows, err := q.db.QueryContext(ctx, listSpend, arg.WorkspaceID, arg.Month)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ModelSpend
+	for rows.Next() {
+		var i ModelSpend
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.Month,
+			&i.Queue,
+			&i.Actor,
+			&i.Repo,
+			&i.Tokens,
+			&i.CostUsd,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setBudgetLimit = `-- name: SetBudgetLimit :exec
-UPDATE budget SET token_limit = $1 WHERE workspace_id = $2 AND month = $3
+UPDATE budget SET token_limit = $1
+WHERE workspace_id = $2 AND month = $3 AND queue = $4
 `
 
 type SetBudgetLimitParams struct {
 	TokenLimit  sql.NullInt64
 	WorkspaceID uuid.UUID
 	Month       string
+	Queue       string
 }
 
 func (q *Queries) SetBudgetLimit(ctx context.Context, arg SetBudgetLimitParams) error {
-	_, err := q.db.ExecContext(ctx, setBudgetLimit, arg.TokenLimit, arg.WorkspaceID, arg.Month)
+	_, err := q.db.ExecContext(ctx, setBudgetLimit,
+		arg.TokenLimit,
+		arg.WorkspaceID,
+		arg.Month,
+		arg.Queue,
+	)
 	return err
 }
 

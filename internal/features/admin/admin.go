@@ -33,6 +33,11 @@ type API struct {
 	GitHubApp *GitHubApp
 	// SetupToken is SPECCY_SETUP_TOKEN. Empty turns /setup off.
 	SetupToken string
+	// People names the members, for the spend by person.
+	People kernel.Directory
+	// SettingsChanged applies saved settings that live outside the store, such as the size of
+	// each queue.
+	SettingsChanged func(ctx context.Context, s Settings)
 }
 
 // Accounts is the part of the hosted auth setup that the admin screens use.
@@ -389,18 +394,22 @@ func (a *API) UnassignRole(ctx context.Context, req api.UnassignRoleRequestObjec
 	return api.UnassignRole204Response{}, nil
 }
 
-// GetBudget returns this month's budget.
+// GetBudget returns this month's budget of each queue and the spend.
 func (a *API) GetBudget(ctx context.Context, _ api.GetBudgetRequestObject) (api.GetBudgetResponseObject, error) {
-	b, err := a.Gateway.Budget(ctx)
+	out, err := a.budget(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return api.GetBudget200JSONResponse(budgetAPI(b)), nil
+	return api.GetBudget200JSONResponse(out), nil
 }
 
-// SetBudget sets the monthly token limit (REQ-104).
+// SetBudget sets the monthly token limit of one queue (REQ-104).
 func (a *API) SetBudget(ctx context.Context, req api.SetBudgetRequestObject) (api.SetBudgetResponseObject, error) {
-	b, err := a.Gateway.Budget(ctx)
+	queue := kernel.QueueInteractive
+	if req.Body.Queue != nil {
+		queue = string(*req.Body.Queue)
+	}
+	b, err := a.Gateway.QueueBudget(ctx, queue)
 	if err != nil {
 		return nil, err
 	}
@@ -408,19 +417,52 @@ func (a *API) SetBudget(ctx context.Context, req api.SetBudgetRequestObject) (ap
 	if req.Body.TokenLimit != nil {
 		limit = sql.NullInt64{Int64: *req.Body.TokenLimit, Valid: true}
 	}
-	if err := a.DB.Queries().SetBudgetLimit(ctx, pgdb.SetBudgetLimitParams{WorkspaceID: a.Workspace, Month: b.Month, TokenLimit: limit}); err != nil {
+	if err := a.DB.Queries().SetBudgetLimit(ctx, pgdb.SetBudgetLimitParams{WorkspaceID: a.Workspace, Month: b.Month, Queue: queue, TokenLimit: limit}); err != nil {
 		return nil, err
 	}
-	b.TokenLimit = limit
-	return api.SetBudget200JSONResponse(budgetAPI(b)), nil
+	out, err := a.budget(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return api.SetBudget200JSONResponse(out), nil
 }
 
-func budgetAPI(b pgdb.Budget) api.Budget {
-	out := api.Budget{Month: b.Month, TokensUsed: b.TokensUsed}
-	if b.TokenLimit.Valid {
-		out.TokenLimit = &b.TokenLimit.Int64
+func (a *API) budget(ctx context.Context) (api.Budget, error) {
+	out := api.Budget{Month: a.Gateway.Month(), Queues: []api.QueueBudget{}, Spend: []api.Spend{}}
+	for _, queue := range []string{kernel.QueueInteractive, kernel.QueuePR} {
+		b, err := a.Gateway.QueueBudget(ctx, queue)
+		if err != nil {
+			return out, err
+		}
+		qb := api.QueueBudget{Queue: api.QueueBudgetQueue(queue), TokensUsed: b.TokensUsed}
+		if b.TokenLimit.Valid {
+			qb.TokenLimit = &b.TokenLimit.Int64
+		}
+		if queue == kernel.QueueInteractive {
+			out.TokensUsed, out.TokenLimit = qb.TokensUsed, qb.TokenLimit
+		}
+		out.Queues = append(out.Queues, qb)
 	}
-	return out
+	rows, err := a.DB.Queries().ListSpend(ctx, pgdb.ListSpendParams{WorkspaceID: a.Workspace, Month: out.Month})
+	if err != nil {
+		return out, err
+	}
+	names := map[string]string{}
+	if a.People != nil {
+		if people, err := a.People.People(ctx); err == nil {
+			for _, p := range people {
+				names[p.ID] = p.Name
+			}
+		}
+	}
+	for _, r := range rows {
+		sp := api.Spend{Queue: api.SpendQueue(r.Queue), Actor: r.Actor, Repo: r.Repo, Tokens: r.Tokens, CostUsd: r.CostUsd}
+		if n, ok := names[r.Actor]; ok && n != "" {
+			sp.ActorName = &n
+		}
+		out.Spend = append(out.Spend, sp)
+	}
+	return out, nil
 }
 
 func isUnique(err error) bool {

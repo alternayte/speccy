@@ -11,6 +11,7 @@ import (
 
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/es"
+	"github.com/alternayte/speccy/internal/features/notify"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/share"
@@ -24,8 +25,11 @@ type API struct {
 	DB        *store.DB
 	ES        *es.Store
 	Workspace uuid.UUID
-	Profiles  func() map[string]profile.Versioned
-	People    kernel.Directory
+	// Notify tells the workspace channel about a step someone must act on
+	// (docs/specs/channel-notifications.md). Nil posts nothing.
+	Notify   func(ctx context.Context, n notify.Notice)
+	Profiles func() map[string]profile.Versioned
+	People   kernel.Directory
 }
 
 // Load returns a bundle's status; a bundle with no stream is a draft.
@@ -97,6 +101,9 @@ func (a *API) RequestReview(ctx context.Context, req api.RequestReviewRequestObj
 	c := RequestReview{By: act.UserID, CanEdit: canEdit, Reviewers: req.Body.Reviewers, At: time.Now().UTC()}
 	if _, err := a.run(ctx, b.ID, func(s State) ([]es.Event, error) { return DecideRequestReview(s, c) }); err != nil {
 		return nil, err
+	}
+	if a.Notify != nil {
+		a.Notify(ctx, notify.Notice{Doc: b.ID, Actor: act.UserID, Event: "asks for a review.", People: req.Body.Reviewers})
 	}
 	out, err := a.status(ctx, b.ID)
 	if err != nil {

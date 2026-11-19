@@ -109,6 +109,9 @@ type Options struct {
 	Ready   []string
 	// Config is .speccy.yaml as it stands in the checkout, for an enforce command.
 	Config []byte
+	// Notes are lines the summary comment ends with, such as a note that the repo's own
+	// profiles do not apply.
+	Notes []string
 	// Prune lets a pending review lose Speccy's comments whose finding is gone. Set it only for
 	// a review that ran every stage: a finding of a stage that did not run is not gone.
 	Prune bool
@@ -609,8 +612,16 @@ func plural(n int) string {
 	return "s"
 }
 
-// summary is the one summary comment (SDD §12.4).
+// summary is the one summary comment (SDD §12.4), with the notes of o at its end.
 func summary(o Options, bundles []Bundle, rest map[string][]string, pending map[string]int, act applied) string {
+	out := summaryBody(o, bundles, rest, pending, act)
+	for _, n := range o.Notes {
+		out += "\n" + n + "\n"
+	}
+	return out
+}
+
+func summaryBody(o Options, bundles []Bundle, rest map[string][]string, pending map[string]int, act applied) string {
 	var b strings.Builder
 	b.WriteString(summaryMarker + "\n## Speccy\n\n")
 	if len(bundles) == 0 {

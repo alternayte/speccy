@@ -59,6 +59,9 @@ The headless commands (`review`, `action`, `export`, `handoff`, `report`, `verif
 | `SPECCY_BASE_URL` | Yes | none | The public URL, such as `https://speccy.example.com`. It must start with `http://` or `https://`. Speccy uses it in links, redirects and cookies. With `http://`, the cookies lose the Secure flag. |
 | `SPECCY_LISTEN` | No | `:8080` | The address to listen on. |
 | `SPECCY_LOG_LEVEL` | No | `info` | `debug`, `info`, `warn` or `error`. Hosted mode writes JSON logs to standard error. |
+| `SPECCY_DB_MAX_CONNS` | No | `20` | The most Postgres connections that Speccy opens. It must be at least 2. The job queue shares the same pool. |
+| `SPECCY_NOTIFY_WEBHOOK_URL` | No | none | The incoming webhook URL of a Slack or Teams channel. Set it with `SPECCY_NOTIFY_WEBHOOK_KIND`, or not at all. When set, the two lock the webhook in **Admin → Notifications**. |
+| `SPECCY_NOTIFY_WEBHOOK_KIND` | No | none | `slack` or `teams`. |
 | `SPECCY_OIDC_ISSUER` | No | none | The issuer URL of an OpenID Connect provider. Set it with the next two, or not at all. |
 | `SPECCY_OIDC_CLIENT_ID` | No | none | The OIDC client ID. |
 | `SPECCY_OIDC_CLIENT_SECRET` | No | none | The OIDC client secret. |
@@ -124,8 +127,12 @@ An admin sets these under **Admin → Workspace settings**. Speccy stores them i
 | Setting | Default | Range | Mode |
 |---|---|---|---|
 | Model calls at a time | 8 | 1 to 16, per review run | Both |
+| Reviews at a time | 3 | 1 to 20 | Both |
+| Pull request reviews at a time | 2 | 1 to 20 | Hosted |
 | Largest file (MB) | 10 | 1 to 50 | Hosted |
 | Largest bundle (MB) | 50 | the file limit to 500 | Hosted |
 | Invite links expire after (days) | 7 | 1 to 90 | Hosted |
+
+**Reviews at a time** limits the jobs that run at once in the `interactive` queue. These are the reviews from the app, the CLI and MCP, the AI answers in threads, the verification runs and the review requests. **Pull request reviews at a time** limits the reviews of the GitHub App, in the `pr` queue. A change to either one waits for the running reviews of its queue to finish. **Model calls at a time** applies to each running review.
 
 The API has one more setting, `resolve_sources`, with no control in the app. It turns the grounding source resolver on or off, and it is on by default. The resolver reads the redirect chain, the status and the dates of each grounding source. With it off, a source carries no redirect chain and no retrieval date. A source policy rule that needs them then drops the source. To change it, send `PUT /api/v1/admin/settings` with all the settings and `resolve_sources`. [HTTP API](/reference/api/) has the request.

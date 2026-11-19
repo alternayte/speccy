@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
-import type { Backend, BackendTest, Role } from "@/lib/api";
+import type { Backend, BackendTest, QueueBudget, Role } from "@/lib/api";
 import {
   assignRoleMutation,
   deleteBackendMutation,
@@ -23,6 +23,7 @@ import { problemMessage } from "@/lib/problem";
 import { BackendDialog, kinds } from "./backend-dialog";
 import { GitHubSection } from "./github-section";
 import { MCPSection } from "./mcp-section";
+import { NotificationsSection } from "./notifications-section";
 import { ModelPicker } from "./model-picker";
 import { InvitesSection, PeopleSection, SettingsSection } from "./people-section";
 import { useMe } from "@/features/account/me";
@@ -76,7 +77,8 @@ export function AdminPage() {
         <BackendsSection />
         <RolesSection />
         <MCPSection />
-        <BudgetSection />
+        <BudgetSection hosted={hosted} />
+        {hosted ? <NotificationsSection /> : null}
         <SettingsSection hosted={hosted} />
       </div>
     </div>
@@ -358,9 +360,66 @@ function RoleRow({ role: r, backends }: { role: Role; backends: Backend[] }) {
   );
 }
 
-function BudgetSection() {
-  const qc = useQueryClient();
+const queueText: Record<QueueBudget["queue"], { title: string; spent: string }> = {
+  interactive: {
+    title: "Reviews a person waits for",
+    spent: "When it is spent, AI stages stop for the app, the CLI and MCP; lint still runs.",
+  },
+  pr: {
+    title: "Pull request reviews of the GitHub App",
+    spent: "When it is spent, the App's pull request checks fail in blocking mode and name the budget.",
+  },
+};
+
+// BudgetSection sets the monthly limit of each queue and shows where the tokens went
+// (docs/specs/hosted-operations.md).
+function BudgetSection({ hosted }: { hosted: boolean }) {
   const budget = useQuery(getBudgetOptions());
+  if (budget.isPending) return <Loading label="Loading the budget" />;
+  if (budget.isError) return <ErrorState message={problemMessage(budget.error)} />;
+  const b = budget.data;
+  const queues = b.queues.filter((q) => hosted || q.queue === "interactive");
+  const spend = b.spend.filter((s) => hosted || s.queue === "interactive");
+  return (
+    <Section title="Monthly token budget">
+      <div className="divide-y divide-line">
+        {queues.map((q) => (
+          <QueueLimit key={q.queue} q={q} month={b.month} showTitle={hosted} />
+        ))}
+        {hosted && spend.length > 0 ? (
+          <div className="px-4 py-4">
+            <h3 className="text-sm font-medium">Spend in {b.month}</h3>
+            <table className="mt-2 w-full text-sm">
+              <thead className="text-left text-xs text-ink-3">
+                <tr>
+                  <th className="py-1 font-normal">Queue</th>
+                  <th className="py-1 font-normal">Person</th>
+                  <th className="py-1 font-normal">Repo</th>
+                  <th className="py-1 text-right font-normal">Tokens</th>
+                  <th className="py-1 text-right font-normal">Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spend.map((s) => (
+                  <tr key={`${s.queue}/${s.actor}/${s.repo}`} className="border-t border-line">
+                    <td className="py-1 text-ink-2">{s.queue === "pr" ? "Pull requests" : "People"}</td>
+                    <td className="py-1">{s.actor === "app" ? "GitHub App" : (s.actor_name ?? s.actor)}</td>
+                    <td className="py-1 text-ink-2">{s.repo || "—"}</td>
+                    <td className="py-1 text-right tabular-nums">{s.tokens.toLocaleString()}</td>
+                    <td className="py-1 text-right tabular-nums">${s.cost_usd.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
+
+function QueueLimit({ q, month, showTitle }: { q: QueueBudget; month: string; showTitle: boolean }) {
+  const qc = useQueryClient();
   const [limit, setLimit] = useState<string | null>(null);
   const save = useMutation({
     ...setBudgetMutation(),
@@ -369,57 +428,53 @@ function BudgetSection() {
       qc.invalidateQueries({ queryKey: getBudgetQueryKey() });
     },
   });
-  if (budget.isPending) return <Loading label="Loading the budget" />;
-  if (budget.isError) return <ErrorState message={problemMessage(budget.error)} />;
-  const b = budget.data;
-  const shown = limit ?? (b.token_limit != null ? String(b.token_limit) : "");
-  const pct = b.token_limit ? Math.min(100, Math.round((100 * b.tokens_used) / b.token_limit)) : 0;
+  const shown = limit ?? (q.token_limit != null ? String(q.token_limit) : "");
+  const pct = q.token_limit ? Math.min(100, Math.round((100 * q.tokens_used) / q.token_limit)) : 0;
+  const text = queueText[q.queue];
   return (
-    <Section title="Monthly token budget">
-      <div className="space-y-3 px-4 py-4">
-        <p className="text-sm text-ink-2">
-          {b.token_limit != null
-            ? `${b.tokens_used.toLocaleString()} of ${b.token_limit.toLocaleString()} tokens used in ${b.month}. When the budget is spent, AI stages stop; lint still runs.`
-            : `${b.tokens_used.toLocaleString()} tokens used in ${b.month}. There is no limit.`}
-        </p>
-        {b.token_limit != null ? (
-          <div
-            className="h-1.5 overflow-hidden rounded-full bg-sunken"
-            role="progressbar"
-            aria-valuenow={pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div
-              className={clsx(
-                "h-full rounded-full transition-[width] duration-500",
-                pct >= 90 ? "bg-bad" : "bg-accent",
-              )}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        ) : null}
-        <form
-          className="flex flex-wrap items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            save.mutate({ body: shown.trim() ? { token_limit: Number(shown) } : {} });
-          }}
+    <div className="space-y-3 px-4 py-4">
+      {showTitle ? <h3 className="text-sm font-medium">{text.title}</h3> : null}
+      <p className="text-sm text-ink-2">
+        {q.token_limit != null
+          ? `${q.tokens_used.toLocaleString()} of ${q.token_limit.toLocaleString()} tokens used in ${month}. ${text.spent}`
+          : `${q.tokens_used.toLocaleString()} tokens used in ${month}. There is no limit.`}
+      </p>
+      {q.token_limit != null ? (
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-sunken"
+          role="progressbar"
+          aria-valuenow={pct}
+          aria-valuemin={0}
+          aria-valuemax={100}
         >
-          <Input
-            aria-label="Monthly token limit"
-            className="w-48"
-            inputMode="numeric"
-            value={shown}
-            onChange={(e) => setLimit(e.target.value.replace(/[^0-9]/g, ""))}
-            placeholder="No limit"
+          <div
+            className={clsx("h-full rounded-full transition-[width] duration-500", pct >= 90 ? "bg-bad" : "bg-accent")}
+            style={{ width: `${pct}%` }}
           />
-          <Button type="submit" size="sm" disabled={limit === null || save.isPending}>
-            Save
-          </Button>
-        </form>
-        {save.isError ? <ErrorState message={problemMessage(save.error)} /> : null}
-      </div>
-    </Section>
+        </div>
+      ) : null}
+      <form
+        className="flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate({
+            body: shown.trim() ? { queue: q.queue, token_limit: Number(shown) } : { queue: q.queue },
+          });
+        }}
+      >
+        <Input
+          aria-label={`Monthly token limit: ${text.title}`}
+          className="w-48"
+          inputMode="numeric"
+          value={shown}
+          onChange={(e) => setLimit(e.target.value.replace(/[^0-9]/g, ""))}
+          placeholder="No limit"
+        />
+        <Button type="submit" size="sm" disabled={limit === null || save.isPending}>
+          Save
+        </Button>
+      </form>
+      {save.isError ? <ErrorState message={problemMessage(save.error)} /> : null}
+    </div>
   );
 }

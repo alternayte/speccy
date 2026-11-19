@@ -1031,6 +1031,24 @@ func (e NextActionKind) Valid() bool {
 	}
 }
 
+// Defines values for NotifyWebhookKind.
+const (
+	NotifyWebhookKindSlack NotifyWebhookKind = "slack"
+	NotifyWebhookKindTeams NotifyWebhookKind = "teams"
+)
+
+// Valid indicates whether the value is a known member of the NotifyWebhookKind enum.
+func (e NotifyWebhookKind) Valid() bool {
+	switch e {
+	case NotifyWebhookKindSlack:
+		return true
+	case NotifyWebhookKindTeams:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for OpenThreadAddressedTo.
 const (
 	OpenThreadAddressedToAi     OpenThreadAddressedTo = "ai"
@@ -1334,6 +1352,66 @@ func (e QuestionItemKind) Valid() bool {
 	}
 }
 
+// Defines values for QueueBudgetQueue.
+const (
+	QueueBudgetQueueInteractive QueueBudgetQueue = "interactive"
+	QueueBudgetQueuePr          QueueBudgetQueue = "pr"
+)
+
+// Valid indicates whether the value is a known member of the QueueBudgetQueue enum.
+func (e QueueBudgetQueue) Valid() bool {
+	switch e {
+	case QueueBudgetQueueInteractive:
+		return true
+	case QueueBudgetQueuePr:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewRequestKind.
+const (
+	Content ReviewRequestKind = "content"
+	Url     ReviewRequestKind = "url"
+)
+
+// Valid indicates whether the value is a known member of the ReviewRequestKind enum.
+func (e ReviewRequestKind) Valid() bool {
+	switch e {
+	case Content:
+		return true
+	case Url:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReviewRequestStatus.
+const (
+	ReviewRequestStatusComplete ReviewRequestStatus = "complete"
+	ReviewRequestStatusFailed   ReviewRequestStatus = "failed"
+	ReviewRequestStatusQueued   ReviewRequestStatus = "queued"
+	ReviewRequestStatusRunning  ReviewRequestStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the ReviewRequestStatus enum.
+func (e ReviewRequestStatus) Valid() bool {
+	switch e {
+	case ReviewRequestStatusComplete:
+		return true
+	case ReviewRequestStatusFailed:
+		return true
+	case ReviewRequestStatusQueued:
+		return true
+	case ReviewRequestStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReviewStatus.
 const (
 	ReviewStatusApproved   ReviewStatus = "approved"
@@ -1445,6 +1523,24 @@ func (e SpecDocSourceKind) Valid() bool {
 	case SpecDocSourceKindGithub:
 		return true
 	case SpecDocSourceKindLocal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SpendQueue.
+const (
+	SpendQueueInteractive SpendQueue = "interactive"
+	SpendQueuePr          SpendQueue = "pr"
+)
+
+// Valid indicates whether the value is a known member of the SpendQueue enum.
+func (e SpendQueue) Valid() bool {
+	switch e {
+	case SpendQueueInteractive:
+		return true
+	case SpendQueuePr:
 		return true
 	default:
 		return false
@@ -2045,6 +2141,24 @@ func (e WaiverStatus) Valid() bool {
 	}
 }
 
+// Defines values for SetBudgetJSONBodyQueue.
+const (
+	SetBudgetJSONBodyQueueInteractive SetBudgetJSONBodyQueue = "interactive"
+	SetBudgetJSONBodyQueuePr          SetBudgetJSONBodyQueue = "pr"
+)
+
+// Valid indicates whether the value is a known member of the SetBudgetJSONBodyQueue enum.
+func (e SetBudgetJSONBodyQueue) Valid() bool {
+	switch e {
+	case SetBudgetJSONBodyQueueInteractive:
+		return true
+	case SetBudgetJSONBodyQueuePr:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateInviteJSONBodyRole.
 const (
 	CreateInviteJSONBodyRoleAdmin  CreateInviteJSONBodyRole = "admin"
@@ -2057,6 +2171,24 @@ func (e CreateInviteJSONBodyRole) Valid() bool {
 	case CreateInviteJSONBodyRoleAdmin:
 		return true
 	case CreateInviteJSONBodyRoleMember:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SetNotificationsJSONBodyKind.
+const (
+	SetNotificationsJSONBodyKindSlack SetNotificationsJSONBodyKind = "slack"
+	SetNotificationsJSONBodyKindTeams SetNotificationsJSONBodyKind = "teams"
+)
+
+// Valid indicates whether the value is a known member of the SetNotificationsJSONBodyKind enum.
+func (e SetNotificationsJSONBodyKind) Valid() bool {
+	switch e {
+	case SetNotificationsJSONBodyKindSlack:
+		return true
+	case SetNotificationsJSONBodyKindTeams:
 		return true
 	default:
 		return false
@@ -2480,9 +2612,19 @@ type BreakdownOpOp string
 // Budget defines model for Budget.
 type Budget struct {
 	// Month YYYY-MM, in UTC.
-	Month      string `json:"month"`
+	Month string `json:"month"`
+
+	// Queues The limit and use of each queue (docs/specs/hosted-operations.md).
+	Queues []QueueBudget `json:"queues"`
+
+	// Spend This month's spend by queue, person and repo, largest first.
+	Spend []Spend `json:"spend"`
+
+	// TokenLimit The interactive queue's limit.
 	TokenLimit *int64 `json:"token_limit,omitempty"`
-	TokensUsed int64  `json:"tokens_used"`
+
+	// TokensUsed The interactive queue's use.
+	TokensUsed int64 `json:"tokens_used"`
 }
 
 // BuildAnswer defines model for BuildAnswer.
@@ -3166,6 +3308,9 @@ type GithubApp struct {
 	InstallUrl string `json:"install_url"`
 	Installed  bool   `json:"installed"`
 
+	// Missing What the installation lacks for pull request reviews and the other features, such as "checks: write" or "event issue_comment". GitHub cannot change an existing App by API, so its owner adds them on the settings page.
+	Missing *[]string `json:"missing,omitempty"`
+
 	// Owner The org or the personal account that owns the App.
 	Owner      string `json:"owner"`
 	OwnerIsOrg bool   `json:"owner_is_org"`
@@ -3538,6 +3683,19 @@ type NextAction struct {
 
 // NextActionKind questions opens the questions screen, with everything that blocks Build Ready and needs the author. breakdown opens the breakdown screen of an app or initiative doc, in place of handoff. verify opens the verify field, after a handoff with no usable verification run.
 type NextActionKind string
+
+// NotifyWebhook defines model for NotifyWebhook.
+type NotifyWebhook struct {
+	Configured bool `json:"configured"`
+
+	// FromEnv SPECCY_NOTIFY_WEBHOOK_URL sets the webhook, so the UI cannot change it.
+	FromEnv  bool               `json:"from_env"`
+	Kind     *NotifyWebhookKind `json:"kind,omitempty"`
+	UrlLast4 *string            `json:"url_last4,omitempty"`
+}
+
+// NotifyWebhookKind defines model for NotifyWebhook.Kind.
+type NotifyWebhookKind string
 
 // OpenThread defines model for OpenThread.
 type OpenThread struct {
@@ -4013,6 +4171,16 @@ type Questions struct {
 	Waivers []Waiver `json:"waivers"`
 }
 
+// QueueBudget defines model for QueueBudget.
+type QueueBudget struct {
+	Queue      QueueBudgetQueue `json:"queue"`
+	TokenLimit *int64           `json:"token_limit,omitempty"`
+	TokensUsed int64            `json:"tokens_used"`
+}
+
+// QueueBudgetQueue defines model for QueueBudget.Queue.
+type QueueBudgetQueue string
+
 // QuoteCheck defines model for QuoteCheck.
 type QuoteCheck struct {
 	Found bool   `json:"found"`
@@ -4091,6 +4259,28 @@ type ResolvedBuild struct {
 	Repo string `json:"repo"`
 	Sha  string `json:"sha"`
 }
+
+// ReviewRequest A review that a job runs. Poll it until its status is complete or failed.
+type ReviewRequest struct {
+	Content   *ContentReview `json:"content,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+
+	// Error Why the review failed, when the status is failed.
+	Error *string            `json:"error,omitempty"`
+	Id    openapi_types.UUID `json:"id"`
+	Kind  ReviewRequestKind  `json:"kind"`
+
+	// Stage The stage that runs now, while the status is running.
+	Stage  *string             `json:"stage,omitempty"`
+	Status ReviewRequestStatus `json:"status"`
+	Url    *UrlReview          `json:"url,omitempty"`
+}
+
+// ReviewRequestKind defines model for ReviewRequest.Kind.
+type ReviewRequestKind string
+
+// ReviewRequestStatus defines model for ReviewRequest.Status.
+type ReviewRequestStatus string
 
 // ReviewStatus defines model for ReviewStatus.
 type ReviewStatus string
@@ -4236,11 +4426,17 @@ type Settings struct {
 	// MaxFileMb REQ-009. Default 10.
 	MaxFileMb int `json:"max_file_mb"`
 
-	// ParallelCalls REQ-105. Model calls at a time per run. Default 4.
+	// ParallelCalls REQ-105. Model calls at a time per run. Default 8.
 	ParallelCalls int `json:"parallel_calls"`
 
 	// ResolveSources Read the metadata of each grounding source. Default true. With it off, a source carries no redirect chain and no retrieval date.
 	ResolveSources *bool `json:"resolve_sources,omitempty"`
+
+	// ReviewsInteractive Reviews at a time in the interactive queue, the reviews and answers a person waits for. Default 3.
+	ReviewsInteractive *int `json:"reviews_interactive,omitempty"`
+
+	// ReviewsPr Reviews at a time in the pr queue, the pull request reviews of the GitHub App. Default 2.
+	ReviewsPr *int `json:"reviews_pr,omitempty"`
 }
 
 // Setup defines model for Setup.
@@ -4315,6 +4511,22 @@ type SpecDoc struct {
 
 // SpecDocSourceKind defines model for SpecDoc.SourceKind.
 type SpecDocSourceKind string
+
+// Spend defines model for Spend.
+type Spend struct {
+	// Actor The user ID of the person, or "app" for the GitHub App.
+	Actor     string     `json:"actor"`
+	ActorName *string    `json:"actor_name,omitempty"`
+	CostUsd   float64    `json:"cost_usd"`
+	Queue     SpendQueue `json:"queue"`
+
+	// Repo The GitHub repo as owner/name, or empty when the work named none.
+	Repo   string `json:"repo"`
+	Tokens int64  `json:"tokens"`
+}
+
+// SpendQueue defines model for Spend.Queue.
+type SpendQueue string
 
 // StageTiming defines model for StageTiming.
 type StageTiming struct {
@@ -5044,9 +5256,15 @@ type TestBackendJSONBody struct {
 
 // SetBudgetJSONBody defines parameters for SetBudget.
 type SetBudgetJSONBody struct {
+	// Queue The queue whose limit this sets. Default interactive.
+	Queue *SetBudgetJSONBodyQueue `json:"queue,omitempty"`
+
 	// TokenLimit Leave it out for no limit.
 	TokenLimit *int64 `json:"token_limit,omitempty"`
 }
+
+// SetBudgetJSONBodyQueue defines parameters for SetBudget.
+type SetBudgetJSONBodyQueue string
 
 // SetGithubConnectionJSONBody defines parameters for SetGithubConnection.
 type SetGithubConnectionJSONBody struct {
@@ -5071,6 +5289,17 @@ type CreateInviteJSONBody struct {
 
 // CreateInviteJSONBodyRole defines parameters for CreateInvite.
 type CreateInviteJSONBodyRole string
+
+// SetNotificationsJSONBody defines parameters for SetNotifications.
+type SetNotificationsJSONBody struct {
+	Kind SetNotificationsJSONBodyKind `json:"kind"`
+
+	// Url The incoming webhook URL, https.
+	Url string `json:"url"`
+}
+
+// SetNotificationsJSONBodyKind defines parameters for SetNotifications.
+type SetNotificationsJSONBodyKind string
 
 // CreateResetLinkJSONBody defines parameters for CreateResetLink.
 type CreateResetLinkJSONBody struct {
@@ -5443,6 +5672,9 @@ type CreateMCPConnectionJSONRequestBody = MCPConnectionInput
 // UpdateMCPConnectionJSONRequestBody defines body for UpdateMCPConnection for application/json ContentType.
 type UpdateMCPConnectionJSONRequestBody = MCPConnectionInput
 
+// SetNotificationsJSONRequestBody defines body for SetNotifications for application/json ContentType.
+type SetNotificationsJSONRequestBody SetNotificationsJSONBody
+
 // CreateResetLinkJSONRequestBody defines body for CreateResetLink for application/json ContentType.
 type CreateResetLinkJSONRequestBody CreateResetLinkJSONBody
 
@@ -5652,10 +5884,10 @@ type ServerInterface interface {
 	// TestBackend Send one short call to a backend and model, to check the setup.
 	// (POST /admin/backends/{backendId}/test)
 	TestBackend(w http.ResponseWriter, r *http.Request, backendId BackendId)
-	// GetBudget Get this month's token budget and use (REQ-104).
+	// GetBudget Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
 	// (GET /admin/budget)
 	GetBudget(w http.ResponseWriter, r *http.Request)
-	// SetBudget Set the monthly token limit. No limit means no budget.
+	// SetBudget Set the monthly token limit of one queue. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(w http.ResponseWriter, r *http.Request)
 	// DeleteGithubConnection Remove the GitHub token. The GitHub sources stop syncing.
@@ -5697,6 +5929,18 @@ type ServerInterface interface {
 	// ListMCPTools Connect and list the server's tools, to choose the allowlist.
 	// (GET /admin/mcp/{connectionId}/tools)
 	ListMCPTools(w http.ResponseWriter, r *http.Request, connectionId ConnectionId)
+	// DeleteNotifications Remove the channel webhook. Speccy then posts nothing.
+	// (DELETE /admin/notifications)
+	DeleteNotifications(w http.ResponseWriter, r *http.Request)
+	// GetNotifications The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+	// (GET /admin/notifications)
+	GetNotifications(w http.ResponseWriter, r *http.Request)
+	// SetNotifications Set the channel webhook. The URL is a secret, stored encrypted.
+	// (PUT /admin/notifications)
+	SetNotifications(w http.ResponseWriter, r *http.Request)
+	// TestNotifications Post one test message to the channel webhook, and give the HTTP status it answered with.
+	// (POST /admin/notifications/test)
+	TestNotifications(w http.ResponseWriter, r *http.Request)
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	// (GET /admin/presets)
 	ListPresets(w http.ResponseWriter, r *http.Request)
@@ -6027,12 +6271,15 @@ type ServerInterface interface {
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(w http.ResponseWriter, r *http.Request)
-	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+	// ReviewContent Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(w http.ResponseWriter, r *http.Request)
-	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// ReviewUrl Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 	// (POST /reviews/url)
 	ReviewUrl(w http.ResponseWriter, r *http.Request)
+	// GetReviewRequest The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+	// (GET /reviews/{reviewId})
+	GetReviewRequest(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID)
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	// (GET /reviews/{reviewId}/report)
 	GetContentReviewReport(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID)
@@ -6509,6 +6756,62 @@ func (siw *ServerInterfaceWrapper) ListMCPTools(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListMCPTools(w, r, connectionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteNotifications operation middleware
+func (siw *ServerInterfaceWrapper) DeleteNotifications(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteNotifications(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNotifications operation middleware
+func (siw *ServerInterfaceWrapper) GetNotifications(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNotifications(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetNotifications operation middleware
+func (siw *ServerInterfaceWrapper) SetNotifications(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetNotifications(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TestNotifications operation middleware
+func (siw *ServerInterfaceWrapper) TestNotifications(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TestNotifications(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9493,6 +9796,32 @@ func (siw *ServerInterfaceWrapper) ReviewUrl(w http.ResponseWriter, r *http.Requ
 	handler.ServeHTTP(w, r)
 }
 
+// GetReviewRequest operation middleware
+func (siw *ServerInterfaceWrapper) GetReviewRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "reviewId" -------------
+	var reviewId openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "reviewId", r.PathValue("reviewId"), &reviewId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reviewId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetReviewRequest(w, r, reviewId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetContentReviewReport operation middleware
 func (siw *ServerInterfaceWrapper) GetContentReviewReport(w http.ResponseWriter, r *http.Request) {
 
@@ -10374,6 +10703,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.ListRuns)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/runs", wrapper.StartRun)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews", wrapper.ReviewContent)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}", wrapper.GetReviewRequest)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/profiles/conflicts", wrapper.FindCheckConflicts)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/reviews/url", wrapper.ReviewUrl)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/reviews/{reviewId}/report", wrapper.GetContentReviewReport)
@@ -10467,6 +10797,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources/{sourceId}/sync", wrapper.SyncGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/publish", wrapper.PublishBundle)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/draft/discard", wrapper.DiscardDraft)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/notifications", wrapper.DeleteNotifications)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/notifications", wrapper.GetNotifications)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/notifications", wrapper.SetNotifications)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/notifications/test", wrapper.TestNotifications)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/budget", wrapper.GetBudget)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/budget", wrapper.SetBudget)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/render", wrapper.RenderMarkdown)
@@ -11273,6 +11607,158 @@ type ListMCPToolsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ListMCPToolsdefaultApplicationProblemPlusJSONResponse) VisitListMCPToolsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteNotificationsRequestObject struct {
+}
+
+type DeleteNotificationsResponseObject interface {
+	VisitDeleteNotificationsResponse(w http.ResponseWriter) error
+}
+
+type DeleteNotifications204Response struct {
+}
+
+func (response DeleteNotifications204Response) VisitDeleteNotificationsResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteNotificationsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteNotificationsdefaultApplicationProblemPlusJSONResponse) VisitDeleteNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNotificationsRequestObject struct {
+}
+
+type GetNotificationsResponseObject interface {
+	VisitGetNotificationsResponse(w http.ResponseWriter) error
+}
+
+type GetNotifications200JSONResponse NotifyWebhook
+
+func (response GetNotifications200JSONResponse) VisitGetNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNotificationsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetNotificationsdefaultApplicationProblemPlusJSONResponse) VisitGetNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNotificationsRequestObject struct {
+	Body *SetNotificationsJSONRequestBody
+}
+
+type SetNotificationsResponseObject interface {
+	VisitSetNotificationsResponse(w http.ResponseWriter) error
+}
+
+type SetNotifications200JSONResponse NotifyWebhook
+
+func (response SetNotifications200JSONResponse) VisitSetNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type SetNotificationsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response SetNotificationsdefaultApplicationProblemPlusJSONResponse) VisitSetNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestNotificationsRequestObject struct {
+}
+
+type TestNotificationsResponseObject interface {
+	VisitTestNotificationsResponse(w http.ResponseWriter) error
+}
+
+type TestNotifications200JSONResponse struct {
+	Error *string `json:"error,omitempty"`
+
+	// Status The HTTP status, or 0 when the webhook did not answer.
+	Status int `json:"status"`
+}
+
+func (response TestNotifications200JSONResponse) VisitTestNotificationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type TestNotificationsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response TestNotificationsdefaultApplicationProblemPlusJSONResponse) VisitTestNotificationsResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -15658,16 +16144,16 @@ type ReviewContentResponseObject interface {
 	VisitReviewContentResponse(w http.ResponseWriter) error
 }
 
-type ReviewContent200JSONResponse ContentReview
+type ReviewContent202JSONResponse ReviewRequest
 
-func (response ReviewContent200JSONResponse) VisitReviewContentResponse(w http.ResponseWriter) error {
+func (response ReviewContent202JSONResponse) VisitReviewContentResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
+	w.WriteHeader(202)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -15697,9 +16183,48 @@ type ReviewUrlResponseObject interface {
 	VisitReviewUrlResponse(w http.ResponseWriter) error
 }
 
-type ReviewUrl200JSONResponse UrlReview
+type ReviewUrl202JSONResponse ReviewRequest
 
-func (response ReviewUrl200JSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+func (response ReviewUrl202JSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(202)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ReviewUrldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ReviewUrldefaultApplicationProblemPlusJSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetReviewRequestRequestObject struct {
+	ReviewId openapi_types.UUID `json:"reviewId"`
+}
+
+type GetReviewRequestResponseObject interface {
+	VisitGetReviewRequestResponse(w http.ResponseWriter) error
+}
+
+type GetReviewRequest200JSONResponse ReviewRequest
+
+func (response GetReviewRequest200JSONResponse) VisitGetReviewRequestResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -15711,12 +16236,12 @@ func (response ReviewUrl200JSONResponse) VisitReviewUrlResponse(w http.ResponseW
 	return err
 }
 
-type ReviewUrldefaultApplicationProblemPlusJSONResponse struct {
+type GetReviewRequestdefaultApplicationProblemPlusJSONResponse struct {
 	Body       Problem
 	StatusCode int
 }
 
-func (response ReviewUrldefaultApplicationProblemPlusJSONResponse) VisitReviewUrlResponse(w http.ResponseWriter) error {
+func (response GetReviewRequestdefaultApplicationProblemPlusJSONResponse) VisitGetReviewRequestResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -16925,10 +17450,10 @@ type StrictServerInterface interface {
 	// TestBackend Send one short call to a backend and model, to check the setup.
 	// (POST /admin/backends/{backendId}/test)
 	TestBackend(ctx context.Context, request TestBackendRequestObject) (TestBackendResponseObject, error)
-	// GetBudget Get this month's token budget and use (REQ-104).
+	// GetBudget Get this month's token budget and use of each queue, and the spend by queue, person and repo (REQ-104).
 	// (GET /admin/budget)
 	GetBudget(ctx context.Context, request GetBudgetRequestObject) (GetBudgetResponseObject, error)
-	// SetBudget Set the monthly token limit. No limit means no budget.
+	// SetBudget Set the monthly token limit of one queue. No limit means no budget.
 	// (PUT /admin/budget)
 	SetBudget(ctx context.Context, request SetBudgetRequestObject) (SetBudgetResponseObject, error)
 	// DeleteGithubConnection Remove the GitHub token. The GitHub sources stop syncing.
@@ -16970,6 +17495,18 @@ type StrictServerInterface interface {
 	// ListMCPTools Connect and list the server's tools, to choose the allowlist.
 	// (GET /admin/mcp/{connectionId}/tools)
 	ListMCPTools(ctx context.Context, request ListMCPToolsRequestObject) (ListMCPToolsResponseObject, error)
+	// DeleteNotifications Remove the channel webhook. Speccy then posts nothing.
+	// (DELETE /admin/notifications)
+	DeleteNotifications(ctx context.Context, request DeleteNotificationsRequestObject) (DeleteNotificationsResponseObject, error)
+	// GetNotifications The workspace's channel webhook for notifications (docs/specs/channel-notifications.md). Hosted mode only.
+	// (GET /admin/notifications)
+	GetNotifications(ctx context.Context, request GetNotificationsRequestObject) (GetNotificationsResponseObject, error)
+	// SetNotifications Set the channel webhook. The URL is a secret, stored encrypted.
+	// (PUT /admin/notifications)
+	SetNotifications(ctx context.Context, request SetNotificationsRequestObject) (SetNotificationsResponseObject, error)
+	// TestNotifications Post one test message to the channel webhook, and give the HTTP status it answered with.
+	// (POST /admin/notifications/test)
+	TestNotifications(ctx context.Context, request TestNotificationsRequestObject) (TestNotificationsResponseObject, error)
 	// ListPresets List the agent CLI presets and whether each CLI is installed (REQ-102).
 	// (GET /admin/presets)
 	ListPresets(ctx context.Context, request ListPresetsRequestObject) (ListPresetsResponseObject, error)
@@ -17300,12 +17837,15 @@ type StrictServerInterface interface {
 	// RenderMarkdown Render markdown to HTML. Each block carries its source position (DEC-017).
 	// (POST /render)
 	RenderMarkdown(ctx context.Context, request RenderMarkdownRequestObject) (RenderMarkdownResponseObject, error)
-	// ReviewContent Review bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
+	// ReviewContent Queue a review of bundle files that are not saved on the server (SDD §12.2 --server, REQ-111 review_content). It answers at once; GET /reviews/{reviewId} gives the state, then the result. The server keeps the files and the result for 90 days for the report (SDD §12.4); it changes no bundle.
 	// (POST /reviews)
 	ReviewContent(ctx context.Context, request ReviewContentRequestObject) (ReviewContentResponseObject, error)
-	// ReviewUrl Review the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
+	// ReviewUrl Queue a review of the spec docs of a GitHub file, folder, branch, commit or pull request, at the head commit. Speccy reads the files with the GitHub credential it holds, and saves no bundle. For a pull request, it reviews the spec docs that the pull request changes.
 	// (POST /reviews/url)
 	ReviewUrl(ctx context.Context, request ReviewUrlRequestObject) (ReviewUrlResponseObject, error)
+	// GetReviewRequest The state of a review from POST /reviews or POST /reviews/url, and its result when it is complete.
+	// (GET /reviews/{reviewId})
+	GetReviewRequest(ctx context.Context, request GetReviewRequestRequestObject) (GetReviewRequestResponseObject, error)
 	// GetContentReviewReport The self-contained HTML report of a review from POST /reviews (SDD §12.4).
 	// (GET /reviews/{reviewId}/report)
 	GetContentReviewReport(ctx context.Context, request GetContentReviewReportRequestObject) (GetContentReviewReportResponseObject, error)
@@ -18010,6 +18550,109 @@ func (sh *strictHandler) ListMCPTools(w http.ResponseWriter, r *http.Request, co
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListMCPToolsResponseObject); ok {
 		if err := validResponse.VisitListMCPToolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteNotifications operation middleware
+func (sh *strictHandler) DeleteNotifications(w http.ResponseWriter, r *http.Request) {
+	var request DeleteNotificationsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteNotifications(ctx, request.(DeleteNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteNotificationsResponseObject); ok {
+		if err := validResponse.VisitDeleteNotificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetNotifications operation middleware
+func (sh *strictHandler) GetNotifications(w http.ResponseWriter, r *http.Request) {
+	var request GetNotificationsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNotifications(ctx, request.(GetNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNotificationsResponseObject); ok {
+		if err := validResponse.VisitGetNotificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetNotifications operation middleware
+func (sh *strictHandler) SetNotifications(w http.ResponseWriter, r *http.Request) {
+	var request SetNotificationsRequestObject
+
+	var body SetNotificationsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetNotifications(ctx, request.(SetNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetNotificationsResponseObject); ok {
+		if err := validResponse.VisitSetNotificationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TestNotifications operation middleware
+func (sh *strictHandler) TestNotifications(w http.ResponseWriter, r *http.Request) {
+	var request TestNotificationsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TestNotifications(ctx, request.(TestNotificationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TestNotifications")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TestNotificationsResponseObject); ok {
+		if err := validResponse.VisitTestNotificationsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -21239,6 +21882,32 @@ func (sh *strictHandler) ReviewUrl(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ReviewUrlResponseObject); ok {
 		if err := validResponse.VisitReviewUrlResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetReviewRequest operation middleware
+func (sh *strictHandler) GetReviewRequest(w http.ResponseWriter, r *http.Request, reviewId openapi_types.UUID) {
+	var request GetReviewRequestRequestObject
+
+	request.ReviewId = reviewId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetReviewRequest(ctx, request.(GetReviewRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetReviewRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetReviewRequestResponseObject); ok {
+		if err := validResponse.VisitGetReviewRequestResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

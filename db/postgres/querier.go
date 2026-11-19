@@ -6,6 +6,7 @@ package pgdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/alternayte/speccy/db/dbtype"
 	"github.com/google/uuid"
@@ -13,9 +14,8 @@ import (
 
 type Querier interface {
 	AddBudgetTokens(ctx context.Context, arg AddBudgetTokensParams) error
+	AddSpend(ctx context.Context, arg AddSpendParams) error
 	BundleByShareToken(ctx context.Context, arg BundleByShareTokenParams) (Bundle, error)
-	// The oldest queued job, or a running job whose lock expired (its worker died).
-	ClaimJob(ctx context.Context, arg ClaimJobParams) (Job, error)
 	// The bundle points at a version, and the version points at the bundle. The head goes first,
 	// so neither foreign key holds the other up.
 	ClearSpecDocHead(ctx context.Context, id uuid.UUID) error
@@ -53,6 +53,7 @@ type Querier interface {
 	DeleteLinksFrom(ctx context.Context, fromSpecDocID uuid.UUID) error
 	DeleteLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnectionParams) error
+	DeleteNotifyWebhook(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteOrphanBlobs(ctx context.Context) error
 	DeletePrReviewComment(ctx context.Context, arg DeletePrReviewCommentParams) error
 	DeletePrReviewComments(ctx context.Context, arg DeletePrReviewCommentsParams) error
@@ -62,6 +63,7 @@ type Querier interface {
 	DeleteProfileVersionsOf(ctx context.Context, profileID uuid.UUID) error
 	DeleteQuestionResultsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteQuestionsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteReviewRequestsBefore(ctx context.Context, arg DeleteReviewRequestsBeforeParams) error
 	DeleteReviewRunsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteRunLinksOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteShareGuestsOfBundle(ctx context.Context, bundleID uuid.UUID) error
@@ -84,7 +86,7 @@ type Querier interface {
 	FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error
 	// A work item by its issue key or URL, across the workspace.
 	FindBreakdownIssue(ctx context.Context, arg FindBreakdownIssueParams) ([]BreakdownIssue, error)
-	FinishJob(ctx context.Context, arg FinishJobParams) error
+	FinishReviewRequest(ctx context.Context, arg FinishReviewRequestParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
 	FinishVerificationRun(ctx context.Context, arg FinishVerificationRunParams) error
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (RoleAssignment, error)
@@ -105,9 +107,11 @@ type Querier interface {
 	GetGithubUserToken(ctx context.Context, arg GetGithubUserTokenParams) (GithubUserToken, error)
 	GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff, error)
 	GetMCPConnection(ctx context.Context, arg GetMCPConnectionParams) (McpConnection, error)
+	GetNotifyWebhook(ctx context.Context, workspaceID uuid.UUID) (NotifyWebhook, error)
 	GetPrBatch(ctx context.Context, arg GetPrBatchParams) (PrBatch, error)
 	GetProfileByKey(ctx context.Context, arg GetProfileByKeyParams) (Profile, error)
 	GetProfileVersion(ctx context.Context, arg GetProfileVersionParams) (ProfileVersion, error)
+	GetReviewRequest(ctx context.Context, arg GetReviewRequestParams) (ReviewRequest, error)
 	GetRun(ctx context.Context, arg GetRunParams) (ReviewRun, error)
 	GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, error)
 	GetShareGuest(ctx context.Context, id uuid.UUID) (ShareGuest, error)
@@ -142,7 +146,6 @@ type Querier interface {
 	InsertGithubSource(ctx context.Context, arg InsertGithubSourceParams) error
 	InsertHandoff(ctx context.Context, arg InsertHandoffParams) error
 	InsertInvite(ctx context.Context, arg InsertInviteParams) error
-	InsertJob(ctx context.Context, arg InsertJobParams) error
 	InsertLink(ctx context.Context, arg InsertLinkParams) error
 	InsertLinkState(ctx context.Context, arg InsertLinkStateParams) error
 	InsertMCPConnection(ctx context.Context, arg InsertMCPConnectionParams) error
@@ -155,6 +158,7 @@ type Querier interface {
 	InsertQuestion(ctx context.Context, arg InsertQuestionParams) error
 	InsertQuestionResult(ctx context.Context, arg InsertQuestionResultParams) error
 	InsertResetLink(ctx context.Context, arg InsertResetLinkParams) error
+	InsertReviewRequest(ctx context.Context, arg InsertReviewRequestParams) error
 	InsertRun(ctx context.Context, arg InsertRunParams) error
 	InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error
 	InsertShareGuest(ctx context.Context, arg InsertShareGuestParams) error
@@ -173,7 +177,7 @@ type Querier interface {
 	// An author of the bundle, or a named member (reviewer) of a spec doc in it.
 	IsBundleMember(ctx context.Context, arg IsBundleMemberParams) (bool, error)
 	IsProfileMaintainer(ctx context.Context, arg IsProfileMaintainerParams) (bool, error)
-	LatestBudget(ctx context.Context, workspaceID uuid.UUID) (Budget, error)
+	LatestBudget(ctx context.Context, arg LatestBudgetParams) (Budget, error)
 	// REQ-007: the latest finished run of a kind on a version.
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
 	// The last finished full review of a spec doc, on any version. Its AI findings carry.
@@ -183,9 +187,6 @@ type Querier interface {
 	LatestRun(ctx context.Context, specDocID uuid.UUID) (ReviewRun, error)
 	LatestRunFor(ctx context.Context, arg LatestRunForParams) (ReviewRun, error)
 	LatestVerificationSHA(ctx context.Context, arg LatestVerificationSHAParams) (string, error)
-	// The jobs that wait for a worker or run in one. A local owner that starts finds only jobs
-	// that a process before it left, and an owner that wants to exit waits until there is none.
-	ListActiveJobs(ctx context.Context) ([]Job, error)
 	ListActivePrBatches(ctx context.Context, workspaceID uuid.UUID) ([]PrBatch, error)
 	ListAdoptedLinks(ctx context.Context, sourceID uuid.UUID) ([]AdoptedLink, error)
 	ListAdoptedTypes(ctx context.Context, sourceID uuid.UUID) ([]AdoptedType, error)
@@ -243,6 +244,7 @@ type Querier interface {
 	ListSpecDocsOfBundle(ctx context.Context, bundleID uuid.UUID) ([]SpecDoc, error)
 	ListSpecDocsOfBundles(ctx context.Context, workspaceID uuid.UUID) ([]SpecDoc, error)
 	ListSpecDocsUsingProfile(ctx context.Context, arg ListSpecDocsUsingProfileParams) ([]ListSpecDocsUsingProfileRow, error)
+	ListSpend(ctx context.Context, arg ListSpendParams) ([]ModelSpend, error)
 	ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error)
 	ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]ThreadMessageView, error)
 	ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) ([]VerificationOutcome, error)
@@ -262,6 +264,7 @@ type Querier interface {
 	PeekResetLink(ctx context.Context, arg PeekResetLinkParams) (ResetLink, error)
 	// The last finished full review of a spec doc that started before another one.
 	PreviousFullReview(ctx context.Context, arg PreviousFullReviewParams) (ReviewRun, error)
+	PruneCache(ctx context.Context, before time.Time) (int64, error)
 	PutCache(ctx context.Context, arg PutCacheParams) error
 	RecordPrReview(ctx context.Context, arg RecordPrReviewParams) error
 	RetireQuestion(ctx context.Context, arg RetireQuestionParams) error
@@ -281,6 +284,7 @@ type Querier interface {
 	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
 	SetInboxSeen(ctx context.Context, arg SetInboxSeenParams) error
 	SetMessageDecision(ctx context.Context, arg SetMessageDecisionParams) error
+	SetNotifyWebhook(ctx context.Context, arg SetNotifyWebhookParams) error
 	SetPrBatchStatus(ctx context.Context, arg SetPrBatchStatusParams) error
 	SetProfileVersion(ctx context.Context, arg SetProfileVersionParams) error
 	SetSpecDocArchived(ctx context.Context, arg SetSpecDocArchivedParams) error
@@ -295,10 +299,13 @@ type Querier interface {
 	SpendInvite(ctx context.Context, arg SpendInviteParams) (Invite, error)
 	SpendResetLink(ctx context.Context, arg SpendResetLinkParams) (ResetLink, error)
 	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
+	StartReviewRequest(ctx context.Context, id uuid.UUID) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
 	StartVerificationRun(ctx context.Context, id uuid.UUID) error
 	StopPrBatchItems(ctx context.Context, arg StopPrBatchItemsParams) error
 	ThreadIDsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) ([]uuid.UUID, error)
+	// A review read the entry, so it stays past the next prune. One write a day at most.
+	TouchCache(ctx context.Context, arg TouchCacheParams) error
 	UnspendInvite(ctx context.Context, id uuid.UUID) error
 	UpdateBackend(ctx context.Context, arg UpdateBackendParams) error
 	// The edit applies only when the caller read the newest revision.

@@ -61,6 +61,9 @@ var operations = map[string]access{
 	// A review of a GitHub URL reads the repo with the workspace credential, as a verification
 	// run does, and calls the models.
 	"reviewUrl": member,
+	// The state and the result of a queued review from POST /reviews or POST /reviews/url. Its
+	// result has doc text of no bundle, as the report has: members read it.
+	"getReviewRequest": member,
 	// Pull request batches, questions to authors and pending reviews post as the local user
 	// with the GitHub credential of local mode (docs/specs/pr-review-batch.md). Hosted mode
 	// answers each one with local_only.
@@ -77,6 +80,11 @@ var operations = map[string]access{
 	"findCheckConflicts": member,
 	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.
 	"getContentReviewReport": member,
+	// The channel webhook is a secret and a workspace setting.
+	"getNotifications":    adminOnly,
+	"setNotifications":    adminOnly,
+	"deleteNotifications": adminOnly,
+	"testNotifications":   adminOnly,
 
 	"getBundle":       bundleRead,
 	"getSpecDoc":      bundleRead,

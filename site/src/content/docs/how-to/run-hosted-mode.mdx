@@ -1,6 +1,6 @@
 ---
 title: Run hosted mode
-description: Run Speccy for a team on Postgres, with accounts, roles, share links and the container image.
+description: Run Speccy for a team on Postgres, with accounts, roles, share links, pull request reviews by the GitHub App, job queues, channel notifications and the container image.
 sidebar:
   order: 11
 ---
@@ -42,7 +42,7 @@ A missing or bad variable stops the start, and the message names each problem at
 
 Serve Speccy behind TLS. With an `http://` base URL, the cookies lose the Secure flag. Use that for development only.
 
-`GET /healthz` answers `200` with `ok`, with no sign-in.
+`GET /healthz` answers `200` with `ok`, with no sign-in. `GET /readyz` answers `200` only when Speccy reaches Postgres and its job workers run. Otherwise it answers `503`.
 
 ## Make the first admin
 
@@ -121,6 +121,7 @@ With the App:
 - Speccy reads sources and makes breakdown issues as the App.
 - A pull request that a person publishes goes to GitHub with that person as its author. The first time, Speccy asks the person to connect their GitHub account.
 - A member of the org that owns the App signs in with GitHub, with no invite, as a member. On a personal account, only its owner signs in with GitHub.
+- The App reviews the pull requests of a repo with `mode: app` in `.speccy.yaml`. [Review pull requests with the App](#review-pull-requests-with-the-app) has the details.
 
 **Disconnect** makes Speccy forget the App's keys and each person's GitHub link. The App stays on GitHub. **App settings on GitHub** opens the page that deletes it.
 
@@ -129,6 +130,61 @@ To make the App yourself, set the `SPECCY_GITHUB_APP_` variables in [Configurati
 ### With a token
 
 Use a token when the org cannot add a GitHub App. Under **Admin → GitHub**, paste a fine-grained personal access token with read and write access to Contents and Pull requests. Speccy then reads each source every 5 minutes. Every pull request goes to GitHub as the owner of the token, and sign-in with GitHub is off.
+
+## Review pull requests with the App
+
+The GitHub App reviews the pull requests of each repo that it can read. The repo needs no workflow and no secret.
+
+<Steps>
+
+1. Install the App on the repo, as [With a GitHub App](#with-a-github-app) says.
+
+2. Add `.speccy.yaml` to the repo with `mode: app`. `speccy init --github --reviewer app` writes it. [.speccy.yaml](/reference/speccy-yaml/#mode) has the key.
+
+3. In the branch protection of the repo, mark each `speccy: <bundle slug>` check as required. Set the App as the expected source of the checks.
+
+</Steps>
+
+A repo with no `mode` key gets a review from the App and from the Action, if the repo has the workflow. With `mode: action`, the App skips the repo.
+
+### What starts a review
+
+The App queues a review of the head commit when:
+
+- A person opens, reopens or pushes to a pull request, or marks it ready for review.
+- A comment on the pull request, or a reply on a review comment, has a line that starts with `/speccy `.
+
+A reply command thus acts at once, with no push. A new push cancels the review of the older commit.
+
+### What the review does
+
+- It reviews the spec docs that the pull request changes. It uses the workspace profiles and the workspace models.
+- It posts the summary comment and the inline comments, and one check for each bundle, named `speccy: <bundle slug>`.
+- It commits a sidecar or `.speccy.yaml` change that a reply asked for to the branch of the pull request. It never commits to a fork. [Reply commands](/reference/reply-commands/) lists the commands.
+- With no model on the `reviewer` role, it runs the lint checks only.
+- It keeps the report of each review for 90 days. The summary comment links to it.
+
+The App reads `enforcement`, `adoption.relaxed` and `mode` from the base branch, so a pull request cannot change its own gate. It reads `map`, `size`, the link rules and the sidecars from the head commit. A pull request that adds `.speccy.yaml` for the first time uses its own file.
+
+The App ignores a `.speccy/profiles` folder in the repo. The summary comment says so once. Change the profiles in **Admin → Profiles**.
+
+A `.speccy.yaml` that is not valid gives one failed check, named `speccy`, with the problem.
+
+When the monthly budget of pull request reviews is spent, the review stops. In blocking mode, the check fails and names the budget. [Budget and model cost](/operations/budget-and-model-cost/#the-monthly-budget) explains the two budgets.
+
+### An App that lacks permissions
+
+The App needs **Checks: write** and the events `issue_comment` and `pull_request_review_comment`. An App that an older Speccy made does not have them. **Admin → GitHub** then says `The App lacks` and names each missing item. GitHub does not let Speccy change an App.
+
+<Steps>
+
+1. Under **Admin → GitHub**, select **App settings on GitHub**.
+
+2. Under **Permissions & events**, set **Checks** to **Read and write**. Select the events **Issue comment** and **Pull request review comment**. Save the changes.
+
+3. On the installation of the App, accept the new permissions.
+
+</Steps>
 
 ## Sign in with OIDC
 
@@ -188,19 +244,67 @@ The profile sets how many approvals a bundle needs, and who approves a waiver. [
 
 Each person makes personal API tokens under **Account → API tokens**, with **Make a token**. A token starts with `spy_` and has the role of its owner. It stops working when the owner loses the role.
 
-- `speccy review --server https://speccy.example.com` reads the token from `SPECCY_TOKEN`.
-- The GitHub Action takes it in its `token` input, with `server`.
-- MCP clients reach the Speccy tools at `/mcp` over streamable HTTP, with `Authorization: Bearer <token>`. A tool can do what the owner of the token can do in the app, and nothing more.
+- `speccy review --server https://speccy.example.com` reads the token from `SPECCY_TOKEN`. It waits until the review on the server ends.
+- MCP clients reach the Speccy tools at `/mcp` over streamable HTTP, with `Authorization: Bearer <token>`. A tool can do what the owner of the token can do in the app, and nothing more. The `review_content` and `review_url` tools wait for the review to end, and they send progress notifications.
+
+`POST /api/v1/reviews` and `POST /api/v1/reviews/url` queue the review and answer `202` with a review request: its `id`, its `kind` and its `status`. `GET /api/v1/reviews/{reviewId}` gives the status, `queued`, `running`, `complete` or `failed`, the stage, and then the result. A proxy timeout thus never cuts a review.
 
 ## Models and GitHub
 
 An admin adds the model backends and assigns the roles under **Admin**. [Add a model backend](/how-to/add-a-model-backend/) has the steps. The image holds no agent CLI, so use API backends.
 
+**Admin → Models** has one monthly token limit for each queue: **Reviews a person waits for** and **Pull request reviews of the GitHub App**. It shows the spend of this month by queue, by person and by repo. [Budget and model cost](/operations/budget-and-model-cost/) explains the budget.
+
 An admin connects GitHub under **Admin → GitHub**, as [Connect GitHub](#connect-github) says. [Adopt a repo](/how-to/adopt-a-repo/) covers sources.
+
+## Queues and jobs
+
+Speccy runs each review as a job in a queue in Postgres. There are two queues:
+
+| Queue | Its jobs | Setting in **Admin → Workspace settings** |
+|---|---|---|
+| `interactive` | The reviews from the app, the CLI and MCP, the AI answers in threads, the verification runs, the review requests and the channel messages. | **Reviews at a time**, 3 by default. |
+| `pr` | The pull request reviews of the GitHub App. | **Pull request reviews at a time**, 2 by default. |
+
+Each setting takes 1 to 20. A change waits for the running reviews of its queue to finish. Thus a burst of pushes does not make people wait, and people do not hold up the pull request checks. **Model calls at a time** applies to each running review, 8 by default.
+
+After a 429 or a 5xx answer from a model provider, Speccy waits and tries the call again. It waits for the `retry-after` time when the answer gives one. It tries again while the review has time left.
+
+An admin opens the queue view at `/admin/queues`. It shows the jobs of each queue, with the failed and the cancelled ones. Only an admin sees it, and only in hosted mode.
+
+A daily job deletes the model cache entries that no review read for 90 days.
+
+## Send notifications to a channel
+
+Speccy can post to one Slack or Teams channel. It sends no mail.
+
+<Steps>
+
+1. Make an incoming webhook for the channel. For Teams, use a Workflows webhook.
+
+2. Open **Admin → Notifications**. Under **Kind**, choose **Slack** or **Teams**.
+
+3. Paste the URL under **Webhook URL**, and select **Save**. The URL must start with `https://`.
+
+4. Select **Send a test message**. Speccy shows the HTTP status of the answer.
+
+</Steps>
+
+Speccy stores the URL encrypted with the master key. The page shows only its last 4 characters. **Remove** deletes it. `SPECCY_NOTIFY_WEBHOOK_URL` and `SPECCY_NOTIFY_WEBHOOK_KIND` set the webhook instead, and lock it on the page.
+
+Speccy posts one message when:
+
+- An author asks for a review. The message names the reviewers.
+- A person asks for a waiver. When the profile's policy is `maintainer`, the message names the profile maintainers.
+- A blocking thread opens. The message names the authors.
+- A spec becomes Build Ready. The message names the authors.
+- A monthly token budget reaches 80%.
+
+A message holds the bundle title, one sentence, the names and one link. It holds no doc text and no finding text. A Private bundle posts nothing. Pull request reviews post nothing, because GitHub notifies those. Each message is a job that tries 3 more times when the webhook fails. A failed message never stops the action that caused it.
 
 ## Run on Kubernetes
 
-Run one replica. Each instance keeps the live progress of its review runs in memory, so a second replica shows no progress for runs on the first. Use the `Recreate` strategy, so an old and a new version never run at once.
+Run one replica. Model throughput limits Speccy, not the process, so a second replica adds no speed. Use the `Recreate` strategy, so an old and a new version never run at once. When a deploy stops a review, the job queue runs the review again on the new version. When a process dies during a review, the queue gives the review to a worker again after 20 minutes.
 
 ```yaml k8s
 apiVersion: apps/v1
@@ -226,12 +330,14 @@ spec:
             - secretRef:
                 name: speccy-env # SPECCY_DATABASE_URL, SPECCY_MASTER_KEY, SPECCY_BASE_URL, SPECCY_SETUP_TOKEN
           readinessProbe:
-            httpGet: { path: /healthz, port: 8080 }
+            httpGet: { path: /readyz, port: 8080 }
           livenessProbe:
             httpGet: { path: /healthz, port: 8080 }
 ```
 
-`/healthz` says only that the process serves HTTP. It does not check the database.
+`/readyz` checks Postgres and the job workers, so a pod that cannot reach Postgres gets no traffic. `/healthz` says only that the process serves HTTP, so the liveness probe does not restart a pod when Postgres is down.
+
+Speccy opens at most 20 Postgres connections, and the job queue uses the same pool. `SPECCY_DB_MAX_CONNS` changes the number. Keep it below the `max_connections` of Postgres.
 
 Put `SPECCY_SETUP_TOKEN` in the Secret, and make the first admin at `/setup`.
 
@@ -241,6 +347,6 @@ Keep `SPECCY_MASTER_KEY` in the Secret, and keep a copy of it outside the cluste
 
 ## Limits and rate limits
 
-Under **Admin → Workspace settings**, an admin sets four limits. They are the largest file, the largest bundle, the life of an invite link, and the model calls at a time. [Configuration](/reference/configuration/#workspace-settings) has the defaults.
+Under **Admin → Workspace settings**, an admin sets six limits. Three are the largest file, the largest bundle and the life of an invite link. Three are the model calls at a time, the reviews at a time, and the pull request reviews at a time. [Configuration](/reference/configuration/#workspace-settings) has the defaults.
 
 Speccy limits sign-in, invite links, reset links and password changes for each client address. It keeps the counts in the database. A refused request gets `429`.

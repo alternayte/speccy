@@ -19,6 +19,8 @@ import (
 	"github.com/alternayte/speccy/internal/app"
 	"github.com/alternayte/speccy/internal/authinvite"
 	"github.com/alternayte/speccy/internal/features/admin"
+	"github.com/alternayte/speccy/internal/features/notify"
+	"github.com/alternayte/speccy/internal/features/prcheck"
 	"github.com/alternayte/speccy/internal/hostauth"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -39,6 +41,10 @@ type hostedConfig struct {
 	setupToken string
 	// githubApp is the GitHub App from SPECCY_GITHUB_APP_*, which locks the App in the UI.
 	githubApp *admin.EnvApp
+	// maxConns is SPECCY_DB_MAX_CONNS: the most Postgres connections Speccy opens.
+	maxConns int
+	// notify is the channel webhook of SPECCY_NOTIFY_WEBHOOK_URL and _KIND, which locks the UI.
+	notify *notify.Env
 }
 
 // loadHostedConfig reads the environment. It names every missing or bad variable at once.
@@ -74,6 +80,24 @@ func loadHostedConfig(getenv func(string) string) (hostedConfig, error) {
 		problems = append(problems, "SPECCY_GITHUB_OAUTH_CLIENT_ID and SPECCY_GITHUB_OAUTH_CLIENT_SECRET are gone: GitHub sign-in uses the workspace's GitHub App. Remove them, and create the App in Admin → GitHub")
 	}
 	c.setupToken = strings.TrimSpace(getenv("SPECCY_SETUP_TOKEN"))
+	if u, k := strings.TrimSpace(getenv("SPECCY_NOTIFY_WEBHOOK_URL")), strings.TrimSpace(getenv("SPECCY_NOTIFY_WEBHOOK_KIND")); u+k != "" {
+		switch {
+		case notify.ValidURL(u) != nil:
+			problems = append(problems, "SPECCY_NOTIFY_WEBHOOK_URL must be the https URL of a Slack or Teams incoming webhook")
+		case k != notify.Slack && k != notify.Teams:
+			problems = append(problems, "SPECCY_NOTIFY_WEBHOOK_KIND must be slack or teams")
+		default:
+			c.notify = &notify.Env{Kind: k, URL: u}
+		}
+	}
+	c.maxConns = store.DefaultMaxConns
+	if v := strings.TrimSpace(getenv("SPECCY_DB_MAX_CONNS")); v != "" {
+		if n, err := strconv.Atoi(v); err != nil || n < 2 {
+			problems = append(problems, "SPECCY_DB_MAX_CONNS must be a number of 2 or more, such as 20")
+		} else {
+			c.maxConns = n
+		}
+	}
 	app, err := loadEnvApp(getenv)
 	if err != nil {
 		problems = append(problems, err.Error())
@@ -133,6 +157,10 @@ func openHosted(ctx context.Context, c hostedConfig) (*store.DB, *kernel.Sealer,
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	if c.maxConns > 0 {
+		db.SQL.SetMaxOpenConns(c.maxConns)
+		db.SQL.SetMaxIdleConns(c.maxConns)
+	}
 	if err := db.Migrate(ctx); err != nil {
 		_ = db.Close()
 		return nil, nil, nil, err
@@ -176,12 +204,17 @@ func runHosted(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun
 	}
-	defer func() { _ = db.Close() }()
 	a, err := app.New(ctx, db, sealer, app.Options{People: auth})
 	if err != nil {
+		_ = db.Close()
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun
 	}
+	defer func() {
+		stop()
+		<-a.Queue.Done() // the workers stop before the store closes
+		_ = db.Close()
+	}()
 	a.Admin.Accounts = auth
 	a.Share.Sealer, a.Share.BaseURL, a.Share.Secure = sealer, c.baseURL, !c.insecure()
 	a.API.BreakdownAPI.BaseURL = c.baseURL
@@ -193,6 +226,11 @@ func runHosted(stdout, stderr io.Writer) int {
 		GitHubAccount: auth.GitHubAccount, Changed: a.Bundles.SyncRepo, Life: ctx,
 	}
 	a.Bundles.GitHubAs = a.Admin.UserGitHubClient
+	a.PRCheck.BaseURL = c.baseURL
+	a.Notify.BaseURL, a.Notify.Env = c.baseURL, c.notify
+	a.Admin.GitHubApp.PullRequest = func(ctx context.Context, apiURL, repo string, pull int, sha string) error {
+		return a.PRCheck.Enqueue(ctx, prcheck.Event{API: apiURL, Repo: repo, Pull: pull, SHA: sha})
+	}
 	auth.SetGitHubApp(a.Admin)
 	go auth.CleanUp(ctx)
 	spa, err := fs.Sub(web.Dist, "dist")
@@ -200,9 +238,21 @@ func runHosted(stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
 		return exitRun
 	}
+	queues, err := a.Queue.UI(ctx, speccyhttp.QueuesPath)
+	if err != nil {
+		fmt.Fprintf(stderr, "Speccy did not start: %v.\n", err)
+		return exitRun
+	}
 	h := withMCP(speccyhttp.Handler(spa, a.API, speccyhttp.Options{
 		Actor: auth.Actor(a.Share.Guest), Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}, Auth: auth.Handler(),
 		GitHubApp: &speccyhttp.GitHubAppRoutes{Webhook: a.Admin.Webhook, Created: a.Admin.AppCreated, Installed: a.Admin.AppInstalled},
+		Ready: func(ctx context.Context) error {
+			if err := db.SQL.PingContext(ctx); err != nil {
+				return fmt.Errorf("the database does not answer: %w", err)
+			}
+			return a.Queue.Ready()
+		},
+		Queues: queues,
 	}))
 	ln, err := net.Listen("tcp", c.listen)
 	if err != nil {

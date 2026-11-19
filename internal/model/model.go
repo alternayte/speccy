@@ -10,7 +10,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Roles (REQ-101).
@@ -114,6 +117,23 @@ func SearchCapable(kind, preset, model string) bool {
 type StatusError struct {
 	Status  int
 	Message string
+	// RetryAfter is the wait the backend asked for in its retry-after header, or zero.
+	RetryAfter time.Duration
+}
+
+// RetryAfter reads a retry-after header: seconds, or an HTTP date. Zero when absent or bad.
+func RetryAfter(h http.Header, now time.Time) time.Duration {
+	v := strings.TrimSpace(h.Get("Retry-After"))
+	if v == "" {
+		return 0
+	}
+	if n, err := strconv.ParseFloat(v, 64); err == nil && n > 0 {
+		return time.Duration(n * float64(time.Second))
+	}
+	if t, err := http.ParseTime(v); err == nil && t.After(now) {
+		return t.Sub(now)
+	}
+	return 0
 }
 
 func (e *StatusError) Error() string { return fmt.Sprintf("HTTP %d: %s", e.Status, e.Message) }

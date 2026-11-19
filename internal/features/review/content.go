@@ -19,6 +19,7 @@ import (
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
 	"github.com/alternayte/speccy/internal/source"
+	"github.com/alternayte/speccy/internal/source/github"
 )
 
 // Content is a bundle that is not saved: files sent by `speccy review --server` or by the MCP
@@ -31,6 +32,8 @@ type Content struct {
 	// From is set for content that Speccy read from a repo at a commit: the repo's own
 	// .speccy.yaml, the sidecar of the doc, and the other spec docs of that commit.
 	From *FromRepo
+	// Progress is the ID the review's stage events go out under, for a queued review.
+	Progress uuid.UUID
 }
 
 // FromRepo is what a doc of a repo at one commit brings with it, in place of what a served
@@ -168,6 +171,21 @@ type ContentResult struct {
 	CacheHits int
 }
 
+// CheckContent checks what a review of content needs before it is queued: a main doc, a
+// profile, and a model for each role of the stages. A problem fails the request at once.
+func (s *Service) CheckContent(ctx context.Context, c Content, stages Stages) error {
+	p, _, _, err := s.contentProfile(c)
+	if err != nil {
+		return err
+	}
+	for _, role := range stages.roles(p.Profile) {
+		if _, err := s.Gateway.Assigned(ctx, role); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ReviewContent runs the chosen stages on content that is not saved (SDD §12.2 --server). Its
 // links resolve against the saved bundles, so coherence checks the server's upstream docs.
 func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (ContentResult, error) {
@@ -186,7 +204,7 @@ func (s *Service) ReviewContent(ctx context.Context, c Content, stages Stages) (
 		return out, err
 	}
 	rc := &runCtx{
-		progress: s.Progress, roles: map[string]string{}, prompts: map[string]string{},
+		id: c.Progress, progress: s.Progress, roles: map[string]string{}, prompts: map[string]string{},
 		prices: map[string][2]float64{}, sem: make(chan struct{}, s.parallel(ctx)),
 	}
 	if guessed {
@@ -355,48 +373,57 @@ func contentMainDoc(c Content) (source.MainDoc, error) {
 	return m, nil
 }
 
-// ReviewContent is POST /reviews.
+// ReviewContent is POST /reviews. It checks the request, queues the review, and answers at
+// once; GET /reviews/{reviewId} gives the result (docs/specs/hosted-pr-review.md).
 func (a *API) ReviewContent(ctx context.Context, req api.ReviewContentRequestObject) (api.ReviewContentResponseObject, error) {
+	c, stages, err := contentOf(*req.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.Service.CheckContent(ctx, c, stages); err != nil {
+		return nil, err
+	}
+	out, err := a.queueRequest(ctx, requestContent, req.Body)
+	if err != nil {
+		return nil, err
+	}
+	return api.ReviewContent202JSONResponse(out), nil
+}
+
+// contentOf reads the content and the stages of a POST /reviews body.
+func contentOf(body api.ContentReviewRequest) (Content, Stages, error) {
 	c := Content{}
-	if req.Body.Slug != nil {
-		c.Slug = *req.Body.Slug
+	if body.Slug != nil {
+		c.Slug = *body.Slug
 	}
-	if req.Body.MainDoc != nil {
-		c.MainDoc = *req.Body.MainDoc
+	if body.MainDoc != nil {
+		c.MainDoc = *body.MainDoc
 	}
-	if req.Body.Profile != nil {
-		c.Profile = *req.Body.Profile
+	if body.Profile != nil {
+		c.Profile = *body.Profile
 	}
-	for _, f := range req.Body.Files {
+	for _, f := range body.Files {
 		p, err := source.CleanPath(f.Path)
 		if err != nil {
-			return nil, kernel.Invalid("bad_path", "The file path %q is not valid: %v.", f.Path, err)
+			return c, nil, kernel.Invalid("bad_path", "The file path %q is not valid: %v.", f.Path, err)
 		}
 		content := []byte(f.Content)
 		if f.Encoding != nil && *f.Encoding == api.ContentFileEncodingBase64 {
 			if content, err = base64.StdEncoding.DecodeString(f.Content); err != nil {
-				return nil, kernel.Invalid("bad_content", "The file %s is not valid base64.", f.Path)
+				return c, nil, kernel.Invalid("bad_content", "The file %s is not valid base64.", f.Path)
 			}
 		}
 		c.Files = append(c.Files, source.File{Path: p, Content: content})
 	}
 	source.Sort(c.Files)
 	var stages Stages
-	if req.Body.Stages != nil {
+	if body.Stages != nil {
 		stages = Stages{}
-		for _, st := range *req.Body.Stages {
+		for _, st := range *body.Stages {
 			stages = append(stages, string(st))
 		}
 	}
-	res, err := a.Service.ReviewContent(ctx, c, stages)
-	if err != nil {
-		return nil, err
-	}
-	out, err := a.contentReview(ctx, res, c.Files)
-	if err != nil {
-		return nil, err
-	}
-	return api.ReviewContent200JSONResponse(out), nil
+	return c, stages, nil
 }
 
 // contentReview is the result of an unsaved review as the API gives it. It stores the files
@@ -422,27 +449,22 @@ func (a *API) contentReview(ctx context.Context, res ContentResult, files []sour
 	return out, a.storeContentReview(ctx, res, files, out)
 }
 
-// ReviewUrl is POST /reviews/url: the review of the spec docs of a GitHub URL (#92).
+// ReviewUrl is POST /reviews/url: it queues the review of the spec docs of a GitHub URL (#92)
+// and answers at once.
 func (a *API) ReviewUrl(ctx context.Context, req api.ReviewUrlRequestObject) (api.ReviewUrlResponseObject, error) {
-	var stages Stages
-	if req.Body.Stages != nil {
-		stages = Stages{}
-		for _, st := range *req.Body.Stages {
-			stages = append(stages, string(st))
-		}
+	if _, err := github.ParseBuildURL(req.Body.Url); err != nil {
+		return nil, kernel.Invalid("bad_url", "%s.", err.Error())
 	}
-	res, err := a.Service.ReviewURL(ctx, req.Body.Url, stages)
+	if a.Service.GitHub == nil {
+		return nil, kernel.Invalid("no_github", "This Speccy has no GitHub credential, so it cannot read %s.", req.Body.Url)
+	}
+	out, err := a.queueRequest(ctx, requestURL, req.Body)
 	if err != nil {
 		return nil, err
 	}
-	out, err := a.URLReviewOut(ctx, res)
-	if err != nil {
-		return nil, err
-	}
-	return api.ReviewUrl200JSONResponse(out), nil
+	return api.ReviewUrl202JSONResponse(out), nil
 }
 
-// URLReviewOut is the review of a URL as the API gives it. It stores the review of each doc,
 // so its report has a link.
 func (a *API) URLReviewOut(ctx context.Context, res URLReview) (api.UrlReview, error) {
 	out := api.UrlReview{Repo: res.Repo, Commit: res.Commit, Docs: []api.UrlReviewDoc{}, Config: ConfigOut(res.Config)}

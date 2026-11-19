@@ -30,12 +30,6 @@ inputs:
   deepseek-api-key:
     description: The DeepSeek API key, when models uses deepseek.
     default: ""
-  server:
-    description: "Connected mode: the Speccy server that reviews the files with its models. Empty: mode and server in .speccy.yaml, else standalone."
-    default: ""
-  token:
-    description: "Connected mode: a personal API token for the server."
-    default: ""
   version:
     description: The Speccy release to run, such as v0.1.0.
     default: latest
@@ -69,11 +63,10 @@ runs:
         tar -xzf "$RUNNER_TEMP"/speccy/speccy_*_"${platform}".tar.gz -C "$RUNNER_TEMP/speccy"
         echo "$RUNNER_TEMP/speccy" >> "$GITHUB_PATH"
 
-    # Standalone mode keeps the review cache between runs (SDD §12.4). The cache holds no key
-    # that opens the store's secrets: a pull request from a fork can restore it. The v2 prefix
-    # leaves behind the caches of Speccy before v0.18.1, which held that key.
+    # The review cache stays between runs (SDD §12.4). The cache holds no key that opens the
+    # store's secrets: a pull request from a fork can restore it. The v2 prefix leaves behind
+    # the caches of Speccy before v0.18.1, which held that key.
     - name: Restore the review cache
-      if: inputs.server == ''
       uses: actions/cache@v4
       with:
         path: |
@@ -93,22 +86,19 @@ runs:
         SPECCY_OPENAI_API_KEY: ${{ inputs.openai-api-key }}
         SPECCY_OPENROUTER_API_KEY: ${{ inputs.openrouter-api-key }}
         SPECCY_DEEPSEEK_API_KEY: ${{ inputs.deepseek-api-key }}
-        SPECCY_TOKEN: ${{ inputs.token }}
         SPECCY_STATE_DIR: ${{ runner.temp }}/speccy-state
         SPECCY_REPORTS_DIR: ${{ runner.temp }}/speccy-reports
         CONFIG: ${{ inputs.config }}
         ENFORCEMENT: ${{ inputs.enforcement }}
-        SERVER: ${{ inputs.server }}
       run: |
         set -euo pipefail
         cd "$(dirname "$CONFIG")"
         args=()
         if [ -n "$ENFORCEMENT" ]; then args+=(--enforcement "$ENFORCEMENT"); fi
-        if [ -n "$SERVER" ]; then args+=(--server "$SERVER"); fi
         speccy action "${args[@]}"
 
     - name: Upload the HTML reports
-      if: always() && inputs.server == ''
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: speccy-reports
