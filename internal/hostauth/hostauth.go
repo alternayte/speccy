@@ -1,5 +1,5 @@
 // Package hostauth builds the sign-in of hosted mode on auth-all (DEC-016): email and
-// password, optional OIDC and GitHub (REQ-080), the admin and member roles, API tokens
+// password, optional OIDC, GitHub through the workspace's GitHub App (REQ-080), the admin and member roles, API tokens
 // (REQ-110), and Speccy's invite plugin. It turns each request into a kernel.Actor.
 package hostauth
 
@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"testing/fstest"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	authall "github.com/alternayte/auth-all"
 	"github.com/alternayte/auth-all/migrations"
 	"github.com/alternayte/auth-all/oauth"
-	"github.com/alternayte/auth-all/oauth/github"
 	"github.com/alternayte/auth-all/oauth/oidc"
 	"github.com/alternayte/auth-all/plugins/admin"
 	"github.com/alternayte/auth-all/plugins/apikeys"
@@ -52,10 +52,10 @@ type Config struct {
 	Workspace uuid.UUID
 	// BaseURL is SPECCY_BASE_URL: the public URL, for links, redirects, and cookies.
 	BaseURL string
-	// OIDC and GitHub are optional sign-in providers (REQ-080). A provider signs in an
-	// existing user only: accounts come from invites.
-	OIDC   *Provider
-	GitHub *Provider
+	// OIDC is the optional OIDC sign-in (REQ-080). It signs in an existing user only:
+	// accounts come from invites. GitHub sign-in comes from the workspace's App instead
+	// (SetGitHubApp).
+	OIDC *Provider
 	// Insecure allows a plain HTTP BaseURL (development only): the cookies lose Secure.
 	Insecure bool
 	// Now is for tests.
@@ -74,8 +74,10 @@ type Auth struct {
 	All     *authall.Auth
 	Admin   *admin.Plugin
 	Invites *authinvite.Plugin
-	// Providers are the configured OAuth provider IDs.
+	// Providers are the OAuth provider IDs from the environment. SignInProviders adds GitHub
+	// while the workspace has an App.
 	Providers []string
+	gh        atomic.Pointer[GitHubApp]
 	limiter   *storelimit.Limiter
 	db        *store.DB
 	ws        uuid.UUID
@@ -86,7 +88,7 @@ type Auth struct {
 func New(cfg Config) (*Auth, error) {
 	r := roles.New(roles.Hierarchy(kernel.RoleMember, kernel.RoleAdmin), roles.Default(kernel.RoleMember))
 	adm := admin.New(admin.AdminRole(kernel.RoleAdmin))
-	inv := &authinvite.Plugin{DB: cfg.DB, Workspace: cfg.Workspace, Admin: adm, BaseURL: cfg.BaseURL}
+	inv := &authinvite.Plugin{DB: cfg.DB, Workspace: cfg.Workspace, Admin: adm, BaseURL: cfg.BaseURL, MayCreate: MayCreate}
 	var st = authsqlite.New(cfg.DB.SQL)
 	if cfg.DB.Engine == store.Postgres {
 		st = authpg.New(cfg.DB.SQL)
@@ -105,7 +107,9 @@ func New(cfg Config) (*Auth, error) {
 		authall.WithBaseURL(cfg.BaseURL),
 		authall.WithEmailPassword(),
 		authall.WithPasswordPolicy(authall.PasswordPolicy{MinLength: authinvite.MinPassword, MaxLength: 4096}),
-		authall.WithPlugins(r, adm, apikeys.New(apikeys.Prefix(APIKeyPrefix), apikeys.AllowNoExpiry()), inv),
+		authall.WithPlugins(r, adm, apikeys.New(apikeys.Prefix(APIKeyPrefix), apikeys.AllowNoExpiry()), inv, githubHooks{}),
+		// A failed OAuth sign-in or link lands on the sign-in page with the error code.
+		authall.WithBrowserErrorRedirect(cfg.BaseURL + "/sign-in"),
 		authall.WithSchemaCheck(authall.SchemaCheckCatalog),
 	}
 	if cfg.Insecure {
@@ -120,21 +124,20 @@ func New(cfg Config) (*Auth, error) {
 		// A fixed ID keeps the callback URL and the linked accounts when the issuer changes.
 		providers = append(providers, oidc.New(oidc.WithID(OIDCProvider), oidc.WithIssuer(p.Issuer), oidc.WithClientID(p.ClientID), oidc.WithClientSecret(p.ClientSecret)))
 	}
-	if p := cfg.GitHub; p != nil {
-		providers = append(providers, github.New(github.WithClientID(p.ClientID), github.WithClientSecret(p.ClientSecret)))
-	}
 	if len(providers) > 0 {
 		opts = append(opts, authall.WithProvider(providers...))
 	}
+	a := &Auth{Admin: adm, Invites: inv, limiter: limiter, db: cfg.DB, ws: cfg.Workspace, baseURL: cfg.BaseURL}
+	opts = append(opts, authall.WithProviderSource(a.providerSource))
 	all, err := authall.New(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("set up sign-in: %w", err)
 	}
-	ids := make([]string, len(providers))
-	for i, p := range providers {
-		ids[i] = p.ID()
+	a.All = all
+	for _, p := range providers {
+		a.Providers = append(a.Providers, p.ID())
 	}
-	return &Auth{All: all, Admin: adm, Invites: inv, Providers: ids, limiter: limiter, db: cfg.DB, ws: cfg.Workspace, baseURL: cfg.BaseURL}, nil
+	return a, nil
 }
 
 // Rules are the rate limits of hosted mode: auth-all's sign-in defaults, and limits for the

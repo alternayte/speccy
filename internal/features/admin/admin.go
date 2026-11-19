@@ -28,12 +28,18 @@ type API struct {
 	Gateway   *model.Gateway
 	// Accounts makes invite and reset links. It is nil in local mode, which has no accounts.
 	Accounts Accounts
+	// GitHubApp is the GitHub App setup of hosted mode (docs/specs/github-app.md). Nil in local
+	// mode.
+	GitHubApp *GitHubApp
+	// SetupToken is SPECCY_SETUP_TOKEN. Empty turns /setup off.
+	SetupToken string
 }
 
 // Accounts is the part of the hosted auth setup that the admin screens use.
 type Accounts interface {
 	CreateInvite(ctx context.Context, role, createdBy string, ttl time.Duration) (string, pgdb.Invite, error)
 	CreateResetLink(ctx context.Context, email, createdBy string) (string, error)
+	People(ctx context.Context) ([]kernel.Person, error)
 }
 
 // backendConfig is the non-secret config stored in model_backend.config.

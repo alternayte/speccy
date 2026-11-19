@@ -60,6 +60,15 @@ func (q *Queries) DeleteDismissedDoc(ctx context.Context, arg DeleteDismissedDoc
 	return err
 }
 
+const deleteGithubApp = `-- name: DeleteGithubApp :exec
+DELETE FROM github_app WHERE workspace_id = ?1
+`
+
+func (q *Queries) DeleteGithubApp(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGithubApp, workspaceID)
+	return err
+}
+
 const deleteGithubConnection = `-- name: DeleteGithubConnection :exec
 DELETE FROM github_connection WHERE workspace_id = ?1
 `
@@ -81,6 +90,55 @@ type DeleteGithubSourceParams struct {
 func (q *Queries) DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error {
 	_, err := q.db.ExecContext(ctx, deleteGithubSource, arg.WorkspaceID, arg.ID)
 	return err
+}
+
+const deleteGithubUserToken = `-- name: DeleteGithubUserToken :exec
+DELETE FROM github_user_token WHERE workspace_id = ?1 AND github_user_id = ?2
+`
+
+type DeleteGithubUserTokenParams struct {
+	WorkspaceID  uuid.UUID
+	GithubUserID string
+}
+
+func (q *Queries) DeleteGithubUserToken(ctx context.Context, arg DeleteGithubUserTokenParams) error {
+	_, err := q.db.ExecContext(ctx, deleteGithubUserToken, arg.WorkspaceID, arg.GithubUserID)
+	return err
+}
+
+const deleteGithubUserTokens = `-- name: DeleteGithubUserTokens :exec
+DELETE FROM github_user_token WHERE workspace_id = ?1
+`
+
+func (q *Queries) DeleteGithubUserTokens(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteGithubUserTokens, workspaceID)
+	return err
+}
+
+const getGithubApp = `-- name: GetGithubApp :one
+SELECT workspace_id, api_url, app_id, slug, owner_login, owner_is_org, client_id, client_secret_encrypted, private_key_encrypted, webhook_secret_encrypted, installation_id, created_by, created_at, updated_at FROM github_app WHERE workspace_id = ?1
+`
+
+func (q *Queries) GetGithubApp(ctx context.Context, workspaceID uuid.UUID) (GithubApp, error) {
+	row := q.db.QueryRowContext(ctx, getGithubApp, workspaceID)
+	var i GithubApp
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ApiUrl,
+		&i.AppID,
+		&i.Slug,
+		&i.OwnerLogin,
+		&i.OwnerIsOrg,
+		&i.ClientID,
+		&i.ClientSecretEncrypted,
+		&i.PrivateKeyEncrypted,
+		&i.WebhookSecretEncrypted,
+		&i.InstallationID,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getGithubConnection = `-- name: GetGithubConnection :one
@@ -131,6 +189,31 @@ func (q *Queries) GetGithubSource(ctx context.Context, arg GetGithubSourceParams
 	return i, err
 }
 
+const getGithubUserToken = `-- name: GetGithubUserToken :one
+SELECT workspace_id, github_user_id, login, access_encrypted, access_expires_at, refresh_encrypted, refresh_expires_at, updated_at FROM github_user_token WHERE workspace_id = ?1 AND github_user_id = ?2
+`
+
+type GetGithubUserTokenParams struct {
+	WorkspaceID  uuid.UUID
+	GithubUserID string
+}
+
+func (q *Queries) GetGithubUserToken(ctx context.Context, arg GetGithubUserTokenParams) (GithubUserToken, error) {
+	row := q.db.QueryRowContext(ctx, getGithubUserToken, arg.WorkspaceID, arg.GithubUserID)
+	var i GithubUserToken
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.GithubUserID,
+		&i.Login,
+		&i.AccessEncrypted,
+		&i.AccessExpiresAt,
+		&i.RefreshEncrypted,
+		&i.RefreshExpiresAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertDismissedDoc = `-- name: InsertDismissedDoc :exec
 INSERT INTO dismissed_doc (workspace_id, source_id, path, dismissed_by, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5)
@@ -152,6 +235,49 @@ func (q *Queries) InsertDismissedDoc(ctx context.Context, arg InsertDismissedDoc
 		arg.Path,
 		arg.DismissedBy,
 		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertGithubApp = `-- name: InsertGithubApp :exec
+INSERT INTO github_app (workspace_id, api_url, app_id, slug, owner_login, owner_is_org, client_id, client_secret_encrypted,
+                        private_key_encrypted, webhook_secret_encrypted, created_by, created_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+        ?7, ?8, ?9, ?10,
+        ?11, ?12, ?13)
+`
+
+type InsertGithubAppParams struct {
+	WorkspaceID            uuid.UUID
+	ApiUrl                 string
+	AppID                  int64
+	Slug                   string
+	OwnerLogin             string
+	OwnerIsOrg             bool
+	ClientID               string
+	ClientSecretEncrypted  []byte
+	PrivateKeyEncrypted    []byte
+	WebhookSecretEncrypted []byte
+	CreatedBy              string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+func (q *Queries) InsertGithubApp(ctx context.Context, arg InsertGithubAppParams) error {
+	_, err := q.db.ExecContext(ctx, insertGithubApp,
+		arg.WorkspaceID,
+		arg.ApiUrl,
+		arg.AppID,
+		arg.Slug,
+		arg.OwnerLogin,
+		arg.OwnerIsOrg,
+		arg.ClientID,
+		arg.ClientSecretEncrypted,
+		arg.PrivateKeyEncrypted,
+		arg.WebhookSecretEncrypted,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }
@@ -320,6 +446,52 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 	return items, nil
 }
 
+const listGithubSourcesOfRepo = `-- name: ListGithubSourcesOfRepo :many
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config FROM github_source WHERE workspace_id = ?1 AND lower(repo) = lower(?2) ORDER BY branch, path
+`
+
+type ListGithubSourcesOfRepoParams struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+}
+
+func (q *Queries) ListGithubSourcesOfRepo(ctx context.Context, arg ListGithubSourcesOfRepoParams) ([]GithubSource, error) {
+	rows, err := q.db.QueryContext(ctx, listGithubSourcesOfRepo, arg.WorkspaceID, arg.Repo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GithubSource
+	for rows.Next() {
+		var i GithubSource
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Repo,
+			&i.Branch,
+			&i.Path,
+			&i.HeadCommit,
+			&i.SyncedAt,
+			&i.Error,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.ApiUrl,
+			&i.Skipped,
+			&i.RepoConfig,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveAdoptedLinks = `-- name: MoveAdoptedLinks :exec
 UPDATE adopted_link SET source_id = ?1 WHERE source_id = ?2
 `
@@ -385,6 +557,22 @@ type SetAdoptedTypeParams struct {
 
 func (q *Queries) SetAdoptedType(ctx context.Context, arg SetAdoptedTypeParams) error {
 	_, err := q.db.ExecContext(ctx, setAdoptedType, arg.SourceID, arg.Path, arg.Profile)
+	return err
+}
+
+const setGithubAppInstallation = `-- name: SetGithubAppInstallation :exec
+UPDATE github_app SET installation_id = ?1, updated_at = ?2
+WHERE workspace_id = ?3
+`
+
+type SetGithubAppInstallationParams struct {
+	InstallationID sql.NullInt64
+	UpdatedAt      time.Time
+	WorkspaceID    uuid.UUID
+}
+
+func (q *Queries) SetGithubAppInstallation(ctx context.Context, arg SetGithubAppInstallationParams) error {
+	_, err := q.db.ExecContext(ctx, setGithubAppInstallation, arg.InstallationID, arg.UpdatedAt, arg.WorkspaceID)
 	return err
 }
 
@@ -476,6 +664,41 @@ func (q *Queries) UpsertGithubConnection(ctx context.Context, arg UpsertGithubCo
 		arg.TokenLast4,
 		arg.ApiUrl,
 		arg.UpdatedBy,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertGithubUserToken = `-- name: UpsertGithubUserToken :exec
+INSERT INTO github_user_token (workspace_id, github_user_id, login, access_encrypted, access_expires_at, refresh_encrypted,
+                               refresh_expires_at, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5,
+        ?6, ?7, ?8)
+ON CONFLICT (workspace_id, github_user_id) DO UPDATE SET login = excluded.login, access_encrypted = excluded.access_encrypted,
+    access_expires_at = excluded.access_expires_at, refresh_encrypted = excluded.refresh_encrypted,
+    refresh_expires_at = excluded.refresh_expires_at, updated_at = excluded.updated_at
+`
+
+type UpsertGithubUserTokenParams struct {
+	WorkspaceID      uuid.UUID
+	GithubUserID     string
+	Login            string
+	AccessEncrypted  []byte
+	AccessExpiresAt  sql.NullTime
+	RefreshEncrypted []byte
+	RefreshExpiresAt sql.NullTime
+	UpdatedAt        time.Time
+}
+
+func (q *Queries) UpsertGithubUserToken(ctx context.Context, arg UpsertGithubUserTokenParams) error {
+	_, err := q.db.ExecContext(ctx, upsertGithubUserToken,
+		arg.WorkspaceID,
+		arg.GithubUserID,
+		arg.Login,
+		arg.AccessEncrypted,
+		arg.AccessExpiresAt,
+		arg.RefreshEncrypted,
+		arg.RefreshExpiresAt,
 		arg.UpdatedAt,
 	)
 	return err

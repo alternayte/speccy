@@ -124,12 +124,24 @@ func (a Adapter) DeleteFindingsOfSpecDoc(ctx context.Context, specDocID uuid.UUI
 	return a.q.DeleteFindingsOfSpecDoc(ctx, specDocID)
 }
 
+func (a Adapter) DeleteGithubApp(ctx context.Context, workspaceID uuid.UUID) error {
+	return a.q.DeleteGithubApp(ctx, workspaceID)
+}
+
 func (a Adapter) DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error {
 	return a.q.DeleteGithubConnection(ctx, workspaceID)
 }
 
 func (a Adapter) DeleteGithubSource(ctx context.Context, arg pgdb.DeleteGithubSourceParams) error {
 	return a.q.DeleteGithubSource(ctx, DeleteGithubSourceParams(arg))
+}
+
+func (a Adapter) DeleteGithubUserToken(ctx context.Context, arg pgdb.DeleteGithubUserTokenParams) error {
+	return a.q.DeleteGithubUserToken(ctx, DeleteGithubUserTokenParams(arg))
+}
+
+func (a Adapter) DeleteGithubUserTokens(ctx context.Context, workspaceID uuid.UUID) error {
+	return a.q.DeleteGithubUserTokens(ctx, workspaceID)
 }
 
 func (a Adapter) DeleteHandoffsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
@@ -342,6 +354,11 @@ func (a Adapter) GetFirstWorkspace(ctx context.Context) (pgdb.Workspace, error) 
 	return pgdb.Workspace(r), err
 }
 
+func (a Adapter) GetGithubApp(ctx context.Context, workspaceID uuid.UUID) (pgdb.GithubApp, error) {
+	r, err := a.q.GetGithubApp(ctx, workspaceID)
+	return pgdb.GithubApp(r), err
+}
+
 func (a Adapter) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID) (pgdb.GithubConnection, error) {
 	r, err := a.q.GetGithubConnection(ctx, workspaceID)
 	return pgdb.GithubConnection(r), err
@@ -350,6 +367,11 @@ func (a Adapter) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID)
 func (a Adapter) GetGithubSource(ctx context.Context, arg pgdb.GetGithubSourceParams) (pgdb.GithubSource, error) {
 	r, err := a.q.GetGithubSource(ctx, GetGithubSourceParams(arg))
 	return pgdb.GithubSource(r), err
+}
+
+func (a Adapter) GetGithubUserToken(ctx context.Context, arg pgdb.GetGithubUserTokenParams) (pgdb.GithubUserToken, error) {
+	r, err := a.q.GetGithubUserToken(ctx, GetGithubUserTokenParams(arg))
+	return pgdb.GithubUserToken(r), err
 }
 
 func (a Adapter) GetHandoff(ctx context.Context, arg pgdb.GetHandoffParams) (pgdb.Handoff, error) {
@@ -511,6 +533,10 @@ func (a Adapter) InsertEvent(ctx context.Context, arg pgdb.InsertEventParams) er
 
 func (a Adapter) InsertFinding(ctx context.Context, arg pgdb.InsertFindingParams) error {
 	return a.q.InsertFinding(ctx, InsertFindingParams(arg))
+}
+
+func (a Adapter) InsertGithubApp(ctx context.Context, arg pgdb.InsertGithubAppParams) error {
+	return a.q.InsertGithubApp(ctx, InsertGithubAppParams(arg))
 }
 
 func (a Adapter) InsertGithubSource(ctx context.Context, arg pgdb.InsertGithubSourceParams) error {
@@ -917,6 +943,18 @@ func (a Adapter) ListFullRunsSince(ctx context.Context, arg pgdb.ListFullRunsSin
 
 func (a Adapter) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.GithubSource, error) {
 	rows, err := a.q.ListGithubSources(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.GithubSource, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.GithubSource(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListGithubSourcesOfRepo(ctx context.Context, arg pgdb.ListGithubSourcesOfRepoParams) ([]pgdb.GithubSource, error) {
+	rows, err := a.q.ListGithubSourcesOfRepo(ctx, ListGithubSourcesOfRepoParams(arg))
 	if err != nil {
 		return nil, err
 	}
@@ -1459,6 +1497,10 @@ func (a Adapter) SetFindingSuggestion(ctx context.Context, arg pgdb.SetFindingSu
 	return a.q.SetFindingSuggestion(ctx, SetFindingSuggestionParams(arg))
 }
 
+func (a Adapter) SetGithubAppInstallation(ctx context.Context, arg pgdb.SetGithubAppInstallationParams) error {
+	return a.q.SetGithubAppInstallation(ctx, SetGithubAppInstallationParams(arg))
+}
+
 func (a Adapter) SetGithubSourceRepoConfig(ctx context.Context, arg pgdb.SetGithubSourceRepoConfigParams) error {
 	return a.q.SetGithubSourceRepoConfig(ctx, SetGithubSourceRepoConfigParams(arg))
 }
@@ -1583,6 +1625,10 @@ func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignment
 
 func (a Adapter) UpsertGithubConnection(ctx context.Context, arg pgdb.UpsertGithubConnectionParams) error {
 	return a.q.UpsertGithubConnection(ctx, UpsertGithubConnectionParams(arg))
+}
+
+func (a Adapter) UpsertGithubUserToken(ctx context.Context, arg pgdb.UpsertGithubUserTokenParams) error {
+	return a.q.UpsertGithubUserToken(ctx, UpsertGithubUserTokenParams(arg))
 }
 
 func (a Adapter) UpsertSpecDocStatusView(ctx context.Context, arg pgdb.UpsertSpecDocStatusViewParams) error {

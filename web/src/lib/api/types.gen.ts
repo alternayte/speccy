@@ -1747,14 +1747,53 @@ export type BundleGithub = {
     pr_url?: string;
 };
 
+/**
+ * The one GitHub connection of the workspace, an App or a token, never both (docs/specs/github-app.md).
+ */
 export type GithubConnection = {
     configured: boolean;
+    kind: 'none' | 'token' | 'app';
+    /**
+     * Whether this mode can create a GitHub App. Hosted mode only.
+     */
+    app_available: boolean;
+    app?: GithubApp;
     token_last4?: string;
     api_url: string;
     /**
      * The GitHub account of the token, from the last check.
      */
     login?: string;
+};
+
+/**
+ * The workspace's private GitHub App.
+ */
+export type GithubApp = {
+    slug: string;
+    /**
+     * The org or the personal account that owns the App.
+     */
+    owner: string;
+    owner_is_org: boolean;
+    installed: boolean;
+    api_url: string;
+    install_url: string;
+    /**
+     * The App's settings page on GitHub, where its owner deletes it.
+     */
+    settings_url: string;
+    /**
+     * The App comes from the SPECCY_GITHUB_APP_ variables, so the UI cannot change it.
+     */
+    from_env: boolean;
+};
+
+export type Setup = {
+    /**
+     * SPECCY_SETUP_TOKEN is set and no admin exists yet.
+     */
+    open: boolean;
 };
 
 /**
@@ -6848,6 +6887,125 @@ export type SetGithubConnectionResponses = {
 };
 
 export type SetGithubConnectionResponse = SetGithubConnectionResponses[keyof SetGithubConnectionResponses];
+
+export type DeleteGithubAppData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/github/app';
+};
+
+export type DeleteGithubAppErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteGithubAppError = DeleteGithubAppErrors[keyof DeleteGithubAppErrors];
+
+export type DeleteGithubAppResponses = {
+    /**
+     * Disconnected.
+     */
+    204: void;
+};
+
+export type DeleteGithubAppResponse = DeleteGithubAppResponses[keyof DeleteGithubAppResponses];
+
+export type StartGithubAppData = {
+    body?: {
+        /**
+         * The org that owns the App. Empty makes it on the admin's personal account.
+         */
+        org?: string;
+        /**
+         * The GitHub API. The default is https://api.github.com. GitHub Enterprise Server uses https://<host>/api/v3.
+         */
+        api_url?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/admin/github/app';
+};
+
+export type StartGithubAppErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type StartGithubAppError = StartGithubAppErrors[keyof StartGithubAppErrors];
+
+export type StartGithubAppResponses = {
+    /**
+     * Where to post the manifest.
+     */
+    200: {
+        action_url: string;
+        /**
+         * The manifest as JSON text, for the form field named manifest.
+         */
+        manifest: string;
+    };
+};
+
+export type StartGithubAppResponse = StartGithubAppResponses[keyof StartGithubAppResponses];
+
+export type GetSetupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/setup';
+};
+
+export type GetSetupErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetSetupError = GetSetupErrors[keyof GetSetupErrors];
+
+export type GetSetupResponses = {
+    /**
+     * The setup state.
+     */
+    200: Setup;
+};
+
+export type GetSetupResponse = GetSetupResponses[keyof GetSetupResponses];
+
+export type StartSetupData = {
+    body: {
+        token: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/setup';
+};
+
+export type StartSetupErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type StartSetupError = StartSetupErrors[keyof StartSetupErrors];
+
+export type StartSetupResponses = {
+    /**
+     * The invite link of the first admin.
+     */
+    200: {
+        invite_url: string;
+    };
+};
+
+export type StartSetupResponse = StartSetupResponses[keyof StartSetupResponses];
 
 export type ListGithubSourcesData = {
     body?: never;

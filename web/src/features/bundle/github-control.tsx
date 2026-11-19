@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { clsx } from "clsx";
 import { ExternalLink, GitPullRequestArrow } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
@@ -9,6 +9,11 @@ import { ErrorState } from "@/components/ui/states";
 import type { SpecDoc } from "@/lib/api";
 import { discardDraftMutation, getSpecDocOptions, publishBundleMutation } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
+import { WriteError } from "./connect-github";
+
+// publishKey keeps the commit message while the person connects GitHub, so the publish goes
+// on when GitHub sends them back.
+const publishKey = "speccy.publish";
 
 // GitHubControl shows where a GitHub bundle comes from, and publishes its draft as a pull
 // request (REQ-123). Speccy never changes the branch itself.
@@ -19,6 +24,36 @@ export function GitHubControl({ bundle, canEdit }: { bundle: SpecDoc; canEdit: b
   const [message, setMessage] = useState("");
   const done = () => qc.invalidateQueries({ queryKey: getSpecDocOptions({ path: { docId: bundle.id } }).queryKey });
   const publish = useMutation({ ...publishBundleMutation(), onSuccess: done });
+  // Back from the GitHub link: open the dialog and publish with the kept message.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("publish") !== "1") return;
+    params.delete("publish");
+    const rest = params.toString();
+    history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+    let kept = "";
+    try {
+      kept = sessionStorage.getItem(publishKey) ?? "";
+      sessionStorage.removeItem(publishKey);
+    } catch {
+      // Storage can be blocked; the default message applies.
+    }
+    setMessage(kept);
+    setOpen(true);
+    publish.mutate({ path: { docId: bundle.id }, body: { message: kept || undefined } });
+    // Runs once, on the return from GitHub.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const back = () => {
+    try {
+      sessionStorage.setItem(publishKey, message);
+    } catch {
+      // Storage can be blocked; the default message applies.
+    }
+    const params = new URLSearchParams(window.location.search);
+    params.set("publish", "1");
+    return `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+  };
   const discard = useMutation({
     ...discardDraftMutation(),
     onSuccess: () => {
@@ -107,7 +142,7 @@ export function GitHubControl({ bundle, canEdit }: { bundle: SpecDoc; canEdit: b
                   placeholder={`Update ${bundle.title}`}
                 />
               </div>
-              {publish.isError ? <ErrorState message={problemMessage(publish.error)} /> : null}
+              {publish.isError ? <WriteError error={publish.error} back={back()} /> : null}
               {discard.isError ? <ErrorState message={problemMessage(discard.error)} /> : null}
               <div className="flex justify-between gap-2">
                 <Button

@@ -1,5 +1,7 @@
-import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { AuthAllError } from "@alternayte/auth-all-client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getSetupOptions } from "@/lib/api/@tanstack/react-query.gen";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -17,7 +19,12 @@ export function SignInPage({ redirect }: { redirect?: string }) {
   const [password, setPassword] = useState("");
   const [mfaToken, setMfaToken] = useState<string>();
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string>();
+  // A failed GitHub sign-in comes back with ?error=CODE (auth-all's browser error redirect).
+  const [error, setError] = useState<string | undefined>(() => {
+    const code = new URLSearchParams(window.location.search).get("error");
+    return code ? authMessage(new AuthAllError(code, "GitHub did not finish the sign-in. Try again.", 400)) : undefined;
+  });
+  const setup = useQuery({ ...getSetupOptions(), enabled: meta.data?.mode === "hosted" });
   const [busy, setBusy] = useState(false);
   const target = redirect?.startsWith("/") && !redirect.startsWith("//") ? redirect : "/";
 
@@ -50,7 +57,22 @@ export function SignInPage({ redirect }: { redirect?: string }) {
 
   const providers = meta.data?.sign_in_providers ?? [];
   return (
-    <AuthCard title="Sign in to Speccy" lead="Accounts come from an invite link. Ask an admin for one.">
+    <AuthCard
+      title="Sign in to Speccy"
+      lead={
+        setup.data?.open ? (
+          <>
+            This Speccy has no admin yet.{" "}
+            <Link to="/setup" className="underline">
+              Set it up
+            </Link>{" "}
+            with the setup token.
+          </>
+        ) : (
+          "Accounts come from an invite link. Ask an admin for one."
+        )
+      }
+    >
       <form onSubmit={submit} className="space-y-4">
         {mfaToken ? (
           <div>
@@ -107,7 +129,11 @@ export function SignInPage({ redirect }: { redirect?: string }) {
               Sign in with {providerLabel[p] ?? p}
             </a>
           ))}
-          <p className="text-xs text-ink-3">A provider signs you in after you link it to your account under Account.</p>
+          <p className="text-xs text-ink-3">
+            {providers.includes("github")
+              ? "Members of the org that owns Speccy's GitHub App sign in with GitHub. Another provider signs you in after you link it under Account."
+              : "A provider signs you in after you link it to your account under Account."}
+          </p>
         </div>
       ) : null}
     </AuthCard>

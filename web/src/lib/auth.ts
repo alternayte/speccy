@@ -15,7 +15,28 @@ const messages: Record<string, string> = {
   USER_DISABLED: "This account is disabled. Ask an admin.",
   INVALID_TOTP_CODE: "The code is wrong. Try the current code from your authenticator app.",
   LAST_ADMIN: "This is the last admin. Make another admin first.",
+  GITHUB_NOT_MEMBER:
+    "This GitHub account is not a member of the account that owns Speccy's GitHub App. Ask an admin for an invite link.",
+  ACCOUNT_ALREADY_LINKED: "This GitHub account is linked to another Speccy account.",
+  OAUTH_FAILED: "GitHub did not finish the sign-in. Try again.",
+  OAUTH_STATE_INVALID: "The GitHub sign-in expired. Try again.",
 };
+
+// linkGitHub starts the GitHub link of the signed-in person, and comes back to redirectTo, a
+// path on this site. Doc changes go to GitHub as that person (docs/specs/github-app.md).
+export async function linkGitHub(redirectTo: string): Promise<void> {
+  const q = new URLSearchParams({ redirect_to: window.location.origin + redirectTo });
+  const res = await fetch(`/api/auth/account/link/github?${q.toString()}`, {
+    method: "POST",
+    credentials: "same-origin",
+  });
+  const data = (await res.json().catch(() => ({}))) as { url?: string; error?: { code: string; message: string } };
+  if (!res.ok || !data.url) {
+    const e = data.error ?? { code: "INTERNAL", message: "Speccy could not start the GitHub link." };
+    throw new AuthAllError(e.code, e.message, res.status);
+  }
+  window.location.assign(data.url);
+}
 
 // authMessage returns the user-facing text of an auth-all error.
 export function authMessage(err: unknown): string {

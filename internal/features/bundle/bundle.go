@@ -51,6 +51,10 @@ type Service struct {
 	// GitHub returns the client for a GitHub host: the workspace token in hosted mode, and the
 	// machine's gh login in local mode (REQ-129). apiURL is the source's API address.
 	GitHub func(ctx context.Context, apiURL string) (*github.Client, error)
+	// GitHubAs returns the client that writes a doc change for one person: their own GitHub
+	// token when the workspace has a GitHub App, so GitHub shows them as the author
+	// (docs/specs/github-app.md). Nil means GitHub writes with the same client as reads.
+	GitHubAs func(ctx context.Context, apiURL, userID string) (*github.Client, error)
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan

@@ -60,7 +60,7 @@ export function AdminPage() {
           </>
         ) : null}
         {/* Local mode reads GitHub sources too (#68), with the gh login or a token set here. */}
-        <header>
+        <header id="github">
           <h1 className="text-xl font-semibold tracking-tight">GitHub</h1>
           <p className="mt-1 text-sm text-ink-2">
             Read bundles from GitHub repos. Speccy never changes a branch: it publishes edits as pull requests.

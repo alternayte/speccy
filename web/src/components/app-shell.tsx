@@ -10,7 +10,7 @@ import { Menu, MenuItem } from "./ui/menu";
 import { ThemeToggle } from "./theme";
 
 // Pages that work without a sign-in in hosted mode.
-const openPaths = ["/sign-in", "/invite", "/reset"];
+const openPaths = ["/sign-in", "/invite", "/reset", "/setup"];
 
 export function AppShell() {
   const me = useMe();

@@ -191,6 +191,25 @@ type ClientInterface interface {
 	// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
 	SetGithubConnection(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// DeleteGithubApp Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+	//
+	// Corresponds with DELETE /admin/github/app (the `DeleteGithubApp` operationId).
+	DeleteGithubApp(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartGithubAppWithBody Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+	StartGithubAppWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartGithubApp Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+	StartGithubApp(ctx context.Context, body StartGithubAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListInvites List invite links, newest first (REQ-081).
 	//
 	// Corresponds with GET /admin/invites (the `ListInvites` operationId).
@@ -1383,6 +1402,25 @@ type ClientInterface interface {
 	// Corresponds with GET /runs/{runId}/report (the `GetRunReport` operationId).
 	GetRunReport(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSetup Whether the first-run setup is open.
+	//
+	// Corresponds with GET /setup (the `GetSetup` operationId).
+	GetSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartSetupWithBody Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /setup (the `StartSetup` operationId).
+	StartSetupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// StartSetup Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /setup (the `StartSetup` operationId).
+	StartSetup(ctx context.Context, body StartSetupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
 	//
 	// Corresponds with GET /share/{token} (the `GetShare` operationId).
@@ -1767,6 +1805,55 @@ func (c *Client) SetGithubConnectionWithBody(ctx context.Context, contentType st
 // Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
 func (c *Client) SetGithubConnection(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetGithubConnectionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteGithubApp Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+//
+// Corresponds with DELETE /admin/github/app (the `DeleteGithubApp` operationId).
+func (c *Client) DeleteGithubApp(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteGithubAppRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartGithubAppWithBody Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+func (c *Client) StartGithubAppWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartGithubAppRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartGithubApp Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+func (c *Client) StartGithubApp(ctx context.Context, body StartGithubAppJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartGithubAppRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4849,6 +4936,55 @@ func (c *Client) GetRunReport(ctx context.Context, runId RunId, reqEditors ...Re
 	return c.Client.Do(req)
 }
 
+// GetSetup Whether the first-run setup is open.
+//
+// Corresponds with GET /setup (the `GetSetup` operationId).
+func (c *Client) GetSetup(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSetupRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartSetupWithBody Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /setup (the `StartSetup` operationId).
+func (c *Client) StartSetupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartSetupRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// StartSetup Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /setup (the `StartSetup` operationId).
+func (c *Client) StartSetup(ctx context.Context, body StartSetupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewStartSetupRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
 //
 // Corresponds with GET /share/{token} (the `GetShare` operationId).
@@ -5573,6 +5709,73 @@ func NewSetGithubConnectionRequestWithBody(server string, contentType string, bo
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteGithubAppRequest constructs an http.Request for the DeleteGithubApp method
+func NewDeleteGithubAppRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/github/app")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStartGithubAppRequest calls the generic StartGithubApp builder with application/json body
+func NewStartGithubAppRequest(server string, body StartGithubAppJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewStartGithubAppRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewStartGithubAppRequestWithBody constructs an http.Request for the StartGithubApp method, with any body, and a specified content type
+func NewStartGithubAppRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/github/app")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -11131,6 +11334,73 @@ func NewGetRunReportRequest(server string, runId RunId) (*http.Request, error) {
 	return req, nil
 }
 
+// NewGetSetupRequest constructs an http.Request for the GetSetup method
+func NewGetSetupRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/setup")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewStartSetupRequest calls the generic StartSetup builder with application/json body
+func NewStartSetupRequest(server string, body StartSetupJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewStartSetupRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewStartSetupRequestWithBody constructs an http.Request for the StartSetup method, with any body, and a specified content type
+func NewStartSetupRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/setup")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetShareRequest constructs an http.Request for the GetShare method
 func NewGetShareRequest(server string, token string) (*http.Request, error) {
 	var err error
@@ -11855,6 +12125,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /admin/github (the `SetGithubConnection` operationId).
 	SetGithubConnectionWithResponse(ctx context.Context, body SetGithubConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*SetGithubConnectionResponse, error)
+
+	// DeleteGithubAppWithResponse Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/github/app (the `DeleteGithubApp` operationId).
+	DeleteGithubAppWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteGithubAppResponse, error)
+
+	// StartGithubAppWithBodyWithResponse Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+	StartGithubAppWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartGithubAppResponse, error)
+
+	// StartGithubAppWithResponse Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+	StartGithubAppWithResponse(ctx context.Context, body StartGithubAppJSONRequestBody, reqEditors ...RequestEditorFn) (*StartGithubAppResponse, error)
 
 	// ListInvitesWithResponse List invite links, newest first (REQ-081).
 	//
@@ -13194,6 +13485,27 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /runs/{runId}/report (the `GetRunReport` operationId).
 	GetRunReportWithResponse(ctx context.Context, runId RunId, reqEditors ...RequestEditorFn) (*GetRunReportResponse, error)
 
+	// GetSetupWithResponse Whether the first-run setup is open.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /setup (the `GetSetup` operationId).
+	GetSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSetupResponse, error)
+
+	// StartSetupWithBodyWithResponse Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /setup (the `StartSetup` operationId).
+	StartSetupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartSetupResponse, error)
+
+	// StartSetupWithResponse Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /setup (the `StartSetup` operationId).
+	StartSetupWithResponse(ctx context.Context, body StartSetupJSONRequestBody, reqEditors ...RequestEditorFn) (*StartSetupResponse, error)
+
 	// GetShareWithResponse Look up a share link (REQ-085). A revoked or expired link is not found.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -13850,6 +14162,105 @@ func (r SetGithubConnectionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetGithubConnectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteGithubAppResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteGithubAppResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteGithubAppResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteGithubAppResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteGithubAppResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteGithubAppResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StartGithubAppResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		ActionUrl string `json:"action_url"`
+
+		// Manifest The manifest as JSON text, for the form field named manifest.
+		Manifest string `json:"manifest"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StartGithubAppResponse) GetJSON200() *struct {
+	ActionUrl string `json:"action_url"`
+
+	// Manifest The manifest as JSON text, for the form field named manifest.
+	Manifest string `json:"manifest"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r StartGithubAppResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r StartGithubAppResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StartGithubAppResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartGithubAppResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StartGithubAppResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -20168,6 +20579,106 @@ func (r GetRunReportResponse) ContentType() string {
 	return ""
 }
 
+type GetSetupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Setup
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetSetupResponse) GetJSON200() *Setup {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetSetupResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetSetupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSetupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSetupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetSetupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type StartSetupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		InviteUrl string `json:"invite_url"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r StartSetupResponse) GetJSON200() *struct {
+	InviteUrl string `json:"invite_url"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r StartSetupResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r StartSetupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r StartSetupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r StartSetupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r StartSetupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetShareResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -21047,6 +21558,45 @@ func (c *ClientWithResponses) SetGithubConnectionWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseSetGithubConnectionResponse(rsp)
+}
+
+// DeleteGithubAppWithResponse Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/github/app (the `DeleteGithubApp` operationId).
+func (c *ClientWithResponses) DeleteGithubAppWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*DeleteGithubAppResponse, error) {
+	rsp, err := c.DeleteGithubApp(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteGithubAppResponse(rsp)
+}
+
+// StartGithubAppWithBodyWithResponse Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+func (c *ClientWithResponses) StartGithubAppWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartGithubAppResponse, error) {
+	rsp, err := c.StartGithubAppWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartGithubAppResponse(rsp)
+}
+
+// StartGithubAppWithResponse Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/github/app (the `StartGithubApp` operationId).
+func (c *ClientWithResponses) StartGithubAppWithResponse(ctx context.Context, body StartGithubAppJSONRequestBody, reqEditors ...RequestEditorFn) (*StartGithubAppResponse, error) {
+	rsp, err := c.StartGithubApp(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartGithubAppResponse(rsp)
 }
 
 // ListInvitesWithResponse List invite links, newest first (REQ-081).
@@ -23515,6 +24065,45 @@ func (c *ClientWithResponses) GetRunReportWithResponse(ctx context.Context, runI
 	return ParseGetRunReportResponse(rsp)
 }
 
+// GetSetupWithResponse Whether the first-run setup is open.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /setup (the `GetSetup` operationId).
+func (c *ClientWithResponses) GetSetupWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetSetupResponse, error) {
+	rsp, err := c.GetSetup(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSetupResponse(rsp)
+}
+
+// StartSetupWithBodyWithResponse Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /setup (the `StartSetup` operationId).
+func (c *ClientWithResponses) StartSetupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*StartSetupResponse, error) {
+	rsp, err := c.StartSetupWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartSetupResponse(rsp)
+}
+
+// StartSetupWithResponse Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /setup (the `StartSetup` operationId).
+func (c *ClientWithResponses) StartSetupWithResponse(ctx context.Context, body StartSetupJSONRequestBody, reqEditors ...RequestEditorFn) (*StartSetupResponse, error) {
+	rsp, err := c.StartSetup(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseStartSetupResponse(rsp)
+}
+
 // GetShareWithResponse Look up a share link (REQ-085). A revoked or expired link is not found.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -24126,6 +24715,73 @@ func ParseSetGithubConnectionResponse(rsp *http.Response) (*SetGithubConnectionR
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest GithubConnection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteGithubAppResponse parses an HTTP response from a DeleteGithubAppWithResponse call
+func ParseDeleteGithubAppResponse(rsp *http.Response) (*DeleteGithubAppResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteGithubAppResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartGithubAppResponse parses an HTTP response from a StartGithubAppWithResponse call
+func ParseStartGithubAppResponse(rsp *http.Response) (*StartGithubAppResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartGithubAppResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			ActionUrl string `json:"action_url"`
+
+			// Manifest The manifest as JSON text, for the form field named manifest.
+			Manifest string `json:"manifest"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -28443,6 +29099,74 @@ func ParseGetRunReportResponse(rsp *http.Response) (*GetRunReportResponse, error
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest RunReport
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSetupResponse parses an HTTP response from a GetSetupWithResponse call
+func ParseGetSetupResponse(rsp *http.Response) (*GetSetupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSetupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Setup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseStartSetupResponse parses an HTTP response from a StartSetupWithResponse call
+func ParseStartSetupResponse(rsp *http.Response) (*StartSetupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &StartSetupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			InviteUrl string `json:"invite_url"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

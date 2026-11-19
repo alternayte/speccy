@@ -87,8 +87,9 @@ type (
 type Core struct {
 	// Hosted is true for `speccy serve --hosted`.
 	Hosted bool
-	// Providers are the configured OAuth provider IDs (REQ-080).
-	Providers []string
+	// Providers lists the OAuth provider IDs that sign in now (REQ-080). GitHub joins while
+	// the workspace has a GitHub App.
+	Providers func(ctx context.Context) []string
 	// Maintainer reports whether a user maintains any profile.
 	Maintainer func(ctx context.Context, userID string) bool
 	// CarriedPaths maps each link of a spec doc above its folder to the file its bundle carries,
@@ -104,6 +105,16 @@ type Options struct {
 	Authz *Authz
 	// Auth is the auth-all handler, mounted at /api/auth/ in hosted mode.
 	Auth nethttp.Handler
+	// GitHubApp serves the GitHub App's routes in hosted mode: the webhook, which its
+	// signature authenticates, and the manifest and install redirects, which get the actor.
+	GitHubApp *GitHubAppRoutes
+}
+
+// GitHubAppRoutes are the browser and webhook routes of the GitHub App
+// (docs/specs/github-app.md). They are not in the OpenAPI document: GitHub calls them, with
+// redirects and a signed body.
+type GitHubAppRoutes struct {
+	Webhook, Created, Installed nethttp.HandlerFunc
 }
 
 // LocalActor makes every request the local user (DEC-015: local mode has no auth).
@@ -150,6 +161,11 @@ func Handler(spa fs.FS, a API, opts Options) nethttp.Handler {
 	if opts.Auth != nil {
 		mux.Handle("/api/auth/", opts.Auth)
 	}
+	if g := opts.GitHubApp; g != nil {
+		mux.Handle("POST /api/github/webhook", nethttp.MaxBytesHandler(g.Webhook, 25<<20))
+		mux.Handle("GET /api/github/app/created", opts.Actor(g.Created))
+		mux.Handle("GET /api/github/app/installed", g.Installed)
+	}
 	mux.HandleFunc("/api/", func(w nethttp.ResponseWriter, r *nethttp.Request) {
 		writeProblem(w, nethttp.StatusNotFound, "not_found", "No API endpoint matches "+r.Method+" "+r.URL.Path+".")
 	})
@@ -164,11 +180,15 @@ func (c Core) mode() string {
 	return "local"
 }
 
-func (c Core) GetMeta(context.Context, api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
+func (c Core) GetMeta(ctx context.Context, _ api.GetMetaRequestObject) (api.GetMetaResponseObject, error) {
 	out := api.GetMeta200JSONResponse{Version: kernel.Version, Mode: api.MetaMode(c.mode())}
-	if len(c.Providers) > 0 {
-		ps := make([]api.MetaSignInProviders, len(c.Providers))
-		for i, p := range c.Providers {
+	var providers []string
+	if c.Providers != nil {
+		providers = c.Providers(ctx)
+	}
+	if len(providers) > 0 {
+		ps := make([]api.MetaSignInProviders, len(providers))
+		for i, p := range providers {
 			ps[i] = api.MetaSignInProviders(p)
 		}
 		out.SignInProviders = &ps

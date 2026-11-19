@@ -23,11 +23,15 @@ import (
 // DefaultAPI is the GitHub API. GitHub Enterprise Server uses https://<host>/api/v3.
 const DefaultAPI = "https://api.github.com"
 
-// Client calls the GitHub API with a fine-grained personal access token (DEC-019).
+// Client calls the GitHub API with a bearer token: a fine-grained personal access token
+// (DEC-019), a GitHub App installation token, or a person's user token from the App.
 type Client struct {
 	API   string
 	Token string
 	HTTP  *http.Client
+	// InstallURL is set for an App installation token: a repo the installation does not cover
+	// answers 404, and the message then points at the install page.
+	InstallURL string
 }
 
 // Error is an answer from GitHub that is not a success.
@@ -35,6 +39,8 @@ type Error struct {
 	Status  int
 	Message string
 	Path    string
+	// InstallURL is the App's install page when an App installation token made the call.
+	InstallURL string
 }
 
 func (e *Error) Error() string {
@@ -102,7 +108,7 @@ func (c *Client) do(ctx context.Context, method, p string, in, out any) error {
 			Message string `json:"message"`
 		}
 		_ = json.Unmarshal(raw, &e)
-		return &Error{Status: res.StatusCode, Message: e.Message, Path: p}
+		return &Error{Status: res.StatusCode, Message: e.Message, Path: p, InstallURL: c.InstallURL}
 	}
 	if out != nil && len(raw) > 0 {
 		return json.Unmarshal(raw, out)
@@ -412,6 +418,10 @@ func (c *Client) Compare(ctx context.Context, repo, base, head string) (paths []
 // UnreadableRepo says that the credentials cannot read the repo, which GitHub answers with a
 // 404 for a private repo (REQ-129).
 func UnreadableRepo(repo string, err error) error {
+	var e *Error
+	if errors.As(err, &e) && e.Status == http.StatusNotFound && e.InstallURL != "" {
+		return kernel.Invalid("app_not_installed", "The Speccy App is not installed on %s. Install it on that repo: %s", repo, e.InstallURL)
+	}
 	if IsNotFound(err) {
 		return kernel.Invalid("repo_no_access", "The GitHub credentials have no access to %s. It may be private, or the token may not cover it.", repo)
 	}

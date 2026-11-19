@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/alternayte/speccy/internal/hostauth"
 	speccyhttp "github.com/alternayte/speccy/internal/http"
 	"github.com/alternayte/speccy/internal/kernel"
+	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store"
 	"github.com/alternayte/speccy/web"
 )
@@ -33,7 +35,10 @@ type hostedConfig struct {
 	listen      string
 	logLevel    string
 	oidc        *hostauth.Provider
-	github      *hostauth.Provider
+	// setupToken is SPECCY_SETUP_TOKEN: it opens /setup until an admin exists.
+	setupToken string
+	// githubApp is the GitHub App from SPECCY_GITHUB_APP_*, which locks the App in the UI.
+	githubApp *admin.EnvApp
 }
 
 // loadHostedConfig reads the environment. It names every missing or bad variable at once.
@@ -65,16 +70,55 @@ func loadHostedConfig(getenv func(string) string) (hostedConfig, error) {
 		}
 		c.oidc = &hostauth.Provider{Issuer: iss, ClientID: id, ClientSecret: sec}
 	}
-	if id, sec := getenv("SPECCY_GITHUB_OAUTH_CLIENT_ID"), getenv("SPECCY_GITHUB_OAUTH_CLIENT_SECRET"); id+sec != "" {
-		if id == "" || sec == "" {
-			problems = append(problems, "GitHub sign-in needs SPECCY_GITHUB_OAUTH_CLIENT_ID and SPECCY_GITHUB_OAUTH_CLIENT_SECRET together")
-		}
-		c.github = &hostauth.Provider{ClientID: id, ClientSecret: sec}
+	if getenv("SPECCY_GITHUB_OAUTH_CLIENT_ID")+getenv("SPECCY_GITHUB_OAUTH_CLIENT_SECRET") != "" {
+		problems = append(problems, "SPECCY_GITHUB_OAUTH_CLIENT_ID and SPECCY_GITHUB_OAUTH_CLIENT_SECRET are gone: GitHub sign-in uses the workspace's GitHub App. Remove them, and create the App in Admin → GitHub")
 	}
+	c.setupToken = strings.TrimSpace(getenv("SPECCY_SETUP_TOKEN"))
+	app, err := loadEnvApp(getenv)
+	if err != nil {
+		problems = append(problems, err.Error())
+	}
+	c.githubApp = app
 	if len(problems) > 0 {
 		return c, errors.New(strings.Join(problems, "; "))
 	}
 	return c, nil
+}
+
+// loadEnvApp reads SPECCY_GITHUB_APP_*: all five values, or none. The private key may hold
+// "\n" for its line breaks, as one-line secret stores keep it.
+func loadEnvApp(getenv func(string) string) (*admin.EnvApp, error) {
+	names := []string{"SPECCY_GITHUB_APP_ID", "SPECCY_GITHUB_APP_PRIVATE_KEY", "SPECCY_GITHUB_APP_CLIENT_ID", "SPECCY_GITHUB_APP_CLIENT_SECRET", "SPECCY_GITHUB_APP_WEBHOOK_SECRET"}
+	var set, missing []string
+	for _, n := range names {
+		if strings.TrimSpace(getenv(n)) == "" {
+			missing = append(missing, n)
+		} else {
+			set = append(set, n)
+		}
+	}
+	if len(set) == 0 {
+		return nil, nil
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("the GitHub App needs every SPECCY_GITHUB_APP_ variable; %s is not set", strings.Join(missing, ", "))
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(getenv("SPECCY_GITHUB_APP_ID")), 10, 64)
+	if err != nil || id <= 0 {
+		return nil, errors.New("SPECCY_GITHUB_APP_ID must be the App's number, such as 123456")
+	}
+	apiURL := strings.TrimRight(strings.TrimSpace(getenv("SPECCY_GITHUB_APP_API_URL")), "/")
+	if apiURL == "" {
+		apiURL = github.DefaultAPI
+	}
+	key := strings.ReplaceAll(strings.TrimSpace(getenv("SPECCY_GITHUB_APP_PRIVATE_KEY")), `\n`, "\n")
+	if !strings.HasPrefix(key, "-----BEGIN") {
+		return nil, errors.New("SPECCY_GITHUB_APP_PRIVATE_KEY must be the PEM text of the App's private key")
+	}
+	return &admin.EnvApp{
+		API: apiURL, ID: id, PrivateKey: []byte(key + "\n"), ClientID: strings.TrimSpace(getenv("SPECCY_GITHUB_APP_CLIENT_ID")),
+		ClientSecret: strings.TrimSpace(getenv("SPECCY_GITHUB_APP_CLIENT_SECRET")), WebhookSecret: strings.TrimSpace(getenv("SPECCY_GITHUB_APP_WEBHOOK_SECRET")),
+	}, nil
 }
 
 func (c hostedConfig) insecure() bool { return strings.HasPrefix(c.baseURL, "http://") }
@@ -98,7 +142,7 @@ func openHosted(ctx context.Context, c hostedConfig) (*store.DB, *kernel.Sealer,
 		_ = db.Close()
 		return nil, nil, nil, err
 	}
-	auth, err := hostauth.New(hostauth.Config{DB: db, Workspace: ws, BaseURL: c.baseURL, OIDC: c.oidc, GitHub: c.github, Insecure: c.insecure()})
+	auth, err := hostauth.New(hostauth.Config{DB: db, Workspace: ws, BaseURL: c.baseURL, OIDC: c.oidc, Insecure: c.insecure()})
 	if err != nil {
 		_ = db.Close()
 		return nil, nil, nil, err
@@ -141,7 +185,15 @@ func runHosted(stdout, stderr io.Writer) int {
 	a.Admin.Accounts = auth
 	a.Share.Sealer, a.Share.BaseURL, a.Share.Secure = sealer, c.baseURL, !c.insecure()
 	a.API.BreakdownAPI.BaseURL = c.baseURL
-	a.API.Hosted, a.API.Providers = true, auth.Providers
+	a.API.Hosted, a.API.Providers = true, auth.SignInProviders
+	// docs/specs/github-app.md: the App, its webhook, the GitHub sign-in, and first-run setup.
+	a.Admin.SetupToken = c.setupToken
+	a.Admin.GitHubApp = &admin.GitHubApp{
+		Env: c.githubApp, BaseURL: c.baseURL, CallbackURL: c.baseURL + "/api/auth/oauth/" + hostauth.GitHubProvider + "/callback",
+		GitHubAccount: auth.GitHubAccount, Changed: a.Bundles.SyncRepo, Life: ctx,
+	}
+	a.Bundles.GitHubAs = a.Admin.UserGitHubClient
+	auth.SetGitHubApp(a.Admin)
 	go auth.CleanUp(ctx)
 	spa, err := fs.Sub(web.Dist, "dist")
 	if err != nil {
@@ -150,6 +202,7 @@ func runHosted(stdout, stderr io.Writer) int {
 	}
 	h := withMCP(speccyhttp.Handler(spa, a.API, speccyhttp.Options{
 		Actor: auth.Actor(a.Share.Guest), Authz: &speccyhttp.Authz{DB: db, Workspace: a.Workspace}, Auth: auth.Handler(),
+		GitHubApp: &speccyhttp.GitHubAppRoutes{Webhook: a.Admin.Webhook, Created: a.Admin.AppCreated, Installed: a.Admin.AppInstalled},
 	}))
 	ln, err := net.Listen("tcp", c.listen)
 	if err != nil {

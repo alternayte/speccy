@@ -12,6 +12,8 @@ export function InvitePage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [token] = useState(tokenFromHash);
+  // The first admin's invite comes from /setup, and goes on to the GitHub step.
+  const [next] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("next"));
   const check = useQuery({
     queryKey: ["invite", token],
     queryFn: () => speccyAuth<{ role: string; expiresAt: string }>("invites/check", { token }),
@@ -31,7 +33,7 @@ export function InvitePage() {
       await speccyAuth("invites/accept", { token, name, email, password });
       history.replaceState(null, "", window.location.pathname); // drop the token from the address
       await qc.invalidateQueries();
-      navigate({ to: "/" });
+      navigate({ to: next === "setup" ? "/setup/github" : "/" });
     } catch (err) {
       setError(authMessage(err));
     } finally {

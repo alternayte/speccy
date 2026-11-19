@@ -19,6 +19,13 @@ var errNoGitHubToken = kernel.Invalid("github_not_configured", "No GitHub token 
 // GitHubClient returns the GitHub client with the workspace token (DEC-019). apiURL names the
 // host of the source; a token set for one host does not reach another.
 func (a *API) GitHubClient(ctx context.Context, apiURL string) (*github.Client, error) {
+	app, err := a.appConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if app != nil {
+		return a.installationClient(ctx, app, apiURL)
+	}
 	row, err := a.DB.Queries().GetGithubConnection(ctx, a.Workspace)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errNoGitHubToken
@@ -39,20 +46,34 @@ func (a *API) GitHubClient(ctx context.Context, apiURL string) (*github.Client, 
 	return &github.Client{API: row.ApiUrl, Token: string(token)}, nil
 }
 
-// GetGithubConnection shows whether a token is set, and its last 4 characters.
+// GetGithubConnection shows the workspace's one GitHub connection: an App, a token with its
+// last 4 characters, or none.
 func (a *API) GetGithubConnection(ctx context.Context, _ api.GetGithubConnectionRequestObject) (api.GetGithubConnectionResponseObject, error) {
+	app, err := a.appState(ctx)
+	if err != nil {
+		return nil, err
+	}
+	appsOK := a.GitHubApp != nil
+	if app != nil {
+		return api.GetGithubConnection200JSONResponse{Configured: true, Kind: api.GithubConnectionKindApp, ApiUrl: app.ApiUrl, App: app, AppAvailable: appsOK}, nil
+	}
 	row, err := a.DB.Queries().GetGithubConnection(ctx, a.Workspace)
 	if errors.Is(err, sql.ErrNoRows) {
-		return api.GetGithubConnection200JSONResponse{Configured: false, ApiUrl: github.DefaultAPI}, nil
+		return api.GetGithubConnection200JSONResponse{Configured: false, Kind: api.GithubConnectionKindNone, ApiUrl: github.DefaultAPI, AppAvailable: appsOK}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	return api.GetGithubConnection200JSONResponse{Configured: true, TokenLast4: &row.TokenLast4, ApiUrl: row.ApiUrl}, nil
+	return api.GetGithubConnection200JSONResponse{Configured: true, Kind: api.GithubConnectionKindToken, TokenLast4: &row.TokenLast4, ApiUrl: row.ApiUrl, AppAvailable: appsOK}, nil
 }
 
 // SetGithubConnection checks the token with GitHub, then stores it encrypted (SDD §14.1).
 func (a *API) SetGithubConnection(ctx context.Context, req api.SetGithubConnectionRequestObject) (api.SetGithubConnectionResponseObject, error) {
+	if app, err := a.appConn(ctx); err != nil {
+		return nil, err
+	} else if app != nil {
+		return nil, kernel.Invalid("app_exists", "The workspace reads GitHub with its App. Disconnect the App first: a workspace holds an App or a token, not both.")
+	}
 	token := strings.TrimSpace(req.Body.Token)
 	apiURL := github.DefaultAPI
 	if req.Body.ApiUrl != nil && strings.TrimSpace(*req.Body.ApiUrl) != "" {
@@ -75,7 +96,7 @@ func (a *API) SetGithubConnection(ctx context.Context, req api.SetGithubConnecti
 	}); err != nil {
 		return nil, err
 	}
-	return api.SetGithubConnection200JSONResponse{Configured: true, TokenLast4: &last4, ApiUrl: apiURL, Login: &login}, nil
+	return api.SetGithubConnection200JSONResponse{Configured: true, Kind: api.GithubConnectionKindToken, TokenLast4: &last4, ApiUrl: apiURL, Login: &login, AppAvailable: a.GitHubApp != nil}, nil
 }
 
 // DeleteGithubConnection removes the token.

@@ -2727,6 +2727,89 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /admin/github/app:
+    post:
+      operationId: startGithubApp
+      summary: Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                org:
+                  type: string
+                  description: The org that owns the App. Empty makes it on the admin's personal account.
+                api_url:
+                  type: string
+                  description: The GitHub API. The default is https://api.github.com. GitHub Enterprise Server uses https://<host>/api/v3.
+      responses:
+        "200":
+          description: Where to post the manifest.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [action_url, manifest]
+                properties:
+                  action_url:
+                    type: string
+                  manifest:
+                    type: string
+                    description: The manifest as JSON text, for the form field named manifest.
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteGithubApp
+      summary: Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+      responses:
+        "204":
+          description: Disconnected.
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /setup:
+    get:
+      operationId: getSetup
+      summary: Whether the first-run setup is open.
+      responses:
+        "200":
+          description: The setup state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Setup"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: startSetup
+      summary: Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: The invite link of the first admin.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite_url]
+                properties:
+                  invite_url:
+                    type: string
+        default:
+          $ref: "#/components/responses/Problem"
+
   /github/sources:
     get:
       operationId: listGithubSources
@@ -5825,10 +5908,19 @@ components:
 
     GithubConnection:
       type: object
-      required: [configured, api_url]
+      description: The one GitHub connection of the workspace, an App or a token, never both (docs/specs/github-app.md).
+      required: [configured, kind, api_url, app_available]
       properties:
         configured:
           type: boolean
+        kind:
+          type: string
+          enum: [none, token, app]
+        app_available:
+          type: boolean
+          description: Whether this mode can create a GitHub App. Hosted mode only.
+        app:
+          $ref: "#/components/schemas/GithubApp"
         token_last4:
           type: string
         api_url:
@@ -5836,6 +5928,39 @@ components:
         login:
           type: string
           description: The GitHub account of the token, from the last check.
+
+    GithubApp:
+      type: object
+      description: The workspace's private GitHub App.
+      required: [slug, owner, owner_is_org, installed, api_url, install_url, settings_url, from_env]
+      properties:
+        slug:
+          type: string
+        owner:
+          type: string
+          description: The org or the personal account that owns the App.
+        owner_is_org:
+          type: boolean
+        installed:
+          type: boolean
+        api_url:
+          type: string
+        install_url:
+          type: string
+        settings_url:
+          type: string
+          description: The App's settings page on GitHub, where its owner deletes it.
+        from_env:
+          type: boolean
+          description: The App comes from the SPECCY_GITHUB_APP_ variables, so the UI cannot change it.
+
+    Setup:
+      type: object
+      required: [open]
+      properties:
+        open:
+          type: boolean
+          description: SPECCY_SETUP_TOKEN is set and no admin exists yet.
 
     GithubSource:
       type: object

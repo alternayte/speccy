@@ -761,6 +761,27 @@ func (e FixKind) Valid() bool {
 	}
 }
 
+// Defines values for GithubConnectionKind.
+const (
+	GithubConnectionKindApp   GithubConnectionKind = "app"
+	GithubConnectionKindNone  GithubConnectionKind = "none"
+	GithubConnectionKindToken GithubConnectionKind = "token"
+)
+
+// Valid indicates whether the value is a known member of the GithubConnectionKind enum.
+func (e GithubConnectionKind) Valid() bool {
+	switch e {
+	case GithubConnectionKindApp:
+		return true
+	case GithubConnectionKindNone:
+		return true
+	case GithubConnectionKindToken:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InboxItemKind.
 const (
 	InboxItemKindMention        InboxItemKind = "mention"
@@ -3136,15 +3157,43 @@ type FixSuggestion struct {
 	VersionId openapi_types.UUID `json:"version_id"`
 }
 
-// GithubConnection defines model for GithubConnection.
+// GithubApp The workspace's private GitHub App.
+type GithubApp struct {
+	ApiUrl string `json:"api_url"`
+
+	// FromEnv The App comes from the SPECCY_GITHUB_APP_ variables, so the UI cannot change it.
+	FromEnv    bool   `json:"from_env"`
+	InstallUrl string `json:"install_url"`
+	Installed  bool   `json:"installed"`
+
+	// Owner The org or the personal account that owns the App.
+	Owner      string `json:"owner"`
+	OwnerIsOrg bool   `json:"owner_is_org"`
+
+	// SettingsUrl The App's settings page on GitHub, where its owner deletes it.
+	SettingsUrl string `json:"settings_url"`
+	Slug        string `json:"slug"`
+}
+
+// GithubConnection The one GitHub connection of the workspace, an App or a token, never both (docs/specs/github-app.md).
 type GithubConnection struct {
-	ApiUrl     string `json:"api_url"`
-	Configured bool   `json:"configured"`
+	ApiUrl string `json:"api_url"`
+
+	// App The workspace's private GitHub App.
+	App *GithubApp `json:"app,omitempty"`
+
+	// AppAvailable Whether this mode can create a GitHub App. Hosted mode only.
+	AppAvailable bool                 `json:"app_available"`
+	Configured   bool                 `json:"configured"`
+	Kind         GithubConnectionKind `json:"kind"`
 
 	// Login The GitHub account of the token, from the last check.
 	Login      *string `json:"login,omitempty"`
 	TokenLast4 *string `json:"token_last4,omitempty"`
 }
+
+// GithubConnectionKind defines model for GithubConnection.Kind.
+type GithubConnectionKind string
 
 // GithubResolved defines model for GithubResolved.
 type GithubResolved struct {
@@ -4194,6 +4243,12 @@ type Settings struct {
 	ResolveSources *bool `json:"resolve_sources,omitempty"`
 }
 
+// Setup defines model for Setup.
+type Setup struct {
+	// Open SPECCY_SETUP_TOKEN is set and no admin exists yet.
+	Open bool `json:"open"`
+}
+
 // ShareInfo defines model for ShareInfo.
 type ShareInfo struct {
 	BundleId openapi_types.UUID `json:"bundle_id"`
@@ -5000,6 +5055,15 @@ type SetGithubConnectionJSONBody struct {
 	Token  string  `json:"token"`
 }
 
+// StartGithubAppJSONBody defines parameters for StartGithubApp.
+type StartGithubAppJSONBody struct {
+	// ApiUrl The GitHub API. The default is https://api.github.com. GitHub Enterprise Server uses https://<host>/api/v3.
+	ApiUrl *string `json:"api_url,omitempty"`
+
+	// Org The org that owns the App. Empty makes it on the admin's personal account.
+	Org *string `json:"org,omitempty"`
+}
+
 // CreateInviteJSONBody defines parameters for CreateInvite.
 type CreateInviteJSONBody struct {
 	Role CreateInviteJSONBodyRole `json:"role"`
@@ -5305,6 +5369,11 @@ type RollbackProfileJSONBody struct {
 	Version int `json:"version"`
 }
 
+// StartSetupJSONBody defines parameters for StartSetup.
+type StartSetupJSONBody struct {
+	Token string `json:"token"`
+}
+
 // JoinShareJSONBody defines parameters for JoinShare.
 type JoinShareJSONBody struct {
 	DisplayName string `json:"display_name"`
@@ -5361,6 +5430,9 @@ type SetBudgetJSONRequestBody SetBudgetJSONBody
 
 // SetGithubConnectionJSONRequestBody defines body for SetGithubConnection for application/json ContentType.
 type SetGithubConnectionJSONRequestBody SetGithubConnectionJSONBody
+
+// StartGithubAppJSONRequestBody defines body for StartGithubApp for application/json ContentType.
+type StartGithubAppJSONRequestBody StartGithubAppJSONBody
 
 // CreateInviteJSONRequestBody defines body for CreateInvite for application/json ContentType.
 type CreateInviteJSONRequestBody CreateInviteJSONBody
@@ -5536,6 +5608,9 @@ type SuggestFixesJSONRequestBody = SuggestFixesRequest
 // AcceptFixesJSONRequestBody defines body for AcceptFixes for application/json ContentType.
 type AcceptFixesJSONRequestBody = AcceptFixesRequest
 
+// StartSetupJSONRequestBody defines body for StartSetup for application/json ContentType.
+type StartSetupJSONRequestBody StartSetupJSONBody
+
 // JoinShareJSONRequestBody defines body for JoinShare for application/json ContentType.
 type JoinShareJSONRequestBody JoinShareJSONBody
 
@@ -5592,6 +5667,12 @@ type ServerInterface interface {
 	// SetGithubConnection Set the fine-grained personal access token that reads repos and opens pull requests.
 	// (PUT /admin/github)
 	SetGithubConnection(w http.ResponseWriter, r *http.Request)
+	// DeleteGithubApp Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+	// (DELETE /admin/github/app)
+	DeleteGithubApp(w http.ResponseWriter, r *http.Request)
+	// StartGithubApp Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+	// (POST /admin/github/app)
+	StartGithubApp(w http.ResponseWriter, r *http.Request)
 	// ListInvites List invite links, newest first (REQ-081).
 	// (GET /admin/invites)
 	ListInvites(w http.ResponseWriter, r *http.Request)
@@ -5988,6 +6069,12 @@ type ServerInterface interface {
 	// GetRunReport The run report (SDD §13.1): stage timings, reader diversity, and findings by category.
 	// (GET /runs/{runId}/report)
 	GetRunReport(w http.ResponseWriter, r *http.Request, runId RunId)
+	// GetSetup Whether the first-run setup is open.
+	// (GET /setup)
+	GetSetup(w http.ResponseWriter, r *http.Request)
+	// StartSetup Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+	// (POST /setup)
+	StartSetup(w http.ResponseWriter, r *http.Request)
 	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
 	// (GET /share/{token})
 	GetShare(w http.ResponseWriter, r *http.Request, token string)
@@ -6234,6 +6321,34 @@ func (siw *ServerInterfaceWrapper) SetGithubConnection(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetGithubConnection(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteGithubApp operation middleware
+func (siw *ServerInterfaceWrapper) DeleteGithubApp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteGithubApp(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartGithubApp operation middleware
+func (siw *ServerInterfaceWrapper) StartGithubApp(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartGithubApp(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -9708,6 +9823,34 @@ func (siw *ServerInterfaceWrapper) GetRunReport(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetSetup operation middleware
+func (siw *ServerInterfaceWrapper) GetSetup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSetup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartSetup operation middleware
+func (siw *ServerInterfaceWrapper) StartSetup(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartSetup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetShare operation middleware
 func (siw *ServerInterfaceWrapper) GetShare(w http.ResponseWriter, r *http.Request) {
 
@@ -10307,6 +10450,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/github", wrapper.DeleteGithubConnection)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/github", wrapper.GetGithubConnection)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/github", wrapper.SetGithubConnection)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/github/app", wrapper.DeleteGithubApp)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/github/app", wrapper.StartGithubApp)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/setup", wrapper.GetSetup)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/setup", wrapper.StartSetup)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/github/sources", wrapper.ListGithubSources)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/sources", wrapper.AddGithubSource)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github/resolve", wrapper.ResolveGithubUrl)
@@ -10742,6 +10889,82 @@ type SetGithubConnectiondefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response SetGithubConnectiondefaultApplicationProblemPlusJSONResponse) VisitSetGithubConnectionResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteGithubAppRequestObject struct {
+}
+
+type DeleteGithubAppResponseObject interface {
+	VisitDeleteGithubAppResponse(w http.ResponseWriter) error
+}
+
+type DeleteGithubApp204Response struct {
+}
+
+func (response DeleteGithubApp204Response) VisitDeleteGithubAppResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteGithubAppdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteGithubAppdefaultApplicationProblemPlusJSONResponse) VisitDeleteGithubAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartGithubAppRequestObject struct {
+	Body *StartGithubAppJSONRequestBody
+}
+
+type StartGithubAppResponseObject interface {
+	VisitStartGithubAppResponse(w http.ResponseWriter) error
+}
+
+type StartGithubApp200JSONResponse struct {
+	ActionUrl string `json:"action_url"`
+
+	// Manifest The manifest as JSON text, for the form field named manifest.
+	Manifest string `json:"manifest"`
+}
+
+func (response StartGithubApp200JSONResponse) VisitStartGithubAppResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartGithubAppdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response StartGithubAppdefaultApplicationProblemPlusJSONResponse) VisitStartGithubAppResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -16019,6 +16242,85 @@ func (response GetRunReportdefaultApplicationProblemPlusJSONResponse) VisitGetRu
 	return err
 }
 
+type GetSetupRequestObject struct {
+}
+
+type GetSetupResponseObject interface {
+	VisitGetSetupResponse(w http.ResponseWriter) error
+}
+
+type GetSetup200JSONResponse Setup
+
+func (response GetSetup200JSONResponse) VisitGetSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSetupdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetSetupdefaultApplicationProblemPlusJSONResponse) VisitGetSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartSetupRequestObject struct {
+	Body *StartSetupJSONRequestBody
+}
+
+type StartSetupResponseObject interface {
+	VisitStartSetupResponse(w http.ResponseWriter) error
+}
+
+type StartSetup200JSONResponse struct {
+	InviteUrl string `json:"invite_url"`
+}
+
+func (response StartSetup200JSONResponse) VisitStartSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type StartSetupdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response StartSetupdefaultApplicationProblemPlusJSONResponse) VisitStartSetupResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetShareRequestObject struct {
 	Token string `json:"token"`
 }
@@ -16638,6 +16940,12 @@ type StrictServerInterface interface {
 	// SetGithubConnection Set the fine-grained personal access token that reads repos and opens pull requests.
 	// (PUT /admin/github)
 	SetGithubConnection(ctx context.Context, request SetGithubConnectionRequestObject) (SetGithubConnectionResponseObject, error)
+	// DeleteGithubApp Disconnect the GitHub App. Speccy forgets its keys and every person's GitHub token. The App stays on GitHub.
+	// (DELETE /admin/github/app)
+	DeleteGithubApp(ctx context.Context, request DeleteGithubAppRequestObject) (DeleteGithubAppResponseObject, error)
+	// StartGithubApp Start the creation of a private GitHub App from a manifest. The browser posts the manifest to action_url.
+	// (POST /admin/github/app)
+	StartGithubApp(ctx context.Context, request StartGithubAppRequestObject) (StartGithubAppResponseObject, error)
 	// ListInvites List invite links, newest first (REQ-081).
 	// (GET /admin/invites)
 	ListInvites(ctx context.Context, request ListInvitesRequestObject) (ListInvitesResponseObject, error)
@@ -17034,6 +17342,12 @@ type StrictServerInterface interface {
 	// GetRunReport The run report (SDD §13.1): stage timings, reader diversity, and findings by category.
 	// (GET /runs/{runId}/report)
 	GetRunReport(ctx context.Context, request GetRunReportRequestObject) (GetRunReportResponseObject, error)
+	// GetSetup Whether the first-run setup is open.
+	// (GET /setup)
+	GetSetup(ctx context.Context, request GetSetupRequestObject) (GetSetupResponseObject, error)
+	// StartSetup Trade the setup token for a single-use admin invite link. It answers 404 once an admin exists.
+	// (POST /setup)
+	StartSetup(ctx context.Context, request StartSetupRequestObject) (StartSetupResponseObject, error)
 	// GetShare Look up a share link (REQ-085). A revoked or expired link is not found.
 	// (GET /share/{token})
 	GetShare(ctx context.Context, request GetShareRequestObject) (GetShareResponseObject, error)
@@ -17417,6 +17731,64 @@ func (sh *strictHandler) SetGithubConnection(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetGithubConnectionResponseObject); ok {
 		if err := validResponse.VisitSetGithubConnectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteGithubApp operation middleware
+func (sh *strictHandler) DeleteGithubApp(w http.ResponseWriter, r *http.Request) {
+	var request DeleteGithubAppRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteGithubApp(ctx, request.(DeleteGithubAppRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteGithubApp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteGithubAppResponseObject); ok {
+		if err := validResponse.VisitDeleteGithubAppResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartGithubApp operation middleware
+func (sh *strictHandler) StartGithubApp(w http.ResponseWriter, r *http.Request) {
+	var request StartGithubAppRequestObject
+
+	var body StartGithubAppJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if !errors.Is(err, io.EOF) {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+	} else {
+		request.Body = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartGithubApp(ctx, request.(StartGithubAppRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartGithubApp")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartGithubAppResponseObject); ok {
+		if err := validResponse.VisitStartGithubAppResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -21222,6 +21594,61 @@ func (sh *strictHandler) GetRunReport(w http.ResponseWriter, r *http.Request, ru
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetRunReportResponseObject); ok {
 		if err := validResponse.VisitGetRunReportResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSetup operation middleware
+func (sh *strictHandler) GetSetup(w http.ResponseWriter, r *http.Request) {
+	var request GetSetupRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSetup(ctx, request.(GetSetupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSetup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSetupResponseObject); ok {
+		if err := validResponse.VisitGetSetupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartSetup operation middleware
+func (sh *strictHandler) StartSetup(w http.ResponseWriter, r *http.Request) {
+	var request StartSetupRequestObject
+
+	var body StartSetupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartSetup(ctx, request.(StartSetupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartSetup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartSetupResponseObject); ok {
+		if err := validResponse.VisitStartSetupResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

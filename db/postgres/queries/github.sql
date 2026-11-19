@@ -77,3 +77,41 @@ UPDATE adopted_type SET source_id = sqlc.arg(to_source) WHERE source_id = sqlc.a
 
 -- name: MoveAdoptedLinks :exec
 UPDATE adopted_link SET source_id = sqlc.arg(to_source) WHERE source_id = sqlc.arg(from_source);
+
+-- name: GetGithubApp :one
+SELECT * FROM github_app WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: InsertGithubApp :exec
+INSERT INTO github_app (workspace_id, api_url, app_id, slug, owner_login, owner_is_org, client_id, client_secret_encrypted,
+                        private_key_encrypted, webhook_secret_encrypted, created_by, created_at, updated_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(api_url), sqlc.arg(app_id), sqlc.arg(slug), sqlc.arg(owner_login), sqlc.arg(owner_is_org),
+        sqlc.arg(client_id), sqlc.arg(client_secret_encrypted), sqlc.arg(private_key_encrypted), sqlc.arg(webhook_secret_encrypted),
+        sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(updated_at));
+
+-- name: SetGithubAppInstallation :exec
+UPDATE github_app SET installation_id = sqlc.narg(installation_id), updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: DeleteGithubApp :exec
+DELETE FROM github_app WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: GetGithubUserToken :one
+SELECT * FROM github_user_token WHERE workspace_id = sqlc.arg(workspace_id) AND github_user_id = sqlc.arg(github_user_id);
+
+-- name: UpsertGithubUserToken :exec
+INSERT INTO github_user_token (workspace_id, github_user_id, login, access_encrypted, access_expires_at, refresh_encrypted,
+                               refresh_expires_at, updated_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(github_user_id), sqlc.arg(login), sqlc.arg(access_encrypted), sqlc.narg(access_expires_at),
+        sqlc.narg(refresh_encrypted), sqlc.narg(refresh_expires_at), sqlc.arg(updated_at))
+ON CONFLICT (workspace_id, github_user_id) DO UPDATE SET login = excluded.login, access_encrypted = excluded.access_encrypted,
+    access_expires_at = excluded.access_expires_at, refresh_encrypted = excluded.refresh_encrypted,
+    refresh_expires_at = excluded.refresh_expires_at, updated_at = excluded.updated_at;
+
+-- name: DeleteGithubUserToken :exec
+DELETE FROM github_user_token WHERE workspace_id = sqlc.arg(workspace_id) AND github_user_id = sqlc.arg(github_user_id);
+
+-- name: DeleteGithubUserTokens :exec
+DELETE FROM github_user_token WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: ListGithubSourcesOfRepo :many
+SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND lower(repo) = lower(sqlc.arg(repo)) ORDER BY branch, path;
