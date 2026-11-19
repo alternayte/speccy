@@ -62,8 +62,15 @@ The headless commands (`review`, `action`, `export`, `handoff`, `report`, `verif
 | `SPECCY_OIDC_ISSUER` | No | none | The issuer URL of an OpenID Connect provider. Set it with the next two, or not at all. |
 | `SPECCY_OIDC_CLIENT_ID` | No | none | The OIDC client ID. |
 | `SPECCY_OIDC_CLIENT_SECRET` | No | none | The OIDC client secret. |
-| `SPECCY_GITHUB_OAUTH_CLIENT_ID` | No | none | The client ID of a GitHub OAuth app, for sign-in with GitHub. Set it with the secret, or not at all. |
-| `SPECCY_GITHUB_OAUTH_CLIENT_SECRET` | No | none | The client secret of the GitHub OAuth app. |
+| `SPECCY_SETUP_TOKEN` | No | none | Opens `/setup`, where the first admin makes an account. The token stops working when an admin exists. Make one with `openssl rand -hex 16`. |
+| `SPECCY_GITHUB_APP_ID` | No | none | The ID of a GitHub App that you made yourself. Set the five `SPECCY_GITHUB_APP_` values together, or none. When set, they lock the App in **Admin → GitHub**. |
+| `SPECCY_GITHUB_APP_PRIVATE_KEY` | No | none | The PEM text of the App's private key. A `\n` in the value is a line break. |
+| `SPECCY_GITHUB_APP_CLIENT_ID` | No | none | The client ID of the App, for sign-in with GitHub. |
+| `SPECCY_GITHUB_APP_CLIENT_SECRET` | No | none | The client secret of the App. |
+| `SPECCY_GITHUB_APP_WEBHOOK_SECRET` | No | none | The webhook secret of the App. |
+| `SPECCY_GITHUB_APP_API_URL` | No | `https://api.github.com` | The GitHub API of the App. GitHub Enterprise Server uses `https://<host>/api/v3`. |
+
+Speccy does not start when `SPECCY_GITHUB_OAUTH_CLIENT_ID` or `SPECCY_GITHUB_OAUTH_CLIENT_SECRET` is set. Sign-in with GitHub uses the workspace's GitHub App. Remove the two variables, and make the App in **Admin → GitHub**.
 
 ### CI and the headless commands
 

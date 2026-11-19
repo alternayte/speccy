@@ -101,6 +101,32 @@ func (s *Service) github(ctx context.Context, apiURL string) (*github.Client, er
 	return s.GitHub(ctx, apiURL)
 }
 
+// githubAs returns the client that writes a doc change for the person of ctx.
+func (s *Service) githubAs(ctx context.Context, apiURL string) (*github.Client, error) {
+	if s.GitHubAs == nil {
+		return s.github(ctx, apiURL)
+	}
+	return s.GitHubAs(ctx, apiURL, kernel.ActorFrom(ctx).UserID)
+}
+
+// SyncRepo reads the sources of one repo and branch, after GitHub said that it changed. A push
+// webhook calls it, so a source does not wait for the next poll.
+func (s *Service) SyncRepo(ctx context.Context, repo, branch string) {
+	srcs, err := s.DB.Queries().ListGithubSourcesOfRepo(ctx, pgdb.ListGithubSourcesOfRepoParams{WorkspaceID: s.Workspace, Repo: repo})
+	if err != nil {
+		slog.WarnContext(ctx, "a GitHub webhook could not list its sources", "repo", repo, "err", err)
+		return
+	}
+	for _, src := range srcs {
+		if src.Branch != branch {
+			continue
+		}
+		if err := s.SyncSource(ctx, src.ID, false); err != nil && ctx.Err() == nil {
+			slog.WarnContext(ctx, "sync of a GitHub source after a webhook failed", "repo", src.Repo, "branch", src.Branch, "err", err)
+		}
+	}
+}
+
 // SyncGitHub reads every GitHub source. A source that fails keeps its error for the app.
 func (s *Service) SyncGitHub(ctx context.Context) error {
 	srcs, err := s.DB.Queries().ListGithubSources(ctx, s.Workspace)
@@ -435,7 +461,7 @@ func (s *Service) Publish(ctx context.Context, id uuid.UUID, by, message string)
 	if err != nil {
 		return github.PullRequest{}, err
 	}
-	c, err := s.github(ctx, src.ApiUrl)
+	c, err := s.githubAs(ctx, src.ApiUrl)
 	if err != nil {
 		return github.PullRequest{}, err
 	}
@@ -669,7 +695,7 @@ func (s *Service) PublishMapping(ctx context.Context, id uuid.UUID, by string) (
 	if len(adopted) == 0 {
 		return github.PullRequest{}, kernel.Invalid("nothing_adopted", "No doc of this source has a type accepted in Speccy, so there is nothing to write.")
 	}
-	c, err := s.github(ctx, src.ApiUrl)
+	c, err := s.githubAs(ctx, src.ApiUrl)
 	if err != nil {
 		return github.PullRequest{}, err
 	}

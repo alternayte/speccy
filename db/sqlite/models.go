@@ -170,6 +170,23 @@ type Finding struct {
 	Waived     bool
 }
 
+type GithubApp struct {
+	WorkspaceID            uuid.UUID
+	ApiUrl                 string
+	AppID                  int64
+	Slug                   string
+	OwnerLogin             string
+	OwnerIsOrg             bool
+	ClientID               string
+	ClientSecretEncrypted  []byte
+	PrivateKeyEncrypted    []byte
+	WebhookSecretEncrypted []byte
+	InstallationID         sql.NullInt64
+	CreatedBy              string
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
 type GithubConnection struct {
 	WorkspaceID    uuid.UUID
 	TokenEncrypted []byte
@@ -193,6 +210,17 @@ type GithubSource struct {
 	ApiUrl      string
 	Skipped     dbtype.JSON
 	RepoConfig  string
+}
+
+type GithubUserToken struct {
+	WorkspaceID      uuid.UUID
+	GithubUserID     string
+	Login            string
+	AccessEncrypted  []byte
+	AccessExpiresAt  sql.NullTime
+	RefreshEncrypted []byte
+	RefreshExpiresAt sql.NullTime
+	UpdatedAt        time.Time
 }
 
 type Handoff struct {

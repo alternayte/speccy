@@ -42,8 +42,11 @@ type Querier interface {
 	DeleteDismissedDoc(ctx context.Context, arg DeleteDismissedDocParams) error
 	DeleteEventsOfStream(ctx context.Context, streamID uuid.UUID) error
 	DeleteFindingsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteGithubApp(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubConnection(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteGithubSource(ctx context.Context, arg DeleteGithubSourceParams) error
+	DeleteGithubUserToken(ctx context.Context, arg DeleteGithubUserTokenParams) error
+	DeleteGithubUserTokens(ctx context.Context, workspaceID uuid.UUID) error
 	DeleteHandoffsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteLinkStates(ctx context.Context, specDocID uuid.UUID) error
 	DeleteLinkStatesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
@@ -96,8 +99,10 @@ type Querier interface {
 	GetContentReview(ctx context.Context, arg GetContentReviewParams) (ContentReview, error)
 	GetFinding(ctx context.Context, id uuid.UUID) (Finding, error)
 	GetFirstWorkspace(ctx context.Context) (Workspace, error)
+	GetGithubApp(ctx context.Context, workspaceID uuid.UUID) (GithubApp, error)
 	GetGithubConnection(ctx context.Context, workspaceID uuid.UUID) (GithubConnection, error)
 	GetGithubSource(ctx context.Context, arg GetGithubSourceParams) (GithubSource, error)
+	GetGithubUserToken(ctx context.Context, arg GetGithubUserTokenParams) (GithubUserToken, error)
 	GetHandoff(ctx context.Context, arg GetHandoffParams) (Handoff, error)
 	GetMCPConnection(ctx context.Context, arg GetMCPConnectionParams) (McpConnection, error)
 	GetPrBatch(ctx context.Context, arg GetPrBatchParams) (PrBatch, error)
@@ -133,6 +138,7 @@ type Querier interface {
 	InsertDismissedDoc(ctx context.Context, arg InsertDismissedDocParams) error
 	InsertEvent(ctx context.Context, arg InsertEventParams) error
 	InsertFinding(ctx context.Context, arg InsertFindingParams) error
+	InsertGithubApp(ctx context.Context, arg InsertGithubAppParams) error
 	InsertGithubSource(ctx context.Context, arg InsertGithubSourceParams) error
 	InsertHandoff(ctx context.Context, arg InsertHandoffParams) error
 	InsertInvite(ctx context.Context, arg InsertInviteParams) error
@@ -203,6 +209,7 @@ type Querier interface {
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
 	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
+	ListGithubSourcesOfRepo(ctx context.Context, arg ListGithubSourcesOfRepoParams) ([]GithubSource, error)
 	ListHandoffs(ctx context.Context, specDocID uuid.UUID) ([]Handoff, error)
 	ListInboxRead(ctx context.Context, arg ListInboxReadParams) ([]string, error)
 	ListInvites(ctx context.Context, workspaceID uuid.UUID) ([]Invite, error)
@@ -268,6 +275,7 @@ type Querier interface {
 	SetBundleShare(ctx context.Context, arg SetBundleShareParams) error
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
 	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
+	SetGithubAppInstallation(ctx context.Context, arg SetGithubAppInstallationParams) error
 	SetGithubSourceRepoConfig(ctx context.Context, arg SetGithubSourceRepoConfigParams) error
 	SetGithubSourceSkipped(ctx context.Context, arg SetGithubSourceSkippedParams) error
 	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
@@ -306,6 +314,7 @@ type Querier interface {
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
 	UpsertGithubConnection(ctx context.Context, arg UpsertGithubConnectionParams) error
+	UpsertGithubUserToken(ctx context.Context, arg UpsertGithubUserTokenParams) error
 	UpsertSpecDocStatusView(ctx context.Context, arg UpsertSpecDocStatusViewParams) error
 	UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error
 	UpsertWaiverView(ctx context.Context, arg UpsertWaiverViewParams) error

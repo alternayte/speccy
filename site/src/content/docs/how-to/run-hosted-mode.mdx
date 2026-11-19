@@ -46,23 +46,33 @@ Serve Speccy behind TLS. With an `http://` base URL, the cookies lose the Secure
 
 ## Make the first admin
 
-Speccy has no open sign-up, and it sends no mail. Every account comes from an invite link.
+Speccy has no open sign-up, and it sends no mail. Every account comes from an invite link. Setup makes the first one.
 
 <Steps>
 
-1. Run the invite command with the same environment as the server. In the container:
+1. Make a setup token, and give it to the server as `SPECCY_SETUP_TOKEN`:
 
    ```sh
-   docker exec <container> /usr/local/bin/speccy admin invite --role admin
+   openssl rand -hex 16
    ```
 
-   It prints the link, and the date the link expires. The link works once, for 7 days by default.
+2. Open `<SPECCY_BASE_URL>/setup`. Type the setup token, and select **Next**.
 
-2. Open the link. On **Join Speccy**, type your name, email and a password of at least 12 characters.
+3. On **Join Speccy**, type your name, email and a password of at least 12 characters. Select **Make my account**. Speccy signs you in as an admin.
 
-3. Select **Make my account**. Speccy signs you in.
+4. On **Connect GitHub**, connect the workspace to GitHub, or select **Done** to do it later. [Connect GitHub](#connect-github) has the steps.
 
 </Steps>
+
+When an admin exists, `/setup` closes and the setup token stops working. You can remove the variable.
+
+Without a setup token, run the invite command with the same environment as the server. In the container:
+
+```sh
+docker exec <container> /usr/local/bin/speccy admin invite --role admin
+```
+
+It prints a link that works once, for 7 days by default. The command also gives a new admin link when no admin can sign in.
 
 The email is the sign-in name. Speccy does not check it by mail.
 
@@ -84,28 +94,57 @@ The email is the sign-in name. Speccy does not check it by mail.
 
 Under **Accounts**, an admin changes the role of a person, and selects **Disable** to stop an account. **Reset link** makes a password reset link. It works once, for 24 hours, and the new password signs the person out everywhere. `speccy admin reset-link <email>` makes the same link from the command line.
 
-## Sign in with OIDC or GitHub
+## Connect GitHub
+
+A workspace connects to GitHub in one of two ways: a GitHub App, or a fine-grained token. It never uses both.
+
+### With a GitHub App
+
+Speccy makes a private GitHub App for the workspace. Only the account that owns the App can install it.
+
+<Steps>
+
+1. Open **Admin → GitHub**.
+
+2. Under **GitHub App**, type the org that owns the repos. Leave the field empty to make the App on your personal account. For GitHub Enterprise Server, type its API address.
+
+3. Select **Create the App on GitHub**. GitHub shows the App. Select **Create GitHub App**. GitHub sends you back to **Admin → GitHub**.
+
+4. Select **Install the App**. Choose the repos that Speccy may read, and select **Install**.
+
+</Steps>
+
+GitHub must reach `<SPECCY_BASE_URL>/api/github/webhook`. A push then syncs its source at once. When GitHub cannot reach the server, Speccy still reads each source every 5 minutes.
+
+With the App:
+
+- Speccy reads sources and makes breakdown issues as the App.
+- A pull request that a person publishes goes to GitHub with that person as its author. The first time, Speccy asks the person to connect their GitHub account.
+- A member of the org that owns the App signs in with GitHub, with no invite, as a member. On a personal account, only its owner signs in with GitHub.
+
+**Disconnect** makes Speccy forget the App's keys and each person's GitHub link. The App stays on GitHub. **App settings on GitHub** opens the page that deletes it.
+
+To make the App yourself, set the `SPECCY_GITHUB_APP_` variables in [Configuration](/reference/configuration/). They lock the App in **Admin → GitHub**.
+
+### With a token
+
+Use a token when the org cannot add a GitHub App. Under **Admin → GitHub**, paste a fine-grained personal access token with read and write access to Contents and Pull requests. Speccy then reads each source every 5 minutes. Every pull request goes to GitHub as the owner of the token, and sign-in with GitHub is off.
+
+## Sign in with OIDC
 
 A provider signs in a person who has an account already. It never makes an account. Speccy does not match a provider account to a Speccy account by email.
 
 <Steps>
 
-1. Register Speccy at the provider, with this callback URL:
+1. Register Speccy at the provider, such as Entra ID, with the callback URL `<SPECCY_BASE_URL>/api/auth/oauth/oidc/callback`.
 
-   | Provider | Callback URL |
-   |---|---|
-   | OpenID Connect, such as Entra ID | `<SPECCY_BASE_URL>/api/auth/oauth/oidc/callback` |
-   | GitHub OAuth app | `<SPECCY_BASE_URL>/api/auth/oauth/github/callback` |
-
-2. Set the variables, and restart Speccy:
-   - OIDC: `SPECCY_OIDC_ISSUER`, `SPECCY_OIDC_CLIENT_ID` and `SPECCY_OIDC_CLIENT_SECRET`, all three.
-   - GitHub: `SPECCY_GITHUB_OAUTH_CLIENT_ID` and `SPECCY_GITHUB_OAUTH_CLIENT_SECRET`, both.
+2. Set `SPECCY_OIDC_ISSUER`, `SPECCY_OIDC_CLIENT_ID` and `SPECCY_OIDC_CLIENT_SECRET`, and restart Speccy.
 
 3. Each person signs in with their password once. Under **Account → Sign-in providers**, they select **Link** next to the provider.
 
 </Steps>
 
-From then on, the sign-in page shows **Sign in with single sign-on** or **Sign in with GitHub**.
+From then on, the sign-in page shows **Sign in with single sign-on**. A person with an invite account links GitHub the same way.
 
 ## Roles
 
@@ -157,7 +196,7 @@ Each person makes personal API tokens under **Account → API tokens**, with **M
 
 An admin adds the model backends and assigns the roles under **Admin**. [Add a model backend](/how-to/add-a-model-backend/) has the steps. The image holds no agent CLI, so use API backends.
 
-An admin sets one GitHub token for the workspace under **Admin → GitHub token**. Speccy reads each GitHub source again every 5 minutes. [Adopt a repo](/how-to/adopt-a-repo/) covers sources.
+An admin connects GitHub under **Admin → GitHub**, as [Connect GitHub](#connect-github) says. [Adopt a repo](/how-to/adopt-a-repo/) covers sources.
 
 ## Run on Kubernetes
 
@@ -185,7 +224,7 @@ spec:
             - containerPort: 8080
           envFrom:
             - secretRef:
-                name: speccy-env # SPECCY_DATABASE_URL, SPECCY_MASTER_KEY, SPECCY_BASE_URL
+                name: speccy-env # SPECCY_DATABASE_URL, SPECCY_MASTER_KEY, SPECCY_BASE_URL, SPECCY_SETUP_TOKEN
           readinessProbe:
             httpGet: { path: /healthz, port: 8080 }
           livenessProbe:
@@ -194,11 +233,7 @@ spec:
 
 `/healthz` says only that the process serves HTTP. It does not check the database.
 
-Make the first admin in the pod:
-
-```sh
-kubectl exec deploy/speccy -- /usr/local/bin/speccy admin invite --role admin
-```
+Put `SPECCY_SETUP_TOKEN` in the Secret, and make the first admin at `/setup`.
 
 <Aside type="caution">
 Keep `SPECCY_MASTER_KEY` in the Secret, and keep a copy of it outside the cluster. [Back up and restore](/operations/back-up-and-restore/) says what else to keep.

@@ -21,6 +21,8 @@ import { Route as DocsDocIdRouteImport } from './routes/docs/$docId'
 import { Route as ProfilesIndexRouteImport } from './routes/profiles/index'
 import { Route as ProfilesKeyRouteImport } from './routes/profiles/$key'
 import { Route as ReviewsReviewIdRouteImport } from './routes/reviews/$reviewId'
+import { Route as SetupIndexRouteImport } from './routes/setup/index'
+import { Route as SetupGithubRouteImport } from './routes/setup/github'
 import { Route as ShareTokenRouteImport } from './routes/share/$token'
 import { Route as BundlesBundleIdIndexRouteImport } from './routes/bundles/$bundleId/index'
 import { Route as DocsDocIdBreakdownRouteImport } from './routes/docs/$docId_.breakdown'
@@ -91,6 +93,16 @@ const ReviewsReviewIdRoute = ReviewsReviewIdRouteImport.update({
   path: '/reviews/$reviewId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupIndexRoute = SetupIndexRouteImport.update({
+  id: '/setup/',
+  path: '/setup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupGithubRoute = SetupGithubRouteImport.update({
+  id: '/setup/github',
+  path: '/setup/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShareTokenRoute = ShareTokenRouteImport.update({
   id: '/share/$token',
   path: '/share/$token',
@@ -155,8 +167,10 @@ export interface FileRoutesByFullPath {
   '/docs/$docId': typeof DocsDocIdRoute
   '/profiles/$key': typeof ProfilesKeyRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
+  '/setup/github': typeof SetupGithubRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
+  '/setup/': typeof SetupIndexRoute
   '/docs/$docId/breakdown': typeof DocsDocIdBreakdownRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
   '/bundles/$bundleId/docs/$docId/breakdown': typeof BundlesBundleIdDocsDocIdBreakdownRoute
@@ -178,8 +192,10 @@ export interface FileRoutesByTo {
   '/docs/$docId': typeof DocsDocIdRoute
   '/profiles/$key': typeof ProfilesKeyRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
+  '/setup/github': typeof SetupGithubRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles': typeof ProfilesIndexRoute
+  '/setup': typeof SetupIndexRoute
   '/docs/$docId/breakdown': typeof DocsDocIdBreakdownRoute
   '/bundles/$bundleId': typeof BundlesBundleIdIndexRoute
   '/bundles/$bundleId/docs/$docId/breakdown': typeof BundlesBundleIdDocsDocIdBreakdownRoute
@@ -202,8 +218,10 @@ export interface FileRoutesById {
   '/docs/$docId': typeof DocsDocIdRoute
   '/profiles/$key': typeof ProfilesKeyRoute
   '/reviews/$reviewId': typeof ReviewsReviewIdRoute
+  '/setup/github': typeof SetupGithubRoute
   '/share/$token': typeof ShareTokenRoute
   '/profiles/': typeof ProfilesIndexRoute
+  '/setup/': typeof SetupIndexRoute
   '/docs/$docId_/breakdown': typeof DocsDocIdBreakdownRoute
   '/bundles/$bundleId/': typeof BundlesBundleIdIndexRoute
   '/bundles/$bundleId/docs/$docId/breakdown': typeof BundlesBundleIdDocsDocIdBreakdownRoute
@@ -227,8 +245,10 @@ export interface FileRouteTypes {
     | '/docs/$docId'
     | '/profiles/$key'
     | '/reviews/$reviewId'
+    | '/setup/github'
     | '/share/$token'
     | '/profiles/'
+    | '/setup/'
     | '/docs/$docId/breakdown'
     | '/bundles/$bundleId/'
     | '/bundles/$bundleId/docs/$docId/breakdown'
@@ -250,8 +270,10 @@ export interface FileRouteTypes {
     | '/docs/$docId'
     | '/profiles/$key'
     | '/reviews/$reviewId'
+    | '/setup/github'
     | '/share/$token'
     | '/profiles'
+    | '/setup'
     | '/docs/$docId/breakdown'
     | '/bundles/$bundleId'
     | '/bundles/$bundleId/docs/$docId/breakdown'
@@ -273,8 +295,10 @@ export interface FileRouteTypes {
     | '/docs/$docId'
     | '/profiles/$key'
     | '/reviews/$reviewId'
+    | '/setup/github'
     | '/share/$token'
     | '/profiles/'
+    | '/setup/'
     | '/docs/$docId_/breakdown'
     | '/bundles/$bundleId/'
     | '/bundles/$bundleId/docs/$docId/breakdown'
@@ -297,8 +321,10 @@ export interface RootRouteChildren {
   DocsDocIdRoute: typeof DocsDocIdRoute
   ProfilesKeyRoute: typeof ProfilesKeyRoute
   ReviewsReviewIdRoute: typeof ReviewsReviewIdRoute
+  SetupGithubRoute: typeof SetupGithubRoute
   ShareTokenRoute: typeof ShareTokenRoute
   ProfilesIndexRoute: typeof ProfilesIndexRoute
+  SetupIndexRoute: typeof SetupIndexRoute
   DocsDocIdBreakdownRoute: typeof DocsDocIdBreakdownRoute
   BundlesBundleIdIndexRoute: typeof BundlesBundleIdIndexRoute
   BundlesBundleIdDocsDocIdBreakdownRoute: typeof BundlesBundleIdDocsDocIdBreakdownRoute
@@ -395,6 +421,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewsReviewIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup/': {
+      id: '/setup/'
+      path: '/setup'
+      fullPath: '/setup/'
+      preLoaderRoute: typeof SetupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup/github': {
+      id: '/setup/github'
+      path: '/setup/github'
+      fullPath: '/setup/github'
+      preLoaderRoute: typeof SetupGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/share/$token': {
       id: '/share/$token'
       path: '/share/$token'
@@ -473,8 +513,10 @@ const rootRouteChildren: RootRouteChildren = {
   DocsDocIdRoute: DocsDocIdRoute,
   ProfilesKeyRoute: ProfilesKeyRoute,
   ReviewsReviewIdRoute: ReviewsReviewIdRoute,
+  SetupGithubRoute: SetupGithubRoute,
   ShareTokenRoute: ShareTokenRoute,
   ProfilesIndexRoute: ProfilesIndexRoute,
+  SetupIndexRoute: SetupIndexRoute,
   DocsDocIdBreakdownRoute: DocsDocIdBreakdownRoute,
   BundlesBundleIdIndexRoute: BundlesBundleIdIndexRoute,
   BundlesBundleIdDocsDocIdBreakdownRoute:

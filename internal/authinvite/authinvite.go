@@ -65,6 +65,9 @@ type Plugin struct {
 	Admin     *admin.Plugin
 	// BaseURL is the public URL of Speccy, for the links.
 	BaseURL string
+	// MayCreate lets one more kind of creation through: a GitHub sign-in by a member of the
+	// account that owns the workspace's App (docs/specs/github-app.md).
+	MayCreate func(ctx context.Context, ev *hook.UserCreate) bool
 
 	svc plugin.Services
 }
@@ -80,8 +83,11 @@ func Allow(ctx context.Context) context.Context { return context.WithValue(ctx, 
 // Register adds the routes and the sign-up gate.
 func (p *Plugin) Register(r *plugin.Registry) error {
 	p.svc = r.Services()
-	r.Hooks().OnBeforeUserCreate(func(ctx context.Context, _ *hook.UserCreate) error {
+	r.Hooks().OnBeforeUserCreate(func(ctx context.Context, ev *hook.UserCreate) error {
 		if allowed, _ := ctx.Value(allowKey{}).(bool); allowed {
+			return nil
+		}
+		if p.MayCreate != nil && p.MayCreate(ctx, ev) {
 			return nil
 		}
 		return errSignUpOff

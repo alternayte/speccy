@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/states";
+import { WriteError } from "./connect-github";
 import type { GithubSource, Profile, SourceSkippedDoc } from "@/lib/api";
 import { useMe } from "@/features/account/me";
 import { useLinkOffers } from "./adopt-link";
@@ -88,7 +89,7 @@ function SourceSection({ source }: { source: GithubSource }) {
       ) : null}
       {mapping.isError ? (
         <div className="mt-2">
-          <ErrorState message={problemMessage(mapping.error)} />
+          <WriteError error={mapping.error} back={window.location.pathname + window.location.search} />
         </div>
       ) : null}
       {items.length > 0 ? (

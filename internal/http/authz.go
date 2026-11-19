@@ -40,6 +40,9 @@ var operations = map[string]access{
 	// Share links (REQ-085, REQ-086): the token is the credential.
 	"getShare":  public,
 	"joinShare": public,
+	// First-run setup: the setup token is the credential, and it ends when an admin exists.
+	"getSetup":   public,
+	"startSetup": public,
 
 	"renderMarkdown": reader,
 
@@ -227,6 +230,8 @@ var operations = map[string]access{
 	"getGithubConnection":    adminOnly,
 	"setGithubConnection":    adminOnly,
 	"deleteGithubConnection": adminOnly,
+	"startGithubApp":         adminOnly,
+	"deleteGithubApp":        adminOnly,
 	"listGithubSources":      member,
 	"resolveGithubUrl":       adminOnly,
 	"addGithubSource":        adminOnly,
