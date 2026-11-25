@@ -368,6 +368,44 @@ type ClientInterface interface {
 	// Corresponds with PUT /admin/settings (the `SetSettings` operationId).
 	SetSettings(ctx context.Context, body SetSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListURLConnectors List the URL connectors (docs/specs/url-connectors.md).
+	//
+	// Corresponds with GET /admin/url-connectors (the `ListURLConnectors` operationId).
+	ListURLConnectors(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateURLConnectorWithBody Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+	CreateURLConnectorWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateURLConnector Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+	CreateURLConnector(ctx context.Context, body CreateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteURLConnector Delete a URL connector.
+	//
+	// Corresponds with DELETE /admin/url-connectors/{connectionId} (the `DeleteURLConnector` operationId).
+	DeleteURLConnector(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateURLConnectorWithBody Change a URL connector. Leave header_value out to keep the stored one.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+	UpdateURLConnectorWithBody(ctx context.Context, connectionId ConnectionId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateURLConnector Change a URL connector. Leave header_value out to keep the stored one.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+	UpdateURLConnector(ctx context.Context, connectionId ConnectionId, body UpdateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	//
 	// Corresponds with GET /bundles (the `ListBundles` operationId).
@@ -2334,6 +2372,104 @@ func (c *Client) SetSettingsWithBody(ctx context.Context, contentType string, bo
 // Corresponds with PUT /admin/settings (the `SetSettings` operationId).
 func (c *Client) SetSettings(ctx context.Context, body SetSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetSettingsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListURLConnectors List the URL connectors (docs/specs/url-connectors.md).
+//
+// Corresponds with GET /admin/url-connectors (the `ListURLConnectors` operationId).
+func (c *Client) ListURLConnectors(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListURLConnectorsRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateURLConnectorWithBody Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+func (c *Client) CreateURLConnectorWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateURLConnectorRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CreateURLConnector Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+func (c *Client) CreateURLConnector(ctx context.Context, body CreateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateURLConnectorRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteURLConnector Delete a URL connector.
+//
+// Corresponds with DELETE /admin/url-connectors/{connectionId} (the `DeleteURLConnector` operationId).
+func (c *Client) DeleteURLConnector(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteURLConnectorRequest(c.Server, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateURLConnectorWithBody Change a URL connector. Leave header_value out to keep the stored one.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+func (c *Client) UpdateURLConnectorWithBody(ctx context.Context, connectionId ConnectionId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateURLConnectorRequestWithBody(c.Server, connectionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateURLConnector Change a URL connector. Leave header_value out to keep the stored one.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+func (c *Client) UpdateURLConnector(ctx context.Context, connectionId ConnectionId, body UpdateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateURLConnectorRequest(c.Server, connectionId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -6636,6 +6772,154 @@ func NewSetSettingsRequestWithBody(server string, contentType string, body io.Re
 	}
 
 	operationPath := fmt.Sprintf("/admin/settings")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListURLConnectorsRequest constructs an http.Request for the ListURLConnectors method
+func NewListURLConnectorsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/url-connectors")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateURLConnectorRequest calls the generic CreateURLConnector builder with application/json body
+func NewCreateURLConnectorRequest(server string, body CreateURLConnectorJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateURLConnectorRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateURLConnectorRequestWithBody constructs an http.Request for the CreateURLConnector method, with any body, and a specified content type
+func NewCreateURLConnectorRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/url-connectors")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteURLConnectorRequest constructs an http.Request for the DeleteURLConnector method
+func NewDeleteURLConnectorRequest(server string, connectionId ConnectionId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/url-connectors/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateURLConnectorRequest calls the generic UpdateURLConnector builder with application/json body
+func NewUpdateURLConnectorRequest(server string, connectionId ConnectionId, body UpdateURLConnectorJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateURLConnectorRequestWithBody(server, connectionId, "application/json", bodyReader)
+}
+
+// NewUpdateURLConnectorRequestWithBody constructs an http.Request for the UpdateURLConnector method, with any body, and a specified content type
+func NewUpdateURLConnectorRequestWithBody(server string, connectionId ConnectionId, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/admin/url-connectors/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12788,6 +13072,48 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PUT /admin/settings (the `SetSettings` operationId).
 	SetSettingsWithResponse(ctx context.Context, body SetSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetSettingsResponse, error)
 
+	// ListURLConnectorsWithResponse List the URL connectors (docs/specs/url-connectors.md).
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /admin/url-connectors (the `ListURLConnectors` operationId).
+	ListURLConnectorsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListURLConnectorsResponse, error)
+
+	// CreateURLConnectorWithBodyWithResponse Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+	CreateURLConnectorWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateURLConnectorResponse, error)
+
+	// CreateURLConnectorWithResponse Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+	CreateURLConnectorWithResponse(ctx context.Context, body CreateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateURLConnectorResponse, error)
+
+	// DeleteURLConnectorWithResponse Delete a URL connector.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /admin/url-connectors/{connectionId} (the `DeleteURLConnector` operationId).
+	DeleteURLConnectorWithResponse(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*DeleteURLConnectorResponse, error)
+
+	// UpdateURLConnectorWithBodyWithResponse Change a URL connector. Leave header_value out to keep the stored one.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+	UpdateURLConnectorWithBodyWithResponse(ctx context.Context, connectionId ConnectionId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateURLConnectorResponse, error)
+
+	// UpdateURLConnectorWithResponse Change a URL connector. Leave header_value out to keep the stored one.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+	UpdateURLConnectorWithResponse(ctx context.Context, connectionId ConnectionId, body UpdateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateURLConnectorResponse, error)
+
 	// ListBundlesWithResponse List bundles, and the folders that look like bundles but are not valid.
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -15706,6 +16032,195 @@ func (r SetSettingsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetSettingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListURLConnectorsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *struct {
+		Items []URLConnector `json:"items"`
+	}
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListURLConnectorsResponse) GetJSON200() *struct {
+	Items []URLConnector `json:"items"`
+} {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListURLConnectorsResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListURLConnectorsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListURLConnectorsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListURLConnectorsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListURLConnectorsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CreateURLConnectorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *URLConnector
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateURLConnectorResponse) GetJSON201() *URLConnector {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CreateURLConnectorResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateURLConnectorResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateURLConnectorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateURLConnectorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateURLConnectorResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type DeleteURLConnectorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteURLConnectorResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteURLConnectorResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteURLConnectorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteURLConnectorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteURLConnectorResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UpdateURLConnectorResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *URLConnector
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateURLConnectorResponse) GetJSON200() *URLConnector {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UpdateURLConnectorResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateURLConnectorResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateURLConnectorResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateURLConnectorResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateURLConnectorResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -22805,6 +23320,84 @@ func (c *ClientWithResponses) SetSettingsWithResponse(ctx context.Context, body 
 	return ParseSetSettingsResponse(rsp)
 }
 
+// ListURLConnectorsWithResponse List the URL connectors (docs/specs/url-connectors.md).
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /admin/url-connectors (the `ListURLConnectors` operationId).
+func (c *ClientWithResponses) ListURLConnectorsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListURLConnectorsResponse, error) {
+	rsp, err := c.ListURLConnectors(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListURLConnectorsResponse(rsp)
+}
+
+// CreateURLConnectorWithBodyWithResponse Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+func (c *ClientWithResponses) CreateURLConnectorWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateURLConnectorResponse, error) {
+	rsp, err := c.CreateURLConnectorWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateURLConnectorResponse(rsp)
+}
+
+// CreateURLConnectorWithResponse Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /admin/url-connectors (the `CreateURLConnector` operationId).
+func (c *ClientWithResponses) CreateURLConnectorWithResponse(ctx context.Context, body CreateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateURLConnectorResponse, error) {
+	rsp, err := c.CreateURLConnector(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateURLConnectorResponse(rsp)
+}
+
+// DeleteURLConnectorWithResponse Delete a URL connector.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /admin/url-connectors/{connectionId} (the `DeleteURLConnector` operationId).
+func (c *ClientWithResponses) DeleteURLConnectorWithResponse(ctx context.Context, connectionId ConnectionId, reqEditors ...RequestEditorFn) (*DeleteURLConnectorResponse, error) {
+	rsp, err := c.DeleteURLConnector(ctx, connectionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteURLConnectorResponse(rsp)
+}
+
+// UpdateURLConnectorWithBodyWithResponse Change a URL connector. Leave header_value out to keep the stored one.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+func (c *ClientWithResponses) UpdateURLConnectorWithBodyWithResponse(ctx context.Context, connectionId ConnectionId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateURLConnectorResponse, error) {
+	rsp, err := c.UpdateURLConnectorWithBody(ctx, connectionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateURLConnectorResponse(rsp)
+}
+
+// UpdateURLConnectorWithResponse Change a URL connector. Leave header_value out to keep the stored one.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /admin/url-connectors/{connectionId} (the `UpdateURLConnector` operationId).
+func (c *ClientWithResponses) UpdateURLConnectorWithResponse(ctx context.Context, connectionId ConnectionId, body UpdateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateURLConnectorResponse, error) {
+	rsp, err := c.UpdateURLConnector(ctx, connectionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateURLConnectorResponse(rsp)
+}
+
 // ListBundlesWithResponse List bundles, and the folders that look like bundles but are not valid.
 //
 // Returns a wrapper object for the known response body format(s).
@@ -26407,6 +27000,136 @@ func ParseSetSettingsResponse(rsp *http.Response) (*SetSettingsResponse, error) 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Settings
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListURLConnectorsResponse parses an HTTP response from a ListURLConnectorsWithResponse call
+func ParseListURLConnectorsResponse(rsp *http.Response) (*ListURLConnectorsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListURLConnectorsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Items []URLConnector `json:"items"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateURLConnectorResponse parses an HTTP response from a CreateURLConnectorWithResponse call
+func ParseCreateURLConnectorResponse(rsp *http.Response) (*CreateURLConnectorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateURLConnectorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest URLConnector
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteURLConnectorResponse parses an HTTP response from a DeleteURLConnectorWithResponse call
+func ParseDeleteURLConnectorResponse(rsp *http.Response) (*DeleteURLConnectorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteURLConnectorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateURLConnectorResponse parses an HTTP response from a UpdateURLConnectorWithResponse call
+func ParseUpdateURLConnectorResponse(rsp *http.Response) (*UpdateURLConnectorResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateURLConnectorResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest URLConnector
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

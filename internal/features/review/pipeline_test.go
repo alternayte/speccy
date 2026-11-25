@@ -198,6 +198,17 @@ func (r *reviewer) Call(_ context.Context, _ string, c model.Call) (model.Raw, e
 			claims = append(claims, answer)
 		}
 		out = map[string]any{"claims": claims}
+	case review.PromptConnectorPick:
+		// The pages whose name says "limits" or "database", in index order.
+		pages := []int{}
+		for _, m := range regexp.MustCompile(`(?m)^(\d+)\. (.+)$`).FindAllStringSubmatch(insideData(c.Prompt), -1) {
+			if strings.Contains(m[2], "limits") || strings.Contains(m[2], "database") {
+				var n int
+				_, _ = fmt.Sscan(m[1], &n)
+				pages = append(pages, n)
+			}
+		}
+		out = map[string]any{"analysis": "Limits and the database.", "pages": pages}
 	case review.PromptClaims:
 		// A sentence that names a team is about an internal system.
 		claims := []map[string]string{}

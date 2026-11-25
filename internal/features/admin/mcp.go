@@ -284,7 +284,7 @@ func (a *API) connection(c pgdb.McpConnection) (mcpclient.Connection, error) {
 }
 
 func mcpOtherKey(name string) *kernel.Error {
-	return kernel.OtherKey(fmt.Sprintf("The secret of the %s connection", name), "Admin → MCP connections")
+	return kernel.OtherKey(fmt.Sprintf("The secret of the %s connection", name), "Admin → Connectors")
 }
 
 // ListMCPTools connects to the server and lists its tools, for the allowlist.

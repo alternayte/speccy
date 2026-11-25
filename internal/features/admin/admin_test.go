@@ -189,7 +189,7 @@ func TestSecrets_SealedWithOtherKey(t *testing.T) {
 	if msg := tested.(api.TestBackend200JSONResponse).Error; msg == nil || !strings.Contains(*msg, "sealed with another key") || !strings.Contains(*msg, "Admin → Models") {
 		t.Errorf("backend test with a secret sealed with another key: %+v", tested)
 	}
-	if _, err := a.SearchSource(ctx); err == nil || !strings.Contains(err.Error(), "sealed with another key") || !strings.Contains(err.Error(), "Admin → MCP connections") {
+	if _, err := a.SearchSource(ctx); err == nil || !strings.Contains(err.Error(), "sealed with another key") || !strings.Contains(err.Error(), "Admin → Connectors") {
 		t.Errorf("search source with a secret sealed with another key: %v", err)
 	}
 

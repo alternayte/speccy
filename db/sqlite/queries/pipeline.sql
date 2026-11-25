@@ -160,3 +160,23 @@ VALUES (sqlc.arg(spec_doc_id), sqlc.arg(target_ref), sqlc.arg(state), sqlc.arg(r
 
 -- name: ListLinkStates :many
 SELECT * FROM link_state WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY target_ref;
+
+-- name: ListURLConnectors :many
+SELECT * FROM url_connector WHERE workspace_id = sqlc.arg(workspace_id) ORDER BY name;
+
+-- name: GetURLConnector :one
+SELECT * FROM url_connector WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: InsertURLConnector :exec
+INSERT INTO url_connector (id, workspace_id, name, address, base_url, header_name, header_encrypted, header_last4, profiles, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(name), sqlc.arg(address), sqlc.arg(base_url), sqlc.arg(header_name),
+        sqlc.arg(header_encrypted), sqlc.arg(header_last4), sqlc.arg(profiles), sqlc.arg(created_at));
+
+-- name: UpdateURLConnector :exec
+UPDATE url_connector SET name = sqlc.arg(name), address = sqlc.arg(address), base_url = sqlc.arg(base_url),
+    header_name = sqlc.arg(header_name), header_encrypted = sqlc.arg(header_encrypted), header_last4 = sqlc.arg(header_last4),
+    profiles = sqlc.arg(profiles)
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: DeleteURLConnector :exec
+DELETE FROM url_connector WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);

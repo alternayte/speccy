@@ -134,12 +134,27 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 	if err != nil {
 		return err
 	}
+	// The URL connectors come next: the admin chose them, and a claim that a page of one
+	// settles needs no search (docs/specs/url-connectors.md).
+	var open []int
+	for i := range claims {
+		if _, ok := byFile[i]; !ok {
+			open = append(open, i)
+		}
+	}
+	byConn, err := s.connectorClaims(ctx, rc, in, claims, open, fingerprint)
+	if err != nil {
+		return err
+	}
 
 	// REQ-034: the backend's own web search, then an MCP search connection, else unverified.
 	// A claim about an internal system goes to the MCP search connection only.
 	var external, internal []int
 	for i, c := range claims {
 		if _, ok := byFile[i]; ok {
+			continue
+		}
+		if _, ok := byConn[i]; ok {
 			continue
 		}
 		if c.internal {
@@ -199,6 +214,10 @@ func (s *Service) groundingStage(ctx context.Context, rc *runCtx, in input, ev *
 		an := anchor.New(in.bundle.DocPath, in.main, in.doc, c.start, c.end)
 		if fl, ok := byFile[i]; ok {
 			s.fileFinding(in, ev, c, fl, an, pol)
+			continue
+		}
+		if cl, ok := byConn[i]; ok {
+			s.connectorFinding(in, ev, c, cl, an, pol)
 			continue
 		}
 		class, sources, policyReason := s.applyPolicy(ctx, rc, pol, resolverOn, l, an, now)

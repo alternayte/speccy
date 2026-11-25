@@ -248,6 +248,10 @@ func (a Adapter) DeleteThreadsOfSpecDoc(ctx context.Context, specDocID uuid.Null
 	return a.q.DeleteThreadsOfSpecDoc(ctx, specDocID)
 }
 
+func (a Adapter) DeleteURLConnector(ctx context.Context, arg pgdb.DeleteURLConnectorParams) error {
+	return a.q.DeleteURLConnector(ctx, DeleteURLConnectorParams(arg))
+}
+
 func (a Adapter) DeleteVerdictsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
 	return a.q.DeleteVerdictsOfSpecDoc(ctx, specDocID)
 }
@@ -462,6 +466,11 @@ func (a Adapter) GetThreadView(ctx context.Context, arg pgdb.GetThreadViewParams
 	return pgdb.ThreadView(r), err
 }
 
+func (a Adapter) GetURLConnector(ctx context.Context, arg pgdb.GetURLConnectorParams) (pgdb.UrlConnector, error) {
+	r, err := a.q.GetURLConnector(ctx, GetURLConnectorParams(arg))
+	return pgdb.UrlConnector(r), err
+}
+
 func (a Adapter) GetUserState(ctx context.Context, userID string) (pgdb.UserState, error) {
 	r, err := a.q.GetUserState(ctx, userID)
 	return pgdb.UserState(r), err
@@ -647,6 +656,10 @@ func (a Adapter) InsertStream(ctx context.Context, arg pgdb.InsertStreamParams) 
 
 func (a Adapter) InsertThreadMessage(ctx context.Context, arg pgdb.InsertThreadMessageParams) error {
 	return a.q.InsertThreadMessage(ctx, InsertThreadMessageParams(arg))
+}
+
+func (a Adapter) InsertURLConnector(ctx context.Context, arg pgdb.InsertURLConnectorParams) error {
+	return a.q.InsertURLConnector(ctx, InsertURLConnectorParams(arg))
 }
 
 func (a Adapter) InsertVerdict(ctx context.Context, arg pgdb.InsertVerdictParams) error {
@@ -1371,6 +1384,18 @@ func (a Adapter) ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]
 	return out, nil
 }
 
+func (a Adapter) ListURLConnectors(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.UrlConnector, error) {
+	rows, err := a.q.ListURLConnectors(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.UrlConnector, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.UrlConnector(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) ([]pgdb.VerificationOutcome, error) {
 	rows, err := a.q.ListVerificationOutcomes(ctx, runID)
 	if err != nil {
@@ -1691,6 +1716,10 @@ func (a Adapter) UpdateSpecDocHead(ctx context.Context, arg pgdb.UpdateSpecDocHe
 
 func (a Adapter) UpdateStream(ctx context.Context, arg pgdb.UpdateStreamParams) (int64, error) {
 	return a.q.UpdateStream(ctx, UpdateStreamParams(arg))
+}
+
+func (a Adapter) UpdateURLConnector(ctx context.Context, arg pgdb.UpdateURLConnectorParams) error {
+	return a.q.UpdateURLConnector(ctx, UpdateURLConnectorParams(arg))
 }
 
 func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignmentParams) error {

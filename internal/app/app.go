@@ -132,6 +132,10 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		// REQ-009: the admin sets the size limits of hosted mode.
 		svc.Limits = func(ctx context.Context) source.Limits { return settings(ctx).Limits() }
 	}
+	// docs/specs/url-connectors.md: a URL connector in a GitHub repo reads with the reviews'
+	// GitHub credential.
+	adminAPI.ConnectorGitHub = reviews.GitHub
+	reviews.Connectors = adminAPI.Connectors
 	// After every change: lint (DEC-027), then end the waivers whose section changed (REQ-074),
 	// then revoke the approvals of changed bundles (REQ-077).
 	svc.AfterChange = func(ctx context.Context) error {

@@ -1943,6 +1943,24 @@ func (e TrackerKind) Valid() bool {
 	}
 }
 
+// Defines values for URLConnectorKind.
+const (
+	URLConnectorKindGithub URLConnectorKind = "github"
+	URLConnectorKindWeb    URLConnectorKind = "web"
+)
+
+// Valid indicates whether the value is a known member of the URLConnectorKind enum.
+func (e URLConnectorKind) Valid() bool {
+	switch e {
+	case URLConnectorKindGithub:
+		return true
+	case URLConnectorKindWeb:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpstreamChangeState.
 const (
 	UpstreamChangeStateSentBack UpstreamChangeState = "sent_back"
@@ -5071,6 +5089,44 @@ type Trend struct {
 	SinceVersion int64 `json:"since_version"`
 }
 
+// URLConnector defines model for URLConnector.
+type URLConnector struct {
+	Address     string             `json:"address"`
+	BaseUrl     string             `json:"base_url"`
+	HasHeader   bool               `json:"has_header"`
+	HeaderLast4 string             `json:"header_last4"`
+	HeaderName  string             `json:"header_name"`
+	Id          openapi_types.UUID `json:"id"`
+	Kind        URLConnectorKind   `json:"kind"`
+
+	// Links The links of the index under the base URL, as Speccy read them on create or update.
+	Links    *int     `json:"links,omitempty"`
+	Name     string   `json:"name"`
+	Profiles []string `json:"profiles"`
+}
+
+// URLConnectorKind defines model for URLConnector.Kind.
+type URLConnectorKind string
+
+// URLConnectorInput defines model for URLConnectorInput.
+type URLConnectorInput struct {
+	// Address The URL of the doc index, such as https://docs.acme.dev/llms.txt, or a GitHub URL of a file at a branch, such as https://github.com/acme/platform/blob/gh-pages/llms.txt.
+	Address string `json:"address"`
+
+	// BaseUrl The base URL. Speccy fetches only links under it. For a web address, the folder of the index when empty. For a GitHub address, the URL of the site that the branch builds, whose paths map to files of the branch.
+	BaseUrl *string `json:"base_url,omitempty"`
+
+	// HeaderName A header to send with each request to the base URL's host, such as Authorization. Web addresses only.
+	HeaderName *string `json:"header_name,omitempty"`
+
+	// HeaderValue Write-only. Speccy seals it.
+	HeaderValue *string `json:"header_value,omitempty"`
+	Name        string  `json:"name"`
+
+	// Profiles The profiles of the docs this connector serves. Empty serves every doc.
+	Profiles *[]string `json:"profiles,omitempty"`
+}
+
 // UpdateBreakdownRequest defines model for UpdateBreakdownRequest.
 type UpdateBreakdownRequest struct {
 	Acknowledged *bool `json:"acknowledged,omitempty"`
@@ -5989,6 +6045,12 @@ type AssignRoleJSONRequestBody = RoleInput
 // SetSettingsJSONRequestBody defines body for SetSettings for application/json ContentType.
 type SetSettingsJSONRequestBody = Settings
 
+// CreateURLConnectorJSONRequestBody defines body for CreateURLConnector for application/json ContentType.
+type CreateURLConnectorJSONRequestBody = URLConnectorInput
+
+// UpdateURLConnectorJSONRequestBody defines body for UpdateURLConnector for application/json ContentType.
+type UpdateURLConnectorJSONRequestBody = URLConnectorInput
+
 // CreateBundleJSONRequestBody defines body for CreateBundle for application/json ContentType.
 type CreateBundleJSONRequestBody = CreateBundleRequest
 
@@ -6273,6 +6335,18 @@ type ServerInterface interface {
 	// SetSettings Change the workspace settings.
 	// (PUT /admin/settings)
 	SetSettings(w http.ResponseWriter, r *http.Request)
+	// ListURLConnectors List the URL connectors (docs/specs/url-connectors.md).
+	// (GET /admin/url-connectors)
+	ListURLConnectors(w http.ResponseWriter, r *http.Request)
+	// CreateURLConnector Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+	// (POST /admin/url-connectors)
+	CreateURLConnector(w http.ResponseWriter, r *http.Request)
+	// DeleteURLConnector Delete a URL connector.
+	// (DELETE /admin/url-connectors/{connectionId})
+	DeleteURLConnector(w http.ResponseWriter, r *http.Request, connectionId ConnectionId)
+	// UpdateURLConnector Change a URL connector. Leave header_value out to keep the stored one.
+	// (PUT /admin/url-connectors/{connectionId})
+	UpdateURLConnector(w http.ResponseWriter, r *http.Request, connectionId ConnectionId)
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(w http.ResponseWriter, r *http.Request, params ListBundlesParams)
@@ -7251,6 +7325,86 @@ func (siw *ServerInterfaceWrapper) SetSettings(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SetSettings(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListURLConnectors operation middleware
+func (siw *ServerInterfaceWrapper) ListURLConnectors(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListURLConnectors(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateURLConnector operation middleware
+func (siw *ServerInterfaceWrapper) CreateURLConnector(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateURLConnector(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteURLConnector operation middleware
+func (siw *ServerInterfaceWrapper) DeleteURLConnector(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId ConnectionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", r.PathValue("connectionId"), &connectionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "connectionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteURLConnector(w, r, connectionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateURLConnector operation middleware
+func (siw *ServerInterfaceWrapper) UpdateURLConnector(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "connectionId" -------------
+	var connectionId ConnectionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "connectionId", r.PathValue("connectionId"), &connectionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "connectionId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateURLConnector(w, r, connectionId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11065,6 +11219,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/mcp", wrapper.CreateMCPConnection)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.DeleteMCPConnection)
 	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/mcp/{connectionId}", wrapper.UpdateMCPConnection)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/url-connectors", wrapper.ListURLConnectors)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/admin/url-connectors", wrapper.CreateURLConnector)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/admin/url-connectors/{connectionId}", wrapper.DeleteURLConnector)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/admin/url-connectors/{connectionId}", wrapper.UpdateURLConnector)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/admin/mcp/{connectionId}/tools", wrapper.ListMCPTools)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/runs/{runId}", wrapper.GetRun)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/questions", wrapper.GetQuestions)
@@ -12373,6 +12531,158 @@ type SetSettingsdefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response SetSettingsdefaultApplicationProblemPlusJSONResponse) VisitSetSettingsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListURLConnectorsRequestObject struct {
+}
+
+type ListURLConnectorsResponseObject interface {
+	VisitListURLConnectorsResponse(w http.ResponseWriter) error
+}
+
+type ListURLConnectors200JSONResponse struct {
+	Items []URLConnector `json:"items"`
+}
+
+func (response ListURLConnectors200JSONResponse) VisitListURLConnectorsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListURLConnectorsdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response ListURLConnectorsdefaultApplicationProblemPlusJSONResponse) VisitListURLConnectorsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateURLConnectorRequestObject struct {
+	Body *CreateURLConnectorJSONRequestBody
+}
+
+type CreateURLConnectorResponseObject interface {
+	VisitCreateURLConnectorResponse(w http.ResponseWriter) error
+}
+
+type CreateURLConnector201JSONResponse URLConnector
+
+func (response CreateURLConnector201JSONResponse) VisitCreateURLConnectorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateURLConnectordefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response CreateURLConnectordefaultApplicationProblemPlusJSONResponse) VisitCreateURLConnectorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteURLConnectorRequestObject struct {
+	ConnectionId ConnectionId `json:"connectionId"`
+}
+
+type DeleteURLConnectorResponseObject interface {
+	VisitDeleteURLConnectorResponse(w http.ResponseWriter) error
+}
+
+type DeleteURLConnector204Response struct {
+}
+
+func (response DeleteURLConnector204Response) VisitDeleteURLConnectorResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteURLConnectordefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response DeleteURLConnectordefaultApplicationProblemPlusJSONResponse) VisitDeleteURLConnectorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateURLConnectorRequestObject struct {
+	ConnectionId ConnectionId `json:"connectionId"`
+	Body         *UpdateURLConnectorJSONRequestBody
+}
+
+type UpdateURLConnectorResponseObject interface {
+	VisitUpdateURLConnectorResponse(w http.ResponseWriter) error
+}
+
+type UpdateURLConnector200JSONResponse URLConnector
+
+func (response UpdateURLConnector200JSONResponse) VisitUpdateURLConnectorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateURLConnectordefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response UpdateURLConnectordefaultApplicationProblemPlusJSONResponse) VisitUpdateURLConnectorResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -17953,6 +18263,18 @@ type StrictServerInterface interface {
 	// SetSettings Change the workspace settings.
 	// (PUT /admin/settings)
 	SetSettings(ctx context.Context, request SetSettingsRequestObject) (SetSettingsResponseObject, error)
+	// ListURLConnectors List the URL connectors (docs/specs/url-connectors.md).
+	// (GET /admin/url-connectors)
+	ListURLConnectors(ctx context.Context, request ListURLConnectorsRequestObject) (ListURLConnectorsResponseObject, error)
+	// CreateURLConnector Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+	// (POST /admin/url-connectors)
+	CreateURLConnector(ctx context.Context, request CreateURLConnectorRequestObject) (CreateURLConnectorResponseObject, error)
+	// DeleteURLConnector Delete a URL connector.
+	// (DELETE /admin/url-connectors/{connectionId})
+	DeleteURLConnector(ctx context.Context, request DeleteURLConnectorRequestObject) (DeleteURLConnectorResponseObject, error)
+	// UpdateURLConnector Change a URL connector. Leave header_value out to keep the stored one.
+	// (PUT /admin/url-connectors/{connectionId})
+	UpdateURLConnector(ctx context.Context, request UpdateURLConnectorRequestObject) (UpdateURLConnectorResponseObject, error)
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	// (GET /bundles)
 	ListBundles(ctx context.Context, request ListBundlesRequestObject) (ListBundlesResponseObject, error)
@@ -19277,6 +19599,120 @@ func (sh *strictHandler) SetSettings(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(SetSettingsResponseObject); ok {
 		if err := validResponse.VisitSetSettingsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListURLConnectors operation middleware
+func (sh *strictHandler) ListURLConnectors(w http.ResponseWriter, r *http.Request) {
+	var request ListURLConnectorsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListURLConnectors(ctx, request.(ListURLConnectorsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListURLConnectors")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListURLConnectorsResponseObject); ok {
+		if err := validResponse.VisitListURLConnectorsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateURLConnector operation middleware
+func (sh *strictHandler) CreateURLConnector(w http.ResponseWriter, r *http.Request) {
+	var request CreateURLConnectorRequestObject
+
+	var body CreateURLConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateURLConnector(ctx, request.(CreateURLConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateURLConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateURLConnectorResponseObject); ok {
+		if err := validResponse.VisitCreateURLConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteURLConnector operation middleware
+func (sh *strictHandler) DeleteURLConnector(w http.ResponseWriter, r *http.Request, connectionId ConnectionId) {
+	var request DeleteURLConnectorRequestObject
+
+	request.ConnectionId = connectionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteURLConnector(ctx, request.(DeleteURLConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteURLConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteURLConnectorResponseObject); ok {
+		if err := validResponse.VisitDeleteURLConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateURLConnector operation middleware
+func (sh *strictHandler) UpdateURLConnector(w http.ResponseWriter, r *http.Request, connectionId ConnectionId) {
+	var request UpdateURLConnectorRequestObject
+
+	request.ConnectionId = connectionId
+
+	var body UpdateURLConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateURLConnector(ctx, request.(UpdateURLConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateURLConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateURLConnectorResponseObject); ok {
+		if err := validResponse.VisitUpdateURLConnectorResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

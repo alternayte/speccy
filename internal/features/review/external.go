@@ -76,9 +76,11 @@ func (s *Service) driftStage(ctx context.Context, rc *runCtx, in input, ev *eval
 		if t.Scheme != source.GitHubScheme {
 			// A target that is not code is read by the conflict stage, when a connection covers
 			// its host. Say which of the two is missing.
-			reason := "A review run reads this link with the MCP connection for " + t.Host + "."
-			if f, err := s.fetcherFor(ctx, t.Host); err != nil || f == nil {
-				reason = "No MCP connection reads " + t.Host + ". An admin adds the host in Admin → MCP connections."
+			var reason string
+			if f, err := s.fetcherFor(ctx, t.URL, t.Host); err != nil || f == nil {
+				reason = "No connector reads " + t.Host + ". An admin adds a URL connector or an MCP connection for it in Admin → Connectors."
+			} else {
+				reason = "A review run reads this link with " + f.Name() + "."
 			}
 			ev.setExternal(externalState{ref: l.ref, state: stateUnchecked, reason: reason})
 			continue
@@ -226,14 +228,14 @@ func (s *Service) conflictStage(ctx context.Context, rc *runCtx, in input, ev *e
 			continue
 		}
 		t := *l.external
-		f, err := s.fetcherFor(ctx, t.Host)
+		f, err := s.fetcherFor(ctx, t.URL, t.Host)
 		if err != nil {
 			ev.setExternal(externalState{ref: l.ref, state: stateUnchecked, reason: sentence(err.Error())})
 			continue
 		}
 		if f == nil {
 			ev.setExternal(externalState{ref: l.ref, state: stateUnchecked,
-				reason: "No MCP connection reads " + t.Host + ". An admin adds the host in Admin → MCP connections."})
+				reason: "No connector reads " + t.Host + ". An admin adds a URL connector or an MCP connection for it in Admin → Connectors."})
 			continue
 		}
 		rc.publish(Event{Type: "progress", Stage: StageCoherence, Message: "Reading " + t.URL})
@@ -277,7 +279,18 @@ func (s *Service) conflictStage(ctx context.Context, rc *runCtx, in input, ev *e
 }
 
 // fetcherFor returns the connection that reads host, or nil when none does.
-func (s *Service) fetcherFor(ctx context.Context, host string) (Fetcher, error) {
+// fetcherFor returns what reads target: the URL connector whose base URL holds it, then the
+// MCP connection for its host, or nil (docs/specs/url-connectors.md).
+func (s *Service) fetcherFor(ctx context.Context, target, host string) (Fetcher, error) {
+	if s.Connectors != nil {
+		conns, err := s.Connectors(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if c := connectorFor(conns, target); c != nil {
+			return c, nil
+		}
+	}
 	if s.Fetch == nil {
 		return nil, nil
 	}

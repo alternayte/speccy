@@ -1521,6 +1521,74 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /admin/url-connectors:
+    get:
+      operationId: listURLConnectors
+      summary: List the URL connectors (docs/specs/url-connectors.md).
+      responses:
+        "200":
+          description: The connectors.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/URLConnector"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      operationId: createURLConnector
+      summary: Add a URL connector. Speccy reads its index first and refuses one it cannot read.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/URLConnectorInput"
+      responses:
+        "201":
+          description: The connector.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/URLConnector"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /admin/url-connectors/{connectionId}:
+    parameters:
+      - $ref: "#/components/parameters/ConnectionId"
+    put:
+      operationId: updateURLConnector
+      summary: Change a URL connector. Leave header_value out to keep the stored one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/URLConnectorInput"
+      responses:
+        "200":
+          description: The connector.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/URLConnector"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteURLConnector
+      summary: Delete a URL connector.
+      responses:
+        "204":
+          description: Deleted.
+        default:
+          $ref: "#/components/responses/Problem"
+
   /admin/mcp/{connectionId}/tools:
     parameters:
       - $ref: "#/components/parameters/ConnectionId"
@@ -5149,6 +5217,65 @@ components:
           type: string
         found:
           type: boolean
+
+    URLConnectorInput:
+      type: object
+      required: [name, address]
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+          description: >
+            The URL of the doc index, such as https://docs.acme.dev/llms.txt, or a GitHub URL of a
+            file at a branch, such as https://github.com/acme/platform/blob/gh-pages/llms.txt.
+        base_url:
+          type: string
+          description: >
+            The base URL. Speccy fetches only links under it. For a web address, the folder of the
+            index when empty. For a GitHub address, the URL of the site that the branch builds,
+            whose paths map to files of the branch.
+        header_name:
+          type: string
+          description: A header to send with each request to the base URL's host, such as Authorization. Web addresses only.
+        header_value:
+          type: string
+          description: Write-only. Speccy seals it.
+        profiles:
+          type: array
+          description: The profiles of the docs this connector serves. Empty serves every doc.
+          items:
+            type: string
+
+    URLConnector:
+      type: object
+      required: [id, name, address, base_url, kind, header_name, has_header, header_last4, profiles]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        address:
+          type: string
+        base_url:
+          type: string
+        kind:
+          type: string
+          enum: [web, github]
+        header_name:
+          type: string
+        has_header:
+          type: boolean
+        header_last4:
+          type: string
+        profiles:
+          type: array
+          items:
+            type: string
+        links:
+          type: integer
+          description: The links of the index under the base URL, as Speccy read them on create or update.
 
     MCPConnectionInput:
       type: object

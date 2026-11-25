@@ -75,6 +75,8 @@ type Service struct {
 	Search  func(ctx context.Context) (Searcher, error)
 	// Fetch returns the MCP connection that reads a host, or nil when none does (DEC-021).
 	Fetch func(ctx context.Context, host string) (Fetcher, error)
+	// Connectors returns the URL connectors of the workspace (docs/specs/url-connectors.md).
+	Connectors func(ctx context.Context) ([]Connector, error)
 	// Resolve reads the metadata of a grounding source: the redirect chain, the status and the
 	// dates. It never returns a body. Nil, or an admin who turned it off, leaves a source with
 	// no chain and no retrieval date.
