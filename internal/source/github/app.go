@@ -127,6 +127,10 @@ type Installation struct {
 	Events []string `json:"events"`
 }
 
+// permissionAliases names the key under which an installation reports a manifest permission,
+// where GitHub uses another name: the manifest's emails comes back as email_addresses (#168).
+var permissionAliases = map[string]string{"emails": "email_addresses"}
+
 // Missing lists what the installation lacks of the manifest of NewManifest: a permission
 // below the level it asks for, or an event it does not receive. GitHub has no API to change
 // an existing App, so its owner adds them on the App's settings page.
@@ -134,6 +138,9 @@ func (in Installation) Missing() []string {
 	var out []string
 	for name, level := range NewManifest("", "", "", false).DefaultPermissions {
 		got := in.Permissions[name]
+		if got == "" && permissionAliases[name] != "" {
+			got = in.Permissions[permissionAliases[name]]
+		}
 		if got == "" || (level == "write" && got != "write" && got != "admin") {
 			out = append(out, name+": "+level)
 		}
