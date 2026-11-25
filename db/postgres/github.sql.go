@@ -45,7 +45,7 @@ func (q *Queries) DeleteAdoptedType(ctx context.Context, arg DeleteAdoptedTypePa
 
 const deleteDismissedDoc = `-- name: DeleteDismissedDoc :exec
 DELETE FROM dismissed_doc WHERE workspace_id = $1
-  AND coalesce(source_id, '00000000-0000-0000-0000-000000000000') = coalesce($2, '00000000-0000-0000-0000-000000000000')
+  AND source_id IS NOT DISTINCT FROM $2::uuid
   AND path = $3
 `
 

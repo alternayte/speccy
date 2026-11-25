@@ -57,7 +57,7 @@ ON CONFLICT DO NOTHING;
 
 -- name: DeleteDismissedDoc :exec
 DELETE FROM dismissed_doc WHERE workspace_id = sqlc.arg(workspace_id)
-  AND coalesce(source_id, '00000000-0000-0000-0000-000000000000') = coalesce(sqlc.narg(source_id), '00000000-0000-0000-0000-000000000000')
+  AND source_id IS NOT DISTINCT FROM sqlc.narg(source_id)::uuid
   AND path = sqlc.arg(path);
 
 -- name: ListAdoptedLinks :many

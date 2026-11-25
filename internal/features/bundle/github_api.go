@@ -434,22 +434,30 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 			return nil, kernel.Invalid("bad_link", "There is no link kind %q.", l.Kind)
 		}
 	}
-	for _, it := range req.Body.Items {
-		if err := s.DB.Queries().SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
-			return nil, err
-		}
-		// A confirmed link stays in Speccy, as the type does: the repo takes no commit.
-		if l := it.Link; l != nil {
-			if err := s.DB.Queries().SetAdoptedLink(ctx, pgdb.SetAdoptedLinkParams{SourceID: src.ID, Path: it.Path,
-				Kind: l.Kind, Target: path.Clean(l.Target)}); err != nil {
-				return nil, err
+	// One transaction: a failure stores no part of the request (#170).
+	err = s.DB.InTx(ctx, func(tx store.Tx) error {
+		q := tx.Queries()
+		for _, it := range req.Body.Items {
+			if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
+				return err
+			}
+			// A confirmed link stays in Speccy, as the type does: the repo takes no commit.
+			if l := it.Link; l != nil {
+				if err := q.SetAdoptedLink(ctx, pgdb.SetAdoptedLinkParams{SourceID: src.ID, Path: it.Path,
+					Kind: l.Kind, Target: path.Clean(l.Target)}); err != nil {
+					return err
+				}
+			}
+			// Accepting a type contradicts the mark, so the newer act wins (REQ-133).
+			if err := q.DeleteDismissedDoc(ctx, pgdb.DeleteDismissedDocParams{WorkspaceID: s.Workspace,
+				SourceID: uuid.NullUUID{UUID: src.ID, Valid: true}, Path: it.Path}); err != nil {
+				return err
 			}
 		}
-		// Accepting a type contradicts the mark, so the newer act wins (REQ-133).
-		if err := s.DB.Queries().DeleteDismissedDoc(ctx, pgdb.DeleteDismissedDocParams{WorkspaceID: s.Workspace,
-			SourceID: uuid.NullUUID{UUID: src.ID, Valid: true}, Path: it.Path}); err != nil {
-			return nil, err
-		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	// A sync that fails keeps its reason on the source, as it does when the source is added
 	// and when a person asks for a sync. The accepted types stand, so a person can fix the
