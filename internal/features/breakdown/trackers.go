@@ -111,7 +111,7 @@ func (a *API) session(ctx context.Context, host, name string) (*mcpclient.Sessio
 
 func noConnection(name, host string) error {
 	return kernel.Invalid("no_connection",
-		"No MCP connection lists the host %s, so Speccy cannot write to %s. An admin adds one in Admin → MCP connections, or export the breakdown as markdown or CSV.",
+		"No MCP connection lists the host %s, so Speccy cannot write to %s. An admin adds one in Admin → Connectors, or export the breakdown as markdown or CSV.",
 		host, name)
 }
 

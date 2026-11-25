@@ -1,0 +1,76 @@
+---
+title: Give a review your docs with a URL connector
+description: Add an llms.txt or another doc index as a URL connector, so the grounding stage checks claims against your platform's docs with no MCP server.
+sidebar: { order: 4 }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide shows you how to let a review read your own docs. A spec often describes a change to a platform that has docs, such as an internal API. Without those docs, the grounding stage marks a claim about the platform as unverified. With a URL connector, the review checks the claim against the platform's docs.
+
+## How a review reads a connector
+
+A URL connector points at a doc index, such as an `llms.txt`. An index is a short list of links to pages.
+
+1. The grounding stage checks each claim against the files of the bundle first.
+2. For the claims that no file settles, the reviewer model reads the index and picks up to five pages.
+3. Speccy fetches only those pages, and only under the connector's base URL.
+4. A page that states the fact with the same words verifies the claim. The page URL is its source.
+5. A page that states another value gives `grounding.contradicted-claim`, with the page and its quote.
+6. A claim that no page settles goes on to the web search or an MCP search connection.
+
+The model picks pages, never a host. A doc cannot make Speccy fetch an address outside the base URL.
+
+## Before you start
+
+- You are an admin.
+- The index is reachable from the machine that runs Speccy.
+
+## Add a connector
+
+<Steps>
+
+1. Open **Admin**. Under **Connectors**, click **Add a connector**, then choose **URL connector**.
+
+2. Enter a **Name**, such as `Platform docs`.
+
+3. Enter the **Index address**, such as `https://docs.acme.dev/llms.txt`.
+
+4. Optional: enter a **Base URL**. Speccy fetches only links under it. When you leave it empty, the base URL is the folder of the index.
+
+5. Optional: when the docs need a login, enter a **Header** and its **Header value**, such as `Authorization` and `Bearer …`. Speccy seals the value and sends it only to the base URL's host.
+
+6. Optional: tick the **Doc types** that the connector serves. With none ticked, it serves every doc.
+
+7. Click **Add**. Speccy reads the index before it saves, and says how many links it can follow.
+
+</Steps>
+
+## Docs in a GitHub repo
+
+A private GitHub Pages site accepts no token, so Speccy reads the repo that builds it.
+
+<Steps>
+
+1. Enter the GitHub URL of the index file at its branch as the **Index address**, such as `https://github.com/acme/platform/blob/gh-pages/llms.txt`.
+
+2. Enter the address of the site as the **Base URL**, such as `https://acme.github.io/platform/`.
+
+</Steps>
+
+Speccy reads the file with its GitHub credential. In local mode that is the login of `gh`. In hosted mode it is the App or the token under **Admin → GitHub**. A link under the site's address maps to the file at the same path in the branch. A link with no extension also tries its `.md` copy and `index.md`.
+
+## External links
+
+A URL connector also reads the external links of a doc whose address is under its base URL. The `coherence.external` check compares the page with the doc. A URL connector comes before an MCP connection for the same host.
+
+## What a review does with a page
+
+- Speccy fetches the index and the pages it needs at each review. The model results are kept by the claim and the page content, so a page that did not change costs no model call.
+- A page that Speccy cannot read keeps the text of its last good read, and the run report says so.
+- A page of more than 200,000 characters is left out, and the run report names it.
+- The source policy of a profile does not apply to a connector page. The admin chose the connector, as an author chooses a file of the bundle.
+
+<Aside>
+A large site often publishes an `llms-full.txt` of many megabytes. Point the connector at the short `llms.txt` index, not at the full file.
+</Aside>

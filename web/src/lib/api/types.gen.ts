@@ -1082,6 +1082,48 @@ export type QuoteCheck = {
     found: boolean;
 };
 
+export type UrlConnectorInput = {
+    name: string;
+    /**
+     * The URL of the doc index, such as https://docs.acme.dev/llms.txt, or a GitHub URL of a file at a branch, such as https://github.com/acme/platform/blob/gh-pages/llms.txt.
+     *
+     */
+    address: string;
+    /**
+     * The base URL. Speccy fetches only links under it. For a web address, the folder of the index when empty. For a GitHub address, the URL of the site that the branch builds, whose paths map to files of the branch.
+     *
+     */
+    base_url?: string;
+    /**
+     * A header to send with each request to the base URL's host, such as Authorization. Web addresses only.
+     */
+    header_name?: string;
+    /**
+     * Write-only. Speccy seals it.
+     */
+    header_value?: string;
+    /**
+     * The profiles of the docs this connector serves. Empty serves every doc.
+     */
+    profiles?: Array<string>;
+};
+
+export type UrlConnector = {
+    id: string;
+    name: string;
+    address: string;
+    base_url: string;
+    kind: 'web' | 'github';
+    header_name: string;
+    has_header: boolean;
+    header_last4: string;
+    profiles: Array<string>;
+    /**
+     * The links of the index under the base URL, as Speccy read them on create or update.
+     */
+    links?: number;
+};
+
 export type McpConnectionInput = {
     name: string;
     transport: 'stdio' | 'http';
@@ -5459,6 +5501,112 @@ export type UpdateMcpConnectionResponses = {
 };
 
 export type UpdateMcpConnectionResponse = UpdateMcpConnectionResponses[keyof UpdateMcpConnectionResponses];
+
+export type ListUrlConnectorsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/admin/url-connectors';
+};
+
+export type ListUrlConnectorsErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type ListUrlConnectorsError = ListUrlConnectorsErrors[keyof ListUrlConnectorsErrors];
+
+export type ListUrlConnectorsResponses = {
+    /**
+     * The connectors.
+     */
+    200: {
+        items: Array<UrlConnector>;
+    };
+};
+
+export type ListUrlConnectorsResponse = ListUrlConnectorsResponses[keyof ListUrlConnectorsResponses];
+
+export type CreateUrlConnectorData = {
+    body: UrlConnectorInput;
+    path?: never;
+    query?: never;
+    url: '/admin/url-connectors';
+};
+
+export type CreateUrlConnectorErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type CreateUrlConnectorError = CreateUrlConnectorErrors[keyof CreateUrlConnectorErrors];
+
+export type CreateUrlConnectorResponses = {
+    /**
+     * The connector.
+     */
+    201: UrlConnector;
+};
+
+export type CreateUrlConnectorResponse = CreateUrlConnectorResponses[keyof CreateUrlConnectorResponses];
+
+export type DeleteUrlConnectorData = {
+    body?: never;
+    path: {
+        connectionId: string;
+    };
+    query?: never;
+    url: '/admin/url-connectors/{connectionId}';
+};
+
+export type DeleteUrlConnectorErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type DeleteUrlConnectorError = DeleteUrlConnectorErrors[keyof DeleteUrlConnectorErrors];
+
+export type DeleteUrlConnectorResponses = {
+    /**
+     * Deleted.
+     */
+    204: void;
+};
+
+export type DeleteUrlConnectorResponse = DeleteUrlConnectorResponses[keyof DeleteUrlConnectorResponses];
+
+export type UpdateUrlConnectorData = {
+    body: UrlConnectorInput;
+    path: {
+        connectionId: string;
+    };
+    query?: never;
+    url: '/admin/url-connectors/{connectionId}';
+};
+
+export type UpdateUrlConnectorErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type UpdateUrlConnectorError = UpdateUrlConnectorErrors[keyof UpdateUrlConnectorErrors];
+
+export type UpdateUrlConnectorResponses = {
+    /**
+     * The connector.
+     */
+    200: UrlConnector;
+};
+
+export type UpdateUrlConnectorResponse = UpdateUrlConnectorResponses[keyof UpdateUrlConnectorResponses];
 
 export type ListMcpToolsData = {
     body?: never;

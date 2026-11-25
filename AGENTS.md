@@ -100,3 +100,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Work item: one item of a breakdown, with its trace IDs, its criteria quoted from the doc, and an assignee. Avoid: task, ticket, story.
 - Pull request source: a GitHub source made from a pull request URL. It reads the docs at the head SHA, moves to the base branch on merge, and stops syncing on close. Avoid: PR import, branch import.
 - GitHub review: the pending review Speccy prepares on a pull request as the reviewer, which the reviewer submits on GitHub. Avoid: PR comments, posted review.
+- Connector: an admin-configured way for a review to read context from outside the bundle, either an MCP connection or a URL connector. Avoid: integration, context source, data source.
+- URL connector: a connector that reads a doc index, such as an llms.txt, on the web or in a GitHub repo, with no MCP server. Avoid: llms.txt source, URL source, web source.

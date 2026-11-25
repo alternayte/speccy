@@ -73,6 +73,7 @@ type Querier interface {
 	DeleteStream(ctx context.Context, streamID uuid.UUID) error
 	DeleteThreadMessagesOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error
 	DeleteThreadsOfSpecDoc(ctx context.Context, specDocID uuid.NullUUID) error
+	DeleteURLConnector(ctx context.Context, arg DeleteURLConnectorParams) error
 	DeleteVerdictsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	// Deleting a bundle removes everything that hangs off it. The order is children first,
 	// because the foreign keys do not cascade.
@@ -121,6 +122,7 @@ type Querier interface {
 	GetSpecDocStatusView(ctx context.Context, specDocID uuid.UUID) (SpecDocStatusView, error)
 	GetStream(ctx context.Context, streamID uuid.UUID) (EsStream, error)
 	GetThreadView(ctx context.Context, arg GetThreadViewParams) (ThreadView, error)
+	GetURLConnector(ctx context.Context, arg GetURLConnectorParams) (UrlConnector, error)
 	GetUserState(ctx context.Context, userID string) (UserState, error)
 	GetVerdict(ctx context.Context, runID uuid.UUID) (Verdict, error)
 	GetVerificationRun(ctx context.Context, arg GetVerificationRunParams) (VerificationRun, error)
@@ -166,6 +168,7 @@ type Querier interface {
 	InsertSpecDocReviewer(ctx context.Context, arg InsertSpecDocReviewerParams) error
 	InsertStream(ctx context.Context, arg InsertStreamParams) (int64, error)
 	InsertThreadMessage(ctx context.Context, arg InsertThreadMessageParams) error
+	InsertURLConnector(ctx context.Context, arg InsertURLConnectorParams) error
 	InsertVerdict(ctx context.Context, arg InsertVerdictParams) error
 	InsertVerificationOutcome(ctx context.Context, arg InsertVerificationOutcomeParams) error
 	InsertVerificationRun(ctx context.Context, arg InsertVerificationRunParams) error
@@ -250,6 +253,7 @@ type Querier interface {
 	ListSpend(ctx context.Context, arg ListSpendParams) ([]ModelSpend, error)
 	ListSupersedesLinks(ctx context.Context, workspaceID uuid.UUID) ([]Link, error)
 	ListThreadMessages(ctx context.Context, threadID uuid.UUID) ([]ThreadMessageView, error)
+	ListURLConnectors(ctx context.Context, workspaceID uuid.UUID) ([]UrlConnector, error)
 	ListVerificationOutcomes(ctx context.Context, runID uuid.UUID) ([]VerificationOutcome, error)
 	ListVerificationRuns(ctx context.Context, specDocID uuid.UUID) ([]VerificationRun, error)
 	ListVerificationWaivers(ctx context.Context, arg ListVerificationWaiversParams) ([]WaiverView, error)
@@ -323,6 +327,7 @@ type Querier interface {
 	// The head moves only from the version the change was based on.
 	UpdateSpecDocHead(ctx context.Context, arg UpdateSpecDocHeadParams) (int64, error)
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
+	UpdateURLConnector(ctx context.Context, arg UpdateURLConnectorParams) error
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
 	UpsertGithubConnection(ctx context.Context, arg UpsertGithubConnectionParams) error
 	UpsertGithubReply(ctx context.Context, arg UpsertGithubReplyParams) error

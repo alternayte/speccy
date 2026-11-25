@@ -14,47 +14,91 @@ import {
   listMcpConnectionsQueryKey,
   listMcpToolsOptions,
   listMcpToolsQueryKey,
+  listUrlConnectorsOptions,
   updateMcpConnectionMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
 import { problemMessage } from "@/lib/problem";
+import { URLConnectorDialog, URLConnectorRow } from "./url-connectors";
 
-// MCPSection manages MCP connections (REQ-112). Only allowlisted read-only tools reach the AI;
-// a connection marked search checks facts when the model has no web search (REQ-034).
+// MCPSection is the Connectors section: the URL connectors (docs/specs/url-connectors.md) and
+// the MCP connections (REQ-112) in one list. Only allowlisted read-only tools of an MCP server
+// reach the AI; a connection marked search checks facts when the model has no web search
+// (REQ-034).
 export function MCPSection() {
   const conns = useQuery(listMcpConnectionsOptions());
-  const [adding, setAdding] = useState(false);
+  const urls = useQuery(listUrlConnectorsOptions());
+  const [adding, setAdding] = useState<"choose" | "url" | "mcp">();
+  const error = conns.error ?? urls.error;
+  const none = (conns.data?.items.length ?? 0) + (urls.data?.items.length ?? 0) === 0;
   return (
     <section>
       <div className="mb-3 flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-md font-semibold">MCP connections</h2>
+          <h2 className="text-md font-semibold">Connectors</h2>
           <p className="mt-0.5 text-xs text-ink-2">
-            Sources the review can read. Mark one as search to check facts when the model has no web search.
+            Context a review reads besides the bundle. A URL connector reads a doc index, such as an llms.txt. An MCP
+            connection runs the read-only tools of a server, and one marked search checks facts when the model has no
+            web search.
           </p>
         </div>
-        <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setAdding(true)}>
-          Add connection
+        <Button size="sm" icon={<Plus className="size-3.5" />} onClick={() => setAdding("choose")}>
+          Add a connector
         </Button>
       </div>
       <div className="overflow-hidden rounded-lg border border-line bg-surface">
-        {conns.isPending ? (
-          <Loading label="Loading connections" />
-        ) : conns.isError ? (
+        {conns.isPending || urls.isPending ? (
+          <Loading label="Loading connectors" />
+        ) : error ? (
           <div className="p-3">
-            <ErrorState message={problemMessage(conns.error)} />
+            <ErrorState message={problemMessage(error)} />
           </div>
-        ) : conns.data.items.length === 0 ? (
-          <Empty title="No MCP connection">Add one to give the review a search source or internal docs.</Empty>
+        ) : none ? (
+          <Empty title="No connector">Add one to give the review internal docs, an llms.txt, or a search source.</Empty>
         ) : (
           <ul className="divide-y divide-line">
-            {conns.data.items.map((c) => (
+            {(urls.data?.items ?? []).map((c) => (
+              <URLConnectorRow key={c.id} conn={c} />
+            ))}
+            {(conns.data?.items ?? []).map((c) => (
               <ConnectionRow key={c.id} conn={c} />
             ))}
           </ul>
         )}
       </div>
-      {adding ? <AddConnection onClose={() => setAdding(false)} /> : null}
+      {adding === "choose" ? <ChooseKind onChoose={setAdding} onClose={() => setAdding(undefined)} /> : null}
+      {adding === "url" ? <URLConnectorDialog onClose={() => setAdding(undefined)} /> : null}
+      {adding === "mcp" ? <AddConnection onClose={() => setAdding(undefined)} /> : null}
     </section>
+  );
+}
+
+// ChooseKind asks which kind of connector to add.
+function ChooseKind({ onChoose, onClose }: { onChoose: (k: "url" | "mcp") => void; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()} title="Add a connector">
+      <div className="grid gap-2">
+        <button
+          type="button"
+          onClick={() => onChoose("url")}
+          className="rounded-md border border-line px-3 py-2.5 text-left hover:border-line-strong hover:bg-sunken"
+        >
+          <span className="block text-sm font-medium">URL connector</span>
+          <span className="block text-xs text-ink-2">
+            A doc index, such as an llms.txt, on the web or in a GitHub repo. No server to run.
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onChoose("mcp")}
+          className="rounded-md border border-line px-3 py-2.5 text-left hover:border-line-strong hover:bg-sunken"
+        >
+          <span className="block text-sm font-medium">MCP connection</span>
+          <span className="block text-xs text-ink-2">
+            An MCP server whose read-only tools search, or read issues and pages.
+          </span>
+        </button>
+      </div>
+    </Dialog>
   );
 }
 

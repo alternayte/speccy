@@ -95,13 +95,17 @@ Drift and conflict are SHOULD checks: [`links.code-drift`](/reference/checks/#li
 
 A new review run on the same version does not clear a drift. A version is the record of a person who read the doc.
 
+## Read a docs page with a URL connector
+
+A page of a docs site, such as `https://docs.acme.dev/ledger/refunds`, needs no MCP server. When a URL connector has a base URL that holds the link, Speccy reads the page with a plain request and the connector's header. [Give a review your docs with a URL connector](/how-to/give-a-review-your-docs/) shows how to add one.
+
 ## Connect another host through MCP
 
-Speccy stores no tracker password, and it calls no tracker API of its own. It reads an issue or a page through an MCP connection that an admin adds.
+Speccy stores no tracker password, and it calls no tracker API of its own. It reads an issue through an MCP connection that an admin adds.
 
 <Steps>
 
-1. Open **Admin**. Under **MCP connections**, click **Add connection**.
+1. Open **Admin**. Under **Connectors**, click **Add a connector**, then choose **MCP connection**.
 
 2. Enter a **Name**. Pick **HTTP URL** and enter the **URL**, or pick **Local command (stdio)** and enter the command, one argument per line. Enter a **Secret (optional)** when the server needs one. Click **Add**.
 

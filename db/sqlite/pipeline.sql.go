@@ -46,6 +46,20 @@ func (q *Queries) DeleteMCPConnection(ctx context.Context, arg DeleteMCPConnecti
 	return err
 }
 
+const deleteURLConnector = `-- name: DeleteURLConnector :exec
+DELETE FROM url_connector WHERE workspace_id = ?1 AND id = ?2
+`
+
+type DeleteURLConnectorParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) DeleteURLConnector(ctx context.Context, arg DeleteURLConnectorParams) error {
+	_, err := q.db.ExecContext(ctx, deleteURLConnector, arg.WorkspaceID, arg.ID)
+	return err
+}
+
 const failActiveRun = `-- name: FailActiveRun :exec
 UPDATE review_run SET status = 'failed', error = ?1, finished_at = ?2
 WHERE id = ?3 AND status IN ('queued', 'running')
@@ -178,6 +192,33 @@ func (q *Queries) GetRunByID(ctx context.Context, id uuid.UUID) (ReviewRun, erro
 		&i.Stages,
 		&i.DecisionsHash,
 		&i.ConfigHash,
+	)
+	return i, err
+}
+
+const getURLConnector = `-- name: GetURLConnector :one
+SELECT id, workspace_id, name, address, base_url, header_name, header_encrypted, header_last4, profiles, created_at FROM url_connector WHERE workspace_id = ?1 AND id = ?2
+`
+
+type GetURLConnectorParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetURLConnector(ctx context.Context, arg GetURLConnectorParams) (UrlConnector, error) {
+	row := q.db.QueryRowContext(ctx, getURLConnector, arg.WorkspaceID, arg.ID)
+	var i UrlConnector
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Address,
+		&i.BaseUrl,
+		&i.HeaderName,
+		&i.HeaderEncrypted,
+		&i.HeaderLast4,
+		&i.Profiles,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -420,6 +461,41 @@ type InsertRunLinkParams struct {
 
 func (q *Queries) InsertRunLink(ctx context.Context, arg InsertRunLinkParams) error {
 	_, err := q.db.ExecContext(ctx, insertRunLink, arg.RunID, arg.SpecDocID, arg.VersionID)
+	return err
+}
+
+const insertURLConnector = `-- name: InsertURLConnector :exec
+INSERT INTO url_connector (id, workspace_id, name, address, base_url, header_name, header_encrypted, header_last4, profiles, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+        ?7, ?8, ?9, ?10)
+`
+
+type InsertURLConnectorParams struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	Name            string
+	Address         string
+	BaseUrl         string
+	HeaderName      string
+	HeaderEncrypted []byte
+	HeaderLast4     string
+	Profiles        dbtype.JSON
+	CreatedAt       time.Time
+}
+
+func (q *Queries) InsertURLConnector(ctx context.Context, arg InsertURLConnectorParams) error {
+	_, err := q.db.ExecContext(ctx, insertURLConnector,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Name,
+		arg.Address,
+		arg.BaseUrl,
+		arg.HeaderName,
+		arg.HeaderEncrypted,
+		arg.HeaderLast4,
+		arg.Profiles,
+		arg.CreatedAt,
+	)
 	return err
 }
 
@@ -889,6 +965,44 @@ func (q *Queries) ListRunQuestions(ctx context.Context, runID uuid.UUID) ([]Ques
 	return items, nil
 }
 
+const listURLConnectors = `-- name: ListURLConnectors :many
+SELECT id, workspace_id, name, address, base_url, header_name, header_encrypted, header_last4, profiles, created_at FROM url_connector WHERE workspace_id = ?1 ORDER BY name
+`
+
+func (q *Queries) ListURLConnectors(ctx context.Context, workspaceID uuid.UUID) ([]UrlConnector, error) {
+	rows, err := q.db.QueryContext(ctx, listURLConnectors, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UrlConnector
+	for rows.Next() {
+		var i UrlConnector
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Address,
+			&i.BaseUrl,
+			&i.HeaderName,
+			&i.HeaderEncrypted,
+			&i.HeaderLast4,
+			&i.Profiles,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const pruneCache = `-- name: PruneCache :execrows
 DELETE FROM cache_entry WHERE last_used_at < ?1
 `
@@ -1105,5 +1219,39 @@ type UpdateRunProgressParams struct {
 
 func (q *Queries) UpdateRunProgress(ctx context.Context, arg UpdateRunProgressParams) error {
 	_, err := q.db.ExecContext(ctx, updateRunProgress, arg.Status, arg.Stage, arg.ID)
+	return err
+}
+
+const updateURLConnector = `-- name: UpdateURLConnector :exec
+UPDATE url_connector SET name = ?1, address = ?2, base_url = ?3,
+    header_name = ?4, header_encrypted = ?5, header_last4 = ?6,
+    profiles = ?7
+WHERE workspace_id = ?8 AND id = ?9
+`
+
+type UpdateURLConnectorParams struct {
+	Name            string
+	Address         string
+	BaseUrl         string
+	HeaderName      string
+	HeaderEncrypted []byte
+	HeaderLast4     string
+	Profiles        dbtype.JSON
+	WorkspaceID     uuid.UUID
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateURLConnector(ctx context.Context, arg UpdateURLConnectorParams) error {
+	_, err := q.db.ExecContext(ctx, updateURLConnector,
+		arg.Name,
+		arg.Address,
+		arg.BaseUrl,
+		arg.HeaderName,
+		arg.HeaderEncrypted,
+		arg.HeaderLast4,
+		arg.Profiles,
+		arg.WorkspaceID,
+		arg.ID,
+	)
 	return err
 }

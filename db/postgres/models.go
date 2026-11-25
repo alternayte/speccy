@@ -572,6 +572,19 @@ type ThreadView struct {
 	HandoffVersion int64
 }
 
+type UrlConnector struct {
+	ID              uuid.UUID
+	WorkspaceID     uuid.UUID
+	Name            string
+	Address         string
+	BaseUrl         string
+	HeaderName      string
+	HeaderEncrypted []byte
+	HeaderLast4     string
+	Profiles        dbtype.JSON
+	CreatedAt       time.Time
+}
+
 type UserState struct {
 	UserID      string
 	InboxSeenAt time.Time

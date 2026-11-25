@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
+	"github.com/alternayte/speccy/internal/source/github"
 	"github.com/alternayte/speccy/internal/store"
 )
 
@@ -38,6 +40,11 @@ type API struct {
 	// SettingsChanged applies saved settings that live outside the store, such as the size of
 	// each queue.
 	SettingsChanged func(ctx context.Context, s Settings)
+	// ConnectorGitHub reads a URL connector in a GitHub repo, with the credential the reviews
+	// use: gh in local mode, the App or the token in hosted mode.
+	ConnectorGitHub func(ctx context.Context, apiURL string) (*github.Client, error)
+	// ConnectorHTTP fetches the pages of a web connector. Nil is a client with a 30 s timeout.
+	ConnectorHTTP *http.Client
 }
 
 // Accounts is the part of the hosted auth setup that the admin screens use.
