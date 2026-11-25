@@ -64,18 +64,21 @@ var operations = map[string]access{
 	// The state and the result of a queued review from POST /reviews or POST /reviews/url. Its
 	// result has doc text of no bundle, as the report has: members read it.
 	"getReviewRequest": member,
-	// Pull request batches, questions to authors and pending reviews post as the local user
-	// with the GitHub credential of local mode (docs/specs/pr-review-batch.md). Hosted mode
-	// answers each one with local_only.
-	"createPrBatch":  member,
-	"getPrBatch":     member,
-	"startPrBatch":   member,
-	"cancelPrBatch":  member,
-	"askAuthor":      member,
-	"listPending":    member,
-	"deletePending":  member,
-	"discardPending": member,
-	"recordPending":  member,
+	// Pull request batches run in local mode only. Questions to authors and pending reviews post
+	// as the caller: the gh login in local mode, the caller's GitHub user token in hosted mode
+	// (docs/specs/pr-review-batch.md, docs/specs/pr-source-and-github-review.md). A GitHub review
+	// checks that the caller can see each spec doc it holds.
+	"planGithubReview": member,
+	"postGithubReview": member,
+	"createPrBatch":    member,
+	"getPrBatch":       member,
+	"startPrBatch":     member,
+	"cancelPrBatch":    member,
+	"askAuthor":        member,
+	"listPending":      member,
+	"deletePending":    member,
+	"discardPending":   member,
+	"recordPending":    member,
 	// The conflicts of a profile's checks: one model call, and no doc text.
 	"findCheckConflicts": member,
 	// Its report has doc text of no bundle, so no bundle visibility applies: members read it.
@@ -367,6 +370,17 @@ func (z *Authz) check(ctx context.Context, r *nethttp.Request, op string) error 
 		}
 		if !canEdit {
 			return kernel.Forbidden("not_author", "Only an author of this bundle or an admin can change it.")
+		}
+		// The doc of a pull request that closed, or that another bundle now holds, is read-only
+		// (docs/specs/pr-source-and-github-review.md).
+		if s := r.PathValue("docId"); s != "" {
+			if id, err := uuid.Parse(s); err == nil {
+				if d, err := q.GetSpecDoc(ctx, pgdb.GetSpecDocParams{WorkspaceID: z.Workspace, ID: id}); err == nil {
+					if why := share.ReadOnly(d); why != "" {
+						return kernel.Forbidden("read_only", "%s", why)
+					}
+				}
+			}
 		}
 	}
 	return nil

@@ -27,7 +27,7 @@ export function Dialog({
         <D.Overlay className="fixed inset-0 z-40 bg-scrim" />
         <D.Content
           className={clsx(
-            "fixed top-[12vh] left-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 rounded-lg border border-line bg-surface p-5 shadow-pop focus:outline-none",
+            "fixed top-[12vh] left-1/2 z-50 max-h-[84vh] w-[calc(100vw-2rem)] -translate-x-1/2 overflow-y-auto rounded-lg border border-line bg-surface p-5 shadow-pop focus:outline-none",
             wide ? "max-w-[860px]" : "max-w-[480px]",
           )}
         >

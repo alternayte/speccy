@@ -17,6 +17,7 @@ import (
 	"github.com/alternayte/speccy/internal/features/thread"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/features/waiver"
+	"github.com/alternayte/speccy/internal/findingkey"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/store"
 )
@@ -121,16 +122,30 @@ func (a *API) List(ctx context.Context, docID uuid.UUID) (*api.Questions, error)
 	if err != nil {
 		return nil, err
 	}
+	replies, err := threadReplies(ctx, q, b)
+	if err != nil {
+		return nil, err
+	}
 	for _, t := range tres.(api.ListBundleThreads200JSONResponse).Items {
 		if t.Status != api.ThreadStatusOpen || !t.Blocking {
 			continue
 		}
 		t := t
-		out.Items = append(out.Items, api.QuestionItem{
+		it := api.QuestionItem{
 			Key: "thread:" + t.Id.String(), Kind: api.QuestionItemKindBlockingThread,
 			Ask: t.Title, Context: ptr("An open blocking thread keeps the doc Not Build Ready until someone resolves it."),
 			Anchor: threadAnchor(t, b.DocPath, findings), Thread: &t,
-		})
+		}
+		if rs := replies[findingkey.Thread(findingkey.DocSlug(b.Slug), t.Id.String())]; len(rs) > 0 {
+			it.GithubReplies = &rs
+		}
+		out.Items = append(out.Items, it)
+	}
+	// The GitHub replies of a finding's comment come with the finding.
+	for i := range out.Items {
+		if f := out.Items[i].Finding; f != nil && f.GithubReplies != nil {
+			out.Items[i].GithubReplies = f.GithubReplies
+		}
 	}
 
 	if err := a.order(ctx, b, out.Items); err != nil {
@@ -261,3 +276,16 @@ func (a *API) order(ctx context.Context, b pgdb.SpecDoc, items []api.QuestionIte
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// threadReplies are the GitHub replies of a doc, by finding key.
+func threadReplies(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (map[string][]api.GithubReply, error) {
+	rows, err := q.ListGithubRepliesOfDoc(ctx, b.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]api.GithubReply{}
+	for _, r := range rows {
+		out[r.FindingKey] = append(out[r.FindingKey], api.GithubReply{Author: r.Author, Body: r.Body, Url: r.Url, CreatedAt: r.CreatedAt.UTC()})
+	}
+	return out, nil
+}

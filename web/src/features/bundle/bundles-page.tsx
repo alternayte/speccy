@@ -22,6 +22,7 @@ import { useLinkOffers } from "./adopt-link";
 import { listBundlesQueryKey, listGithubSourcesOptions } from "@/lib/api/@tanstack/react-query.gen";
 import { type DroppedBundle, bundlesFromDrop, filesFromDrop, isMarkdown, isZip } from "./drop";
 import { GitHubDialog } from "./github-dialog";
+import { PullSources } from "./pull-sources";
 import { SourceDocs } from "./source-docs";
 import { ImportDialog } from "./import-dialog";
 import { NewBundleDialog } from "./new-bundle-dialog";
@@ -206,6 +207,7 @@ export function BundlesPage() {
         </div>
 
         <SourceErrors />
+        <PullSources />
         <SkippedDocs />
         <SourceDocs />
 

@@ -63,10 +63,19 @@ export function GitHubSection() {
               <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 text-sm">
                 <GitBranch aria-hidden className="size-4 shrink-0 text-ink-3" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
-                    {s.repo} <span className="font-mono text-xs text-ink-2">{s.branch}</span>{" "}
-                    <span className="font-mono text-xs text-ink-3">{s.path === "." ? "/" : s.path}</span>
-                  </p>
+                  {s.pull ? (
+                    <p className="truncate font-medium">
+                      {s.repo} <span className="font-mono text-xs text-ink-2">PR #{s.pull.number}</span>{" "}
+                      <span className="text-xs text-ink-2">
+                        {s.pull.title} · by <span className="font-mono">{s.pull.author}</span> · {s.pull.state}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="truncate font-medium">
+                      {s.repo} <span className="font-mono text-xs text-ink-2">{s.branch}</span>{" "}
+                      <span className="font-mono text-xs text-ink-3">{s.path === "." ? "/" : s.path}</span>
+                    </p>
+                  )}
                   <p className="truncate text-xs text-ink-3">
                     {s.bundles} bundle{s.bundles === 1 ? "" : "s"}
                     {s.head_commit ? ` · ${s.head_commit.slice(0, 7)}` : ""}
@@ -111,7 +120,7 @@ export function GitHubSection() {
           </Button>
           <p className="text-xs text-ink-3">
             {configured || local
-              ? "Paste a repo, a folder, or a doc address. Speccy shows what it found before it reads it."
+              ? "Paste a repo, a folder, a doc or a pull request address. Speccy shows what it found before it reads it."
               : "Connect GitHub first."}
           </p>
         </div>

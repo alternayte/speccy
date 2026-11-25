@@ -17,14 +17,16 @@ import (
 // AskAuthor is POST /pr-asks: one concern of the reviewer becomes one question for the author,
 // on the section it is about, in the reviewer's pending review.
 func (a *API) AskAuthor(ctx context.Context, req api.AskAuthorRequestObject) (api.AskAuthorResponseObject, error) {
-	if err := a.local(); err != nil {
-		return nil, err
-	}
 	concern := strings.TrimSpace(req.Body.Concern)
 	if concern == "" {
 		return nil, kernel.Invalid("no_concern", "Write the concern, in your own words.")
 	}
 	p, err := parsePR(req.Body.Url)
+	if err != nil {
+		return nil, err
+	}
+	// The credential that posts comes first, so a refusal costs no model call.
+	gh, err := a.reviewer(ctx, p.build)
 	if err != nil {
 		return nil, err
 	}
@@ -77,10 +79,6 @@ func (a *API) AskAuthor(ctx context.Context, req api.AskAuthorRequestObject) (ap
 		return api.AskAuthor200JSONResponse(out), nil
 	}
 
-	gh, err := a.client(ctx, p.build)
-	if err != nil {
-		return nil, err
-	}
 	files, err := gh.PRFiles(ctx, plan.Review.Repo, p.build.Pull)
 	if err != nil {
 		return nil, github.UnreadableRepo(plan.Review.Repo, err)

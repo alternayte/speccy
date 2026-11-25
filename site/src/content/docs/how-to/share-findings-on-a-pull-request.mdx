@@ -1,0 +1,93 @@
+---
+title: Share findings on a pull request
+description: Follow one pull request in a hosted Speccy, review its PRD and SDD, and write the questions and findings into a pending GitHub review for the author.
+sidebar: { order: 9 }
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This guide shows you how to review the spec docs of one pull request in a hosted Speccy. It also shows how to give the result to the person who opened it. The repo needs no `.speccy.yaml` and no workflow. Speccy writes nothing into the repo.
+
+## Before you start
+
+- The workspace has the GitHub App, and the App can read the repo. See [Run hosted mode](/how-to/run-hosted-mode/).
+- You are an admin. Only an admin adds a source.
+- To write a GitHub review, you link your GitHub account under **Account**. The review goes to GitHub as you. A workspace with a GitHub token and no App cannot write a GitHub review, because the token belongs to one person.
+
+## Follow the pull request
+
+<Steps>
+
+1. On the bundles screen, select **From GitHub**.
+
+2. Paste the URL of the pull request, such as `https://github.com/acme/specs/pull/42`, and select **Look**.
+
+3. Read what Speccy found: the title, the author, the branches, and each markdown file that the pull request changes.
+
+4. For each file, keep the doc type that Speccy reads or guesses, pick another, or select **Not a spec**. When the pull request holds an SDD and its PRD, keep the line that links them.
+
+5. Select **Add**. Speccy makes one bundle for each spec doc. The person who opened the pull request is the author of each bundle, from their first sign-in with GitHub. You are a named reviewer.
+
+</Steps>
+
+The bundles screen lists the pull request under **Pull requests**, with each spec doc, its doc type and its verdict. Each doc has its own review and its own verdict, so the PRD and the SDD stay apart. **Insights** counts each doc under its doc type.
+
+## Review the docs
+
+Open each doc and run a review. A push to the pull request makes a new version within seconds, and starts no review. The next action then says **Review again**.
+
+## Write the GitHub review
+
+<Steps>
+
+1. On a doc of the pull request, select **Prepare GitHub review**.
+
+2. Choose what goes into the review:
+   - **Questions**: the items of the questions screen, which block Build Ready and need the author.
+   - **MUST findings**: every open MUST finding.
+   - **All findings**: every open finding.
+
+3. Read the checklist. It groups the items by doc. Each item gives its file, its line, and the text of its comment. Untick the items that you do not want.
+
+4. Select **Write _n_ items to my pending review**. Speccy adds the comments to your pending review on the pull request.
+
+5. Open the pending review on GitHub. Change or delete comments, add your own, then submit it.
+
+</Steps>
+
+A comment goes on its line when the pull request changes that line. Other items go into the body of the review. Each comment ends with the level of the finding and a link to its check in the [check catalog](/reference/checks/). It also links to the doc in Speccy.
+
+### What Speccy leaves out
+
+- An item that an open comment on the pull request already holds, from the App, the Action, or an earlier review from Speccy.
+- An item that your pending review already holds.
+
+A comment that a person wrote has no Speccy marker, so Speccy cannot match it to a finding. When such a comment is on the line of an item, the item says how many comments the line has. You decide whether to send it.
+
+When you prepare the review again, Speccy removes its own comments from your pending review when their finding is gone. It never changes a comment that you submitted.
+
+## Read the author's replies
+
+When the author replies on GitHub to a comment from Speccy, the reply shows on its finding and on its questions item. When you can edit the doc, each reply has two controls:
+
+- **Not needed**: the finding does not apply to this doc. The reply text becomes the reason.
+- **Ship it open**: a waiver request, with the reply text as the reason.
+
+## When the pull request ends
+
+- **Merged**: the bundles follow the base branch from then on, with their versions, threads and author. When another source already holds a doc on the base branch, the bundle of the pull request becomes read-only and links to that doc.
+- **Closed without a merge**: the source stops syncing, and its docs become read-only. The reviews stay. Remove the source under **Admin → GitHub** when you no longer need it.
+
+## From an agent
+
+The MCP server gives the same flow:
+
+1. `add_source` with `dry_run` lists the files of the pull request and their doc types. Call it again with `docs` to make the source.
+2. `review_bundle` reviews each doc.
+3. `prepare_github_review` with `dry_run` returns the checklist. Call it again without `dry_run`, and with `exclude` for the items to leave out.
+
+`get_questions` and `get_findings` give the replies on GitHub with each item.
+
+<Aside>
+A batch of many pull requests runs in local mode only. See [Review many pull requests](/how-to/review-many-pull-requests/).
+</Aside>

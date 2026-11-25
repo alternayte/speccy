@@ -198,20 +198,38 @@ type GithubConnection struct {
 	UpdatedAt      time.Time
 }
 
+type GithubReply struct {
+	SourceID   uuid.UUID
+	CommentID  int64
+	SpecDocID  uuid.UUID
+	FindingKey string
+	Author     string
+	Body       string
+	Url        string
+	CreatedAt  time.Time
+}
+
 type GithubSource struct {
-	ID          uuid.UUID
-	WorkspaceID uuid.UUID
-	Repo        string
-	Branch      string
-	Path        string
-	HeadCommit  string
-	SyncedAt    sql.NullTime
-	Error       string
-	CreatedBy   string
-	CreatedAt   time.Time
-	ApiUrl      string
-	Skipped     dbtype.JSON
-	RepoConfig  string
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	Repo         string
+	Branch       string
+	Path         string
+	HeadCommit   string
+	SyncedAt     sql.NullTime
+	Error        string
+	CreatedBy    string
+	CreatedAt    time.Time
+	ApiUrl       string
+	Skipped      dbtype.JSON
+	RepoConfig   string
+	Pull         int64
+	PullTitle    string
+	PullAuthor   string
+	PullAuthorID string
+	PullState    string
+	BaseBranch   string
+	Docs         dbtype.JSON
 }
 
 type GithubUserToken struct {

@@ -12,8 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
@@ -37,7 +39,33 @@ func (a *API) sourceAPI(ctx context.Context, src pgdb.GithubSource) (api.GithubS
 	out.Adopted = &n
 	n, err = a.Service.bundlesOfSource(ctx, src.ID)
 	out.Bundles = n
-	return out, err
+	if err != nil || !isPull(src) {
+		return out, err
+	}
+	out.Pull = pullInfo(src)
+	q := a.Service.DB.Queries()
+	docs, err := a.Service.sourceSpecDocs(ctx, q, src.ID)
+	if err != nil {
+		return out, err
+	}
+	list := []api.SourceDoc{}
+	for _, d := range docs {
+		var ref githubRef
+		_ = json.Unmarshal(d.SourceRef, &ref)
+		sd := api.SourceDoc{Path: path.Join(ref.Dir, d.DocPath), DocId: d.ID, BundleId: d.BundleID, Profile: d.ProfileKey}
+		v, _, err := review.Summary(ctx, q, d)
+		if err != nil {
+			return out, err
+		}
+		if v != nil {
+			r := api.SourceDocVerdict(v.Result)
+			sd.Verdict = &r
+		}
+		list = append(list, sd)
+	}
+	sort.Slice(list, func(i, j int) bool { return list[i].Path < list[j].Path })
+	out.Docs = &list
+	return out, nil
 }
 
 // ListGithubSources lists the GitHub sources (REQ-123).
@@ -68,6 +96,10 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	c, err := s.github(ctx, ref.APIURL())
 	if err != nil {
 		return ref, api.GithubResolved{}, err
+	}
+	if ref.Pull > 0 {
+		out, _, err := a.resolvePull(ctx, c, ref)
+		return ref, out, err
 	}
 	def, err := c.Repo(ctx, ref.Repo)
 	if err != nil {
@@ -165,6 +197,9 @@ func (a *API) AddGithubSource(ctx context.Context, req api.AddGithubSourceReques
 	ref, res, err := a.resolve(ctx, req.Body.Url)
 	if err != nil {
 		return nil, err
+	}
+	if ref.Pull > 0 {
+		return a.addPull(ctx, ref, res, req.Body.Docs)
 	}
 	folder := ref.Path
 	if ref.File {
@@ -398,7 +433,11 @@ func (a *API) ListSkippedDocs(ctx context.Context, req api.ListSkippedDocsReques
 	out := api.ListSkippedDocs200JSONResponse{Items: []api.SourceSkippedDoc{}, Total: total}
 	for _, p := range paths {
 		item := api.SourceSkippedDoc{Path: p, Adopted: was[p]}
-		if content, ok, err := c.FileAt(ctx, src.Repo, src.Branch, p); err == nil && ok {
+		at := src.Branch
+		if isPull(src) && src.HeadCommit != "" {
+			at = src.HeadCommit // a fork's branch is not in this repo
+		}
+		if content, ok, err := c.FileAt(ctx, src.Repo, at, p); err == nil && ok {
 			if key, sure := profile.Guess(a.Profiles(), content); sure {
 				item.Guess = &key
 			}
@@ -437,6 +476,19 @@ func (a *API) AdoptSkippedDocs(ctx context.Context, req api.AdoptSkippedDocsRequ
 	// One transaction: a failure stores no part of the request (#170).
 	err = s.DB.InTx(ctx, func(tx store.Tx) error {
 		q := tx.Queries()
+		if isPull(src) {
+			// A doc the pull request added later joins the source's picked docs.
+			docs := pullDocs(src)
+			for _, it := range req.Body.Items {
+				docs[it.Path] = true
+			}
+			raw, _ := json.Marshal(sortedKeys(docs))
+			if err := q.SetGithubSourcePull(ctx, pgdb.SetGithubSourcePullParams{ID: src.ID, Pull: src.Pull, PullTitle: src.PullTitle,
+				PullAuthor: src.PullAuthor, PullAuthorID: src.PullAuthorID, PullState: src.PullState, BaseBranch: src.BaseBranch,
+				Branch: src.Branch, Docs: dbtype.JSON(raw)}); err != nil {
+				return err
+			}
+		}
 		for _, it := range req.Body.Items {
 			if err := q.SetAdoptedType(ctx, pgdb.SetAdoptedTypeParams{SourceID: src.ID, Path: it.Path, Profile: it.Profile}); err != nil {
 				return err

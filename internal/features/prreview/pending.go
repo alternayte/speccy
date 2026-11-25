@@ -13,14 +13,11 @@ import (
 
 // ListPending is GET /pending-reviews: the comments of the reviewer's pending review.
 func (a *API) ListPending(ctx context.Context, req api.ListPendingRequestObject) (api.ListPendingResponseObject, error) {
-	if err := a.local(); err != nil {
-		return nil, err
-	}
 	p, err := parsePR(req.Params.Url)
 	if err != nil {
 		return nil, err
 	}
-	gh, err := a.client(ctx, p.build)
+	gh, err := a.reviewer(ctx, p.build)
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +48,6 @@ func (a *API) ListPending(ctx context.Context, req api.ListPendingRequestObject)
 // DeletePending is POST /pending-reviews/delete: it deletes the named comments of the
 // reviewer's pending review.
 func (a *API) DeletePending(ctx context.Context, req api.DeletePendingRequestObject) (api.DeletePendingResponseObject, error) {
-	if err := a.local(); err != nil {
-		return nil, err
-	}
 	if len(req.Body.Ids) == 0 {
 		return nil, kernel.Invalid("no_ids", "Name the comments to delete by their IDs. speccy pending list gives them.")
 	}
@@ -61,7 +55,7 @@ func (a *API) DeletePending(ctx context.Context, req api.DeletePendingRequestObj
 	if err != nil {
 		return nil, err
 	}
-	gh, err := a.client(ctx, p.build)
+	gh, err := a.reviewer(ctx, p.build)
 	if err != nil {
 		return nil, err
 	}
@@ -99,9 +93,6 @@ func (a *API) DeletePending(ctx context.Context, req api.DeletePendingRequestObj
 // on the named pull requests, the open pull requests of a repo, or the pull requests of a
 // batch.
 func (a *API) DiscardPending(ctx context.Context, req api.DiscardPendingRequestObject) (api.DiscardPendingResponseObject, error) {
-	if err := a.local(); err != nil {
-		return nil, err
-	}
 	urls, repo, batch := deref(req.Body.Urls), deref(req.Body.Repo), req.Body.Batch
 	named := 0
 	for _, set := range []bool{len(urls) > 0, repo != "", batch != nil} {
@@ -127,7 +118,7 @@ func (a *API) DiscardPending(ctx context.Context, req api.DiscardPendingRequestO
 		if err != nil {
 			return nil, err
 		}
-		gh, err := a.client(ctx, b)
+		gh, err := a.reviewer(ctx, b)
 		if err != nil {
 			return nil, err
 		}
@@ -161,7 +152,7 @@ func (a *API) DiscardPending(ctx context.Context, req api.DiscardPendingRequestO
 	}
 	out := api.DiscardPending200JSONResponse{Discarded: []api.PrRef{}, None: []api.PrRef{}}
 	for _, p := range prs {
-		gh, err := a.client(ctx, p.build)
+		gh, err := a.reviewer(ctx, p.build)
 		if err != nil {
 			return nil, err
 		}

@@ -18,6 +18,7 @@ import {
 } from "@/lib/api/@tanstack/react-query.gen";
 import { useMe } from "@/features/account/me";
 import { GitHubControl } from "./github-control";
+import { GitHubReview } from "./github-review-dialog";
 import { ShareDialog } from "./share-dialog";
 import { ReviewStatus } from "./review-status";
 import { type NewAnchor, ThreadsPanel } from "@/features/threads/threads-panel";
@@ -293,6 +294,7 @@ export function BundlePage({ docId, search }: { docId: string; search: BundleSea
         extra={
           <>
             <GitHubControl bundle={b} canEdit={canEdit} />
+            <GitHubReview bundle={b} />
             <ReviewStatus docId={docId} signedIn register={(f) => (askReview.current = f)} />
             {hosted ? <ShareDialog bundleId={bundleId} /> : null}
             <RunReviewButton

@@ -63,7 +63,9 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "review_prs", "Review many spec pull requests in one batch. Each pull request gets a pending review that only the person sees until they submit it on GitHub: each comment leads with a question or a fix for the author. Name the pull requests by their URLs, or name a repo: then the batch takes each open pull request that is not a draft and changes a spec doc, and requested keeps the ones that ask for the person's review. A pull request already reviewed at its head commit is skipped, unless again. The call returns at once with the batch ID and the cost estimate; the batch runs on in Speccy. Call get_batch for its progress, and cancel_batch to stop it. Local mode only.", t.reviewPRs)
 	add(s, t, "get_batch", "Get the state of a batch of pull request reviews: for each pull request, waiting, reviewing, posted, skipped with the reason, or failed with the error, and for a posted one the verdict of each spec doc, the count of comments, and the link to the pending review.", t.getBatch)
 	add(s, t, "cancel_batch", "Stop a batch of pull request reviews: no new pull request starts, and the reviews that run now finish and post.", t.cancelBatch)
-	add(s, t, "ask_author", "Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. Local mode only.", t.askAuthor)
+	add(s, t, "ask_author", "Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. In hosted mode it posts with the person's GitHub user token.", t.askAuthor)
+	add(s, t, "add_source", "Make a GitHub source from a URL: a repo, a branch folder, a doc, or a pull request. For a pull request, Speccy follows its head and makes one bundle for each spec doc it changes, with the person who opened it as the author. Call it with dry_run first: the answer lists the markdown files and the profile Speccy reads or guesses for each. Show that to the person, then call again with docs: one profile for each file they keep, and an empty profile for a file that is not a spec. Admins only.", t.addSource)
+	add(s, t, "prepare_github_review", "Prepare a GitHub review of a pull request source, as the person: a pending review on the pull request that only they see until they submit it on GitHub. preset questions takes the items of the questions screen, must every open MUST finding, all every open finding. Items that an open comment on the pull request or the person's pending review already holds are left out. Call it with dry_run first, and show the person the checklist: each item's doc, line and comment text, and how many comments of other people are on its line. Then call again without dry_run, with exclude for the item keys the person does not want. Post only when the person tells you to.", t.prepareGithubReview)
 	add(s, t, "list_pending", "List the comments of the person's pending review on a pull request: each with its ID, file, line, first words, and whether Speccy wrote it. Call it before delete_pending, and show the list to the person.", t.listPending)
 	add(s, t, "delete_pending", "Delete comments of the person's pending review on a pull request, by the IDs that list_pending gives. Delete only the comments the person named.", t.deletePending)
 	add(s, t, "discard_pending", "Discard the person's whole pending review on pull requests: the ones named by URL, each open pull request of a repo, or each pull request of a batch. Name exactly one of urls, repo and batch. Nothing the author can see changes.", t.discardPending)
@@ -1104,6 +1106,86 @@ func (tools) discardPending(ctx context.Context, c *api.ClientWithResponses, in 
 		body.Batch = &id
 	}
 	res, err := c.DiscardPendingWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type sourceArg struct {
+	URL    string `json:"url" jsonschema:"the GitHub URL: a repo, a branch folder, a doc, or a pull request"`
+	DryRun bool   `json:"dry_run,omitempty" jsonschema:"say what the URL names and make nothing"`
+	// Docs are the picks for a pull request URL.
+	Docs []docPick `json:"docs,omitempty" jsonschema:"for a pull request: the profile of each markdown file to keep; an empty profile marks a file not a spec. Leave it out to take every file Speccy has a profile for"`
+	// Profile is the profile of one doc that names no type.
+	Profile string `json:"profile,omitempty" jsonschema:"for the URL of one doc that names no type: its profile"`
+}
+
+type docPick struct {
+	Path    string `json:"path" jsonschema:"the file's path in the repo"`
+	Profile string `json:"profile" jsonschema:"the profile key, or empty for not a spec"`
+}
+
+// addSource resolves a source URL, or makes the source.
+func (tools) addSource(ctx context.Context, c *api.ClientWithResponses, in sourceArg) (any, error) {
+	if in.DryRun {
+		res, err := c.ResolveGithubUrlWithResponse(ctx, api.ResolveGithubUrlJSONRequestBody{Url: in.URL})
+		if err != nil {
+			return nil, err
+		}
+		if res.JSON200 == nil {
+			return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+		}
+		return res.JSON200, nil
+	}
+	body := api.AddGithubSourceJSONRequestBody{Url: in.URL}
+	if in.Profile != "" {
+		body.Profile = &in.Profile
+	}
+	if in.Docs != nil {
+		picks := make([]api.PullDocChoice, len(in.Docs))
+		for i, d := range in.Docs {
+			picks[i] = api.PullDocChoice{Path: d.Path, Profile: d.Profile}
+		}
+		body.Docs = &picks
+	}
+	res, err := c.AddGithubSourceWithResponse(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
+}
+
+type githubReviewArg struct {
+	URL     string   `json:"url" jsonschema:"the URL of the pull request"`
+	Preset  string   `json:"preset" jsonschema:"questions, must or all"`
+	Exclude []string `json:"exclude,omitempty" jsonschema:"the item keys to leave out"`
+	DryRun  bool     `json:"dry_run,omitempty" jsonschema:"return the checklist and post nothing"`
+}
+
+// prepareGithubReview returns the checklist of a GitHub review, or writes the pending review.
+func (tools) prepareGithubReview(ctx context.Context, c *api.ClientWithResponses, in githubReviewArg) (any, error) {
+	body := api.GithubReviewRequest{Url: in.URL, Preset: api.GithubReviewRequestPreset(in.Preset)}
+	if len(in.Exclude) > 0 {
+		body.Exclude = &in.Exclude
+	}
+	if in.DryRun {
+		res, err := c.PlanGithubReviewWithResponse(ctx, body)
+		if err != nil {
+			return nil, err
+		}
+		if res.JSON200 == nil {
+			return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+		}
+		return res.JSON200, nil
+	}
+	res, err := c.PostGithubReviewWithResponse(ctx, body)
 	if err != nil {
 		return nil, err
 	}

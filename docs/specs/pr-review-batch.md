@@ -22,7 +22,7 @@ A reviewer reviews many spec pull requests in one batch, from the CLI or from an
 - A question on a line outside the diff goes into the body of the pending review — GitHub takes a line comment only in the diff.
 - `speccy pending list <PR URL>` and MCP `list_pending` give each comment of the reviewer's pending review: ID, path, line, first words, and whether Speccy wrote it. `speccy pending delete <PR URL> <ID>...` and `delete_pending` delete the named comments. `speccy pending discard <PR URL>... | --repo <owner/name> | --batch <ID>` and `discard_pending` discard whole pending reviews — the agent lists first, then acts on what the reviewer names.
 - These tools act on any comment in the reviewer's own pending review — it is the reviewer's private draft.
-- In hosted mode, every command and tool above answers "Pending reviews post as you, so they run in local mode." The new tables exist in SQLite and Postgres — a pending review belongs to the person whose credential posts it, and hosted mode holds one workspace token. The conformance suite covers both stores.
+- In hosted mode, a batch answers "Batches of pull requests run in local mode." The questions and the pending review commands post with the person's GitHub user token (pr-source-and-github-review.md). The new tables exist in SQLite and Postgres. The conformance suite covers both stores.
 - `speccy action --pr` stays as it is — one pull request, with `--dry-run` to print.
 
 ## Out

@@ -17,7 +17,9 @@ type Ref struct {
 	Branch string // the branch, or "" for the repo's default branch
 	Path   string // the folder, the doc, or "." for the whole repo
 	File   bool   // Path names one doc, not a folder
-	kind   string // tree or blob, as the URL says, or "" when it names no branch
+	// Pull is the number of the pull request a .../pull/<n> URL names, or 0.
+	Pull int
+	kind string // tree or blob, as the URL says, or "" when it names no branch
 }
 
 // APIURL is the API of the ref's host. github.com has its own API host; GitHub Enterprise
@@ -30,21 +32,33 @@ func (r Ref) APIURL() string {
 }
 
 // ParseURL reads a source URL. It takes owner/name, github.com/owner/name,
-// .../tree/<branch>/<path>, and .../blob/<branch>/<path>/doc.md, with or without a scheme,
-// and the .git suffix of a clone URL (REQ-128).
+// .../tree/<branch>/<path>, .../blob/<branch>/<path>/doc.md and .../pull/<n>, with or without
+// a scheme, and the .git suffix of a clone URL (REQ-128). A pull request URL may go on with
+// /files or /commits, as the address bar shows it.
 func ParseURL(raw string) (Ref, error) {
 	host, parts, err := split(raw)
 	if err != nil {
 		return Ref{}, err
 	}
 	bad := func() (Ref, error) {
-		return Ref{}, fmt.Errorf("%q is not a GitHub address. Speccy takes owner/name, a repo URL, or the URL of a folder or a doc in it", raw)
+		return Ref{}, fmt.Errorf("%q is not a GitHub address. Speccy takes owner/name, a repo URL, or the URL of a folder, a doc or a pull request in it", raw)
 	}
 	ref := Ref{Host: host, Repo: parts[0] + "/" + parts[1], Path: "."}
 	if len(parts) == 2 {
 		return ref, nil
 	}
 	kind := parts[2]
+	if kind == "pull" {
+		if len(parts) < 4 {
+			return bad()
+		}
+		n, err := strconv.Atoi(parts[3])
+		if err != nil || n <= 0 {
+			return Ref{}, fmt.Errorf("%q is not a pull request number", parts[3])
+		}
+		ref.Pull = n
+		return ref, nil
+	}
 	if kind != "tree" && kind != "blob" {
 		return bad()
 	}

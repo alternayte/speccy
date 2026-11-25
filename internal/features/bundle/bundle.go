@@ -55,6 +55,9 @@ type Service struct {
 	// token when the workspace has a GitHub App, so GitHub shows them as the author
 	// (docs/specs/github-app.md). Nil means GitHub writes with the same client as reads.
 	GitHubAs func(ctx context.Context, apiURL, userID string) (*github.Client, error)
+	// UserOfGitHub finds the Speccy account linked to a GitHub account ID. Nil in local mode,
+	// which has one person.
+	UserOfGitHub func(ctx context.Context, githubID string) (userID string, ok bool, err error)
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan

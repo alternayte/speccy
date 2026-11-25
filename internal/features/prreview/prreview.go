@@ -1,7 +1,9 @@
 // Package prreview reviews many spec pull requests in one batch, and keeps the reviewer's
 // pending review on each one: the findings, the reviewer's own questions, and the commands
-// that list, delete and discard what is pending (docs/specs/pr-review-batch.md). It runs in
-// local mode only, because a pending review belongs to the person whose credential posts it.
+// that list, delete and discard what is pending (docs/specs/pr-review-batch.md). It also
+// prepares a GitHub review of a pull request source (docs/specs/pr-source-and-github-review.md).
+// A pending review belongs to the person whose credential posts it: the gh login in local mode,
+// and the person's GitHub user token in hosted mode. Batches run in local mode only.
 package prreview
 
 import (
@@ -18,7 +20,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/alternayte/speccy/internal/features/bundle"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/questions"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
@@ -26,8 +30,12 @@ import (
 	"github.com/alternayte/speccy/internal/store"
 )
 
-// LocalOnly is the answer of each operation of this package in hosted mode.
-const LocalOnly = "Pending reviews post as you, so they run in local mode."
+// LocalOnly is the answer of a batch in hosted mode.
+const LocalOnly = "Batches of pull requests run in local mode."
+
+// NeedsApp is the answer of a pending review in a hosted workspace with a GitHub token and no
+// App: the token belongs to one person, and a comment must never carry another person's name.
+const NeedsApp = "A GitHub review posts as you. Connect the GitHub App in Admin → GitHub."
 
 // DefaultParallel is how many pull requests of a batch run at the same time.
 const DefaultParallel = 3
@@ -45,8 +53,16 @@ type API struct {
 	Profiles  func() map[string]profile.Versioned
 	// GitHub returns the client for a GitHub API with the local user's credential.
 	GitHub func(ctx context.Context, apiURL string) (*github.Client, error)
-	// LocalMode is false in hosted mode, where every operation answers LocalOnly.
+	// GitHubAs returns the client of one person's GitHub user token, in hosted mode.
+	GitHubAs func(ctx context.Context, apiURL, userID string) (*github.Client, error)
+	// LocalMode is false in hosted mode, where a batch answers LocalOnly.
 	LocalMode bool
+	// Bundles and Questions give the docs and the items of a pull request source.
+	Bundles   *bundle.Service
+	Questions *questions.API
+	// BaseURL is SPECCY_BASE_URL, for the link to the bundle in each comment. Empty in local
+	// mode, whose address GitHub cannot reach.
+	BaseURL string
 	// Life is the context of the owner process. A batch runs on it, so it goes on when the
 	// call that started it ends.
 	Life context.Context
@@ -110,6 +126,18 @@ func prURL(b github.Build) string {
 		host = "github.com"
 	}
 	return fmt.Sprintf("https://%s/%s/pull/%d", host, b.Repo, b.Pull)
+}
+
+// reviewer is the client that posts as the person of ctx: the gh login in local mode, and the
+// person's GitHub user token in hosted mode.
+func (a *API) reviewer(ctx context.Context, b github.Build) (*github.Client, error) {
+	if a.LocalMode {
+		return a.client(ctx, b)
+	}
+	if a.GitHubAs == nil {
+		return nil, kernel.Invalid("github_review_needs_app", NeedsApp)
+	}
+	return a.GitHubAs(ctx, b.APIURL(), kernel.ActorFrom(ctx).UserID)
 }
 
 func (a *API) client(ctx context.Context, b github.Build) (*github.Client, error) {

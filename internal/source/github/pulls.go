@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // PRFile is one file that a pull request changes. Patch is the unified diff, which GitHub
@@ -128,6 +129,10 @@ type Thread struct {
 	ID       string
 	Resolved bool
 	Body     string // the first comment, which Speccy wrote
+	// Path and Line are where the thread sits: the repo path, and the line on the new side, or 0
+	// when the line is outdated.
+	Path string
+	Line int
 	// Replies are the comments after the first one, oldest first.
 	Replies []Reply
 }
@@ -136,6 +141,10 @@ type Thread struct {
 type Reply struct {
 	Author string
 	Body   string
+	// ID is the comment's REST ID, URL its address, and At when it was written.
+	ID  int64
+	URL string
+	At  time.Time
 }
 
 // PullRequest metadata that the Action needs: where to commit, and whether it may.
@@ -144,6 +153,15 @@ type PRInfo struct {
 	HeadRepo string // owner/name of the head branch's repo
 	BaseRef  string // the branch it merges into
 	HeadSHA  string
+	Title    string
+	URL      string
+	Draft    bool
+	// Author is the login of the person who opened the pull request, and AuthorID their GitHub
+	// account ID, which auth-all keeps for a GitHub sign-in.
+	Author   string
+	AuthorID string
+	// State is open, merged or closed.
+	State string
 }
 
 // Fork says whether the pull request comes from another repo. The Action has no write token
@@ -163,11 +181,27 @@ func (c *Client) PullRequest(ctx context.Context, repo string, number int) (PRIn
 		Base struct {
 			Ref string `json:"ref"`
 		} `json:"base"`
+		Title   string `json:"title"`
+		HTMLURL string `json:"html_url"`
+		Draft   bool   `json:"draft"`
+		State   string `json:"state"`
+		Merged  bool   `json:"merged"`
+		User    struct {
+			Login string `json:"login"`
+			ID    int64  `json:"id"`
+		} `json:"user"`
 	}
 	if err := c.do(ctx, "GET", fmt.Sprintf("%s/pulls/%d", repoPath(repo), number), nil, &pr); err != nil {
 		return PRInfo{}, err
 	}
-	out := PRInfo{HeadRef: pr.Head.Ref, BaseRef: pr.Base.Ref, HeadSHA: pr.Head.SHA}
+	out := PRInfo{HeadRef: pr.Head.Ref, BaseRef: pr.Base.Ref, HeadSHA: pr.Head.SHA, Title: pr.Title, URL: pr.HTMLURL, Draft: pr.Draft,
+		Author: pr.User.Login, State: pr.State}
+	if pr.User.ID != 0 {
+		out.AuthorID = strconv.FormatInt(pr.User.ID, 10)
+	}
+	if pr.Merged {
+		out.State = "merged"
+	}
 	if pr.Head.Repo != nil {
 		out.HeadRepo = pr.Head.Repo.FullName
 	}
@@ -199,8 +233,11 @@ func (c *Client) graphql(ctx context.Context, query string, vars map[string]any,
 type threadComments struct {
 	PageInfo pageInfo `json:"pageInfo"`
 	Nodes    []struct {
-		Body   string `json:"body"`
-		Author *struct {
+		Body       string    `json:"body"`
+		DatabaseID int64     `json:"databaseId"`
+		URL        string    `json:"url"`
+		CreatedAt  time.Time `json:"createdAt"`
+		Author     *struct {
 			Login string `json:"login"`
 		} `json:"author"`
 	} `json:"nodes"`
@@ -222,7 +259,7 @@ func (th *Thread) add(page threadComments, first bool) {
 		if cm.Author != nil {
 			login = cm.Author.Login
 		}
-		th.Replies = append(th.Replies, Reply{Author: login, Body: cm.Body})
+		th.Replies = append(th.Replies, Reply{Author: login, Body: cm.Body, ID: cm.DatabaseID, URL: cm.URL, At: cm.CreatedAt})
 	}
 }
 
@@ -231,10 +268,10 @@ func (th *Thread) add(page threadComments, first bool) {
 func (c *Client) ReviewThreads(ctx context.Context, repo string, number int) ([]Thread, error) {
 	owner, name := splitRepo(repo)
 	const q = `query($owner:String!,$name:String!,$n:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$n){` +
-		`reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{id isResolved ` +
-		`comments(first:100){pageInfo{hasNextPage endCursor} nodes{body author{login}}}}}}}}`
+		`reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{id isResolved path line ` +
+		`comments(first:100){pageInfo{hasNextPage endCursor} nodes{body databaseId url createdAt author{login}}}}}}}}`
 	const more = `query($id:ID!,$after:String){node(id:$id){... on PullRequestReviewThread{` +
-		`comments(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{body author{login}}}}}}`
+		`comments(first:100,after:$after){pageInfo{hasNextPage endCursor} nodes{body databaseId url createdAt author{login}}}}}}`
 	var out []Thread
 	var after any
 	for {
@@ -246,6 +283,8 @@ func (c *Client) ReviewThreads(ctx context.Context, repo string, number int) ([]
 						Nodes    []struct {
 							ID         string         `json:"id"`
 							IsResolved bool           `json:"isResolved"`
+							Path       string         `json:"path"`
+							Line       int            `json:"line"`
 							Comments   threadComments `json:"comments"`
 						} `json:"nodes"`
 					} `json:"reviewThreads"`
@@ -257,7 +296,7 @@ func (c *Client) ReviewThreads(ctx context.Context, repo string, number int) ([]
 		}
 		threads := data.Repository.PullRequest.ReviewThreads
 		for _, t := range threads.Nodes {
-			th := Thread{ID: t.ID, Resolved: t.IsResolved}
+			th := Thread{ID: t.ID, Resolved: t.IsResolved, Path: t.Path, Line: t.Line}
 			th.add(t.Comments, true)
 			for page := t.Comments.PageInfo; page.HasNextPage; {
 				var rest struct {

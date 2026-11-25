@@ -17,6 +17,7 @@ import (
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/section"
 	"github.com/alternayte/speccy/internal/features/profile"
+	"github.com/alternayte/speccy/internal/features/share"
 	"github.com/alternayte/speccy/internal/features/version"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/model"
@@ -87,6 +88,9 @@ func (st Stages) roles(p profile.Profile) []string {
 func (s *Service) StartRun(ctx context.Context, b pgdb.SpecDoc, stages Stages) (pgdb.ReviewRun, error) {
 	if !b.CurrentVersionID.Valid {
 		return pgdb.ReviewRun{}, kernel.Invalid("no_version", "The bundle has no version to review.")
+	}
+	if why := share.ReadOnly(b); why != "" {
+		return pgdb.ReviewRun{}, kernel.Invalid("read_only", "%s", why)
 	}
 	p, ok := s.Profiles()[b.ProfileKey]
 	if !ok {

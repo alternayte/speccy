@@ -4,6 +4,7 @@ package share
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 
@@ -49,13 +50,52 @@ func CanReadBundle(ctx context.Context, q store.Querier, a kernel.Actor, b pgdb.
 // CanEdit reports whether the actor can change spec doc d's files and settings: an author of
 // the bundle that holds d, or an admin.
 func CanEdit(ctx context.Context, q store.Querier, a kernel.Actor, d pgdb.SpecDoc) (bool, error) {
+	if ReadOnly(d) != "" {
+		return false, nil
+	}
 	return CanEditBundle(ctx, q, a, d.BundleID)
 }
 
+// ReadOnly says why nobody can edit or review spec doc d any more, or "": the doc of a pull
+// request that closed, or that merged while another bundle holds the doc on the base branch
+// (docs/specs/pr-source-and-github-review.md).
+func ReadOnly(d pgdb.SpecDoc) string {
+	var ref struct {
+		ReadOnly string `json:"read_only"`
+	}
+	_ = json.Unmarshal(d.SourceRef, &ref)
+	switch ref.ReadOnly {
+	case "closed":
+		return "The pull request of this doc closed without a merge, so the doc is read-only."
+	case "merged":
+		return "The pull request of this doc merged, and another bundle holds the doc on the base branch, so this one is read-only."
+	}
+	return ""
+}
+
 // CanEditBundle reports whether the actor can change bundle id and its spec docs: an author of
-// the bundle, or an admin.
+// the bundle, or an admin. Nobody edits a bundle whose spec docs are all read-only; CanEdit
+// refuses one read-only doc of a bundle.
 func CanEditBundle(ctx context.Context, q store.Querier, a kernel.Actor, id uuid.UUID) (bool, error) {
 	if a.Guest != nil || a.UserID == "" {
+		return false, nil
+	}
+	docs, err := q.ListSpecDocsOfBundle(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	live, frozen := 0, 0
+	for _, d := range docs {
+		if d.ArchivedAt.Valid {
+			continue
+		}
+		if ReadOnly(d) != "" {
+			frozen++
+		} else {
+			live++
+		}
+	}
+	if frozen > 0 && live == 0 {
 		return false, nil
 	}
 	if a.IsAdmin() {

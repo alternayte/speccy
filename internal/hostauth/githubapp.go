@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/alternayte/auth-all/hook"
 	"github.com/alternayte/auth-all/oauth"
 	"github.com/alternayte/auth-all/plugin"
+	authstore "github.com/alternayte/auth-all/store"
 
 	"github.com/alternayte/speccy/internal/source/github"
 )
@@ -83,20 +85,61 @@ func (a *Auth) GitHubAccount(ctx context.Context, userID string) (string, bool, 
 	return "", false, nil
 }
 
+// UserOfGitHub returns the Speccy account that linked a GitHub account ID.
+func (a *Auth) UserOfGitHub(ctx context.Context, githubID string) (string, bool, error) {
+	acct, err := a.All.Store().Accounts().GetByProviderAccount(ctx, GitHubProvider, githubID)
+	if errors.Is(err, authstore.ErrNotFound) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return acct.UserID, true, nil
+}
+
 // githubHooks refuses a GitHub sign-in or a link by an account outside the App's owner, and
-// lets a member of the owning org make an account with the member role.
-type githubHooks struct{}
+// lets a member of the owning org make an account with the member role. After a sign-in or a
+// link, it tells Speccy which GitHub account the person has.
+type githubHooks struct{ auth *Auth }
 
-func (githubHooks) ID() string { return "speccy-github" }
+func (*githubHooks) ID() string { return "speccy-github" }
 
-func (githubHooks) Register(r *plugin.Registry) error {
+func (h *githubHooks) Register(r *plugin.Registry) error {
 	r.Hooks().OnBeforeOAuthSignIn(func(_ context.Context, ev *hook.OAuthSignIn) error {
 		if ev.Provider == GitHubProvider && !member(ev.Identity) {
 			return errNotMember
 		}
 		return nil
 	})
+	r.Hooks().OnAfterSignIn(func(ctx context.Context, ev *hook.SignIn) error {
+		if ev.User != nil {
+			h.linked(ctx, ev.User.ID)
+		}
+		return nil
+	})
+	r.Hooks().OnAfterAccountLink(func(ctx context.Context, ev *hook.AccountLink) error {
+		if ev.User != nil && ev.Account != nil && ev.Account.Provider == GitHubProvider {
+			h.linked(ctx, ev.User.ID)
+		}
+		return nil
+	})
 	return nil
+}
+
+// linked runs OnGitHub for a person with a linked GitHub account. A failure is logged: the
+// sign-in itself has worked.
+func (h *githubHooks) linked(ctx context.Context, userID string) {
+	if h.auth == nil || h.auth.OnGitHub == nil {
+		return
+	}
+	id, ok, err := h.auth.GitHubAccount(ctx, userID)
+	if err != nil {
+		slog.WarnContext(ctx, "the GitHub account of a person was not read", "err", err)
+		return
+	}
+	if ok {
+		h.auth.OnGitHub(ctx, userID, id)
+	}
 }
 
 func member(id *oauth.Identity) bool {

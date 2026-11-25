@@ -223,9 +223,14 @@ func runHosted(stdout, stderr io.Writer) int {
 	a.Admin.SetupToken = c.setupToken
 	a.Admin.GitHubApp = &admin.GitHubApp{
 		Env: c.githubApp, BaseURL: c.baseURL, CallbackURL: c.baseURL + "/api/auth/oauth/" + hostauth.GitHubProvider + "/callback",
-		GitHubAccount: auth.GitHubAccount, Changed: a.Bundles.SyncRepo, Life: ctx,
+		GitHubAccount: auth.GitHubAccount, Changed: a.Bundles.SyncRepo, PullChanged: a.Bundles.SyncPull, Life: ctx,
 	}
 	a.Bundles.GitHubAs = a.Admin.UserGitHubClient
+	// docs/specs/pr-source-and-github-review.md: the author of a pull request owns its bundles,
+	// and a GitHub review posts with the reviewer's own GitHub token.
+	a.Bundles.UserOfGitHub = auth.UserOfGitHub
+	auth.OnGitHub = a.Bundles.GitHubLinked
+	a.PRs.GitHubAs, a.PRs.BaseURL = a.Admin.ReviewerGitHubClient, c.baseURL
 	a.PRCheck.BaseURL = c.baseURL
 	a.Notify.BaseURL, a.Notify.Env = c.baseURL, c.notify
 	a.Admin.GitHubApp.PullRequest = func(ctx context.Context, apiURL, repo string, pull int, sha string) error {

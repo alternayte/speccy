@@ -26,7 +26,7 @@ A person pastes a GitHub URL into the bundles screen, or runs `speccy add <url>`
 - No `git`, no `gh repo clone`, and no `gh api`. Speccy calls `gh` for a token only (DEC-018).
 - No write to the source branch, and no write of any kind into the repo other than a publish pull request.
 - No change to the review stages, the verdict rule, the sidecar, or the Action.
-- No import of a pull request's own review comments into Speccy's threads.
+- No import of a pull request's own review comments into Speccy's threads. pr-source-and-github-review.md shows the replies to Speccy's own comments on the matching items.
 
 ## How I know it works
 - Paste `https://github.com/<owner>/<repo>/blob/main/docs/prd-payments.md` into the bundles screen of local mode. The dialog names the repo, the branch, the doc, and the profile. Confirm, and the bundle opens with a verdict.

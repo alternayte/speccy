@@ -98,3 +98,5 @@ Tools: Go 1.26.2, Node 24+, just 1.58, golangci-lint v2.12.2. pnpm 12.4.2 runs t
 - Not needed: the answer that a finding does not apply to this doc, with a reason. It closes at once, with no approval. A waiver is for a real gap that ships open. Avoid: false positive, won't fix.
 - Breakdown: the epics and work items Speccy proposes from one Build Ready doc. One per bundle, and it moves forward with the doc's versions. Avoid: plan, decomposition, ticket set.
 - Work item: one item of a breakdown, with its trace IDs, its criteria quoted from the doc, and an assignee. Avoid: task, ticket, story.
+- Pull request source: a GitHub source made from a pull request URL. It reads the docs at the head SHA, moves to the base branch on merge, and stops syncing on close. Avoid: PR import, branch import.
+- GitHub review: the pending review Speccy prepares on a pull request as the reviewer, which the reviewer submits on GitHub. Avoid: PR comments, posted review.

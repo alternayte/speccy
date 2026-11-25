@@ -160,7 +160,7 @@ func (q *Queries) GetGithubConnection(ctx context.Context, workspaceID uuid.UUID
 }
 
 const getGithubSource = `-- name: GetGithubSource :one
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config FROM github_source WHERE workspace_id = $1 AND id = $2
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config, pull, pull_title, pull_author, pull_author_id, pull_state, base_branch, docs FROM github_source WHERE workspace_id = $1 AND id = $2
 `
 
 type GetGithubSourceParams struct {
@@ -185,6 +185,13 @@ func (q *Queries) GetGithubSource(ctx context.Context, arg GetGithubSourceParams
 		&i.ApiUrl,
 		&i.Skipped,
 		&i.RepoConfig,
+		&i.Pull,
+		&i.PullTitle,
+		&i.PullAuthor,
+		&i.PullAuthorID,
+		&i.PullState,
+		&i.BaseBranch,
+		&i.Docs,
 	)
 	return i, err
 }
@@ -405,8 +412,44 @@ func (q *Queries) ListDismissedDocs(ctx context.Context, workspaceID uuid.UUID) 
 	return items, nil
 }
 
+const listGithubRepliesOfDoc = `-- name: ListGithubRepliesOfDoc :many
+SELECT source_id, comment_id, spec_doc_id, finding_key, author, body, url, created_at FROM github_reply WHERE spec_doc_id = $1 ORDER BY created_at, comment_id
+`
+
+func (q *Queries) ListGithubRepliesOfDoc(ctx context.Context, specDocID uuid.UUID) ([]GithubReply, error) {
+	rows, err := q.db.QueryContext(ctx, listGithubRepliesOfDoc, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GithubReply
+	for rows.Next() {
+		var i GithubReply
+		if err := rows.Scan(
+			&i.SourceID,
+			&i.CommentID,
+			&i.SpecDocID,
+			&i.FindingKey,
+			&i.Author,
+			&i.Body,
+			&i.Url,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGithubSources = `-- name: ListGithubSources :many
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config FROM github_source WHERE workspace_id = $1 ORDER BY repo, branch, path
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config, pull, pull_title, pull_author, pull_author_id, pull_state, base_branch, docs FROM github_source WHERE workspace_id = $1 ORDER BY repo, branch, path
 `
 
 func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error) {
@@ -432,6 +475,121 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 			&i.ApiUrl,
 			&i.Skipped,
 			&i.RepoConfig,
+			&i.Pull,
+			&i.PullTitle,
+			&i.PullAuthor,
+			&i.PullAuthorID,
+			&i.PullState,
+			&i.BaseBranch,
+			&i.Docs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGithubSourcesOfAuthor = `-- name: ListGithubSourcesOfAuthor :many
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config, pull, pull_title, pull_author, pull_author_id, pull_state, base_branch, docs FROM github_source WHERE workspace_id = $1 AND pull_author_id = $2 AND pull > 0
+`
+
+type ListGithubSourcesOfAuthorParams struct {
+	WorkspaceID  uuid.UUID
+	PullAuthorID string
+}
+
+func (q *Queries) ListGithubSourcesOfAuthor(ctx context.Context, arg ListGithubSourcesOfAuthorParams) ([]GithubSource, error) {
+	rows, err := q.db.QueryContext(ctx, listGithubSourcesOfAuthor, arg.WorkspaceID, arg.PullAuthorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GithubSource
+	for rows.Next() {
+		var i GithubSource
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Repo,
+			&i.Branch,
+			&i.Path,
+			&i.HeadCommit,
+			&i.SyncedAt,
+			&i.Error,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.ApiUrl,
+			&i.Skipped,
+			&i.RepoConfig,
+			&i.Pull,
+			&i.PullTitle,
+			&i.PullAuthor,
+			&i.PullAuthorID,
+			&i.PullState,
+			&i.BaseBranch,
+			&i.Docs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGithubSourcesOfPull = `-- name: ListGithubSourcesOfPull :many
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config, pull, pull_title, pull_author, pull_author_id, pull_state, base_branch, docs FROM github_source WHERE workspace_id = $1 AND lower(repo) = lower($2) AND pull = $3
+ORDER BY created_at
+`
+
+type ListGithubSourcesOfPullParams struct {
+	WorkspaceID uuid.UUID
+	Repo        string
+	Pull        int64
+}
+
+func (q *Queries) ListGithubSourcesOfPull(ctx context.Context, arg ListGithubSourcesOfPullParams) ([]GithubSource, error) {
+	rows, err := q.db.QueryContext(ctx, listGithubSourcesOfPull, arg.WorkspaceID, arg.Repo, arg.Pull)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GithubSource
+	for rows.Next() {
+		var i GithubSource
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Repo,
+			&i.Branch,
+			&i.Path,
+			&i.HeadCommit,
+			&i.SyncedAt,
+			&i.Error,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.ApiUrl,
+			&i.Skipped,
+			&i.RepoConfig,
+			&i.Pull,
+			&i.PullTitle,
+			&i.PullAuthor,
+			&i.PullAuthorID,
+			&i.PullState,
+			&i.BaseBranch,
+			&i.Docs,
 		); err != nil {
 			return nil, err
 		}
@@ -447,7 +605,7 @@ func (q *Queries) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) 
 }
 
 const listGithubSourcesOfRepo = `-- name: ListGithubSourcesOfRepo :many
-SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config FROM github_source WHERE workspace_id = $1 AND lower(repo) = lower($2) ORDER BY branch, path
+SELECT id, workspace_id, repo, branch, path, head_commit, synced_at, error, created_by, created_at, api_url, skipped, repo_config, pull, pull_title, pull_author, pull_author_id, pull_state, base_branch, docs FROM github_source WHERE workspace_id = $1 AND lower(repo) = lower($2) ORDER BY branch, path
 `
 
 type ListGithubSourcesOfRepoParams struct {
@@ -478,6 +636,13 @@ func (q *Queries) ListGithubSourcesOfRepo(ctx context.Context, arg ListGithubSou
 			&i.ApiUrl,
 			&i.Skipped,
 			&i.RepoConfig,
+			&i.Pull,
+			&i.PullTitle,
+			&i.PullAuthor,
+			&i.PullAuthorID,
+			&i.PullState,
+			&i.BaseBranch,
+			&i.Docs,
 		); err != nil {
 			return nil, err
 		}
@@ -576,6 +741,40 @@ func (q *Queries) SetGithubAppInstallation(ctx context.Context, arg SetGithubApp
 	return err
 }
 
+const setGithubSourcePull = `-- name: SetGithubSourcePull :exec
+UPDATE github_source SET pull = $1, pull_title = $2, pull_author = $3,
+    pull_author_id = $4, pull_state = $5, base_branch = $6,
+    branch = $7, docs = $8
+WHERE id = $9
+`
+
+type SetGithubSourcePullParams struct {
+	Pull         int64
+	PullTitle    string
+	PullAuthor   string
+	PullAuthorID string
+	PullState    string
+	BaseBranch   string
+	Branch       string
+	Docs         dbtype.JSON
+	ID           uuid.UUID
+}
+
+func (q *Queries) SetGithubSourcePull(ctx context.Context, arg SetGithubSourcePullParams) error {
+	_, err := q.db.ExecContext(ctx, setGithubSourcePull,
+		arg.Pull,
+		arg.PullTitle,
+		arg.PullAuthor,
+		arg.PullAuthorID,
+		arg.PullState,
+		arg.BaseBranch,
+		arg.Branch,
+		arg.Docs,
+		arg.ID,
+	)
+	return err
+}
+
 const setGithubSourceRepoConfig = `-- name: SetGithubSourceRepoConfig :exec
 UPDATE github_source SET repo_config = $1 WHERE id = $2
 `
@@ -665,6 +864,38 @@ func (q *Queries) UpsertGithubConnection(ctx context.Context, arg UpsertGithubCo
 		arg.ApiUrl,
 		arg.UpdatedBy,
 		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertGithubReply = `-- name: UpsertGithubReply :exec
+INSERT INTO github_reply (source_id, comment_id, spec_doc_id, finding_key, author, body, url, created_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8)
+ON CONFLICT (source_id, comment_id) DO UPDATE SET body = excluded.body, finding_key = excluded.finding_key, spec_doc_id = excluded.spec_doc_id
+`
+
+type UpsertGithubReplyParams struct {
+	SourceID   uuid.UUID
+	CommentID  int64
+	SpecDocID  uuid.UUID
+	FindingKey string
+	Author     string
+	Body       string
+	Url        string
+	CreatedAt  time.Time
+}
+
+func (q *Queries) UpsertGithubReply(ctx context.Context, arg UpsertGithubReplyParams) error {
+	_, err := q.db.ExecContext(ctx, upsertGithubReply,
+		arg.SourceID,
+		arg.CommentID,
+		arg.SpecDocID,
+		arg.FindingKey,
+		arg.Author,
+		arg.Body,
+		arg.Url,
+		arg.CreatedAt,
 	)
 	return err
 }

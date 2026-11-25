@@ -928,6 +928,34 @@ type ClientInterface interface {
 	// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiver(ctx context.Context, docId DocId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PostGithubReviewWithBody Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+	PostGithubReviewWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PostGithubReview Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+	PostGithubReview(ctx context.Context, body PostGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PlanGithubReviewWithBody Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+	PlanGithubReviewWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PlanGithubReview Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+	PlanGithubReview(ctx context.Context, body PlanGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ResolveGithubUrlWithBody Read a source URL and say what it names, before the source is made (REQ-128).
 	//
 	// Takes any type of body and a specified content type.
@@ -1066,33 +1094,33 @@ type ClientInterface interface {
 	// Corresponds with GET /meta (the `GetMeta` operationId).
 	GetMeta(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+	// ListPending List the comments of your pending review on a pull request.
 	//
 	// Corresponds with GET /pending-reviews (the `ListPending` operationId).
 	ListPending(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeletePendingWithBody Delete comments of the local user's pending review on a pull request. Local mode only.
+	// DeletePendingWithBody Delete comments of your pending review on a pull request.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
 	DeletePendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+	// DeletePending Delete comments of your pending review on a pull request.
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
 	DeletePending(ctx context.Context, body DeletePendingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DiscardPendingWithBody Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// DiscardPendingWithBody Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
 	DiscardPendingWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// DiscardPending Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -1118,14 +1146,14 @@ type ClientInterface interface {
 	// Corresponds with GET /people (the `ListPeople` operationId).
 	ListPeople(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AskAuthorWithBody Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// AskAuthorWithBody Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
 	AskAuthorWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -3756,6 +3784,74 @@ func (c *Client) RequestWaiver(ctx context.Context, docId DocId, body RequestWai
 	return c.Client.Do(req)
 }
 
+// PostGithubReviewWithBody Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+func (c *Client) PostGithubReviewWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostGithubReviewRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PostGithubReview Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+func (c *Client) PostGithubReview(ctx context.Context, body PostGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostGithubReviewRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PlanGithubReviewWithBody Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+func (c *Client) PlanGithubReviewWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPlanGithubReviewRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PlanGithubReview Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+func (c *Client) PlanGithubReview(ctx context.Context, body PlanGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPlanGithubReviewRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ResolveGithubUrlWithBody Read a source URL and say what it names, before the source is made (REQ-128).
 //
 // Takes any type of body and a specified content type.
@@ -4114,7 +4210,7 @@ func (c *Client) GetMeta(ctx context.Context, reqEditors ...RequestEditorFn) (*h
 	return c.Client.Do(req)
 }
 
-// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+// ListPending List the comments of your pending review on a pull request.
 //
 // Corresponds with GET /pending-reviews (the `ListPending` operationId).
 func (c *Client) ListPending(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -4129,7 +4225,7 @@ func (c *Client) ListPending(ctx context.Context, params *ListPendingParams, req
 	return c.Client.Do(req)
 }
 
-// DeletePendingWithBody Delete comments of the local user's pending review on a pull request. Local mode only.
+// DeletePendingWithBody Delete comments of your pending review on a pull request.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4146,7 +4242,7 @@ func (c *Client) DeletePendingWithBody(ctx context.Context, contentType string, 
 	return c.Client.Do(req)
 }
 
-// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+// DeletePending Delete comments of your pending review on a pull request.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -4163,7 +4259,7 @@ func (c *Client) DeletePending(ctx context.Context, body DeletePendingJSONReques
 	return c.Client.Do(req)
 }
 
-// DiscardPendingWithBody Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+// DiscardPendingWithBody Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4180,7 +4276,7 @@ func (c *Client) DiscardPendingWithBody(ctx context.Context, contentType string,
 	return c.Client.Do(req)
 }
 
-// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+// DiscardPending Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -4246,7 +4342,7 @@ func (c *Client) ListPeople(ctx context.Context, reqEditors ...RequestEditorFn) 
 	return c.Client.Do(req)
 }
 
-// AskAuthorWithBody Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+// AskAuthorWithBody Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 //
 // Takes any type of body and a specified content type.
 //
@@ -4263,7 +4359,7 @@ func (c *Client) AskAuthorWithBody(ctx context.Context, contentType string, body
 	return c.Client.Do(req)
 }
 
-// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -9543,6 +9639,86 @@ func NewRequestWaiverRequestWithBody(server string, docId DocId, contentType str
 	return req, nil
 }
 
+// NewPostGithubReviewRequest calls the generic PostGithubReview builder with application/json body
+func NewPostGithubReviewRequest(server string, body PostGithubReviewJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostGithubReviewRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostGithubReviewRequestWithBody constructs an http.Request for the PostGithubReview method, with any body, and a specified content type
+func NewPostGithubReviewRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github-reviews")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewPlanGithubReviewRequest calls the generic PlanGithubReview builder with application/json body
+func NewPlanGithubReviewRequest(server string, body PlanGithubReviewJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPlanGithubReviewRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPlanGithubReviewRequestWithBody constructs an http.Request for the PlanGithubReview method, with any body, and a specified content type
+func NewPlanGithubReviewRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/github-reviews/plan")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewResolveGithubUrlRequest calls the generic ResolveGithubUrl builder with application/json body
 func NewResolveGithubUrlRequest(server string, body ResolveGithubUrlJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -13246,6 +13422,34 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /docs/{docId}/waivers (the `RequestWaiver` operationId).
 	RequestWaiverWithResponse(ctx context.Context, docId DocId, body RequestWaiverJSONRequestBody, reqEditors ...RequestEditorFn) (*RequestWaiverResponse, error)
 
+	// PostGithubReviewWithBodyWithResponse Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+	PostGithubReviewWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostGithubReviewResponse, error)
+
+	// PostGithubReviewWithResponse Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+	PostGithubReviewWithResponse(ctx context.Context, body PostGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*PostGithubReviewResponse, error)
+
+	// PlanGithubReviewWithBodyWithResponse Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+	PlanGithubReviewWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PlanGithubReviewResponse, error)
+
+	// PlanGithubReviewWithResponse Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+	PlanGithubReviewWithResponse(ctx context.Context, body PlanGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*PlanGithubReviewResponse, error)
+
 	// ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -13404,35 +13608,35 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /meta (the `GetMeta` operationId).
 	GetMetaWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetMetaResponse, error)
 
-	// ListPendingWithResponse List the comments of the local user's pending review on a pull request. Local mode only.
+	// ListPendingWithResponse List the comments of your pending review on a pull request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /pending-reviews (the `ListPending` operationId).
 	ListPendingWithResponse(ctx context.Context, params *ListPendingParams, reqEditors ...RequestEditorFn) (*ListPendingResponse, error)
 
-	// DeletePendingWithBodyWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+	// DeletePendingWithBodyWithResponse Delete comments of your pending review on a pull request.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
 	DeletePendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DeletePendingResponse, error)
 
-	// DeletePendingWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+	// DeletePendingWithResponse Delete comments of your pending review on a pull request.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /pending-reviews/delete (the `DeletePending` operationId).
 	DeletePendingWithResponse(ctx context.Context, body DeletePendingJSONRequestBody, reqEditors ...RequestEditorFn) (*DeletePendingResponse, error)
 
-	// DiscardPendingWithBodyWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// DiscardPendingWithBodyWithResponse Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /pending-reviews/discard (the `DiscardPending` operationId).
 	DiscardPendingWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*DiscardPendingResponse, error)
 
-	// DiscardPendingWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// DiscardPendingWithResponse Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -13460,14 +13664,14 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /people (the `ListPeople` operationId).
 	ListPeopleWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListPeopleResponse, error)
 
-	// AskAuthorWithBodyWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// AskAuthorWithBodyWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /pr-asks (the `AskAuthor` operationId).
 	AskAuthorWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AskAuthorResponse, error)
 
-	// AskAuthorWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// AskAuthorWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -18546,6 +18750,102 @@ func (r RequestWaiverResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RequestWaiverResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PostGithubReviewResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubReviewPosted
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PostGithubReviewResponse) GetJSON200() *GithubReviewPosted {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PostGithubReviewResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PostGithubReviewResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PostGithubReviewResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PostGithubReviewResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PostGithubReviewResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PlanGithubReviewResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GithubReviewPlan
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PlanGithubReviewResponse) GetJSON200() *GithubReviewPlan {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PlanGithubReviewResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PlanGithubReviewResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PlanGithubReviewResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PlanGithubReviewResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PlanGithubReviewResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -23667,6 +23967,58 @@ func (c *ClientWithResponses) RequestWaiverWithResponse(ctx context.Context, doc
 	return ParseRequestWaiverResponse(rsp)
 }
 
+// PostGithubReviewWithBodyWithResponse Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+func (c *ClientWithResponses) PostGithubReviewWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostGithubReviewResponse, error) {
+	rsp, err := c.PostGithubReviewWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostGithubReviewResponse(rsp)
+}
+
+// PostGithubReviewWithResponse Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github-reviews (the `PostGithubReview` operationId).
+func (c *ClientWithResponses) PostGithubReviewWithResponse(ctx context.Context, body PostGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*PostGithubReviewResponse, error) {
+	rsp, err := c.PostGithubReview(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostGithubReviewResponse(rsp)
+}
+
+// PlanGithubReviewWithBodyWithResponse Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+func (c *ClientWithResponses) PlanGithubReviewWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PlanGithubReviewResponse, error) {
+	rsp, err := c.PlanGithubReviewWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePlanGithubReviewResponse(rsp)
+}
+
+// PlanGithubReviewWithResponse Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /github-reviews/plan (the `PlanGithubReview` operationId).
+func (c *ClientWithResponses) PlanGithubReviewWithResponse(ctx context.Context, body PlanGithubReviewJSONRequestBody, reqEditors ...RequestEditorFn) (*PlanGithubReviewResponse, error) {
+	rsp, err := c.PlanGithubReview(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePlanGithubReviewResponse(rsp)
+}
+
 // ResolveGithubUrlWithBodyWithResponse Read a source URL and say what it names, before the source is made (REQ-128).
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -23957,7 +24309,7 @@ func (c *ClientWithResponses) GetMetaWithResponse(ctx context.Context, reqEditor
 	return ParseGetMetaResponse(rsp)
 }
 
-// ListPendingWithResponse List the comments of the local user's pending review on a pull request. Local mode only.
+// ListPendingWithResponse List the comments of your pending review on a pull request.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -23970,7 +24322,7 @@ func (c *ClientWithResponses) ListPendingWithResponse(ctx context.Context, param
 	return ParseListPendingResponse(rsp)
 }
 
-// DeletePendingWithBodyWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+// DeletePendingWithBodyWithResponse Delete comments of your pending review on a pull request.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23983,7 +24335,7 @@ func (c *ClientWithResponses) DeletePendingWithBodyWithResponse(ctx context.Cont
 	return ParseDeletePendingResponse(rsp)
 }
 
-// DeletePendingWithResponse Delete comments of the local user's pending review on a pull request. Local mode only.
+// DeletePendingWithResponse Delete comments of your pending review on a pull request.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23996,7 +24348,7 @@ func (c *ClientWithResponses) DeletePendingWithResponse(ctx context.Context, bod
 	return ParseDeletePendingResponse(rsp)
 }
 
-// DiscardPendingWithBodyWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+// DiscardPendingWithBodyWithResponse Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -24009,7 +24361,7 @@ func (c *ClientWithResponses) DiscardPendingWithBodyWithResponse(ctx context.Con
 	return ParseDiscardPendingResponse(rsp)
 }
 
-// DiscardPendingWithResponse Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+// DiscardPendingWithResponse Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -24061,7 +24413,7 @@ func (c *ClientWithResponses) ListPeopleWithResponse(ctx context.Context, reqEdi
 	return ParseListPeopleResponse(rsp)
 }
 
-// AskAuthorWithBodyWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+// AskAuthorWithBodyWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -24074,7 +24426,7 @@ func (c *ClientWithResponses) AskAuthorWithBodyWithResponse(ctx context.Context,
 	return ParseAskAuthorResponse(rsp)
 }
 
-// AskAuthorWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+// AskAuthorWithResponse Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -28137,6 +28489,72 @@ func ParseRequestWaiverResponse(rsp *http.Response) (*RequestWaiverResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Waiver
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePostGithubReviewResponse parses an HTTP response from a PostGithubReviewWithResponse call
+func ParsePostGithubReviewResponse(rsp *http.Response) (*PostGithubReviewResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PostGithubReviewResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubReviewPosted
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePlanGithubReviewResponse parses an HTTP response from a PlanGithubReviewWithResponse call
+func ParsePlanGithubReviewResponse(rsp *http.Response) (*PlanGithubReviewResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PlanGithubReviewResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GithubReviewPlan
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
