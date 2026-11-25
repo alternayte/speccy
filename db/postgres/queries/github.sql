@@ -57,7 +57,7 @@ ON CONFLICT DO NOTHING;
 
 -- name: DeleteDismissedDoc :exec
 DELETE FROM dismissed_doc WHERE workspace_id = sqlc.arg(workspace_id)
-  AND coalesce(source_id, '00000000-0000-0000-0000-000000000000') = coalesce(sqlc.narg(source_id), '00000000-0000-0000-0000-000000000000')
+  AND source_id IS NOT DISTINCT FROM sqlc.narg(source_id)::uuid
   AND path = sqlc.arg(path);
 
 -- name: ListAdoptedLinks :many
@@ -115,3 +115,25 @@ DELETE FROM github_user_token WHERE workspace_id = sqlc.arg(workspace_id);
 
 -- name: ListGithubSourcesOfRepo :many
 SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND lower(repo) = lower(sqlc.arg(repo)) ORDER BY branch, path;
+
+-- name: SetGithubSourcePull :exec
+UPDATE github_source SET pull = sqlc.arg(pull), pull_title = sqlc.arg(pull_title), pull_author = sqlc.arg(pull_author),
+    pull_author_id = sqlc.arg(pull_author_id), pull_state = sqlc.arg(pull_state), base_branch = sqlc.arg(base_branch),
+    branch = sqlc.arg(branch), docs = sqlc.arg(docs)
+WHERE id = sqlc.arg(id);
+
+-- name: ListGithubSourcesOfPull :many
+SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND lower(repo) = lower(sqlc.arg(repo)) AND pull = sqlc.arg(pull)
+ORDER BY created_at;
+
+-- name: ListGithubSourcesOfAuthor :many
+SELECT * FROM github_source WHERE workspace_id = sqlc.arg(workspace_id) AND pull_author_id = sqlc.arg(pull_author_id) AND pull > 0;
+
+-- name: UpsertGithubReply :exec
+INSERT INTO github_reply (source_id, comment_id, spec_doc_id, finding_key, author, body, url, created_at)
+VALUES (sqlc.arg(source_id), sqlc.arg(comment_id), sqlc.arg(spec_doc_id), sqlc.arg(finding_key), sqlc.arg(author), sqlc.arg(body),
+        sqlc.arg(url), sqlc.arg(created_at))
+ON CONFLICT (source_id, comment_id) DO UPDATE SET body = excluded.body, finding_key = excluded.finding_key, spec_doc_id = excluded.spec_doc_id;
+
+-- name: ListGithubRepliesOfDoc :many
+SELECT * FROM github_reply WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY created_at, comment_id;

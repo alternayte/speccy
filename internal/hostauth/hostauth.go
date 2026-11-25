@@ -78,10 +78,13 @@ type Auth struct {
 	// while the workspace has an App.
 	Providers []string
 	gh        atomic.Pointer[GitHubApp]
-	limiter   *storelimit.Limiter
-	db        *store.DB
-	ws        uuid.UUID
-	baseURL   string
+	// OnGitHub runs after a person signs in with GitHub or links a GitHub account, with the
+	// GitHub account ID (docs/specs/pr-source-and-github-review.md).
+	OnGitHub func(ctx context.Context, userID, githubID string)
+	limiter  *storelimit.Limiter
+	db       *store.DB
+	ws       uuid.UUID
+	baseURL  string
 }
 
 // New builds the auth-all instance.
@@ -99,6 +102,7 @@ func New(cfg Config) (*Auth, error) {
 	if err != nil {
 		return nil, fmt.Errorf("set up the rate limits: %w", err)
 	}
+	hooks := &githubHooks{}
 	opts := []authall.Option{
 		authall.WithStore(st),
 		authall.WithRateLimiter(limiter),
@@ -107,7 +111,7 @@ func New(cfg Config) (*Auth, error) {
 		authall.WithBaseURL(cfg.BaseURL),
 		authall.WithEmailPassword(),
 		authall.WithPasswordPolicy(authall.PasswordPolicy{MinLength: authinvite.MinPassword, MaxLength: 4096}),
-		authall.WithPlugins(r, adm, apikeys.New(apikeys.Prefix(APIKeyPrefix), apikeys.AllowNoExpiry()), inv, githubHooks{}),
+		authall.WithPlugins(r, adm, apikeys.New(apikeys.Prefix(APIKeyPrefix), apikeys.AllowNoExpiry()), inv, hooks),
 		// A failed OAuth sign-in or link lands on the sign-in page with the error code.
 		authall.WithBrowserErrorRedirect(cfg.BaseURL + "/sign-in"),
 		authall.WithSchemaCheck(authall.SchemaCheckCatalog),
@@ -128,6 +132,7 @@ func New(cfg Config) (*Auth, error) {
 		opts = append(opts, authall.WithProvider(providers...))
 	}
 	a := &Auth{Admin: adm, Invites: inv, limiter: limiter, db: cfg.DB, ws: cfg.Workspace, baseURL: cfg.BaseURL}
+	hooks.auth = a
 	opts = append(opts, authall.WithProviderSource(a.providerSource))
 	all, err := authall.New(opts...)
 	if err != nil {

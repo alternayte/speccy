@@ -2867,12 +2867,20 @@ paths:
               properties:
                 url:
                   type: string
-                  description: A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
+                  description: A source URL - owner/name, a repo URL, or the URL of a folder, a doc or a pull request in it.
                 profile:
                   type: string
                   description: >
                     For the URL of one doc that names no type and that no mapping covers: the
                     profile, which Speccy stores as the doc's adopted type.
+                docs:
+                  type: array
+                  description: >
+                    For a pull request URL: one choice for each markdown file the pull request
+                    changes. A profile makes the file a spec doc of the source. An empty profile
+                    marks the file not a spec. A file with a type of its own takes that type.
+                  items:
+                    $ref: "#/components/schemas/PullDocChoice"
       responses:
         "200":
           description: >
@@ -3323,7 +3331,8 @@ paths:
       operationId: askAuthor
       summary: >
         Turn a reviewer's concern into one question for the author, on the section of the pull
-        request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+        request's spec docs that it is about, in the reviewer's pending review. In hosted mode it
+        posts with your GitHub user token.
       requestBody:
         required: true
         content:
@@ -3340,10 +3349,50 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /github-reviews/plan:
+    post:
+      operationId: planGithubReview
+      summary: Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GithubReviewRequest"
+      responses:
+        "200":
+          description: The checklist.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubReviewPlan"
+        default:
+          $ref: "#/components/responses/Problem"
+
+  /github-reviews:
+    post:
+      operationId: postGithubReview
+      summary: Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GithubReviewRequest"
+      responses:
+        "200":
+          description: The pending review.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubReviewPosted"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /pending-reviews:
     get:
       operationId: listPending
-      summary: List the comments of the local user's pending review on a pull request. Local mode only.
+      summary: List the comments of your pending review on a pull request.
       parameters:
         - name: url
           in: query
@@ -3364,7 +3413,7 @@ paths:
   /pending-reviews/delete:
     post:
       operationId: deletePending
-      summary: Delete comments of the local user's pending review on a pull request. Local mode only.
+      summary: Delete comments of your pending review on a pull request.
       requestBody:
         required: true
         content:
@@ -3407,8 +3456,8 @@ paths:
     post:
       operationId: discardPending
       summary: >
-        Discard the local user's pending reviews: on the named pull requests, on each open pull
-        request of a repo, or on each pull request of a batch. Local mode only.
+        Discard your pending reviews: on the named pull requests, on each open pull request of a
+        repo, or on each pull request of a batch. Batches run in local mode only.
       requestBody:
         required: true
         content:
@@ -5251,6 +5300,11 @@ components:
       description: One failed check. The rail and the MCP tool get_findings read this one shape.
       required: [id, run_id, check_slug, level, stage, relaxed, message, anchor, waived, line, end_line, fix_kind]
       properties:
+        github_replies:
+          type: array
+          description: The replies on GitHub to the pull request comment of this finding, oldest first.
+          items:
+            $ref: "#/components/schemas/GithubReply"
         new:
           type: boolean
           description: The last full review found this, and the full review before it did not. See Trend.
@@ -5410,6 +5464,137 @@ components:
           $ref: "#/components/schemas/Finding"
         thread:
           $ref: "#/components/schemas/Thread"
+        github_replies:
+          type: array
+          description: The replies on GitHub to the pull request comment of this item, oldest first.
+          items:
+            $ref: "#/components/schemas/GithubReply"
+
+    GithubReply:
+      type: object
+      required: [author, body, url, created_at]
+      properties:
+        author:
+          type: string
+          description: The GitHub login of the person who replied.
+        body:
+          type: string
+        url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    GithubReviewRequest:
+      type: object
+      required: [url, preset]
+      properties:
+        url:
+          type: string
+          description: The URL of the pull request of a pull request source.
+        preset:
+          type: string
+          enum: [questions, must, all]
+          description: >
+            questions: the questions screen items. must: every open MUST finding. all: every
+            open finding.
+        exclude:
+          type: array
+          description: The item keys to leave out.
+          items:
+            type: string
+
+    GithubReviewPlan:
+      type: object
+      description: What a GitHub review would hold. It posts nothing.
+      required: [repo, pull, head_sha, docs, already, can_post]
+      properties:
+        repo:
+          type: string
+        pull:
+          type: integer
+        head_sha:
+          type: string
+        docs:
+          type: array
+          items:
+            $ref: "#/components/schemas/GithubReviewDoc"
+        already:
+          type: integer
+          description: Items left out because an open comment on the pull request or your pending review holds them.
+        can_post:
+          type: boolean
+        reason:
+          type: string
+          description: Why you cannot post, when can_post is false.
+        link_required:
+          type: boolean
+          description: You cannot post until you link your GitHub account.
+
+    GithubReviewDoc:
+      type: object
+      required: [doc_id, path, title, profile, items]
+      properties:
+        doc_id:
+          type: string
+          format: uuid
+        path:
+          type: string
+        title:
+          type: string
+        profile:
+          type: string
+        verdict:
+          type: string
+          enum: [build_ready, not_build_ready, stale]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/GithubReviewItem"
+
+    GithubReviewItem:
+      type: object
+      required: [key, kind, path, line, inline, body, existing_comments]
+      properties:
+        key:
+          type: string
+          description: The finding key that the comment's marker holds.
+        kind:
+          type: string
+          enum: [material_gap, blocking_thread, decision, finding]
+        level:
+          type: string
+          enum: [MUST, SHOULD, INFO]
+        finding_id:
+          type: string
+          format: uuid
+        path:
+          type: string
+          description: The repo path of the file.
+        line:
+          type: integer
+          description: The line, from 1, or 0 when the item names no line.
+        inline:
+          type: boolean
+          description: The line is in the diff, so the comment goes on it. Otherwise it goes into the review body.
+        body:
+          type: string
+          description: The text of the comment.
+        existing_comments:
+          type: integer
+          description: Open comments on this line that Speccy did not write.
+
+    GithubReviewPosted:
+      type: object
+      required: [review_url, added, removed]
+      properties:
+        review_url:
+          type: string
+        added:
+          type: integer
+        removed:
+          type: integer
+          description: Speccy's comments taken out of your pending review because their finding is gone.
 
     RunReport:
       type: object
@@ -6041,6 +6226,17 @@ components:
           description: GitHub changed after the draft started.
         pr_url:
           type: string
+        pull:
+          $ref: "#/components/schemas/PullInfo"
+        read_only:
+          type: string
+          description: >
+            Why nobody can edit or review the doc any more: its pull request closed, or it merged
+            and another bundle holds the doc on the base branch. Absent when the doc is live.
+        moved_to:
+          type: string
+          format: uuid
+          description: The spec doc that holds this doc on the base branch, after the merge.
 
     GithubConnection:
       type: object
@@ -6133,6 +6329,85 @@ components:
         adopted:
           type: integer
           description: How many docs of this source have a type accepted in Speccy (REQ-133).
+        pull:
+          $ref: "#/components/schemas/PullInfo"
+        docs:
+          type: array
+          description: For a pull request source, its spec docs with their profile and verdict.
+          items:
+            $ref: "#/components/schemas/SourceDoc"
+
+    PullInfo:
+      type: object
+      description: The pull request a pull request source follows (docs/specs/pr-source-and-github-review.md).
+      required: [number, title, url, author, state, head_branch, base_branch]
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+        author:
+          type: string
+          description: The GitHub login of the person who opened it.
+        state:
+          type: string
+          enum: [open, merged, closed]
+        head_branch:
+          type: string
+        base_branch:
+          type: string
+        draft:
+          type: boolean
+
+    SourceDoc:
+      type: object
+      required: [path, doc_id, bundle_id, profile]
+      properties:
+        path:
+          type: string
+          description: The doc's path in the repo.
+        doc_id:
+          type: string
+          format: uuid
+        bundle_id:
+          type: string
+          format: uuid
+        profile:
+          type: string
+        verdict:
+          type: string
+          enum: [build_ready, not_build_ready, stale]
+          description: Absent before the first review.
+
+    PullDocChoice:
+      type: object
+      required: [path, profile]
+      properties:
+        path:
+          type: string
+        profile:
+          type: string
+          description: The doc type. Empty means not a spec.
+        link:
+          $ref: "#/components/schemas/ConfirmedLink"
+
+    ResolvedDoc:
+      type: object
+      description: One markdown file that a pull request changes.
+      required: [path]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        profile:
+          type: string
+          description: The type the doc names or a mapping gives, or the guess.
+        guessed:
+          type: boolean
+          description: The profile is a guess, so the person confirms it.
 
     AddedSource:
       type: object
@@ -6263,6 +6538,13 @@ components:
           description: The profile keys to choose from.
           items:
             type: string
+        pull:
+          $ref: "#/components/schemas/PullInfo"
+        docs:
+          type: array
+          description: For a pull request URL, the markdown files it changes, at its head.
+          items:
+            $ref: "#/components/schemas/ResolvedDoc"
 
     FindingList:
       type: object

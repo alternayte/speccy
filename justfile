@@ -75,6 +75,7 @@ lint: setup
     golangci-lint run ./...
     cd web && {{pnpm}} run lint && {{pnpm}} run format:check && {{pnpm}} run typecheck
     go run ./tools/buildtool conventions
+    sh checks/agents-md.sh
 
 # Build the web app into web/dist.
 build-web: setup

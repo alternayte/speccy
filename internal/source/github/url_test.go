@@ -31,7 +31,12 @@ func TestParseURL(t *testing.T) {
 			t.Errorf("%s gave %+v with API %s", c.in, got, got.APIURL())
 		}
 	}
-	for _, bad := range []string{"", "acme", "https://github.com/acme", "https://example.com", "https://github.com/acme/specs/pull/7"} {
+	for in, n := range map[string]int{"https://github.com/acme/specs/pull/7": 7, "github.com/acme/specs/pull/7/files": 7} {
+		if got, err := ParseURL(in); err != nil || got.Pull != n || got.Repo != "acme/specs" {
+			t.Errorf("%s gave %+v, %v", in, got, err)
+		}
+	}
+	for _, bad := range []string{"", "acme", "https://github.com/acme", "https://example.com", "https://github.com/acme/specs/pull/x"} {
 		if ref, err := ParseURL(bad); err == nil {
 			t.Errorf("%q parsed as %+v", bad, ref)
 		}

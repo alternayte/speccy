@@ -7,6 +7,8 @@ import (
 	"errors"
 	"path/filepath"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
@@ -45,9 +47,15 @@ func toAPI(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (api.SpecDoc, e
 		Verdict: verdict, RunError: runErr, Status: ptr(api.ReviewStatus(status)),
 	}
 	if gh, ok := GitHubStateOf(ctx, q, b); ok {
-		out.Github = &api.BundleGithub{Repo: gh.Repo, Branch: gh.Branch, Path: gh.Path, Draft: gh.Draft, Ahead: gh.Ahead}
+		out.Github = &api.BundleGithub{Repo: gh.Repo, Branch: gh.Branch, Path: gh.Path, Draft: gh.Draft, Ahead: gh.Ahead, Pull: gh.Pull}
 		if gh.PR != "" {
 			out.Github.PrUrl = &gh.PR
+		}
+		if gh.ReadOnly != "" {
+			out.Github.ReadOnly = &gh.ReadOnly
+		}
+		if gh.MovedTo != uuid.Nil {
+			out.Github.MovedTo = &gh.MovedTo
 		}
 	}
 	return out, nil

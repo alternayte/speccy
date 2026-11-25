@@ -391,3 +391,27 @@ func ConfigLine(cfg api.UrlReviewConfig, commit string) string {
 		return fmt.Sprintf("The repo has no .speccy.yaml at %s, and the local folder has none, so the review used the defaults.", short(commit))
 	}
 }
+
+// Prepared is a pending review whose items a person picked in Speccy, for a pull request source
+// (docs/specs/pr-source-and-github-review.md). Each comment carries its key marker. current holds
+// the key of every open finding and blocking thread of the docs in dirs, so a Speccy comment in
+// one of those folders whose key is not in it is about something that is gone.
+func Prepared(repo string, pull int, sha, body, file string, comments []github.ReviewComment, keys []string,
+	current map[string]bool, dirs []string) PendingReview {
+	return PendingReview{Repo: repo, Pull: pull, CommitID: sha, Body: bodyStart + "\n" + body + bodyEnd, File: file,
+		Comments: comments, Keys: keys, current: current, reviewed: dirs}
+}
+
+// ItemBody is the text of the comment of one finding, as the Action writes it, with the two
+// readings of a material gap. The last line names the level and links to the check catalog.
+func ItemBody(f api.Finding) string {
+	b := commentBody(f, "", false, true)
+	if m := f.Material; m != nil && m.Options != nil && len(*m.Options) == 2 {
+		o := *m.Options
+		b += fmt.Sprintf("\n\nTwo builders could read this two ways:\n- %s\n- %s", o[0], o[1])
+	}
+	return b + "\n\n" + checkLine(f.Level, f.CheckSlug)
+}
+
+// MarkedKey returns the finding key in the marker of a comment body, or "".
+func MarkedKey(body string) string { return keyIn(body) }

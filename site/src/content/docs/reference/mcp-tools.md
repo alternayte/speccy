@@ -7,6 +7,17 @@ description: Each tool of the Speccy MCP server, and its input.
 
 This page lists each tool of Speccy's MCP server. `speccy mcp` runs the server over stdio as the local user. In hosted mode the same tools are at `/mcp`, with a personal API token. [Hand a spec to a coding agent](/how-to/hand-a-spec-to-a-coding-agent/) shows the setup.
 
+## `add_source`
+
+Make a GitHub source from a URL: a repo, a branch folder, a doc, or a pull request. For a pull request, Speccy follows its head and makes one bundle for each spec doc it changes, with the person who opened it as the author. Call it with dry_run first: the answer lists the markdown files and the profile Speccy reads or guesses for each. Show that to the person, then call again with docs: one profile for each file they keep, and an empty profile for a file that is not a spec. Admins only.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `docs` | null or array |  | for a pull request: the profile of each markdown file to keep; an empty profile marks a file not a spec. Leave it out to take every file Speccy has a profile for |
+| `dry_run` | boolean |  | say what the URL names and make nothing |
+| `profile` | string |  | for the URL of one doc that names no type: its profile |
+| `url` | string | yes | the GitHub URL: a repo, a branch folder, a doc, or a pull request |
+
 ## `approve_waiver`
 
 Approve a requested waiver under the profile's waiver policy. Speccy refuses an approval that the policy does not allow to the person. The final approval writes the waiver to the doc's sidecar, and the finding no longer counts in the verdict. Approve only when the person tells you to approve this waiver.
@@ -17,7 +28,7 @@ Approve a requested waiver under the profile's waiver policy. Speccy refuses an 
 
 ## `ask_author`
 
-Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. Local mode only.
+Turn the person's concern about a spec pull request into one precise question for the author, on the section it is about, in the person's pending review. status posted: the question is in the pending review. status answered: the doc already answers it; the answer gives the quote that does, and nothing is posted unless you call again with force. status unclear: the concern fits more than one section; ask the person which one, and call again with section. In hosted mode it posts with the person's GitHub user token.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -170,6 +181,17 @@ Post a message to a thread, or open a thread on a bundle when no thread_id is gi
 | `bundle` | string |  | with no thread_id: the bundle to open a new thread on, by slug or ID |
 | `thread_id` | string |  | the thread to post to |
 | `title` | string |  | with no thread_id: the title of the new thread |
+
+## `prepare_github_review`
+
+Prepare a GitHub review of a pull request source, as the person: a pending review on the pull request that only they see until they submit it on GitHub. preset questions takes the items of the questions screen, must every open MUST finding, all every open finding. Items that an open comment on the pull request or the person's pending review already holds are left out. Call it with dry_run first, and show the person the checklist: each item's doc, line and comment text, and how many comments of other people are on its line. Then call again without dry_run, with exclude for the item keys the person does not want. Post only when the person tells you to.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `dry_run` | boolean |  | return the checklist and post nothing |
+| `exclude` | null or array |  | the item keys to leave out |
+| `preset` | string | yes | questions, must or all |
+| `url` | string | yes | the URL of the pull request |
 
 ## `propose_breakdown`
 

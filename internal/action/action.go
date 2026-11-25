@@ -6,8 +6,6 @@ package action
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"path"
 	"regexp"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/alternayte/speccy/internal/features/profile"
 	"github.com/alternayte/speccy/internal/features/review"
+	"github.com/alternayte/speccy/internal/findingkey"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
@@ -137,7 +136,7 @@ type Result struct {
 
 const (
 	summaryMarker = "<!-- speccy:summary -->"
-	keyMarker     = "<!-- speccy:key:"
+	keyMarker     = findingkey.Marker
 )
 
 // candidate is an inline comment before it is posted.
@@ -179,61 +178,15 @@ func ChangedLines(patch string) map[int]bool {
 
 // key identifies a finding across pushes: the same finding on a moved line keeps its key.
 func key(slug, check, message, quote string) string {
-	h := sha256.Sum256([]byte(slug + "\x00" + check + "\x00" + message + "\x00" + strings.Join(strings.Fields(quote), " ")))
-	return hex.EncodeToString(h[:8])
+	return findingkey.Key(slug, check, message, quote)
 }
 
-// findingKeys returns the key of each finding of the bundle, in the order of b.Findings. Two
-// findings with the same check, message and quote, such as two lower-case "must", would share
-// a key: one comment would stand for both, and it would stay open after one of them is fixed.
-// Each such finding takes the text of its line into its key, and the place among findings on
-// equal lines. A finding with no twin keeps the plain key, so its open comment stays its own.
-func findingKeys(b Bundle) []string {
-	keys := make([]string, len(b.Findings))
-	twins := map[string][]int{}
-	for i, f := range b.Findings {
-		keys[i] = key(b.Slug, f.CheckSlug, f.Message, f.Anchor.Quote)
-		twins[keys[i]] = append(twins[keys[i]], i)
-	}
-	for _, group := range twins {
-		if len(group) < 2 {
-			continue
-		}
-		sort.SliceStable(group, func(x, y int) bool {
-			a, c := b.Findings[group[x]].Anchor, b.Findings[group[y]].Anchor
-			return a.File < c.File || (a.File == c.File && a.Start < c.Start)
-		})
-		seen := map[string]int{}
-		for _, i := range group {
-			f := b.Findings[i]
-			src := b.Files[f.Anchor.File]
-			text, _ := lineText(src, lineOf(src, f.Anchor.Start))
-			k := key(b.Slug, f.CheckSlug, f.Message, f.Anchor.Quote+"\x00"+text)
-			if n := seen[k]; n > 0 {
-				keys[i] = key(b.Slug, f.CheckSlug, f.Message, fmt.Sprintf("%s\x00%s\x00%d", f.Anchor.Quote, text, n))
-			} else {
-				keys[i] = k
-			}
-			seen[k]++
-		}
-	}
-	return keys
-}
+// findingKeys returns the key of each finding of the bundle, in the order of b.Findings.
+func findingKeys(b Bundle) []string { return findingkey.Keys(b.Slug, b.Findings, b.Files) }
 
-func lineOf(src []byte, offset int) int {
-	if offset > len(src) {
-		offset = len(src)
-	}
-	return bytes.Count(src[:offset], []byte("\n")) + 1
-}
+func lineOf(src []byte, offset int) int { return findingkey.LineOf(src, offset) }
 
-func lineText(src []byte, line int) (string, bool) {
-	lines := strings.Split(string(src), "\n")
-	if line < 1 || line > len(lines) {
-		return "", false
-	}
-	return lines[line-1], true
-}
+func lineText(src []byte, line int) (string, bool) { return findingkey.LineText(src, line) }
 
 // Deterministic fixes (REQ-136). Each returns the new text of the line, and false when the fix
 // is not certain. No model writes a suggestion block.
@@ -422,12 +375,17 @@ func commentBody(f api.Finding, fix string, fixOK, plain bool) string {
 	if plain {
 		return b.String()
 	}
-	check := "`" + f.CheckSlug + "`"
-	if profile.InCatalog(f.CheckSlug) {
-		check = "[`" + f.CheckSlug + "`](" + profile.CatalogURL(f.CheckSlug) + ")"
+	return b.String() + "\n\n" + checkLine(f.Level, f.CheckSlug)
+}
+
+// checkLine is the last small line of a comment: the level, and the check with a link to its
+// entry in the check catalog.
+func checkLine(level api.FindingLevel, slug string) string {
+	check := "`" + slug + "`"
+	if profile.InCatalog(slug) {
+		check = "[`" + slug + "`](" + profile.CatalogURL(slug) + ")"
 	}
-	fmt.Fprintf(&b, "\n\n<sub>%s · %s</sub>", f.Level, check)
-	return b.String()
+	return fmt.Sprintf("<sub>%s · %s</sub>", level, check)
 }
 
 // keyIn returns the finding key in a comment body.

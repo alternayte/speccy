@@ -32,6 +32,7 @@ import {
   suggestFixMutation,
   suggestFixesMutation,
 } from "@/lib/api/@tanstack/react-query.gen";
+import { GithubReplies } from "./github-replies";
 import { TextDiff } from "./text-diff";
 import { checkDocsURL } from "@/lib/docs";
 import { problemMessage } from "@/lib/problem";
@@ -314,6 +315,17 @@ export function FindingsPanel({
             ) : null}
           </div>
         ) : null}
+        <GithubReplies
+          replies={f.github_replies}
+          finding={canEdit && !f.waived && !f.trace_id && f.level !== "INFO" ? f : undefined}
+          docId={docId}
+          onShip={
+            canEdit && !f.waived && !f.trace_id && f.level !== "INFO"
+              ? (text) => setWaiving({ finding: f, reason: text })
+              : undefined
+          }
+          onDone={(text) => setNotice({ slug: f.check_slug, text })}
+        />
         {f.trace_id && answering === f.id ? (
           <GapAnswer
             className="mx-4 mb-3"

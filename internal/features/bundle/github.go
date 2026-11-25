@@ -20,6 +20,7 @@ import (
 	"github.com/alternayte/speccy/db/dbtype"
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/features/version"
+	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
 	"github.com/alternayte/speccy/internal/source/github"
@@ -46,6 +47,10 @@ type githubRef struct {
 	Ahead    bool   `json:"ahead,omitempty"`
 	PR       string `json:"pr_url,omitempty"`
 	PRNumber int    `json:"pr_number,omitempty"`
+	// ReadOnly is why nobody can edit or review the doc of a pull request source any more, and
+	// MovedTo the spec doc that holds it on the base branch after a merge.
+	ReadOnly string    `json:"read_only,omitempty"`
+	MovedTo  uuid.UUID `json:"moved_to,omitempty"`
 }
 
 // GitHubState is what the app shows of a GitHub bundle.
@@ -53,6 +58,10 @@ type GitHubState struct {
 	Repo, Branch, Path string
 	Draft, Ahead       bool
 	PR                 string
+	// Pull is the pull request a pull request source follows, or nil.
+	Pull     *api.PullInfo
+	ReadOnly string
+	MovedTo  uuid.UUID
 }
 
 // GitHubStateOf returns the GitHub state of b, or false for another source.
@@ -67,7 +76,7 @@ func GitHubStateOf(ctx context.Context, q store.Querier, b pgdb.SpecDoc) (GitHub
 		return GitHubState{}, false
 	}
 	return GitHubState{Repo: src.Repo, Branch: src.Branch, Path: src.Path, Draft: b.CurrentVersionID.UUID != ref.Published,
-		Ahead: ref.Ahead, PR: ref.PR}, true
+		Ahead: ref.Ahead, PR: ref.PR, Pull: pullInfo(src), ReadOnly: ref.ReadOnly, MovedTo: ref.MovedTo}, true
 }
 
 // blobCache keeps GitHub blobs by their SHA, so a sync fetches only new content.
@@ -118,7 +127,8 @@ func (s *Service) SyncRepo(ctx context.Context, repo, branch string) {
 		return
 	}
 	for _, src := range srcs {
-		if src.Branch != branch {
+		// A closed pull request source syncs no more; its webhook reopens it.
+		if src.Branch != branch || src.PullState == PullClosed {
 			continue
 		}
 		if err := s.SyncSource(ctx, src.ID, false); err != nil && ctx.Err() == nil {
@@ -134,6 +144,9 @@ func (s *Service) SyncGitHub(ctx context.Context) error {
 		return err
 	}
 	for _, src := range srcs {
+		if src.PullState == PullClosed {
+			continue // a closed pull request: the webhook or a person syncs it again
+		}
 		if err := s.SyncSource(ctx, src.ID, false); err != nil && ctx.Err() == nil {
 			slog.WarnContext(ctx, "sync of a GitHub source failed", "repo", src.Repo, "branch", src.Branch, "err", err)
 		}
@@ -177,8 +190,25 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err != nil {
 		return fail(err)
 	}
-	commit, tree, err := c.Head(ctx, src.Repo, src.Branch)
-	if err != nil {
+	var commit, tree string
+	var changed []string
+	if isPull(src) {
+		head, err := s.readPull(ctx, c, &src)
+		if err != nil {
+			return fail(err)
+		}
+		if head.stop {
+			return s.afterChange(ctx)
+		}
+		commit, tree, changed = head.commit, head.tree, head.changed
+		// A reply needs no new commit.
+		if err := s.syncReplies(ctx, c, src); err != nil && ctx.Err() == nil {
+			slog.WarnContext(ctx, "the replies of a pull request were not read", "repo", src.Repo, "pull", src.Pull, "err", err)
+		}
+		if err := s.pullAuthors(ctx, src); err != nil {
+			return fail(err)
+		}
+	} else if commit, tree, err = c.Head(ctx, src.Repo, src.Branch); err != nil {
 		return fail(err)
 	}
 	if commit == src.HeadCommit && src.Error == "" && !force {
@@ -253,8 +283,19 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err != nil {
 		return fail(err)
 	}
-	// The files the scan passed over, so the app lists them with no second read of the tree.
-	skippedJSON, _ := json.Marshal(nonNilPaths(SkippedUnder(src, scan)))
+	// The files the scan passed over, so the app lists them with no second read of the tree. For
+	// a pull request, the markdown files it changes that no one picked.
+	skipped := SkippedUnder(src, scan)
+	if isPull(src) {
+		skipped = nil
+		docs := pullDocs(src)
+		for _, p := range changed {
+			if !docs[p] {
+				skipped = append(skipped, p)
+			}
+		}
+	}
+	skippedJSON, _ := json.Marshal(nonNilPaths(skipped))
 	if err := q.SetGithubSourceSkipped(ctx, pgdb.SetGithubSourceSkippedParams{ID: src.ID, Skipped: dbtype.JSON(skippedJSON)}); err != nil {
 		return err
 	}
@@ -264,7 +305,7 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	}
 	// A repo is other people's tree: Speccy writes no type into it. It says which files need
 	// one, instead of finding nothing in silence.
-	if err := noBundleHere(src, scan); err != nil {
+	if err := noBundleHere(src, scan); err != nil && !isPull(src) {
 		return fail(err)
 	}
 	// A doc another source already holds makes no bundle here. Say so: a person who accepted a
@@ -275,6 +316,12 @@ func (s *Service) SyncSource(ctx context.Context, id uuid.UUID, force bool) erro
 	if err := q.SetGithubSourceSynced(ctx, pgdb.SetGithubSourceSyncedParams{ID: src.ID, HeadCommit: commit,
 		SyncedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}}); err != nil {
 		return err
+	}
+	if isPull(src) {
+		// A bundle the scan made just now gets its author.
+		if err := s.pullAuthors(ctx, src); err != nil {
+			return err
+		}
 	}
 	return s.afterChange(ctx)
 }
@@ -289,11 +336,41 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 	now := time.Now().UTC()
 	message := "From GitHub " + short(commit)
 	found := map[string]bool{}
+	// A doc that another source holds on the same branch makes no second bundle, such as the
+	// doc of a merged pull request source.
+	held, err := s.heldElsewhere(ctx, s.DB.Queries(), src)
+	if err != nil {
+		return nil, err
+	}
+	folderTitle := s.folderTitle
+	if isPull(src) {
+		folderTitle = func(slug string) string { return fmt.Sprintf("%s · PR #%d", s.folderTitle(slug), src.Pull) }
+	}
 	for _, fb := range scan.Bundles {
 		if !bundleOfSource(src, fb) {
 			continue
 		}
+		repoPath := path.Join(fb.Dir, fb.Main.Path)
+		if isPull(src) {
+			fb.Slug, fb.Folder = pullSlug(fb.Slug, src.Pull), pullSlug(fb.Folder, src.Pull)
+		}
 		found[fb.Slug] = true
+		if h, ok := held[repoPath]; ok {
+			// A merged pull request source holds the doc with its history: a branch source of
+			// the same branch makes no second bundle, and says nothing.
+			if h.pull && !isPull(src) {
+				continue
+			}
+			if b, err := s.DB.Queries().GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug}); err == nil {
+				var ref githubRef
+				_ = json.Unmarshal(b.SourceRef, &ref)
+				if ref.Source == src.ID && ref.ReadOnly != "" {
+					continue // a read-only doc of this source keeps its last version
+				}
+			}
+			taken = append(taken, repoPath)
+			continue
+		}
 		// The sidecar of the main doc travels with the bundle, so a waiver merged in the repo
 		// reaches the app, and a publish writes it back to the root (DEC-009).
 		if raw, err := fs.ReadFile(tfs, source.SidecarPath(path.Join(fb.Dir, fb.Main.Path))); err == nil {
@@ -310,15 +387,18 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 			if b, err := q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: s.Workspace, Slug: fb.Slug}); err == nil {
 				_ = json.Unmarshal(b.SourceRef, &ref)
 				if b.SourceKind != KindGitHub {
-					taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
+					taken = append(taken, repoPath)
 					return nil
+				}
+				if ref.Source == src.ID && ref.ReadOnly != "" {
+					return nil // read-only: the doc keeps its last version
 				}
 				if ref.Source != src.ID {
 					// A spec doc of a source that is gone comes back with its history when a
 					// source reads its folder again (#67). A live source keeps its own docs.
 					_, err := q.GetGithubSource(ctx, pgdb.GetGithubSourceParams{WorkspaceID: s.Workspace, ID: ref.Source})
 					if err == nil {
-						taken = append(taken, path.Join(fb.Dir, fb.Main.Path))
+						taken = append(taken, repoPath)
 						return nil
 					}
 					if !errors.Is(err, sql.ErrNoRows) {
@@ -330,7 +410,7 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 				return err
 			}
 			folderRef, _ := json.Marshal(githubRef{Source: src.ID, Dir: fb.Dir})
-			folder, err := s.ensureBundle(ctx, q, fb.Folder, s.folderTitle(fb.Folder), KindGitHub, dbtype.JSON(folderRef), now)
+			folder, err := s.ensureBundle(ctx, q, fb.Folder, folderTitle(fb.Folder), KindGitHub, dbtype.JSON(folderRef), now)
 			if err != nil {
 				return err
 			}
@@ -343,7 +423,14 @@ func (s *Service) applyGitHubScan(ctx context.Context, src pgdb.GithubSource, co
 				return err
 			}
 			_ = json.Unmarshal(b.SourceRef, &ref)
-			if isNew {
+			switch {
+			case isNew && isPull(src):
+				// The person who raised the pull request owns the doc. The person who pasted its
+				// URL reviews it (docs/specs/pr-source-and-github-review.md).
+				if err := q.InsertSpecDocReviewer(ctx, pgdb.InsertSpecDocReviewerParams{SpecDocID: b.ID, UserID: src.CreatedBy}); err != nil {
+					return err
+				}
+			case isNew:
 				// The admin who added the source is the author of its bundles (SDD §3).
 				if err := q.InsertBundleAuthor(ctx, pgdb.InsertBundleAuthorParams{BundleID: folder.ID, UserID: src.CreatedBy}); err != nil {
 					return err
@@ -404,14 +491,26 @@ func underSource(src pgdb.GithubSource, p string) bool {
 	return github.Under(p, src.Path)
 }
 
-// readable says which paths the scan may read: the files of the source's folder.
+// readable says which paths the scan may read: the files of the source's folder, or for a pull
+// request source, the folders of its picked docs.
 func readable(src pgdb.GithubSource, p string) bool {
+	if isPull(src) {
+		for _, d := range pullDirs(src) {
+			if github.Under(p, d) {
+				return true
+			}
+		}
+		return false
+	}
 	return underSource(src, p)
 }
 
 // bundleOfSource says whether a scanned spec doc belongs to the source: its bundle folder is in
-// the source's folder.
+// the source's folder, or for a pull request source, it is a picked doc.
 func bundleOfSource(src pgdb.GithubSource, b local.Bundle) bool {
+	if isPull(src) {
+		return pullDocs(src)[path.Join(b.Dir, b.Main.Path)]
+	}
 	return github.Under(b.Dir, src.Path)
 }
 

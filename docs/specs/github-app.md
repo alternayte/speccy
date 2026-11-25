@@ -28,7 +28,7 @@ A new hosted Speccy opens /setup with a setup token. The operator makes the firs
 - Local mode does not change: the `gh` login, then a pasted token — local mode has no public URL for webhooks.
 
 ## Out
-- Pending reviews in hosted mode. They stay refused.
+- Pending reviews in hosted mode. pr-source-and-github-review.md replaces this line: a pending review posts with the person's GitHub user token.
 - A public App, or more than one installation.
 - A webhook relay, a delivery list, and redelivery.
 - A map from GitHub teams to roles.

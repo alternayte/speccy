@@ -197,6 +197,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 	approvalAPI := &approval.API{DB: db, ES: events, Workspace: ws, Profiles: profiles.Current, People: people, Notify: notifyAPI.Post}
 	handoffAPI := &handoff.API{DB: db, Workspace: ws, Profiles: profiles.Current, Reviews: reviews, Questions: reviewAPI, People: people, Threads: threadAPI}
 	questionsAPI := &questions.API{DB: db, Workspace: ws, Reviews: reviewAPI, Threads: threadAPI, Waivers: waiverAPI}
+	prs.Bundles, prs.Questions = svc, questionsAPI
 	verifyAPI := &verify.API{DB: db, Workspace: ws, Profiles: profiles.Current, Gateway: gateway,
 		GitHub: reviews.GitHub, Threads: threadAPI, Progress: reviews.Progress, Local: root != nil}
 	// River runs the reviews, the answers and the verifications (docs/specs/hosted-pr-review.md).

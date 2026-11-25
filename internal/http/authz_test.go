@@ -287,23 +287,23 @@ func (env *hostedEnv) call(t *testing.T, op operation, a kernel.Actor) (int, str
 	return status, p.Code
 }
 
-// Hosted mode holds one workspace token, so a pending review would post as that account and
-// not as the person. Each pull request batch, question and pending review call refuses there.
-func TestHosted_PendingReviewsAreLocalOnly(t *testing.T) {
+// A batch runs in local mode only. A question and a pending review post as the caller, so a
+// hosted workspace with a token and no App refuses them: the token is one person's.
+func TestHosted_PendingReviewsNeedTheApp(t *testing.T) {
 	env := newHosted(t, storetest.Engines()[0])
 	admin := kernel.Actor{UserID: "user-admin", Role: kernel.RoleAdmin}
 	pr := "https://github.com/acme/specs/pull/1"
-	for path, body := range map[string]string{
-		"/pr-batches":              `{"repo":"acme/specs"}`,
-		"/pr-asks":                 `{"url":"` + pr + `","concern":"retries"}`,
-		"/pending-reviews/delete":  `{"url":"` + pr + `","ids":[1]}`,
-		"/pending-reviews/discard": `{"repo":"acme/specs"}`,
+	for path, want := range map[string][2]string{
+		"/pr-batches":              {`{"repo":"acme/specs"}`, "local_only"},
+		"/pr-asks":                 {`{"url":"` + pr + `","concern":"retries"}`, "github_review_needs_app"},
+		"/pending-reviews/delete":  {`{"url":"` + pr + `","ids":[1]}`, "github_review_needs_app"},
+		"/pending-reviews/discard": {`{"repo":"acme/specs"}`, "github_review_needs_app"},
 	} {
-		status, out := env.post(t, path, body, admin)
+		status, out := env.post(t, path, want[0], admin)
 		var p struct{ Code, Detail string }
 		_ = json.Unmarshal(out, &p)
-		if status != 400 || p.Code != "local_only" || p.Detail != "Pending reviews post as you, so they run in local mode." {
-			t.Errorf("POST %s in hosted mode: status %d, %s %q; want 400 local_only", path, status, p.Code, p.Detail)
+		if status != 400 || p.Code != want[1] {
+			t.Errorf("POST %s in hosted mode: status %d, %s %q; want 400 %s", path, status, p.Code, p.Detail, want[1])
 		}
 	}
 }

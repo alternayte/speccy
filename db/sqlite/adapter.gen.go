@@ -947,8 +947,44 @@ func (a Adapter) ListFullRunsSince(ctx context.Context, arg pgdb.ListFullRunsSin
 	return out, nil
 }
 
+func (a Adapter) ListGithubRepliesOfDoc(ctx context.Context, specDocID uuid.UUID) ([]pgdb.GithubReply, error) {
+	rows, err := a.q.ListGithubRepliesOfDoc(ctx, specDocID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.GithubReply, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.GithubReply(r)
+	}
+	return out, nil
+}
+
 func (a Adapter) ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]pgdb.GithubSource, error) {
 	rows, err := a.q.ListGithubSources(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.GithubSource, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.GithubSource(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListGithubSourcesOfAuthor(ctx context.Context, arg pgdb.ListGithubSourcesOfAuthorParams) ([]pgdb.GithubSource, error) {
+	rows, err := a.q.ListGithubSourcesOfAuthor(ctx, ListGithubSourcesOfAuthorParams(arg))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]pgdb.GithubSource, len(rows))
+	for i, r := range rows {
+		out[i] = pgdb.GithubSource(r)
+	}
+	return out, nil
+}
+
+func (a Adapter) ListGithubSourcesOfPull(ctx context.Context, arg pgdb.ListGithubSourcesOfPullParams) ([]pgdb.GithubSource, error) {
+	rows, err := a.q.ListGithubSourcesOfPull(ctx, ListGithubSourcesOfPullParams(arg))
 	if err != nil {
 		return nil, err
 	}
@@ -1523,6 +1559,10 @@ func (a Adapter) SetGithubAppInstallation(ctx context.Context, arg pgdb.SetGithu
 	return a.q.SetGithubAppInstallation(ctx, SetGithubAppInstallationParams(arg))
 }
 
+func (a Adapter) SetGithubSourcePull(ctx context.Context, arg pgdb.SetGithubSourcePullParams) error {
+	return a.q.SetGithubSourcePull(ctx, SetGithubSourcePullParams(arg))
+}
+
 func (a Adapter) SetGithubSourceRepoConfig(ctx context.Context, arg pgdb.SetGithubSourceRepoConfigParams) error {
 	return a.q.SetGithubSourceRepoConfig(ctx, SetGithubSourceRepoConfigParams(arg))
 }
@@ -1659,6 +1699,10 @@ func (a Adapter) UpsertAssignment(ctx context.Context, arg pgdb.UpsertAssignment
 
 func (a Adapter) UpsertGithubConnection(ctx context.Context, arg pgdb.UpsertGithubConnectionParams) error {
 	return a.q.UpsertGithubConnection(ctx, UpsertGithubConnectionParams(arg))
+}
+
+func (a Adapter) UpsertGithubReply(ctx context.Context, arg pgdb.UpsertGithubReplyParams) error {
+	return a.q.UpsertGithubReply(ctx, UpsertGithubReplyParams(arg))
 }
 
 func (a Adapter) UpsertGithubUserToken(ctx context.Context, arg pgdb.UpsertGithubUserTokenParams) error {

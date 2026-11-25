@@ -40,7 +40,8 @@ const usage = `Usage:
   speccy serve [--dir folder] [--addr host:port]         Start local mode without opening a browser.
   speccy serve --hosted                                  Start hosted mode (SPECCY_ environment variables).
   speccy init                                            Write .speccy.yaml and ignore .speccy/state/.
-  speccy add <url> [--profile <key>]                     Make a GitHub source from a URL, and sync it once.
+  speccy add <url> [--profile <key>] [--doc <path>=<key>] [--server URL]
+                                                         Make a GitHub source from a URL, a pull request too, and sync it once.
   speccy init --github [--reviewer action|app]           Adopt this repo: map its docs, relax the checks that
                                                          fail today, and set who reviews pull requests: the
                                                          Action, with its workflow, or a hosted Speccy's App.

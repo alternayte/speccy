@@ -28,6 +28,7 @@ func Run(t *testing.T, open func(t *testing.T) *store.DB) {
 	t.Run("ListsPage", func(t *testing.T) { listsPage(t, open(t)) })
 	t.Run("JSONDefaultsScan", func(t *testing.T) { jsonDefaultsScan(t, open(t)) })
 	t.Run("PrReviewsAreOnePerCommit", func(t *testing.T) { prReviewsAreOnePerCommit(t, open(t)) })
+	t.Run("DismissedDocsDeleteBySource", func(t *testing.T) { dismissedDocsDeleteBySource(t, open(t)) })
 }
 
 func migrateIsIdempotent(t *testing.T, db *store.DB) {

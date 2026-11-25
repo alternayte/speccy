@@ -51,6 +51,18 @@ export function BundleStatePill({ state }: { state: BundleState }) {
   );
 }
 
+// ResultPill is the chip of one verdict result, or "Not reviewed" with none.
+export function ResultPill({ result }: { result?: VerdictResult }) {
+  if (!result) return <span className="text-xs text-ink-3">Not reviewed</span>;
+  const s = resultStyle[result];
+  return (
+    <span className={clsx("inline-flex items-center gap-1.5 text-xs font-medium", s.tone)}>
+      <span className="size-3.5">{s.icon}</span>
+      <span>{s.label}</span>
+    </span>
+  );
+}
+
 // DocStateIcon is one spec doc's verdict in the file tree: an icon with the verdict in words
 // for a screen reader. A doc with no verdict on its current version shows none.
 export function DocStateIcon({ doc }: { doc: SpecDoc }) {

@@ -46,6 +46,9 @@ type GitHubApp struct {
 	GitHubAccount func(ctx context.Context, userID string) (string, bool, error)
 	// Changed runs when a push or a closed pull request reaches a repo and branch.
 	Changed func(ctx context.Context, repo, branch string)
+	// PullChanged runs when a pull request changes or gets a review comment, for the pull
+	// request sources that follow it (docs/specs/pr-source-and-github-review.md).
+	PullChanged func(ctx context.Context, repo string, pull int)
 	// PullRequest queues the App's review of a pull request: a push to it names its head SHA,
 	// and a comment with a reply command names none (docs/specs/hosted-pr-review.md).
 	PullRequest func(ctx context.Context, apiURL, repo string, pull int, sha string) error
@@ -77,6 +80,27 @@ type appConn struct {
 }
 
 var errLinkRequired = kernel.Invalid("github_link_required", "Connect your GitHub account first. A doc change goes to GitHub as you.")
+
+// errReviewLink is the answer of a GitHub review for a person with no GitHub link.
+var errReviewLink = kernel.Invalid("github_link_required", "Link GitHub under Account. A GitHub review posts as you.")
+
+// ReviewerGitHubClient returns the client of a person's GitHub user token, for a pending review
+// that posts as them. A workspace with a token and no App refuses: the token is one person's,
+// and a comment must never carry another person's name.
+func (a *API) ReviewerGitHubClient(ctx context.Context, apiURL, userID string) (*github.Client, error) {
+	c, err := a.appConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if c == nil {
+		return nil, kernel.Invalid("github_review_needs_app", "A GitHub review posts as you. Connect the GitHub App in Admin → GitHub.")
+	}
+	gh, err := a.UserGitHubClient(ctx, apiURL, userID)
+	if errors.Is(err, errLinkRequired) {
+		return nil, errReviewLink
+	}
+	return gh, err
+}
 
 // appConn returns the App of the workspace, or nil when it has none.
 func (a *API) appConn(ctx context.Context) (*appConn, error) {
@@ -461,7 +485,8 @@ func (a *API) recordInstallation(ctx context.Context, c *appConn, id int64) erro
 	return nil
 }
 
-// Webhook takes the App's events: installations, pushes, and closed pull requests. It checks
+// Webhook takes the App's events: installations, pushes, pull requests and their review
+// comments. It checks
 // X-Hub-Signature-256, answers at once, and syncs in the background: GitHub waits 10 seconds.
 func (a *API) Webhook(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -523,6 +548,12 @@ func (a *API) Webhook(w http.ResponseWriter, r *http.Request) {
 		}
 		go a.GitHubApp.Changed(life, repo, branch)
 	}
+	pullChanged := func(repo string, pull int) {
+		if a.GitHubApp.PullChanged == nil || repo == "" || pull == 0 {
+			return
+		}
+		go a.GitHubApp.PullChanged(life, repo, pull)
+	}
 	switch r.Header.Get("X-GitHub-Event") {
 	case "installation":
 		switch ev.Action {
@@ -555,6 +586,10 @@ func (a *API) Webhook(w http.ResponseWriter, r *http.Request) {
 		case "opened", "synchronize", "reopened", "ready_for_review":
 			a.reviewPull(ctx, c, ev.Repository.FullName, ev.PullRequest.Number, ev.PullRequest.Head.SHA)
 		}
+		switch ev.Action {
+		case "closed", "synchronize", "reopened", "edited", "ready_for_review", "converted_to_draft":
+			pullChanged(ev.Repository.FullName, ev.PullRequest.Number)
+		}
 	case "issue_comment":
 		if ev.Action == "created" && ev.Issue.PullRequest != nil && replyCommand(ev.Comment.Body) {
 			a.reviewPull(ctx, c, ev.Repository.FullName, ev.Issue.Number, "")
@@ -562,6 +597,10 @@ func (a *API) Webhook(w http.ResponseWriter, r *http.Request) {
 	case "pull_request_review_comment":
 		if ev.Action == "created" && replyCommand(ev.Comment.Body) {
 			a.reviewPull(ctx, c, ev.Repository.FullName, ev.PullRequest.Number, "")
+		}
+		// A reply shows on its item in Speccy within seconds.
+		if ev.Action == "created" || ev.Action == "edited" {
+			pullChanged(ev.Repository.FullName, ev.PullRequest.Number)
 		}
 	}
 	w.WriteHeader(http.StatusAccepted)

@@ -17,6 +17,7 @@ import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Empty, ErrorState, Loading } from "@/components/ui/states";
+import { GithubReplies } from "@/features/bundle/github-replies";
 import { TextDiff } from "@/features/bundle/text-diff";
 import { useActiveRun } from "@/features/bundle/run-review";
 import {
@@ -534,6 +535,14 @@ function ItemCard({
         ) : null}
       </div>
 
+      <GithubReplies
+        replies={it.github_replies}
+        finding={canAnswer && f && !f.trace_id && f.level !== "INFO" ? f : undefined}
+        docId={docId}
+        onShip={canAnswer && f && !f.trace_id ? (text) => onAsk({ finding: f, reason: text }) : undefined}
+        onDone={(text) => onDone(text)}
+      />
+
       {it.thread ? (
         <div className="border-t border-line">
           <ThreadView threadId={it.thread.id} docId={docId} member={member && canAnswer} />
@@ -891,6 +900,12 @@ function QuestionCard({
           </label>
         </div>
         {draft ? <DraftState draft={draft} /> : null}
+        <GithubReplies
+          className="mt-3"
+          replies={q.finding?.github_replies}
+          onNotNeeded={(text) => onChoose({ kind: "not_needed", reason: text }, false)}
+          onShip={(text) => onChoose({ kind: "ship", reason: text }, false)}
+        />
       </fieldset>
     </li>
   );

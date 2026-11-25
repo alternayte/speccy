@@ -14,6 +14,7 @@ import (
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/verdict"
 	"github.com/alternayte/speccy/internal/features/version"
+	"github.com/alternayte/speccy/internal/findingkey"
 	"github.com/alternayte/speccy/internal/http/api"
 	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/source"
@@ -402,7 +403,35 @@ func (a *API) ListFindings(ctx context.Context, req api.ListFindingsRequestObjec
 		}
 		return out.Items[i].Anchor.Start < out.Items[j].Anchor.Start
 	})
+	if err := attachReplies(ctx, q, b, cur, out.Items); err != nil {
+		return nil, err
+	}
 	return api.ListFindings200JSONResponse(out), nil
+}
+
+// attachReplies puts the GitHub replies to the pull request comment of each finding on it. A
+// comment's marker holds the finding key (docs/specs/pr-source-and-github-review.md).
+func attachReplies(ctx context.Context, q store.Querier, b pgdb.SpecDoc, cur *version.Current, items []api.Finding) error {
+	rows, err := q.ListGithubRepliesOfDoc(ctx, b.ID)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	byKey := map[string][]api.GithubReply{}
+	for _, r := range rows {
+		byKey[r.FindingKey] = append(byKey[r.FindingKey], api.GithubReply{Author: r.Author, Body: r.Body, Url: r.Url, CreatedAt: r.CreatedAt.UTC()})
+	}
+	files := map[string][]byte{}
+	for _, f := range items {
+		if _, ok := files[f.Anchor.File]; !ok {
+			files[f.Anchor.File] = cur.File(f.Anchor.File)
+		}
+	}
+	for i, k := range findingkey.Keys(findingkey.DocSlug(b.Slug), items, files) {
+		if rs := byKey[k]; len(rs) > 0 {
+			items[i].GithubReplies = &rs
+		}
+	}
+	return nil
 }
 
 // materialAPI is a judgement in the API.

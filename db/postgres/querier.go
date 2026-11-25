@@ -209,7 +209,10 @@ type Querier interface {
 	ListEvents(ctx context.Context, streamID uuid.UUID) ([]EsEvent, error)
 	ListFindings(ctx context.Context, runID uuid.UUID) ([]Finding, error)
 	ListFullRunsSince(ctx context.Context, arg ListFullRunsSinceParams) ([]ReviewRun, error)
+	ListGithubRepliesOfDoc(ctx context.Context, specDocID uuid.UUID) ([]GithubReply, error)
 	ListGithubSources(ctx context.Context, workspaceID uuid.UUID) ([]GithubSource, error)
+	ListGithubSourcesOfAuthor(ctx context.Context, arg ListGithubSourcesOfAuthorParams) ([]GithubSource, error)
+	ListGithubSourcesOfPull(ctx context.Context, arg ListGithubSourcesOfPullParams) ([]GithubSource, error)
 	ListGithubSourcesOfRepo(ctx context.Context, arg ListGithubSourcesOfRepoParams) ([]GithubSource, error)
 	ListHandoffs(ctx context.Context, specDocID uuid.UUID) ([]Handoff, error)
 	ListInboxRead(ctx context.Context, arg ListInboxReadParams) ([]string, error)
@@ -279,6 +282,7 @@ type Querier interface {
 	SetBundleVisibility(ctx context.Context, arg SetBundleVisibilityParams) error
 	SetFindingSuggestion(ctx context.Context, arg SetFindingSuggestionParams) error
 	SetGithubAppInstallation(ctx context.Context, arg SetGithubAppInstallationParams) error
+	SetGithubSourcePull(ctx context.Context, arg SetGithubSourcePullParams) error
 	SetGithubSourceRepoConfig(ctx context.Context, arg SetGithubSourceRepoConfigParams) error
 	SetGithubSourceSkipped(ctx context.Context, arg SetGithubSourceSkippedParams) error
 	SetGithubSourceSynced(ctx context.Context, arg SetGithubSourceSyncedParams) error
@@ -321,6 +325,7 @@ type Querier interface {
 	UpdateStream(ctx context.Context, arg UpdateStreamParams) (int64, error)
 	UpsertAssignment(ctx context.Context, arg UpsertAssignmentParams) error
 	UpsertGithubConnection(ctx context.Context, arg UpsertGithubConnectionParams) error
+	UpsertGithubReply(ctx context.Context, arg UpsertGithubReplyParams) error
 	UpsertGithubUserToken(ctx context.Context, arg UpsertGithubUserTokenParams) error
 	UpsertSpecDocStatusView(ctx context.Context, arg UpsertSpecDocStatusViewParams) error
 	UpsertThreadView(ctx context.Context, arg UpsertThreadViewParams) error

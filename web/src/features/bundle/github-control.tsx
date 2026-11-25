@@ -62,7 +62,9 @@ export function GitHubControl({ bundle, canEdit }: { bundle: SpecDoc; canEdit: b
     },
   });
   if (!gh) return null;
-  const where = `${gh.repo} · ${gh.branch}${gh.path === "." ? "" : ` · ${gh.path}`}`;
+  const where = gh.pull
+    ? `${gh.repo} · pull request #${gh.pull.number} · ${gh.pull.state}`
+    : `${gh.repo} · ${gh.branch}${gh.path === "." ? "" : ` · ${gh.path}`}`;
   return (
     <>
       <button
@@ -75,7 +77,17 @@ export function GitHubControl({ bundle, canEdit }: { bundle: SpecDoc; canEdit: b
         )}
       >
         <GitPullRequestArrow aria-hidden className="size-3.5" />
-        <span className="hidden sm:inline">{gh.draft ? (gh.pr_url ? "PR open" : "Unpublished") : "GitHub"}</span>
+        <span className="hidden sm:inline">
+          {gh.read_only
+            ? "Read-only"
+            : gh.draft
+              ? gh.pr_url
+                ? "PR open"
+                : "Unpublished"
+              : gh.pull
+                ? `PR #${gh.pull.number}`
+                : "GitHub"}
+        </span>
         <span className="sr-only sm:hidden">GitHub</span>
       </button>
       <Dialog
@@ -88,7 +100,41 @@ export function GitHubControl({ bundle, canEdit }: { bundle: SpecDoc; canEdit: b
         description={where}
       >
         <div className="space-y-3 text-sm">
-          {!gh.draft ? (
+          {gh.read_only ? (
+            <p className="rounded-md border border-line bg-sunken px-2.5 py-2 text-ink">
+              {gh.read_only === "closed"
+                ? "The pull request closed without a merge. Nobody can edit or review this doc any more. Its reviews and threads stay."
+                : "The pull request merged, and another bundle holds this doc on the base branch. Nobody can edit or review this one any more."}
+              {gh.moved_to ? (
+                <>
+                  {" "}
+                  <a href={`/docs/${gh.moved_to}`} className="text-accent underline">
+                    Open the doc on {gh.pull?.base_branch ?? "the base branch"}
+                  </a>
+                  .
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          {gh.pull ? (
+            <p>
+              <a
+                href={gh.pull.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-accent underline"
+              >
+                Pull request #{gh.pull.number}: {gh.pull.title} <ExternalLink aria-hidden className="size-3.5" />
+              </a>
+              <span className="block text-xs text-ink-2">
+                By {gh.pull.author}.{" "}
+                {gh.pull.state === "merged"
+                  ? `Merged into ${gh.pull.base_branch}; Speccy reads that branch now.`
+                  : `${gh.pull.head_branch} into ${gh.pull.base_branch}.`}
+              </span>
+            </p>
+          ) : null}
+          {gh.read_only ? null : !gh.draft ? (
             <p className="text-ink-2">
               This bundle matches GitHub. An edit here stays unpublished until you open a pull request.
             </p>

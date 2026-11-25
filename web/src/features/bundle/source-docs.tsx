@@ -68,7 +68,9 @@ function SourceSection({ source }: { source: GithubSource }) {
       },
     });
   if (items.length === 0 && marked.length === 0) return null;
-  const where = `${source.repo} · ${source.branch}${source.path === "." ? "" : ` · ${source.path}`}`;
+  const where = source.pull
+    ? `${source.repo} · PR #${source.pull.number}`
+    : `${source.repo} · ${source.branch}${source.path === "." ? "" : ` · ${source.path}`}`;
   return (
     <section className="mt-6" aria-labelledby={`src-${source.id}`}>
       <h2 id={`src-${source.id}`} className="text-sm font-semibold text-ink">

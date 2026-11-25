@@ -782,6 +782,93 @@ func (e GithubConnectionKind) Valid() bool {
 	}
 }
 
+// Defines values for GithubReviewDocVerdict.
+const (
+	GithubReviewDocVerdictBuildReady    GithubReviewDocVerdict = "build_ready"
+	GithubReviewDocVerdictNotBuildReady GithubReviewDocVerdict = "not_build_ready"
+	GithubReviewDocVerdictStale         GithubReviewDocVerdict = "stale"
+)
+
+// Valid indicates whether the value is a known member of the GithubReviewDocVerdict enum.
+func (e GithubReviewDocVerdict) Valid() bool {
+	switch e {
+	case GithubReviewDocVerdictBuildReady:
+		return true
+	case GithubReviewDocVerdictNotBuildReady:
+		return true
+	case GithubReviewDocVerdictStale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GithubReviewItemKind.
+const (
+	GithubReviewItemKindBlockingThread GithubReviewItemKind = "blocking_thread"
+	GithubReviewItemKindDecision       GithubReviewItemKind = "decision"
+	GithubReviewItemKindFinding        GithubReviewItemKind = "finding"
+	GithubReviewItemKindMaterialGap    GithubReviewItemKind = "material_gap"
+)
+
+// Valid indicates whether the value is a known member of the GithubReviewItemKind enum.
+func (e GithubReviewItemKind) Valid() bool {
+	switch e {
+	case GithubReviewItemKindBlockingThread:
+		return true
+	case GithubReviewItemKindDecision:
+		return true
+	case GithubReviewItemKindFinding:
+		return true
+	case GithubReviewItemKindMaterialGap:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GithubReviewItemLevel.
+const (
+	GithubReviewItemLevelINFO   GithubReviewItemLevel = "INFO"
+	GithubReviewItemLevelMUST   GithubReviewItemLevel = "MUST"
+	GithubReviewItemLevelSHOULD GithubReviewItemLevel = "SHOULD"
+)
+
+// Valid indicates whether the value is a known member of the GithubReviewItemLevel enum.
+func (e GithubReviewItemLevel) Valid() bool {
+	switch e {
+	case GithubReviewItemLevelINFO:
+		return true
+	case GithubReviewItemLevelMUST:
+		return true
+	case GithubReviewItemLevelSHOULD:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GithubReviewRequestPreset.
+const (
+	GithubReviewRequestPresetAll       GithubReviewRequestPreset = "all"
+	GithubReviewRequestPresetMust      GithubReviewRequestPreset = "must"
+	GithubReviewRequestPresetQuestions GithubReviewRequestPreset = "questions"
+)
+
+// Valid indicates whether the value is a known member of the GithubReviewRequestPreset enum.
+func (e GithubReviewRequestPreset) Valid() bool {
+	switch e {
+	case GithubReviewRequestPresetAll:
+		return true
+	case GithubReviewRequestPresetMust:
+		return true
+	case GithubReviewRequestPresetQuestions:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for InboxItemKind.
 const (
 	InboxItemKindMention        InboxItemKind = "mention"
@@ -1286,6 +1373,27 @@ func (e PrSettingsLevels) Valid() bool {
 	}
 }
 
+// Defines values for PullInfoState.
+const (
+	PullInfoStateClosed PullInfoState = "closed"
+	PullInfoStateMerged PullInfoState = "merged"
+	PullInfoStateOpen   PullInfoState = "open"
+)
+
+// Valid indicates whether the value is a known member of the PullInfoState enum.
+func (e PullInfoState) Valid() bool {
+	switch e {
+	case PullInfoStateClosed:
+		return true
+	case PullInfoStateMerged:
+		return true
+	case PullInfoStateOpen:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PushBreakdownRequestTracker.
 const (
 	PushBreakdownRequestTrackerGithub PushBreakdownRequestTracker = "github"
@@ -1502,6 +1610,27 @@ func (e RunStatus) Valid() bool {
 	case RunStatusQueued:
 		return true
 	case RunStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SourceDocVerdict.
+const (
+	SourceDocVerdictBuildReady    SourceDocVerdict = "build_ready"
+	SourceDocVerdictNotBuildReady SourceDocVerdict = "not_build_ready"
+	SourceDocVerdictStale         SourceDocVerdict = "stale"
+)
+
+// Valid indicates whether the value is a known member of the SourceDocVerdict enum.
+func (e SourceDocVerdict) Valid() bool {
+	switch e {
+	case SourceDocVerdictBuildReady:
+		return true
+	case SourceDocVerdictNotBuildReady:
+		return true
+	case SourceDocVerdictStale:
 		return true
 	default:
 		return false
@@ -2756,10 +2885,19 @@ type BundleGithub struct {
 	Branch string `json:"branch"`
 
 	// Draft The current version has changes that are not on GitHub.
-	Draft bool    `json:"draft"`
-	Path  string  `json:"path"`
-	PrUrl *string `json:"pr_url,omitempty"`
-	Repo  string  `json:"repo"`
+	Draft bool `json:"draft"`
+
+	// MovedTo The spec doc that holds this doc on the base branch, after the merge.
+	MovedTo *openapi_types.UUID `json:"moved_to,omitempty"`
+	Path    string              `json:"path"`
+	PrUrl   *string             `json:"pr_url,omitempty"`
+
+	// Pull The pull request a pull request source follows (docs/specs/pr-source-and-github-review.md).
+	Pull *PullInfo `json:"pull,omitempty"`
+
+	// ReadOnly Why nobody can edit or review the doc any more: its pull request closed, or it merged and another bundle holds the doc on the base branch. Absent when the doc is live.
+	ReadOnly *string `json:"read_only,omitempty"`
+	Repo     string  `json:"repo"`
 }
 
 // BundleLink defines model for BundleLink.
@@ -3195,8 +3333,11 @@ type Finding struct {
 	FixKind FixKind `json:"fix_kind"`
 
 	// Fork Names the one fork the finding asks about. A "Not needed" answer binds to it.
-	Fork *string            `json:"fork,omitempty"`
-	Id   openapi_types.UUID `json:"id"`
+	Fork *string `json:"fork,omitempty"`
+
+	// GithubReplies The replies on GitHub to the pull request comment of this finding, oldest first.
+	GithubReplies *[]GithubReply     `json:"github_replies,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
 
 	// Layer The overlay layer that shows this finding (SDD §13.2). No layer for other findings.
 	Layer *FindingLayer `json:"layer,omitempty"`
@@ -3340,10 +3481,22 @@ type GithubConnection struct {
 // GithubConnectionKind defines model for GithubConnection.Kind.
 type GithubConnectionKind string
 
+// GithubReply defines model for GithubReply.
+type GithubReply struct {
+	// Author The GitHub login of the person who replied.
+	Author    string    `json:"author"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	Url       string    `json:"url"`
+}
+
 // GithubResolved defines model for GithubResolved.
 type GithubResolved struct {
 	// Branch The branch of the URL, or the repo's default branch.
 	Branch string `json:"branch"`
+
+	// Docs For a pull request URL, the markdown files it changes, at its head.
+	Docs *[]ResolvedDoc `json:"docs,omitempty"`
 
 	// File The path names one doc.
 	File bool `json:"file"`
@@ -3359,24 +3512,117 @@ type GithubResolved struct {
 
 	// Profiles The profile keys to choose from.
 	Profiles []string `json:"profiles"`
-	Repo     string   `json:"repo"`
+
+	// Pull The pull request a pull request source follows (docs/specs/pr-source-and-github-review.md).
+	Pull *PullInfo `json:"pull,omitempty"`
+	Repo string    `json:"repo"`
 
 	// Title The title of the doc a one-doc URL names.
 	Title *string `json:"title,omitempty"`
 }
 
+// GithubReviewDoc defines model for GithubReviewDoc.
+type GithubReviewDoc struct {
+	DocId   openapi_types.UUID      `json:"doc_id"`
+	Items   []GithubReviewItem      `json:"items"`
+	Path    string                  `json:"path"`
+	Profile string                  `json:"profile"`
+	Title   string                  `json:"title"`
+	Verdict *GithubReviewDocVerdict `json:"verdict,omitempty"`
+}
+
+// GithubReviewDocVerdict defines model for GithubReviewDoc.Verdict.
+type GithubReviewDocVerdict string
+
+// GithubReviewItem defines model for GithubReviewItem.
+type GithubReviewItem struct {
+	// Body The text of the comment.
+	Body string `json:"body"`
+
+	// ExistingComments Open comments on this line that Speccy did not write.
+	ExistingComments int                 `json:"existing_comments"`
+	FindingId        *openapi_types.UUID `json:"finding_id,omitempty"`
+
+	// Inline The line is in the diff, so the comment goes on it. Otherwise it goes into the review body.
+	Inline bool `json:"inline"`
+
+	// Key The finding key that the comment's marker holds.
+	Key   string                 `json:"key"`
+	Kind  GithubReviewItemKind   `json:"kind"`
+	Level *GithubReviewItemLevel `json:"level,omitempty"`
+
+	// Line The line, from 1, or 0 when the item names no line.
+	Line int `json:"line"`
+
+	// Path The repo path of the file.
+	Path string `json:"path"`
+}
+
+// GithubReviewItemKind defines model for GithubReviewItem.Kind.
+type GithubReviewItemKind string
+
+// GithubReviewItemLevel defines model for GithubReviewItem.Level.
+type GithubReviewItemLevel string
+
+// GithubReviewPlan What a GitHub review would hold. It posts nothing.
+type GithubReviewPlan struct {
+	// Already Items left out because an open comment on the pull request or your pending review holds them.
+	Already int               `json:"already"`
+	CanPost bool              `json:"can_post"`
+	Docs    []GithubReviewDoc `json:"docs"`
+	HeadSha string            `json:"head_sha"`
+
+	// LinkRequired You cannot post until you link your GitHub account.
+	LinkRequired *bool `json:"link_required,omitempty"`
+	Pull         int   `json:"pull"`
+
+	// Reason Why you cannot post, when can_post is false.
+	Reason *string `json:"reason,omitempty"`
+	Repo   string  `json:"repo"`
+}
+
+// GithubReviewPosted defines model for GithubReviewPosted.
+type GithubReviewPosted struct {
+	Added int `json:"added"`
+
+	// Removed Speccy's comments taken out of your pending review because their finding is gone.
+	Removed   int    `json:"removed"`
+	ReviewUrl string `json:"review_url"`
+}
+
+// GithubReviewRequest defines model for GithubReviewRequest.
+type GithubReviewRequest struct {
+	// Exclude The item keys to leave out.
+	Exclude *[]string `json:"exclude,omitempty"`
+
+	// Preset questions: the questions screen items. must: every open MUST finding. all: every open finding.
+	Preset GithubReviewRequestPreset `json:"preset"`
+
+	// Url The URL of the pull request of a pull request source.
+	Url string `json:"url"`
+}
+
+// GithubReviewRequestPreset questions: the questions screen items. must: every open MUST finding. all: every open finding.
+type GithubReviewRequestPreset string
+
 // GithubSource A repo, a branch and a folder whose bundles Speccy reads.
 type GithubSource struct {
 	// Adopted How many docs of this source have a type accepted in Speccy (REQ-133).
-	Adopted    *int               `json:"adopted,omitempty"`
-	Branch     string             `json:"branch"`
-	Bundles    int                `json:"bundles"`
+	Adopted *int   `json:"adopted,omitempty"`
+	Branch  string `json:"branch"`
+	Bundles int    `json:"bundles"`
+
+	// Docs For a pull request source, its spec docs with their profile and verdict.
+	Docs       *[]SourceDoc       `json:"docs,omitempty"`
 	Error      string             `json:"error"`
 	HeadCommit string             `json:"head_commit"`
 	Id         openapi_types.UUID `json:"id"`
 
 	// Path The folder, relative to the repo root.
-	Path     string     `json:"path"`
+	Path string `json:"path"`
+
+	// Pull The pull request a pull request source follows (docs/specs/pr-source-and-github-review.md).
+	Pull     *PullInfo  `json:"pull,omitempty"`
 	Repo     string     `json:"repo"`
 	SyncedAt *time.Time `json:"synced_at,omitempty"`
 }
@@ -4085,6 +4331,32 @@ type ProposeBreakdownRequest struct {
 	Acknowledged *bool `json:"acknowledged,omitempty"`
 }
 
+// PullDocChoice defines model for PullDocChoice.
+type PullDocChoice struct {
+	// Link A link a person confirmed. target is the root-relative path of the doc it links to.
+	Link *ConfirmedLink `json:"link,omitempty"`
+	Path string         `json:"path"`
+
+	// Profile The doc type. Empty means not a spec.
+	Profile string `json:"profile"`
+}
+
+// PullInfo The pull request a pull request source follows (docs/specs/pr-source-and-github-review.md).
+type PullInfo struct {
+	// Author The GitHub login of the person who opened it.
+	Author     string        `json:"author"`
+	BaseBranch string        `json:"base_branch"`
+	Draft      *bool         `json:"draft,omitempty"`
+	HeadBranch string        `json:"head_branch"`
+	Number     int           `json:"number"`
+	State      PullInfoState `json:"state"`
+	Title      string        `json:"title"`
+	Url        string        `json:"url"`
+}
+
+// PullInfoState defines model for PullInfo.State.
+type PullInfoState string
+
 // PushBreakdownRequest defines model for PushBreakdownRequest.
 type PushBreakdownRequest struct {
 	// Acknowledged Push from a doc that is not Build Ready. The handoff stores the verdict.
@@ -4146,6 +4418,9 @@ type QuestionItem struct {
 
 	// Finding One failed check. The rail and the MCP tool get_findings read this one shape.
 	Finding *Finding `json:"finding,omitempty"`
+
+	// GithubReplies The replies on GitHub to the pull request comment of this item, oldest first.
+	GithubReplies *[]GithubReply `json:"github_replies,omitempty"`
 
 	// Key Stable across reviews for a material gap (its fork), else the finding or thread ID.
 	Key    string           `json:"key"`
@@ -4258,6 +4533,17 @@ type ResolvedBuild struct {
 	// Repo owner/name, or the folder path.
 	Repo string `json:"repo"`
 	Sha  string `json:"sha"`
+}
+
+// ResolvedDoc One markdown file that a pull request changes.
+type ResolvedDoc struct {
+	// Guessed The profile is a guess, so the person confirms it.
+	Guessed *bool  `json:"guessed,omitempty"`
+	Path    string `json:"path"`
+
+	// Profile The type the doc names or a mapping gives, or the guess.
+	Profile *string `json:"profile,omitempty"`
+	Title   *string `json:"title,omitempty"`
 }
 
 // ReviewRequest A review that a job runs. Poll it until its status is complete or failed.
@@ -4459,6 +4745,22 @@ type SkippedDoc struct {
 	// Profile The profile Speccy guesses from the headings. Absent when none fits.
 	Profile *string `json:"profile,omitempty"`
 }
+
+// SourceDoc defines model for SourceDoc.
+type SourceDoc struct {
+	BundleId openapi_types.UUID `json:"bundle_id"`
+	DocId    openapi_types.UUID `json:"doc_id"`
+
+	// Path The doc's path in the repo.
+	Path    string `json:"path"`
+	Profile string `json:"profile"`
+
+	// Verdict Absent before the first review.
+	Verdict *SourceDocVerdict `json:"verdict,omitempty"`
+}
+
+// SourceDocVerdict Absent before the first review.
+type SourceDocVerdict string
 
 // SourceSkippedDoc defines model for SourceSkippedDoc.
 type SourceSkippedDoc struct {
@@ -5517,10 +5819,13 @@ type ResolveGithubUrlJSONBody struct {
 
 // AddGithubSourceJSONBody defines parameters for AddGithubSource.
 type AddGithubSourceJSONBody struct {
+	// Docs For a pull request URL: one choice for each markdown file the pull request changes. A profile makes the file a spec doc of the source. An empty profile marks the file not a spec. A file with a type of its own takes that type.
+	Docs *[]PullDocChoice `json:"docs,omitempty"`
+
 	// Profile For the URL of one doc that names no type and that no mapping covers: the profile, which Speccy stores as the doc's adopted type.
 	Profile *string `json:"profile,omitempty"`
 
-	// Url A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
+	// Url A source URL - owner/name, a repo URL, or the URL of a folder, a doc or a pull request in it.
 	Url string `json:"url"`
 }
 
@@ -5761,6 +6066,12 @@ type ResolveVerificationTargetJSONRequestBody = VerificationTargetInput
 
 // RequestWaiverJSONRequestBody defines body for RequestWaiver for application/json ContentType.
 type RequestWaiverJSONRequestBody RequestWaiverJSONBody
+
+// PostGithubReviewJSONRequestBody defines body for PostGithubReview for application/json ContentType.
+type PostGithubReviewJSONRequestBody = GithubReviewRequest
+
+// PlanGithubReviewJSONRequestBody defines body for PlanGithubReview for application/json ContentType.
+type PlanGithubReviewJSONRequestBody = GithubReviewRequest
 
 // ResolveGithubUrlJSONRequestBody defines body for ResolveGithubUrl for application/json ContentType.
 type ResolveGithubUrlJSONRequestBody ResolveGithubUrlJSONBody
@@ -6154,6 +6465,12 @@ type ServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /docs/{docId}/waivers)
 	RequestWaiver(w http.ResponseWriter, r *http.Request, docId DocId)
+	// PostGithubReview Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+	// (POST /github-reviews)
+	PostGithubReview(w http.ResponseWriter, r *http.Request)
+	// PlanGithubReview Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+	// (POST /github-reviews/plan)
+	PlanGithubReview(w http.ResponseWriter, r *http.Request)
 	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
 	// (POST /github/resolve)
 	ResolveGithubUrl(w http.ResponseWriter, r *http.Request)
@@ -6202,13 +6519,13 @@ type ServerInterface interface {
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(w http.ResponseWriter, r *http.Request)
-	// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+	// ListPending List the comments of your pending review on a pull request.
 	// (GET /pending-reviews)
 	ListPending(w http.ResponseWriter, r *http.Request, params ListPendingParams)
-	// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+	// DeletePending Delete comments of your pending review on a pull request.
 	// (POST /pending-reviews/delete)
 	DeletePending(w http.ResponseWriter, r *http.Request)
-	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// DiscardPending Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 	// (POST /pending-reviews/discard)
 	DiscardPending(w http.ResponseWriter, r *http.Request)
 	// RecordPending Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
@@ -6217,7 +6534,7 @@ type ServerInterface interface {
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	// (GET /people)
 	ListPeople(w http.ResponseWriter, r *http.Request)
-	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 	// (POST /pr-asks)
 	AskAuthor(w http.ResponseWriter, r *http.Request)
 	// CreatePrBatch Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
@@ -8970,6 +9287,34 @@ func (siw *ServerInterfaceWrapper) RequestWaiver(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// PostGithubReview operation middleware
+func (siw *ServerInterfaceWrapper) PostGithubReview(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PostGithubReview(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PlanGithubReview operation middleware
+func (siw *ServerInterfaceWrapper) PlanGithubReview(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PlanGithubReview(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ResolveGithubUrl operation middleware
 func (siw *ServerInterfaceWrapper) ResolveGithubUrl(w http.ResponseWriter, r *http.Request) {
 
@@ -10809,6 +11154,8 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-batches/{batchId}/start", wrapper.StartPrBatch)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-batches/{batchId}/cancel", wrapper.CancelPrBatch)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pr-asks", wrapper.AskAuthor)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github-reviews/plan", wrapper.PlanGithubReview)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/github-reviews", wrapper.PostGithubReview)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/pending-reviews", wrapper.ListPending)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/delete", wrapper.DeletePending)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/pending-reviews/discard", wrapper.DiscardPending)
@@ -14624,6 +14971,84 @@ func (response RequestWaiverdefaultApplicationProblemPlusJSONResponse) VisitRequ
 	return err
 }
 
+type PostGithubReviewRequestObject struct {
+	Body *PostGithubReviewJSONRequestBody
+}
+
+type PostGithubReviewResponseObject interface {
+	VisitPostGithubReviewResponse(w http.ResponseWriter) error
+}
+
+type PostGithubReview200JSONResponse GithubReviewPosted
+
+func (response PostGithubReview200JSONResponse) VisitPostGithubReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PostGithubReviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PostGithubReviewdefaultApplicationProblemPlusJSONResponse) VisitPostGithubReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlanGithubReviewRequestObject struct {
+	Body *PlanGithubReviewJSONRequestBody
+}
+
+type PlanGithubReviewResponseObject interface {
+	VisitPlanGithubReviewResponse(w http.ResponseWriter) error
+}
+
+type PlanGithubReview200JSONResponse GithubReviewPlan
+
+func (response PlanGithubReview200JSONResponse) VisitPlanGithubReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PlanGithubReviewdefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response PlanGithubReviewdefaultApplicationProblemPlusJSONResponse) VisitPlanGithubReviewResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ResolveGithubUrlRequestObject struct {
 	Body *ResolveGithubUrlJSONRequestBody
 }
@@ -17720,6 +18145,12 @@ type StrictServerInterface interface {
 	// RequestWaiver Request a waiver for one finding, with a reason of at least 20 characters (REQ-072).
 	// (POST /docs/{docId}/waivers)
 	RequestWaiver(ctx context.Context, request RequestWaiverRequestObject) (RequestWaiverResponseObject, error)
+	// PostGithubReview Write the items of a GitHub review into your pending review on the pull request, as you. You submit it on GitHub.
+	// (POST /github-reviews)
+	PostGithubReview(ctx context.Context, request PostGithubReviewRequestObject) (PostGithubReviewResponseObject, error)
+	// PlanGithubReview Say what a GitHub review of a pull request source would hold, and post nothing (docs/specs/pr-source-and-github-review.md).
+	// (POST /github-reviews/plan)
+	PlanGithubReview(ctx context.Context, request PlanGithubReviewRequestObject) (PlanGithubReviewResponseObject, error)
 	// ResolveGithubUrl Read a source URL and say what it names, before the source is made (REQ-128).
 	// (POST /github/resolve)
 	ResolveGithubUrl(ctx context.Context, request ResolveGithubUrlRequestObject) (ResolveGithubUrlResponseObject, error)
@@ -17768,13 +18199,13 @@ type StrictServerInterface interface {
 	// GetMeta Get the server version and mode.
 	// (GET /meta)
 	GetMeta(ctx context.Context, request GetMetaRequestObject) (GetMetaResponseObject, error)
-	// ListPending List the comments of the local user's pending review on a pull request. Local mode only.
+	// ListPending List the comments of your pending review on a pull request.
 	// (GET /pending-reviews)
 	ListPending(ctx context.Context, request ListPendingRequestObject) (ListPendingResponseObject, error)
-	// DeletePending Delete comments of the local user's pending review on a pull request. Local mode only.
+	// DeletePending Delete comments of your pending review on a pull request.
 	// (POST /pending-reviews/delete)
 	DeletePending(ctx context.Context, request DeletePendingRequestObject) (DeletePendingResponseObject, error)
-	// DiscardPending Discard the local user's pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Local mode only.
+	// DiscardPending Discard your pending reviews: on the named pull requests, on each open pull request of a repo, or on each pull request of a batch. Batches run in local mode only.
 	// (POST /pending-reviews/discard)
 	DiscardPending(ctx context.Context, request DiscardPendingRequestObject) (DiscardPendingResponseObject, error)
 	// RecordPending Keep what a pending review with no attribution holds: the finding key or the question ID of each comment, by its GitHub ID, and the part of the body that Speccy wrote. A later batch then finds these comments without a hidden marker. Local mode only.
@@ -17783,7 +18214,7 @@ type StrictServerInterface interface {
 	// ListPeople The members of the workspace, for reviewers and mentions. Empty in local mode.
 	// (GET /people)
 	ListPeople(ctx context.Context, request ListPeopleRequestObject) (ListPeopleResponseObject, error)
-	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. Local mode only.
+	// AskAuthor Turn a reviewer's concern into one question for the author, on the section of the pull request's spec docs that it is about, in the reviewer's pending review. In hosted mode it posts with your GitHub user token.
 	// (POST /pr-asks)
 	AskAuthor(ctx context.Context, request AskAuthorRequestObject) (AskAuthorResponseObject, error)
 	// CreatePrBatch Plan a batch of pull request reviews, and start it unless start is false. Local mode only: the pending reviews post with the local user's GitHub credential.
@@ -20714,6 +21145,68 @@ func (sh *strictHandler) RequestWaiver(w http.ResponseWriter, r *http.Request, d
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RequestWaiverResponseObject); ok {
 		if err := validResponse.VisitRequestWaiverResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PostGithubReview operation middleware
+func (sh *strictHandler) PostGithubReview(w http.ResponseWriter, r *http.Request) {
+	var request PostGithubReviewRequestObject
+
+	var body PostGithubReviewJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PostGithubReview(ctx, request.(PostGithubReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PostGithubReview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PostGithubReviewResponseObject); ok {
+		if err := validResponse.VisitPostGithubReviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PlanGithubReview operation middleware
+func (sh *strictHandler) PlanGithubReview(w http.ResponseWriter, r *http.Request) {
+	var request PlanGithubReviewRequestObject
+
+	var body PlanGithubReviewJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PlanGithubReview(ctx, request.(PlanGithubReviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PlanGithubReview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PlanGithubReviewResponseObject); ok {
+		if err := validResponse.VisitPlanGithubReviewResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

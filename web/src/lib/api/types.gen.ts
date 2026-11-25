@@ -1180,6 +1180,10 @@ export type Trend = {
  */
 export type Finding = {
     /**
+     * The replies on GitHub to the pull request comment of this finding, oldest first.
+     */
+    github_replies?: Array<GithubReply>;
+    /**
      * The last full review found this, and the full review before it did not. See Trend.
      */
     new?: boolean;
@@ -1331,6 +1335,107 @@ export type QuestionItem = {
     anchor?: Anchor;
     finding?: Finding;
     thread?: Thread;
+    /**
+     * The replies on GitHub to the pull request comment of this item, oldest first.
+     */
+    github_replies?: Array<GithubReply>;
+};
+
+export type GithubReply = {
+    /**
+     * The GitHub login of the person who replied.
+     */
+    author: string;
+    body: string;
+    url: string;
+    created_at: string;
+};
+
+export type GithubReviewRequest = {
+    /**
+     * The URL of the pull request of a pull request source.
+     */
+    url: string;
+    /**
+     * questions: the questions screen items. must: every open MUST finding. all: every open finding.
+     *
+     */
+    preset: 'questions' | 'must' | 'all';
+    /**
+     * The item keys to leave out.
+     */
+    exclude?: Array<string>;
+};
+
+/**
+ * What a GitHub review would hold. It posts nothing.
+ */
+export type GithubReviewPlan = {
+    repo: string;
+    pull: number;
+    head_sha: string;
+    docs: Array<GithubReviewDoc>;
+    /**
+     * Items left out because an open comment on the pull request or your pending review holds them.
+     */
+    already: number;
+    can_post: boolean;
+    /**
+     * Why you cannot post, when can_post is false.
+     */
+    reason?: string;
+    /**
+     * You cannot post until you link your GitHub account.
+     */
+    link_required?: boolean;
+};
+
+export type GithubReviewDoc = {
+    doc_id: string;
+    path: string;
+    title: string;
+    profile: string;
+    verdict?: 'build_ready' | 'not_build_ready' | 'stale';
+    items: Array<GithubReviewItem>;
+};
+
+export type GithubReviewItem = {
+    /**
+     * The finding key that the comment's marker holds.
+     */
+    key: string;
+    kind: 'material_gap' | 'blocking_thread' | 'decision' | 'finding';
+    level?: 'MUST' | 'SHOULD' | 'INFO';
+    finding_id?: string;
+    /**
+     * The repo path of the file.
+     */
+    path: string;
+    /**
+     * The line, from 1, or 0 when the item names no line.
+     */
+    line: number;
+    /**
+     * The line is in the diff, so the comment goes on it. Otherwise it goes into the review body.
+     */
+    inline: boolean;
+    /**
+     * The text of the comment.
+     */
+    body: string;
+    /**
+     * Open comments on this line that Speccy did not write.
+     */
+    existing_comments: number;
+};
+
+export type GithubReviewPosted = {
+    review_url: string;
+    added: number;
+    /**
+     * Speccy's comments taken out of your pending review because their finding is gone.
+     */
+    removed: number;
 };
 
 export type RunReport = {
@@ -1773,6 +1878,16 @@ export type BundleGithub = {
      */
     ahead: boolean;
     pr_url?: string;
+    pull?: PullInfo;
+    /**
+     * Why nobody can edit or review the doc any more: its pull request closed, or it merged and another bundle holds the doc on the base branch. Absent when the doc is live.
+     *
+     */
+    read_only?: string;
+    /**
+     * The spec doc that holds this doc on the base branch, after the merge.
+     */
+    moved_to?: string;
 };
 
 /**
@@ -1848,6 +1963,67 @@ export type GithubSource = {
      * How many docs of this source have a type accepted in Speccy (REQ-133).
      */
     adopted?: number;
+    pull?: PullInfo;
+    /**
+     * For a pull request source, its spec docs with their profile and verdict.
+     */
+    docs?: Array<SourceDoc>;
+};
+
+/**
+ * The pull request a pull request source follows (docs/specs/pr-source-and-github-review.md).
+ */
+export type PullInfo = {
+    number: number;
+    title: string;
+    url: string;
+    /**
+     * The GitHub login of the person who opened it.
+     */
+    author: string;
+    state: 'open' | 'merged' | 'closed';
+    head_branch: string;
+    base_branch: string;
+    draft?: boolean;
+};
+
+export type SourceDoc = {
+    /**
+     * The doc's path in the repo.
+     */
+    path: string;
+    doc_id: string;
+    bundle_id: string;
+    profile: string;
+    /**
+     * Absent before the first review.
+     */
+    verdict?: 'build_ready' | 'not_build_ready' | 'stale';
+};
+
+export type PullDocChoice = {
+    path: string;
+    /**
+     * The doc type. Empty means not a spec.
+     */
+    profile: string;
+    link?: ConfirmedLink;
+};
+
+/**
+ * One markdown file that a pull request changes.
+ */
+export type ResolvedDoc = {
+    path: string;
+    title?: string;
+    /**
+     * The type the doc names or a mapping gives, or the guess.
+     */
+    profile?: string;
+    /**
+     * The profile is a guess, so the person confirms it.
+     */
+    guessed?: boolean;
 };
 
 export type AddedSource = {
@@ -1960,6 +2136,11 @@ export type GithubResolved = {
      * The profile keys to choose from.
      */
     profiles: Array<string>;
+    pull?: PullInfo;
+    /**
+     * For a pull request URL, the markdown files it changes, at its head.
+     */
+    docs?: Array<ResolvedDoc>;
 };
 
 export type FindingList = {
@@ -7142,7 +7323,7 @@ export type ListGithubSourcesResponse = ListGithubSourcesResponses[keyof ListGit
 export type AddGithubSourceData = {
     body: {
         /**
-         * A source URL - owner/name, a repo URL, or the URL of a folder or a doc in it.
+         * A source URL - owner/name, a repo URL, or the URL of a folder, a doc or a pull request in it.
          */
         url: string;
         /**
@@ -7150,6 +7331,11 @@ export type AddGithubSourceData = {
          *
          */
         profile?: string;
+        /**
+         * For a pull request URL: one choice for each markdown file the pull request changes. A profile makes the file a spec doc of the source. An empty profile marks the file not a spec. A file with a type of its own takes that type.
+         *
+         */
+        docs?: Array<PullDocChoice>;
     };
     path?: never;
     query?: never;
@@ -7826,6 +8012,56 @@ export type AskAuthorResponses = {
 };
 
 export type AskAuthorResponse = AskAuthorResponses[keyof AskAuthorResponses];
+
+export type PlanGithubReviewData = {
+    body: GithubReviewRequest;
+    path?: never;
+    query?: never;
+    url: '/github-reviews/plan';
+};
+
+export type PlanGithubReviewErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PlanGithubReviewError = PlanGithubReviewErrors[keyof PlanGithubReviewErrors];
+
+export type PlanGithubReviewResponses = {
+    /**
+     * The checklist.
+     */
+    200: GithubReviewPlan;
+};
+
+export type PlanGithubReviewResponse = PlanGithubReviewResponses[keyof PlanGithubReviewResponses];
+
+export type PostGithubReviewData = {
+    body: GithubReviewRequest;
+    path?: never;
+    query?: never;
+    url: '/github-reviews';
+};
+
+export type PostGithubReviewErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type PostGithubReviewError = PostGithubReviewErrors[keyof PostGithubReviewErrors];
+
+export type PostGithubReviewResponses = {
+    /**
+     * The pending review.
+     */
+    200: GithubReviewPosted;
+};
+
+export type PostGithubReviewResponse = PostGithubReviewResponses[keyof PostGithubReviewResponses];
 
 export type ListPendingData = {
     body?: never;
