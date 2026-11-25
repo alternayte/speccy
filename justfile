@@ -62,6 +62,10 @@ gen-check: gen
 # Go tests (SQLite engine), the lint speed check (T-081), and web unit tests.
 test: setup
     go tool gotestsum --format pkgname-and-test-fails -- -race -count=1 ./...
+    just test-rest
+
+# The lint speed check (T-081) and the web unit tests: the part of test that is not Go tests.
+test-rest: setup
     go test -run '^$' -bench BenchmarkLint_10kWords -benchtime 3x ./internal/engine/lint
     cd web && {{pnpm}} run test
 
@@ -92,6 +96,11 @@ build: build-web
 
 # Everything that gates a PR.
 verify: gen-check lint test test-pg budget docs-ref-check
+
+# The gate in CI, without the Go tests. CI runs test-pg in a parallel job: with the postgres
+# tag, every test that loops over storetest.Engines() runs on SQLite and Postgres, so the
+# SQLite pass of test adds nothing there.
+ci-checks: gen-check lint test-rest budget docs-ref-check
 
 # Write the docs site's generated pages: the Check catalog, the profile schema, the GitHub
 # Action, the MCP tools, the CLI, the DomainWords Vale rule, and the app's catalog slugs.
