@@ -9,7 +9,7 @@ This page lists each tool of Speccy's MCP server. `speccy mcp` runs the server o
 
 ## `add_source`
 
-Make a GitHub source from a URL: a repo, a branch folder, a doc, or a pull request. For a pull request, Speccy follows its head and makes one bundle for each spec doc it changes, with the person who opened it as the author. Call it with dry_run first: the answer lists the markdown files and the profile Speccy reads or guesses for each. Show that to the person, then call again with docs: one profile for each file they keep, and an empty profile for a file that is not a spec. Admins only.
+Make a GitHub source from a URL: a repo, a branch folder, a doc, or a pull request. For a pull request, Speccy follows its head and makes one bundle for each spec doc it changes, with the person who opened it as the author. Call it with dry_run first: the answer lists the markdown files and the profile Speccy reads or guesses for each. Show that to the person, then call again with docs: one profile for each file they keep, and an empty profile for a file that is not a spec. An admin adds any URL. Any other member adds only a pull request they opened, are a requested reviewer of, or have reviewed, and needs a linked GitHub account.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
