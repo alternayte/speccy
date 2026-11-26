@@ -56,7 +56,9 @@ export function BackendDialog({
     name: name.trim() || kinds.find((k) => k.kind === kind)!.label,
     ...(secret.trim() ? { secret: secret.trim() } : {}),
     ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
-    ...(callTimeout.trim() && Number.isFinite(Number(callTimeout)) ? { call_timeout_seconds: Math.round(Number(callTimeout)) } : {}),
+    ...(callTimeout.trim() && Number.isFinite(Number(callTimeout))
+      ? { call_timeout_seconds: Math.round(Number(callTimeout)) }
+      : {}),
     ...(kind === "agent_cli"
       ? {
           preset,
