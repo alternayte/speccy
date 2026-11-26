@@ -79,7 +79,7 @@ Get the breakdown of a doc: its epics, its work items, its findings, its coverag
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `get_bundle`
 
@@ -87,7 +87,7 @@ Get one bundle: its files, its verdict, and the text of its spec doc. Pass versi
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `version` | integer |  | a version number, to read the doc as it was at that version. Absent is the current version |
 
 ## `get_findings`
@@ -96,7 +96,7 @@ Get the fix list of a bundle: the findings of its current verdict, MUST first. E
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `level` | string |  | only findings at this level: MUST, SHOULD, or INFO |
 
 ## `get_questions`
@@ -105,7 +105,7 @@ Get everything that blocks Build Ready and needs a person, in doc order: materia
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `get_traceability`
 
@@ -113,7 +113,7 @@ Get a bundle's links, trace ID coverage, and suggested trace IDs.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `get_verdict`
 
@@ -121,7 +121,7 @@ Get the current verdict of a bundle.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `get_work_item`
 
@@ -138,7 +138,7 @@ Take the build packet of a Build Ready bundle: its spec doc, its assets, the spe
 | Input | Type | Required | Meaning |
 |---|---|---|---|
 | `acknowledged` | boolean |  | take the packet although the bundle is not Build Ready, or its verdict is stale |
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `label` | string |  | what you call this work: a repo, a branch, or an issue |
 
 ## `list_bundles`
@@ -161,7 +161,7 @@ List the discussion threads of a bundle.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `list_waivers`
 
@@ -169,7 +169,7 @@ List the waivers of a bundle, newest first: each with its check, section, reason
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `post_message`
 
@@ -200,7 +200,7 @@ Propose a breakdown of a Build Ready doc: epics, and work items under them. Each
 | Input | Type | Required | Meaning |
 |---|---|---|---|
 | `acknowledged` | boolean |  | propose it although the doc is not Build Ready. The breakdown stores the verdict |
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
 ## `push_breakdown`
 
@@ -210,7 +210,7 @@ Push the breakdown to a tracker: create the epics and the work items that have n
 |---|---|---|---|
 | `acknowledged` | boolean |  | push although the doc is not Build Ready. The handoff stores the verdict |
 | `based_on` | integer | yes | the revision of the breakdown the person approved |
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `target` | string | yes | the Linear team, the Jira project URL, or the GitHub repo as owner/name |
 | `tracker` | string | yes | linear, jira or github |
 
@@ -232,7 +232,7 @@ Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exceptio
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `finding_id` | string | yes | the id of the finding, from get_findings |
 | `reason` | string | yes | why the check does not apply here, in the person's own words. At least 20 characters |
 | `send_back` | boolean |  | answer a coherence.downstream-request finding with: the downstream doc must change. Only when the person says that this doc is right |
@@ -244,7 +244,7 @@ Run a review of a saved bundle and wait for the verdict. The model stages can ta
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `stages` | null or array |  | the model stages to run: rubric, grounding, divergence, coherence. Absent means all. |
 
 ## `review_content`
@@ -290,7 +290,7 @@ Save one file of a bundle that Speccy stores, as a new version. Give the version
 | Input | Type | Required | Meaning |
 |---|---|---|---|
 | `base_version` | string | yes | the ID of the version your edit is based on: current_version.id from get_bundle |
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `content` | string | yes | the whole new text of the file |
 | `path` | string | yes | the file in the bundle, such as SPEC.md |
 
@@ -302,7 +302,7 @@ Edit the breakdown of a doc. Pass based_on, the revision you read, and ops, appl
 |---|---|---|---|
 | `acknowledged` | boolean |  | with to_current_version: move it although the doc is not Build Ready |
 | `based_on` | integer | yes | the revision of the breakdown you read |
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `ops` | null or array |  | the edits, applied in order and all or none |
 | `to_current_version` | boolean |  | move a stale breakdown to the doc's current version instead of applying ops |
 
@@ -312,7 +312,7 @@ Verify one build against the bundle. Call it when the build from a build packet 
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
-| `bundle` | string | yes | the bundle's slug or ID |
+| `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 | `claims` | null or array |  | where each requirement lives, when you know. A claim replaces what Speccy would find for that requirement, and every target in it must hold. |
 | `handoff` | string |  | the handoff ID from the build packet |
 | `path` | string |  | a folder on disk, instead of a repo and a commit |

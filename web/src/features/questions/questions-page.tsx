@@ -317,7 +317,7 @@ export function QuestionsPage({ docId }: { docId: string }) {
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="relative min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[760px] space-y-4 px-4 py-5 sm:px-6">
           {notice ? (
             <p role="status" className={clsx("text-sm", notice.bad ? "text-bad" : "text-ok")}>
