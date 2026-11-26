@@ -799,9 +799,20 @@ paths:
     get:
       operationId: listBundles
       summary: List bundles, and the folders that look like bundles but are not valid.
+      description: >
+        A bundle whose every spec doc is read-only because its pull request closed, or because
+        the doc moved to a bundle on the base branch, is left out unless include_closed is true
+        (docs/specs/self-serve-pull-request-source.md).
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
+        - name: include_closed
+          in: query
+          required: false
+          description: Also list the bundles of closed and merged pull requests.
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: One page of bundles.
@@ -4373,6 +4384,10 @@ components:
           description: The spec docs of the bundle, by path.
           items:
             $ref: "#/components/schemas/SpecDoc"
+        closed:
+          type: string
+          enum: [closed, merged]
+          description: Set when every spec doc is read-only. merged when every doc moved to a bundle on the base branch, closed otherwise.
         updated_at:
           type: string
           format: date-time
@@ -7700,6 +7715,9 @@ components:
             $ref: "#/components/schemas/Bundle"
         next_cursor:
           type: string
+        closed:
+          type: integer
+          description: How many bundles the person can see are left out because their pull request closed or merged.
         problems:
           type: array
           description: Folders that are not valid bundles, for example with two main docs (REQ-001).

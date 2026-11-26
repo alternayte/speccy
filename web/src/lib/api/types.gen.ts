@@ -472,6 +472,10 @@ export type Bundle = {
      * The spec docs of the bundle, by path.
      */
     docs: Array<SpecDoc>;
+    /**
+     * Set when every spec doc is read-only. merged when every doc moved to a bundle on the base branch, closed otherwise.
+     */
+    closed?: 'closed' | 'merged';
     updated_at: string;
 };
 
@@ -2888,6 +2892,10 @@ export type BundleList = {
     items: Array<Bundle>;
     next_cursor?: string;
     /**
+     * How many bundles the person can see are left out because their pull request closed or merged.
+     */
+    closed?: number;
+    /**
      * Folders that are not valid bundles, for example with two main docs (REQ-001).
      */
     problems: Array<BundleProblem>;
@@ -4441,6 +4449,10 @@ export type ListBundlesData = {
     query?: {
         cursor?: string;
         limit?: number;
+        /**
+         * Also list the bundles of closed and merged pull requests.
+         */
+        include_closed?: boolean;
     };
     url: '/bundles';
 };

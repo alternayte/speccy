@@ -25,6 +25,9 @@ type fakePull struct {
 	state   string
 	files   []string
 	threads []map[string]any
+	// reviewers are the GitHub IDs of the requested reviewers, reviewed of the people who
+	// submitted a review.
+	reviewers, reviewed []int64
 }
 
 func (f *fakePull) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -39,10 +42,20 @@ func (f *fakePull) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if state == "merged" {
 			state, merged = "closed", true
 		}
+		var requested []map[string]int64
+		for _, id := range f.reviewers {
+			requested = append(requested, map[string]int64{"id": id})
+		}
 		send(map[string]any{"title": "Payments PRD and SDD", "html_url": "https://github.com/acme/specs/pull/42", "state": state,
-			"merged": merged, "user": map[string]any{"login": "pat", "id": 77},
+			"merged": merged, "user": map[string]any{"login": "pat", "id": 77}, "requested_reviewers": requested,
 			"head": map[string]any{"ref": "feature/pay", "sha": head, "repo": map[string]string{"full_name": "acme/specs"}},
 			"base": map[string]any{"ref": "main"}})
+	case strings.HasPrefix(p, "/pulls/42/reviews"):
+		var out []map[string]any
+		for _, id := range f.reviewed {
+			out = append(out, map[string]any{"user": map[string]int64{"id": id}})
+		}
+		send(out)
 	case strings.HasPrefix(p, "/pulls/42/files"):
 		var out []map[string]string
 		for _, name := range f.files {
@@ -75,7 +88,7 @@ func (f *fakePull) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // reply to Speccy's comment lands on its doc. On merge, a doc another source holds on the base
 // branch becomes read-only and points there; the other doc follows the base branch.
 func TestPullSource(t *testing.T) {
-	ctx := as(context.Background(), "user-admin")
+	ctx := asAdmin(context.Background(), "user-admin")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
 	prd := "---\ntype: prd\n---\n" + mainDoc
@@ -218,4 +231,85 @@ func docAt(t *testing.T, s *Service, pull bool, docPath string) (pgdb.SpecDoc, b
 		}
 	}
 	return pgdb.SpecDoc{}, false
+}
+
+// docs/specs/self-serve-pull-request-source.md: a member adds a pull request they opened, are a
+// requested reviewer of, or reviewed. Anyone else, an unlinked member, and a non-pull URL are
+// refused. A closed pull request's bundle leaves the list, and include_closed brings it back.
+func TestSelfServePullSource(t *testing.T) {
+	s := services()[0].open(t)
+	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
+	gh.refs["main"] = gh.commit(map[string]string{"docs/old.md": "---\ntype: prd\n---\n" + mainDoc})
+	gh.refs["feature/pay"] = gh.commit(map[string]string{"docs/sdd.md": "---\ntype: sdd\n---\n# Payments SDD\n\n## Design\n\nThe service stores refunds.\n"})
+	fake := &fakePull{fakeGitHub: gh, state: "open", files: []string{"docs/sdd.md"}, reviewers: []int64{88}, reviewed: []int64{66}}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	s.GitHub = func(context.Context, string) (*github.Client, error) {
+		return &github.Client{API: srv.URL, Token: "t"}, nil
+	}
+	s.UserOfGitHub = func(_ context.Context, id string) (string, bool, error) { return "user-pat", id == "77", nil }
+	linked := map[string]string{"user-pat": "77", "user-rev": "88", "user-did": "66", "user-out": "99"}
+	s.GitHubAccount = func(_ context.Context, user string) (string, bool, error) {
+		id, ok := linked[user]
+		return id, ok, nil
+	}
+	a := sourceAPI(t, s)
+	pull := srv.URL + "/acme/specs/pull/42"
+	code := func(err error) string {
+		if ke, ok := kernel.AsError(err); ok {
+			return ke.Code
+		}
+		return ""
+	}
+	resolve := func(user, u string) error {
+		_, err := a.ResolveGithubUrl(as(context.Background(), user), api.ResolveGithubUrlRequestObject{Body: &api.ResolveGithubUrlJSONRequestBody{Url: u}})
+		return err
+	}
+	for user, want := range map[string]string{"user-rev": "", "user-did": "", "user-out": "not_pull_participant", "user-none": "github_not_linked"} {
+		if got := code(resolve(user, pull)); got != want {
+			t.Errorf("%s resolves the pull request: code %q, want %q", user, got, want)
+		}
+	}
+	if got := code(resolve("user-pat", srv.URL+"/acme/specs/tree/main/docs")); got != "admin_only" {
+		t.Errorf("a member resolves a branch URL: code %q, want admin_only", got)
+	}
+	admin := kernel.WithActor(context.Background(), kernel.Actor{UserID: "user-admin", Role: kernel.RoleAdmin})
+	if _, err := a.ResolveGithubUrl(admin, api.ResolveGithubUrlRequestObject{Body: &api.ResolveGithubUrlJSONRequestBody{Url: srv.URL + "/acme/specs/tree/main/docs"}}); err != nil {
+		t.Errorf("an admin resolves a branch URL: %v", err)
+	}
+
+	pat := as(context.Background(), "user-pat")
+	picks := []api.PullDocChoice{{Path: "docs/sdd.md", Profile: "sdd"}}
+	res, err := a.AddGithubSource(pat, api.AddGithubSourceRequestObject{Body: &api.AddGithubSourceJSONRequestBody{Url: pull, Docs: &picks}})
+	if err != nil {
+		t.Fatalf("the author adds their pull request: %v", err)
+	}
+	src := res.(api.AddGithubSource200JSONResponse).Source.Id
+	list := func(withClosed bool) api.BundleList {
+		t.Helper()
+		p := api.ListBundlesParams{}
+		if withClosed {
+			p.IncludeClosed = &withClosed
+		}
+		out, err := a.ListBundles(admin, api.ListBundlesRequestObject{Params: p})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return api.BundleList(out.(api.ListBundles200JSONResponse))
+	}
+	if l := list(false); len(l.Items) != 1 || l.Closed == nil || *l.Closed != 0 {
+		t.Fatalf("open pull request: %d bundles, closed %v; want 1 and 0", len(l.Items), l.Closed)
+	}
+
+	fake.state = "closed"
+	if err := s.SyncSource(admin, src, false); err != nil {
+		t.Fatal(err)
+	}
+	if l := list(false); len(l.Items) != 0 || l.Closed == nil || *l.Closed != 1 {
+		t.Errorf("closed pull request: %d bundles, closed %v; want 0 and 1", len(l.Items), l.Closed)
+	}
+	l := list(true)
+	if len(l.Items) != 1 || l.Items[0].Closed == nil || *l.Items[0].Closed != api.BundleClosedClosed {
+		t.Errorf("include_closed: %+v; want the bundle, marked closed", l.Items)
+	}
 }

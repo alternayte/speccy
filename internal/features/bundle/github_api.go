@@ -97,6 +97,9 @@ func (a *API) resolve(ctx context.Context, raw string) (github.Ref, api.GithubRe
 	if err != nil {
 		return ref, api.GithubResolved{}, err
 	}
+	if err := a.mayAdd(ctx, c, ref); err != nil {
+		return ref, api.GithubResolved{}, err
+	}
 	if ref.Pull > 0 {
 		out, _, err := a.resolvePull(ctx, c, ref)
 		return ref, out, err

@@ -11,7 +11,7 @@ This guide shows you how to review the spec docs of one pull request in a hosted
 ## Before you start
 
 - The workspace has the GitHub App, and the App can read the repo. See [Run hosted mode](/how-to/run-hosted-mode/).
-- You are an admin. Only an admin adds a source.
+- You are an admin, the person who opened the pull request, a requested reviewer of it, or a person who submitted a review on it. Speccy checks this against GitHub when you add the pull request, so you must link your GitHub account under **Account** first. Only an admin adds a repo, a branch, a folder or a single doc.
 - To write a GitHub review, you link your GitHub account under **Account**. The review goes to GitHub as you. A workspace with a GitHub token and no App cannot write a GitHub review, because the token belongs to one person.
 
 ## Follow the pull request
@@ -77,6 +77,8 @@ When the author replies on GitHub to a comment from Speccy, the reply shows on i
 
 - **Merged**: the bundles follow the base branch from then on, with their versions, threads and author. When another source already holds a doc on the base branch, the bundle of the pull request becomes read-only and links to that doc.
 - **Closed without a merge**: the source stops syncing, and its docs become read-only. The reviews stay. Remove the source under **Admin → GitHub** when you no longer need it.
+
+A bundle whose every doc is read-only leaves the bundles screen. Its link still works, so the Speccy links in the GitHub review still open it. Select **Closed pull requests** under the list to see these bundles again, each marked **Closed** or **Merged**. A pull request that opens again brings its bundles back.
 
 ## From an agent
 

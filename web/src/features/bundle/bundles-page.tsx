@@ -30,7 +30,14 @@ import { relativeTime } from "./time";
 import { BundleStatePill } from "./verdict";
 
 export function BundlesPage() {
-  const bundles = useQuery({ ...listBundlesOptions({ query: { limit: 100 } }), refetchInterval: 3000 });
+  // The bundles of closed and merged pull requests stay out of the list until the person asks
+  // for them (docs/specs/self-serve-pull-request-source.md).
+  const [withClosed, setWithClosed] = useState(false);
+  const bundles = useQuery({
+    ...listBundlesOptions({ query: { limit: 100, ...(withClosed ? { include_closed: true } : {}) } }),
+    refetchInterval: 3000,
+  });
+  const closedCount = bundles.data?.closed ?? 0;
   const [importing, setImporting] = useState(false);
   const [fromGitHub, setFromGitHub] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -177,7 +184,11 @@ export function BundlesPage() {
                         one line, so a narrow screen keeps the same order as a wide one. */}
                     <span className="flex items-center gap-2 sm:contents">
                       <span className="whitespace-nowrap">
-                        {b.state !== "not_build_ready" && b.docs.some((d) => d.run_error) ? (
+                        {b.closed ? (
+                          <span className="rounded-sm border border-line px-1.5 py-0.5 text-xs text-ink-2">
+                            {b.closed === "merged" ? "Merged" : "Closed"}
+                          </span>
+                        ) : b.state !== "not_build_ready" && b.docs.some((d) => d.run_error) ? (
                           <span className="text-xs text-bad">Cannot review</span>
                         ) : (
                           <BundleStatePill state={b.state} />
@@ -205,6 +216,13 @@ export function BundlesPage() {
             </ul>
           )}
         </div>
+        {withClosed || closedCount > 0 ? (
+          <div className="mt-2 flex justify-end">
+            <Button variant="ghost" size="sm" aria-pressed={withClosed} onClick={() => setWithClosed(!withClosed)}>
+              {withClosed ? "Hide closed pull requests" : `Closed pull requests (${closedCount})`}
+            </Button>
+          </div>
+        ) : null}
 
         <SourceErrors />
         <PullSources />

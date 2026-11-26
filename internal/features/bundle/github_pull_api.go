@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -24,6 +25,44 @@ import (
 type resolvedDoc struct {
 	api.ResolvedDoc
 	own bool // the doc names its type, or the repo's .speccy.yaml maps it
+}
+
+// mayAdd lets an admin read or add any source URL. Any other member may read or add only a pull
+// request URL, and only when their linked GitHub account opened the pull request, is a requested
+// reviewer of it, or has submitted a review on it (docs/specs/self-serve-pull-request-source.md).
+func (a *API) mayAdd(ctx context.Context, c *github.Client, ref github.Ref) error {
+	act := kernel.ActorFrom(ctx)
+	if act.IsAdmin() {
+		return nil
+	}
+	if ref.Pull == 0 {
+		return kernel.Forbidden("admin_only", "Only an admin adds a repo, branch, folder or doc source. Paste the URL of a pull request you opened or review.")
+	}
+	ghID, ok := "", false
+	if a.Service.GitHubAccount != nil && act.Guest == nil && act.UserID != "" {
+		var err error
+		if ghID, ok, err = a.Service.GitHubAccount(ctx, act.UserID); err != nil {
+			return err
+		}
+	}
+	if !ok {
+		return kernel.Forbidden("github_not_linked", "Sign in with GitHub first: Speccy checks that you opened or review pull request #%d.", ref.Pull)
+	}
+	info, err := c.PullRequest(ctx, ref.Repo, ref.Pull)
+	if err != nil {
+		return github.UnreadableRepo(ref.Repo, err)
+	}
+	if info.AuthorID == ghID || slices.Contains(info.ReviewerIDs, ghID) {
+		return nil
+	}
+	reviewed, err := c.ReviewAuthorIDs(ctx, ref.Repo, ref.Pull)
+	if err != nil {
+		return github.UnreadableRepo(ref.Repo, err)
+	}
+	if slices.Contains(reviewed, ghID) {
+		return nil
+	}
+	return kernel.Forbidden("not_pull_participant", "You did not open pull request #%d of %s, and you are not a reviewer of it. Its author, a reviewer or an admin adds it.", ref.Pull, ref.Repo)
 }
 
 // resolvePull reads a pull request URL: the pull request, and the markdown files it changes at

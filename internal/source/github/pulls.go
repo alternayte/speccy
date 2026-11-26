@@ -32,6 +32,30 @@ func (c *Client) PRFiles(ctx context.Context, repo string, number int) ([]PRFile
 	}
 }
 
+// ReviewAuthorIDs lists the GitHub account IDs of the people who submitted a review on a pull
+// request. GitHub drops a requested reviewer from the request once they review.
+func (c *Client) ReviewAuthorIDs(ctx context.Context, repo string, number int) ([]string, error) {
+	var out []string
+	for page := 1; ; page++ {
+		var batch []struct {
+			User *struct {
+				ID int64 `json:"id"`
+			} `json:"user"`
+		}
+		if err := c.do(ctx, "GET", fmt.Sprintf("%s/pulls/%d/reviews?per_page=100&page=%d", repoPath(repo), number, page), nil, &batch); err != nil {
+			return nil, err
+		}
+		for _, r := range batch {
+			if r.User != nil && r.User.ID != 0 {
+				out = append(out, strconv.FormatInt(r.User.ID, 10))
+			}
+		}
+		if len(batch) < 100 || page >= 30 {
+			return out, nil
+		}
+	}
+}
+
 // IssueComment is a comment on a pull request's conversation.
 type IssueComment struct {
 	ID   int64  `json:"id"`
@@ -160,6 +184,8 @@ type PRInfo struct {
 	// account ID, which auth-all keeps for a GitHub sign-in.
 	Author   string
 	AuthorID string
+	// ReviewerIDs are the GitHub account IDs of the requested reviewers.
+	ReviewerIDs []string
 	// State is open, merged or closed.
 	State string
 }
@@ -190,6 +216,9 @@ func (c *Client) PullRequest(ctx context.Context, repo string, number int) (PRIn
 			Login string `json:"login"`
 			ID    int64  `json:"id"`
 		} `json:"user"`
+		RequestedReviewers []struct {
+			ID int64 `json:"id"`
+		} `json:"requested_reviewers"`
 	}
 	if err := c.do(ctx, "GET", fmt.Sprintf("%s/pulls/%d", repoPath(repo), number), nil, &pr); err != nil {
 		return PRInfo{}, err
@@ -198,6 +227,9 @@ func (c *Client) PullRequest(ctx context.Context, repo string, number int) (PRIn
 		Author: pr.User.Login, State: pr.State}
 	if pr.User.ID != 0 {
 		out.AuthorID = strconv.FormatInt(pr.User.ID, 10)
+	}
+	for _, r := range pr.RequestedReviewers {
+		out.ReviewerIDs = append(out.ReviewerIDs, strconv.FormatInt(r.ID, 10))
 	}
 	if pr.Merged {
 		out.State = "merged"

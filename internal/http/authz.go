@@ -249,10 +249,12 @@ var operations = map[string]access{
 	"startGithubApp":         adminOnly,
 	"deleteGithubApp":        adminOnly,
 	"listGithubSources":      member,
-	"resolveGithubUrl":       adminOnly,
-	"addGithubSource":        adminOnly,
-	"deleteGithubSource":     adminOnly,
-	"syncGithubSource":       adminOnly,
+	// docs/specs/self-serve-pull-request-source.md: a member adds a pull request they opened
+	// or review; the handler checks it, and keeps every other source URL for an admin.
+	"resolveGithubUrl":   member,
+	"addGithubSource":    member,
+	"deleteGithubSource": adminOnly,
+	"syncGithubSource":   adminOnly,
 	// REQ-133: adopting a source's docs and writing the repo's mapping change what the
 	// workspace reviews, so they are an admin's call. The list itself is not.
 	"listSkippedDocs":      member,

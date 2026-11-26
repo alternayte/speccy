@@ -339,6 +339,9 @@ export const setSettings = <ThrowOnError extends boolean = false>(options: Optio
 
 /**
  * List bundles, and the folders that look like bundles but are not valid.
+ *
+ * A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
+ *
  */
 export const listBundles = <ThrowOnError extends boolean = false>(options?: Options<ListBundlesData, ThrowOnError>): RequestResult<ListBundlesResponses, ListBundlesErrors, ThrowOnError> => (options?.client ?? client).get<ListBundlesResponses, ListBundlesErrors, ThrowOnError>({ url: '/bundles', ...options });
 

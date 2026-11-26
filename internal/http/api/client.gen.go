@@ -408,6 +408,8 @@ type ClientInterface interface {
 
 	// ListBundles List bundles, and the folders that look like bundles but are not valid.
 	//
+	// A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
+	//
 	// Corresponds with GET /bundles (the `ListBundles` operationId).
 	ListBundles(ctx context.Context, params *ListBundlesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2481,6 +2483,8 @@ func (c *Client) UpdateURLConnector(ctx context.Context, connectionId Connection
 }
 
 // ListBundles List bundles, and the folders that look like bundles but are not valid.
+//
+// A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
 //
 // Corresponds with GET /bundles (the `ListBundles` operationId).
 func (c *Client) ListBundles(ctx context.Context, params *ListBundlesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -6982,6 +6986,18 @@ func NewListBundlesRequest(server string, params *ListBundlesParams) (*http.Requ
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.IncludeClosed != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "include_closed", *params.IncludeClosed, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -13115,6 +13131,8 @@ type ClientWithResponsesInterface interface {
 	UpdateURLConnectorWithResponse(ctx context.Context, connectionId ConnectionId, body UpdateURLConnectorJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateURLConnectorResponse, error)
 
 	// ListBundlesWithResponse List bundles, and the folders that look like bundles but are not valid.
+	//
+	// A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -23399,6 +23417,8 @@ func (c *ClientWithResponses) UpdateURLConnectorWithResponse(ctx context.Context
 }
 
 // ListBundlesWithResponse List bundles, and the folders that look like bundles but are not valid.
+//
+// A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
 //
 // Returns a wrapper object for the known response body format(s).
 //
