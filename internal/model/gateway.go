@@ -22,7 +22,11 @@ import (
 
 // REQ-103 limits.
 const (
-	CallTimeout = 120 * time.Second
+	// DefaultCallTimeout is the limit for one call to a backend with no call timeout of its own
+	// (docs/specs/backend-call-timeout.md). MinCallTimeout and MaxCallTimeout bound the setting.
+	DefaultCallTimeout = 300 * time.Second
+	MinCallTimeout     = 30 * time.Second
+	MaxCallTimeout     = 600 * time.Second
 	// transientRetries bounds the retries of a call with no deadline. A call inside a run
 	// retries until the run's time ends (docs/specs/hosted-pr-review.md).
 	transientRetries = 6
@@ -106,7 +110,7 @@ func (g *Gateway) wait(ctx context.Context, attempt int, asked time.Duration) er
 
 // retryable reports whether a transient error gets another try: while the context's deadline
 // leaves room for the wait, or, with no deadline, while retries are left.
-func retryable(ctx context.Context, err error, left int, now time.Time) bool {
+func retryable(ctx context.Context, err error, left int, now time.Time, limit time.Duration) bool {
 	if !Transient(err) {
 		return false
 	}
@@ -116,9 +120,30 @@ func retryable(ctx context.Context, err error, left int, now time.Time) bool {
 		if errors.As(err, &se) && se.RetryAfter > wait {
 			wait = se.RetryAfter
 		}
-		return now.Add(wait + CallTimeout/4).Before(dl)
+		return now.Add(wait + limit/4).Before(dl)
 	}
 	return left > 0
+}
+
+// CallTimeout returns the limit for one call to row: its call_timeout_seconds, or
+// DefaultCallTimeout when it has none.
+func CallTimeout(row pgdb.ModelBackend) time.Duration {
+	var cfg struct {
+		Seconds float64 `json:"call_timeout_seconds"`
+	}
+	if json.Unmarshal(row.Config, &cfg) != nil || cfg.Seconds <= 0 {
+		return DefaultCallTimeout
+	}
+	return time.Duration(cfg.Seconds * float64(time.Second))
+}
+
+// timeoutError says what to change when a call hits its limit (#181).
+func timeoutError(backend, role string, limit time.Duration) error {
+	faster := ""
+	if role != "" && role != "test" {
+		faster = fmt.Sprintf(", or assign the %s role a faster model", role)
+	}
+	return fmt.Errorf("the %s backend did not answer within %s. Raise its call timeout in Admin → Models%s", backend, limit, faster)
 }
 
 // Assignment is a role's backend and model.
@@ -183,13 +208,14 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 	}
 	transientLeft, parseLeft := transientRetries, parseRetries
 	transient := 0
-	cutOff := false
+	cutOff, timedOutOnce := false, false
+	limit := CallTimeout(row)
 	var lastParse error
 	for attempt := 0; ; attempt++ {
 		if err := g.checkBudget(ctx); err != nil {
 			return res, err
 		}
-		callCtx, cancel := context.WithTimeout(ctx, CallTimeout)
+		callCtx, cancel := context.WithTimeout(ctx, limit)
 		raw, err := be.Call(callCtx, model, c)
 		timedOut := callCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil
 		cancel()
@@ -200,14 +226,20 @@ func (g *Gateway) CallWith(ctx context.Context, row pgdb.ModelBackend, model str
 				return res, ctx.Err()
 			}
 			if timedOut {
-				return res, fmt.Errorf("the %s backend did not answer within %s", row.Name, CallTimeout)
+				// One more try when the run's deadline leaves room for a full one. A call with no
+				// deadline runs inside a request, where a second wait only lets a proxy cut it.
+				if dl, ok := ctx.Deadline(); ok && !timedOutOnce && time.Now().Add(limit).Before(dl) {
+					timedOutOnce = true
+					continue
+				}
+				return res, timeoutError(row.Name, c.Role, limit)
 			}
 			if c.Temperature != nil && refusesTemperature(err) {
 				g.noTemperature.Store(refuses, true)
 				c.Temperature = nil
 				continue
 			}
-			if retryable(ctx, err, transientLeft, time.Now()) {
+			if retryable(ctx, err, transientLeft, time.Now(), limit) {
 				transientLeft--
 				var asked time.Duration
 				var se *StatusError

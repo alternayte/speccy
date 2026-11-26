@@ -60,6 +60,8 @@ type backendConfig struct {
 	Preset    string   `json:"preset,omitempty"`
 	Command   []string `json:"command,omitempty"`
 	PromptVia string   `json:"prompt_via,omitempty"`
+	// CallTimeoutSeconds is the limit for one model call; 0 means model.DefaultCallTimeout.
+	CallTimeoutSeconds int `json:"call_timeout_seconds,omitempty"`
 }
 
 func (a *API) toAPI(ctx context.Context, b pgdb.ModelBackend) (api.Backend, error) {
@@ -68,6 +70,7 @@ func (a *API) toAPI(ctx context.Context, b pgdb.ModelBackend) (api.Backend, erro
 	out := api.Backend{
 		Id: b.ID, Kind: api.BackendKind(b.Kind), Name: b.Name,
 		HasSecret: len(b.SecretEncrypted) > 0, SecretLast4: b.SecretLast4, Roles: []string{},
+		CallTimeoutSeconds: int(model.CallTimeout(b) / time.Second),
 	}
 	if cfg.BaseURL != "" {
 		out.BaseUrl = &cfg.BaseURL
@@ -125,6 +128,14 @@ func validate(in api.BackendInput) (backendConfig, error) {
 			return cfg, kernel.Invalid("bad_backend", "The base URL must start with https:// or http://.")
 		}
 		cfg.BaseURL = u
+	}
+	if in.CallTimeoutSeconds != nil {
+		n := time.Duration(*in.CallTimeoutSeconds) * time.Second
+		if n < model.MinCallTimeout || n > model.MaxCallTimeout {
+			return cfg, kernel.Invalid("bad_timeout", "The call timeout must be from %d to %d seconds.",
+				int(model.MinCallTimeout/time.Second), int(model.MaxCallTimeout/time.Second))
+		}
+		cfg.CallTimeoutSeconds = *in.CallTimeoutSeconds
 	}
 	switch in.Kind {
 	case api.AgentCli:
@@ -224,6 +235,11 @@ func (a *API) UpdateBackend(ctx context.Context, req api.UpdateBackendRequestObj
 	cfg, err := validate(in)
 	if err != nil {
 		return nil, err
+	}
+	if in.CallTimeoutSeconds == nil {
+		var old backendConfig
+		_ = json.Unmarshal(cur.Config, &old)
+		cfg.CallTimeoutSeconds = old.CallTimeoutSeconds
 	}
 	sealed, last4 := cur.SecretEncrypted, cur.SecretLast4
 	if in.Secret != nil && strings.TrimSpace(*in.Secret) != "" {

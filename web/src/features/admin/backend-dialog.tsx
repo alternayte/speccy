@@ -40,6 +40,7 @@ export function BackendDialog({
   const [baseUrl, setBaseUrl] = useState(editing?.base_url ?? "");
   const [preset, setPreset] = useState(editing?.preset ?? "claude");
   const [command, setCommand] = useState((editing?.command ?? []).join("\n"));
+  const [callTimeout, setCallTimeout] = useState(String(editing?.call_timeout_seconds ?? 300));
   const [promptVia, setPromptVia] = useState<"stdin" | "file">((editing?.prompt_via as "stdin" | "file") ?? "stdin");
   const done = () => {
     qc.invalidateQueries({ queryKey: listBackendsQueryKey() });
@@ -55,6 +56,7 @@ export function BackendDialog({
     name: name.trim() || kinds.find((k) => k.kind === kind)!.label,
     ...(secret.trim() ? { secret: secret.trim() } : {}),
     ...(baseUrl.trim() ? { base_url: baseUrl.trim() } : {}),
+    ...(callTimeout.trim() && Number.isFinite(Number(callTimeout)) ? { call_timeout_seconds: Math.round(Number(callTimeout)) } : {}),
     ...(kind === "agent_cli"
       ? {
           preset,
@@ -217,6 +219,18 @@ export function BackendDialog({
             ) : null}
           </fieldset>
         )}
+
+        <div>
+          <Label htmlFor="be-timeout">Call timeout, in seconds</Label>
+          <Input
+            id="be-timeout"
+            inputMode="numeric"
+            value={callTimeout}
+            onChange={(e) => setCallTimeout(e.target.value)}
+            className="w-28"
+          />
+          <p className="mt-1 text-xs text-ink-3">The limit for one model call. Raise it for a slow model.</p>
+        </div>
 
         {error ? <ErrorState message={problemMessage(error)} /> : null}
         <div className="flex justify-end gap-2">

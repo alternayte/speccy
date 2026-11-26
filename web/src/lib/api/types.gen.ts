@@ -2747,6 +2747,10 @@ export type BackendInput = {
      */
     command?: Array<string>;
     prompt_via?: 'stdin' | 'file';
+    /**
+     * The limit for one model call, from 30 to 600 seconds. A new backend has 300. On an update, a missing value keeps the stored one.
+     */
+    call_timeout_seconds?: number;
 };
 
 export type Backend = {
@@ -2759,6 +2763,10 @@ export type Backend = {
     preset?: string;
     command?: Array<string>;
     prompt_via?: string;
+    /**
+     * The limit for one model call, in seconds.
+     */
+    call_timeout_seconds: number;
     /**
      * The roles that use this backend.
      */

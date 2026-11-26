@@ -249,7 +249,13 @@ Each person makes personal API tokens under **Account → API tokens**, with **M
 
 `POST /api/v1/reviews` and `POST /api/v1/reviews/url` queue the review and answer `202` with a review request: its `id`, its `kind` and its `status`. `GET /api/v1/reviews/{reviewId}` gives the status, `queued`, `running`, `complete` or `failed`, the stage, and then the result. A proxy timeout thus never cuts a review.
 
-`POST /api/v1/docs/{docId}/breakdown` queues a breakdown proposal in the same way and answers `202`. `GET /api/v1/docs/{docId}/breakdown/proposal` gives its status. The live run view holds a request open while a review runs, so set the proxy's read timeout to at least 300 seconds. On ingress-nginx, set the annotations `nginx.ingress.kubernetes.io/proxy-read-timeout` and `nginx.ingress.kubernetes.io/proxy-send-timeout` to `"300"`.
+`POST /api/v1/docs/{docId}/breakdown` queues a breakdown proposal in the same way and answers `202`. `GET /api/v1/docs/{docId}/breakdown/proposal` gives its status. The live run view holds a request open while a review runs. Some model calls also run inside the request: **Test**, suggest fix, fix all, check conflicts, the diff summary and the ask draft. Set the proxy's read timeout to at least the largest call timeout of a backend in Admin → Models. The default call timeout is 300 seconds.
+
+- nginx: set `proxy_read_timeout` and `proxy_send_timeout` to `300s`. Both are 60 seconds by default.
+- ingress-nginx: set the annotations `nginx.ingress.kubernetes.io/proxy-read-timeout` and `nginx.ingress.kubernetes.io/proxy-send-timeout` to `"300"`.
+- Traefik: `transport.respondingTimeouts.writeTimeout` of the entry point is `0s`, no limit, by default. If you set it, set it to at least `300s`.
+
+A proxy that cuts a request gives an error that names the HTTP status. Reviews, breakdown proposals, thread answers and verification runs are jobs, so a proxy timeout never cuts them. When a pod stops, it cancels its running jobs, and a worker tries each one again later.
 
 ## Models and GitHub
 

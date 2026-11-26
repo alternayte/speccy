@@ -115,6 +115,38 @@ func TestGateway_Timeout(t *testing.T) {
 	}
 }
 
+// #181: a call that hits the backend's own limit gets one more try when the run's deadline
+// leaves room, none inside a request with no deadline, and the error says what to change.
+func TestGateway_BackendTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		deadline time.Duration
+		calls    int
+	}{{"run with room", time.Hour, 2}, {"run with no room", 80 * time.Millisecond, 1}, {"no deadline", 0, 1}} {
+		t.Run(tc.name, func(t *testing.T) {
+			g, fake := newGateway(t, []string{"!timeout", "!timeout", "!timeout"})
+			ctx := context.Background()
+			a, err := g.Assigned(ctx, RoleReviewer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.Backend.Config = dbtype.JSON(`{"call_timeout_seconds":0.05}`)
+			if tc.deadline > 0 {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, tc.deadline)
+				defer cancel()
+			}
+			_, err = g.CallWith(ctx, a.Backend, a.Model, call())
+			if err == nil || !strings.Contains(err.Error(), "Raise its call timeout in Admin → Models") {
+				t.Errorf("err = %v, want the timeout advice", err)
+			}
+			if n := len(fake.Calls()); n != tc.calls {
+				t.Errorf("%d calls, want %d", n, tc.calls)
+			}
+		})
+	}
+}
+
 // REQ-104: when the budget is spent, calls refuse to start.
 func TestGateway_Budget(t *testing.T) {
 	ctx := context.Background()

@@ -92,6 +92,14 @@ Speccy runs the command from the admin configuration only. A doc cannot change t
 
 The hosted image holds only the `speccy` binary. An agent CLI preset there says `not found on PATH`. Use an API backend in hosted mode, or build your own image that adds the CLI and its sign-in.
 
+## Set the call timeout
+
+The **Call timeout, in seconds** field sets the limit for one model call to the backend. A new backend has 300 seconds. The value must be from 30 to 600.
+
+When a call in a review passes the limit, Speccy tries it once more if the review has time for a full try. When the call fails again, the run error names the backend and the limit. Then raise the call timeout, or assign the role a faster model.
+
+A reasoning model on a long doc can need more than the default. Raise the timeout of that backend only.
+
 ## Test a backend
 
 Each backend in the list has a **Model to test** field.
