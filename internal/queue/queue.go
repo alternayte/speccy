@@ -79,20 +79,31 @@ type Queue struct {
 	done    chan struct{}
 }
 
-// Open migrates River's tables in db and returns the queue. Register every kind before Start.
-func Open(ctx context.Context, db *store.DB, cfg Config) (*Queue, error) {
-	var driver riverdriver.Driver[*sql.Tx]
+func driverFor(db *store.DB) riverdriver.Driver[*sql.Tx] {
 	if db.Engine == store.SQLite {
-		driver = riversqlite.New(db.SQL)
-	} else {
-		driver = riverdatabasesql.New(db.SQL)
+		return riversqlite.New(db.SQL)
 	}
-	m, err := rivermigrate.New(driver, &rivermigrate.Config{Logger: quietLogger()})
+	return riverdatabasesql.New(db.SQL)
+}
+
+// Migrate creates or updates River's tables in db. Open does it too; the test stores call it
+// once for the database they copy.
+func Migrate(ctx context.Context, db *store.DB) error {
+	m, err := rivermigrate.New(driverFor(db), &rivermigrate.Config{Logger: quietLogger()})
 	if err != nil {
-		return nil, fmt.Errorf("queue: %w", err)
+		return fmt.Errorf("queue: %w", err)
 	}
 	if _, err := m.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
-		return nil, fmt.Errorf("queue: migrate: %w", err)
+		return fmt.Errorf("queue: migrate: %w", err)
+	}
+	return nil
+}
+
+// Open migrates River's tables in db and returns the queue. Register every kind before Start.
+func Open(ctx context.Context, db *store.DB, cfg Config) (*Queue, error) {
+	driver := driverFor(db)
+	if err := Migrate(ctx, db); err != nil {
+		return nil, err
 	}
 	if cfg.JobTimeout == 0 {
 		cfg.JobTimeout = 30 * time.Minute

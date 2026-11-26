@@ -103,6 +103,7 @@ func TestAuthz_EndpointRoleTable(t *testing.T) {
 	e := storetest.Engines()[0]
 	for _, op := range ops {
 		t.Run(op.id, func(t *testing.T) {
+			t.Parallel()
 			// A fresh workspace per operation: a bundle with link visibility, one author, and a
 			// finished lint run.
 			env := newHosted(t, e)
