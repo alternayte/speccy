@@ -228,7 +228,7 @@ func runHosted(stdout, stderr io.Writer) int {
 	a.Bundles.GitHubAs = a.Admin.UserGitHubClient
 	// docs/specs/pr-source-and-github-review.md: the author of a pull request owns its bundles,
 	// and a GitHub review posts with the reviewer's own GitHub token.
-	a.Bundles.UserOfGitHub = auth.UserOfGitHub
+	a.Bundles.UserOfGitHub, a.Bundles.GitHubAccount = auth.UserOfGitHub, auth.GitHubAccount
 	auth.OnGitHub = a.Bundles.GitHubLinked
 	a.PRs.GitHubAs, a.PRs.BaseURL = a.Admin.ReviewerGitHubClient, c.baseURL
 	a.PRCheck.BaseURL = c.baseURL

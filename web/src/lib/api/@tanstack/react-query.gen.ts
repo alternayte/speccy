@@ -691,6 +691,9 @@ export const listBundlesQueryKey = (options?: Options<ListBundlesData>) => creat
 
 /**
  * List bundles, and the folders that look like bundles but are not valid.
+ *
+ * A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
+ *
  */
 export const listBundlesOptions = (options?: Options<ListBundlesData>) => queryOptions<ListBundlesResponse, ListBundlesError, ListBundlesResponse, ReturnType<typeof listBundlesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -738,6 +741,9 @@ export const listBundlesInfiniteQueryKey = (options?: Options<ListBundlesData>):
 
 /**
  * List bundles, and the folders that look like bundles but are not valid.
+ *
+ * A bundle whose every spec doc is read-only because its pull request closed, or because the doc moved to a bundle on the base branch, is left out unless include_closed is true (docs/specs/self-serve-pull-request-source.md).
+ *
  */
 export const listBundlesInfiniteOptions = (options?: Options<ListBundlesData>) => {
     const opts = infiniteQueryOptions<ListBundlesResponse, ListBundlesError, InfiniteData<ListBundlesResponse>, QueryKey<Options<ListBundlesData>>, string | Pick<QueryKey<Options<ListBundlesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(

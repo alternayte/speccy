@@ -274,6 +274,11 @@ func as(ctx context.Context, user string) context.Context {
 	return kernel.WithActor(ctx, kernel.Actor{UserID: user, Role: kernel.RoleMember})
 }
 
+// asAdmin is ctx with user as an admin, who adds any source URL.
+func asAdmin(ctx context.Context, user string) context.Context {
+	return kernel.WithActor(ctx, kernel.Actor{UserID: user, Role: kernel.RoleAdmin})
+}
+
 // sourceAPI is the bundle API over s, with the built-in profiles.
 func sourceAPI(t *testing.T, s *Service) *API {
 	t.Helper()
@@ -292,7 +297,7 @@ func sourceAPI(t *testing.T, s *Service) *API {
 // person picked becomes the doc's adopted type, and the response names the doc to open. A second
 // URL in the same folder makes no source: it says "Already added".
 func TestGitHubSource_OneDoc(t *testing.T) {
-	ctx := as(context.Background(), "user-1")
+	ctx := asAdmin(context.Background(), "user-1")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
 	gh.refs["main"] = gh.commit(map[string]string{
@@ -352,7 +357,7 @@ func TestGitHubSource_OneDoc(t *testing.T) {
 // REQ-128: a source URL on a branch whose name has a slash names that branch. The URL does not
 // say where the branch ends, so the resolver asks the repo, as GitHub does.
 func TestResolveGithubUrl_BranchWithASlash(t *testing.T) {
-	ctx := as(context.Background(), "user-1")
+	ctx := asAdmin(context.Background(), "user-1")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
 	files := map[string]string{"docs/prd.md": "# Payments\n\n## Requirements\n\n- The system must refund a card payment.\n"}
@@ -532,7 +537,7 @@ func TestDismissedDoc(t *testing.T) {
 // #67: a source that is deleted and added again brings its bundles back, with their history,
 // and a source for a parent folder takes over the one it covers.
 func TestGitHubSource_AddedAgainTakesOver(t *testing.T) {
-	ctx := as(context.Background(), "user-1")
+	ctx := asAdmin(context.Background(), "user-1")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
 	gh.refs["main"] = gh.commit(map[string]string{"docs/pay/SPEC.md": mainDoc})
@@ -647,7 +652,7 @@ func TestGitHubSource_RepoConfigOfSpecDoc(t *testing.T) {
 // links above that folder, read from the repo at the same commit, and refuses a file that the
 // repo's .gitignore names.
 func TestGitHubSource_CarriesRepoFiles(t *testing.T) {
-	ctx := as(context.Background(), "user-1")
+	ctx := asAdmin(context.Background(), "user-1")
 	s := services()[0].open(t)
 	gh := &fakeGitHub{refs: map[string]string{}, commits: map[string]map[string]string{}, blobs: map[string]string{}, trees: map[string]map[string]string{}}
 	gh.refs["main"] = gh.commit(map[string]string{

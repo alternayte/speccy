@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
+import { useMe } from "@/features/account/me";
 import type { AddedSource, GithubResolved, PullDocChoice, SuggestedLink } from "@/lib/api";
 import {
   addGithubSourceMutation,
@@ -22,6 +23,8 @@ import { problemMessage } from "@/lib/problem";
 // with a doc type or "Not a spec", as import does (docs/specs/pr-source-and-github-review.md).
 export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [url, setUrl] = useState("");
+  const me = useMe().data;
+  const prOnly = me?.mode === "hosted" && me.role !== "admin";
   const [found, setFound] = useState<GithubResolved | null>(null);
   const [profile, setProfile] = useState("");
   // The picks of a pull request URL: a doc type per file, "" for not a spec.
@@ -124,7 +127,11 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             id="gh-url"
             value={url}
             autoFocus
-            placeholder="https://github.com/acme/specs/blob/main/docs/prd-payments.md"
+            placeholder={
+              prOnly
+                ? "https://github.com/acme/specs/pull/42"
+                : "https://github.com/acme/specs/blob/main/docs/prd-payments.md"
+            }
             onChange={(e) => {
               setUrl(e.target.value);
               setFound(null);
@@ -134,7 +141,13 @@ export function GitHubDialog({ open, onOpenChange }: { open: boolean; onOpenChan
             }}
           />
           <p className="mt-1 text-xs text-ink-3">
-            A repo, a folder in one, a single doc, or a pull request. <code>owner/name</code> works too.
+            {prOnly ? (
+              "A pull request you opened or review. Speccy checks it with your linked GitHub account. An admin adds repos, folders and single docs."
+            ) : (
+              <>
+                A repo, a folder in one, a single doc, or a pull request. <code>owner/name</code> works too.
+              </>
+            )}
           </p>
         </div>
 

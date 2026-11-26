@@ -58,6 +58,8 @@ type Service struct {
 	// UserOfGitHub finds the Speccy account linked to a GitHub account ID. Nil in local mode,
 	// which has one person.
 	UserOfGitHub func(ctx context.Context, githubID string) (userID string, ok bool, err error)
+	// GitHubAccount finds the GitHub account ID that a Speccy user linked. Nil in local mode.
+	GitHubAccount func(ctx context.Context, userID string) (githubID string, ok bool, err error)
 
 	mu       sync.Mutex // serialises disk changes and scans
 	scan     *local.Scan

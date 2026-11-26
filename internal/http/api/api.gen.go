@@ -344,6 +344,24 @@ func (e BuildReportKind) Valid() bool {
 	}
 }
 
+// Defines values for BundleClosed.
+const (
+	BundleClosedClosed BundleClosed = "closed"
+	BundleClosedMerged BundleClosed = "merged"
+)
+
+// Valid indicates whether the value is a known member of the BundleClosed enum.
+func (e BundleClosed) Valid() bool {
+	switch e {
+	case BundleClosedClosed:
+		return true
+	case BundleClosedMerged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BundleSourceKind.
 const (
 	BundleSourceKindDb     BundleSourceKind = "db"
@@ -2853,6 +2871,9 @@ type BuildReportKind string
 
 // Bundle A folder that holds one or more spec docs and their assets.
 type Bundle struct {
+	// Closed Set when every spec doc is read-only. merged when every doc moved to a bundle on the base branch, closed otherwise.
+	Closed *BundleClosed `json:"closed,omitempty"`
+
 	// Docs The spec docs of the bundle, by path.
 	Docs []SpecDoc          `json:"docs"`
 	Id   openapi_types.UUID `json:"id"`
@@ -2869,6 +2890,9 @@ type Bundle struct {
 	UpdatedAt  time.Time   `json:"updated_at"`
 	Visibility *Visibility `json:"visibility,omitempty"`
 }
+
+// BundleClosed Set when every spec doc is read-only. merged when every doc moved to a bundle on the base branch, closed otherwise.
+type BundleClosed string
 
 // BundleSourceKind defines model for Bundle.SourceKind.
 type BundleSourceKind string
@@ -2962,6 +2986,8 @@ type BundleLinkTargetKind string
 
 // BundleList defines model for BundleList.
 type BundleList struct {
+	// Closed How many bundles the person can see are left out because their pull request closed or merged.
+	Closed     *int     `json:"closed,omitempty"`
 	Items      []Bundle `json:"items"`
 	NextCursor *string  `json:"next_cursor,omitempty"`
 
@@ -5668,6 +5694,9 @@ type CreateResetLinkJSONBody struct {
 type ListBundlesParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// IncludeClosed Also list the bundles of closed and merged pull requests.
+	IncludeClosed *bool `form:"include_closed,omitempty" json:"include_closed,omitempty"`
 }
 
 // DeleteBundleParams defines parameters for DeleteBundle.
@@ -7445,6 +7474,19 @@ func (siw *ServerInterfaceWrapper) ListBundles(w http.ResponseWriter, r *http.Re
 			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "limit"})
 		} else {
 			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "include_closed" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "include_closed", r.URL.Query(), &params.IncludeClosed, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "include_closed"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "include_closed", Err: err})
 		}
 		return
 	}
