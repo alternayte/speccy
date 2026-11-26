@@ -153,11 +153,25 @@ func (a *API) finding(ctx context.Context, runID, id uuid.UUID) (pgdb.ReviewRun,
 	if err != nil {
 		return run, b, pgdb.Finding{}, err
 	}
-	f, err := a.DB.Queries().GetFinding(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && f.RunID != run.ID) {
+	q := a.DB.Queries()
+	f, err := q.GetFinding(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
 		return run, b, f, kernel.NotFound("finding_not_found", "The run has no finding with this ID.")
 	}
-	return run, b, f, err
+	if err != nil || f.RunID == run.ID {
+		return run, b, f, err
+	}
+	// A carried finding belongs to the last full review, and this run counts it (#179).
+	carried, err := carriedRows(ctx, q, run.ID)
+	if err != nil {
+		return run, b, f, err
+	}
+	for _, c := range carried {
+		if c.ID == id {
+			return run, b, c, nil
+		}
+	}
+	return run, b, f, kernel.NotFound("finding_not_found", "The run has no finding with this ID.")
 }
 
 // candidateEvidence is the evidence of a broken link that one bundle file can take.

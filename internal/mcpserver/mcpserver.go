@@ -121,39 +121,64 @@ func problem(p *api.Problem, status int) error {
 }
 
 type bundleArg struct {
-	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 }
 
-// bundle finds a bundle by ID or slug.
+// bundle finds a spec doc by its ID, its slug, or the ID of its bundle: the web app's URL
+// /bundles/<bundle ID>/docs/<doc ID> shows both IDs (#178). A bundle ID of a bundle with more
+// than one spec doc names them, so the agent picks one. A closed pull request's bundle counts.
 func bundle(ctx context.Context, c *api.ClientWithResponses, ref string) (api.SpecDoc, error) {
-	if id, err := uuid.Parse(ref); err == nil {
+	id, isID := uuid.Parse(ref)
+	if isID == nil {
 		res, err := c.GetSpecDocWithResponse(ctx, id)
 		if err != nil {
 			return api.SpecDoc{}, err
 		}
-		if res.JSON200 == nil {
+		if res.JSON200 != nil {
+			return *res.JSON200, nil
+		}
+		if res.StatusCode() != http.StatusNotFound {
 			return api.SpecDoc{}, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 		}
-		return *res.JSON200, nil
 	}
-	all, err := listAll(ctx, c)
+	all, err := listAll(ctx, c, true)
 	if err != nil {
 		return api.SpecDoc{}, err
 	}
+	var inBundle []api.SpecDoc
 	for _, b := range all {
 		if b.Slug == ref {
 			return b, nil
 		}
+		if isID == nil && b.BundleId == id {
+			inBundle = append(inBundle, b)
+		}
 	}
-	return api.SpecDoc{}, fmt.Errorf("no bundle has the slug or ID %q; list_bundles lists them", ref)
+	switch len(inBundle) {
+	case 0:
+		return api.SpecDoc{}, fmt.Errorf("no bundle has the slug or ID %q; list_bundles lists them", ref)
+	case 1:
+		return inBundle[0], nil
+	}
+	names := make([]string, len(inBundle))
+	for i, d := range inBundle {
+		names[i] = fmt.Sprintf("%s (%s, ID %s)", d.Slug, d.ProfileKey, d.Id)
+	}
+	return api.SpecDoc{}, fmt.Errorf("bundle %s holds %d spec docs; pass the slug or the ID of one: %s", ref, len(inBundle), strings.Join(names, ", "))
 }
 
-func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.SpecDoc, error) {
+// listAll lists every spec doc the person can see. withClosed adds the bundles of closed and
+// merged pull requests, which the bundle list leaves out.
+func listAll(ctx context.Context, c *api.ClientWithResponses, withClosed bool) ([]api.SpecDoc, error) {
 	var out []api.SpecDoc
 	var cursor *api.Cursor
 	limit := api.Limit(100)
 	for {
-		res, err := c.ListBundlesWithResponse(ctx, &api.ListBundlesParams{Cursor: cursor, Limit: &limit})
+		p := &api.ListBundlesParams{Cursor: cursor, Limit: &limit}
+		if withClosed {
+			p.IncludeClosed = &withClosed
+		}
+		res, err := c.ListBundlesWithResponse(ctx, p)
 		if err != nil {
 			return nil, err
 		}
@@ -172,7 +197,7 @@ func listAll(ctx context.Context, c *api.ClientWithResponses) ([]api.SpecDoc, er
 }
 
 func (tools) listBundles(ctx context.Context, c *api.ClientWithResponses, _ struct{}) (any, error) {
-	all, err := listAll(ctx, c)
+	all, err := listAll(ctx, c, false)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +205,7 @@ func (tools) listBundles(ctx context.Context, c *api.ClientWithResponses, _ stru
 }
 
 type getBundleArg struct {
-	Bundle  string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle  string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Version int64  `json:"version,omitempty" jsonschema:"a version number, to read the doc as it was at that version. Absent is the current version"`
 }
 
@@ -243,7 +268,7 @@ func versionID(ctx context.Context, c *api.ClientWithResponses, docID uuid.UUID,
 }
 
 type proposeArg struct {
-	Bundle       string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle       string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Acknowledged bool   `json:"acknowledged,omitempty" jsonschema:"propose it although the doc is not Build Ready. The breakdown stores the verdict"`
 }
 
@@ -282,7 +307,7 @@ func (tools) getBreakdown(ctx context.Context, c *api.ClientWithResponses, in bu
 }
 
 type updateBreakdownArg struct {
-	Bundle           string            `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle           string            `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	BasedOn          int64             `json:"based_on" jsonschema:"the revision of the breakdown you read"`
 	Ops              []api.BreakdownOp `json:"ops,omitempty" jsonschema:"the edits, applied in order and all or none"`
 	ToCurrentVersion bool              `json:"to_current_version,omitempty" jsonschema:"move a stale breakdown to the doc's current version instead of applying ops"`
@@ -319,7 +344,7 @@ func (tools) updateBreakdown(ctx context.Context, c *api.ClientWithResponses, in
 }
 
 type pushArg struct {
-	Bundle       string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle       string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	BasedOn      int64  `json:"based_on" jsonschema:"the revision of the breakdown the person approved"`
 	Tracker      string `json:"tracker" jsonschema:"linear, jira or github"`
 	Target       string `json:"target" jsonschema:"the Linear team, the Jira project URL, or the GitHub repo as owner/name"`
@@ -361,7 +386,7 @@ func (tools) getWorkItem(ctx context.Context, c *api.ClientWithResponses, in wor
 }
 
 type reviewArg struct {
-	Bundle string   `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle string   `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Stages []string `json:"stages,omitempty" jsonschema:"the model stages to run: rubric, grounding, divergence, coherence. Absent means all."`
 }
 
@@ -529,7 +554,7 @@ func (tools) reportBuild(ctx context.Context, c *api.ClientWithResponses, in rep
 }
 
 type handoffArg struct {
-	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Label  string `json:"label,omitempty" jsonschema:"what you call this work: a repo, a branch, or an issue"`
 	// Acknowledged takes a packet the verdict does not allow. The handoff records it.
 	Acknowledged bool `json:"acknowledged,omitempty" jsonschema:"take the packet although the bundle is not Build Ready, or its verdict is stale"`
@@ -559,7 +584,7 @@ func (tools) handoffBundle(ctx context.Context, c *api.ClientWithResponses, in h
 }
 
 type verifyArg struct {
-	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Target string `json:"target,omitempty" jsonschema:"the GitHub URL of the repo, branch, commit or pull request you built, or an absolute folder path in local mode. Leave it and repo out to verify the repo that the doc's implemented-by link names"`
 	Repo   string `json:"repo,omitempty" jsonschema:"the repo you built, as owner/name"`
 	SHA    string `json:"sha,omitempty" jsonschema:"the commit you built"`
@@ -646,7 +671,7 @@ func (tools) getVerdict(ctx context.Context, c *api.ClientWithResponses, in bund
 }
 
 type findingsArg struct {
-	Bundle string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Level  string `json:"level,omitempty" jsonschema:"only findings at this level: MUST, SHOULD, or INFO"`
 }
 
@@ -720,7 +745,7 @@ func location(b api.SpecDoc) map[string]any {
 }
 
 type saveArg struct {
-	Bundle      string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle      string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	Path        string `json:"path" jsonschema:"the file in the bundle, such as SPEC.md"`
 	Content     string `json:"content" jsonschema:"the whole new text of the file"`
 	BaseVersion string `json:"base_version" jsonschema:"the ID of the version your edit is based on: current_version.id from get_bundle"`
@@ -798,7 +823,7 @@ func (tools) listThreads(ctx context.Context, c *api.ClientWithResponses, in bun
 }
 
 type waiverArg struct {
-	Bundle         string `json:"bundle" jsonschema:"the bundle's slug or ID"`
+	Bundle         string `json:"bundle" jsonschema:"the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both"`
 	FindingID      string `json:"finding_id" jsonschema:"the id of the finding, from get_findings"`
 	Reason         string `json:"reason" jsonschema:"why the check does not apply here, in the person's own words. At least 20 characters"`
 	UpstreamChange bool   `json:"upstream_change,omitempty" jsonschema:"answer a coherence.contradiction finding with: the linked doc must change. Only when the person says that the other doc is wrong"`

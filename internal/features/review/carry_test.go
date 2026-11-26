@@ -8,11 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	pgdb "github.com/alternayte/speccy/db/postgres"
 	"github.com/alternayte/speccy/internal/engine/anchor"
 	"github.com/alternayte/speccy/internal/engine/lint"
 	"github.com/alternayte/speccy/internal/features/review"
 	"github.com/alternayte/speccy/internal/http/api"
+	"github.com/alternayte/speccy/internal/kernel"
 	"github.com/alternayte/speccy/internal/store/storetest"
 )
 
@@ -140,5 +143,36 @@ func TestCarry_RepoFilesAboveTheFolder(t *testing.T) {
 	b, _ = q.GetSpecDocBySlug(ctx, pgdb.GetSpecDocBySlugParams{WorkspaceID: pe.bundles.Workspace, Slug: "pay"})
 	if b.CurrentVersionID.UUID == before {
 		t.Error("a change to the carried file made no new version")
+	}
+}
+
+// #179: an answer to a carried finding, sent with the run of the latest save, finds the finding.
+// The questions screen sends the run of the current verdict, and the finding belongs to the last
+// full review.
+func TestAnswerACarriedFinding(t *testing.T) {
+	e := storetest.Engines()[0]
+	pe := newPipeline(t, e, map[string]string{"pay/SPEC.md": groundedSDD}, "fake-1")
+	_, findings, _ := pe.run(t, "pay")
+	var carried string
+	for _, f := range findings {
+		var an anchor.Anchor
+		_ = json.Unmarshal(f.Anchor, &an)
+		if f.Stage == review.StageGrounding && slices.Equal(an.HeadingPath, []string{"Payments", "Limits"}) {
+			carried = f.ID.String()
+		}
+	}
+	if carried == "" {
+		t.Fatal("the full run has no grounding finding in Limits to carry")
+	}
+	pe.write(t, "pay/SPEC.md", strings.Replace(groundedSDD, "with the order ID", "with the order ID and the time", 1))
+	ids, v := pe.current(t, "pay")
+	if !slices.Contains(ids, carried) {
+		t.Fatal("the finding did not carry")
+	}
+	a := &review.API{DB: pe.bundles.DB, Workspace: pe.bundles.Workspace, Service: pe.reviews}
+	_, err := a.SuggestAnswers(context.Background(), api.SuggestAnswersRequestObject{RunId: v.RunId,
+		Body: &api.SuggestAnswersJSONRequestBody{Answers: []api.QuestionAnswer{{FindingId: uuid.MustParse(carried), Answer: "The cap is 999 kilobytes."}}}})
+	if ke, ok := kernel.AsError(err); ok && ke.Code == "finding_not_found" {
+		t.Fatalf("an answer to a carried finding: %v", err)
 	}
 }
