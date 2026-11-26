@@ -211,19 +211,8 @@ func implementedBy(main []byte) []string {
 // A doc that is not Build Ready is refused, unless the caller acknowledged it.
 func (a *API) Propose(ctx context.Context, docID uuid.UUID, ack bool) (Stored, error) {
 	q := a.DB.Queries()
-	b, err := version.Bundle(ctx, q, a.Workspace, docID)
+	b, result, err := a.mayPropose(ctx, docID, ack)
 	if err != nil {
-		return Stored{}, err
-	}
-	v, _, err := review.Summary(ctx, q, b)
-	if err != nil {
-		return Stored{}, err
-	}
-	result := handoff.VerdictOf(v)
-	if err := handoff.Allow(result, v, ack, takeAnyway); err != nil {
-		return Stored{}, err
-	}
-	if _, err := a.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
 		return Stored{}, err
 	}
 	d, err := a.read(ctx, q, b, true)
@@ -279,6 +268,40 @@ func (a *API) Propose(ctx context.Context, docID uuid.UUID, ack bool) (Stored, e
 	}
 	s, _, err := a.load(ctx, q, b.ID)
 	return s, err
+}
+
+// mayPropose runs the checks that refuse a proposal: the verdict gate, the role assignment, and
+// a breakdown with pushed issues. It returns the doc and its verdict.
+func (a *API) mayPropose(ctx context.Context, docID uuid.UUID, ack bool) (pgdb.SpecDoc, string, error) {
+	q := a.DB.Queries()
+	b, err := version.Bundle(ctx, q, a.Workspace, docID)
+	if err != nil {
+		return b, "", err
+	}
+	v, _, err := review.Summary(ctx, q, b)
+	if err != nil {
+		return b, "", err
+	}
+	result := handoff.VerdictOf(v)
+	if err := handoff.Allow(result, v, ack, takeAnyway); err != nil {
+		return b, "", err
+	}
+	if _, err := a.Gateway.Assigned(ctx, model.RoleReviewer); err != nil {
+		return b, "", err
+	}
+	old, ok, err := a.load(ctx, q, b.ID)
+	if err != nil || !ok {
+		return b, result, err
+	}
+	issues, err := q.ListBreakdownIssues(ctx, old.Row.ID)
+	if err != nil {
+		return b, "", err
+	}
+	if len(issues) > 0 {
+		return b, "", kernel.Conflict("breakdown_pushed",
+			"This breakdown has pushed issues, so a new proposal would lose them. Update it to this version instead.")
+	}
+	return b, result, nil
 }
 
 // proposePrompt asks for the breakdown. The doc and the linked docs are untrusted content.

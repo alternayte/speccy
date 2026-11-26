@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -120,11 +121,7 @@ func TestBreakdown(t *testing.T) {
 				return mcpclient.Connection{Transport: "http", URL: url}, host == breakdown.LinearHost, nil
 			}
 
-			res, err := e.app.API.ProposeBreakdown(as("author"), api.ProposeBreakdownRequestObject{DocId: e.b.ID})
-			if err != nil {
-				t.Fatal(err)
-			}
-			bd := api.Breakdown(res.(api.ProposeBreakdown201JSONResponse))
+			bd := propose(t, e)
 			i1 := item(t, bd, "i1")
 			if !slices.Equal(i1.TraceIds, []string{"REQ-001", "REQ-002"}) {
 				t.Errorf("i1 trace IDs = %v; REQ-999 is not in the doc", i1.TraceIds)
@@ -335,4 +332,38 @@ func toStrings(v any) []string {
 		}
 	}
 	return out
+}
+
+// propose queues a breakdown proposal, waits for its job, and returns the breakdown
+// (docs/specs/breakdown-proposal-job.md).
+func propose(t *testing.T, e *env) api.Breakdown {
+	t.Helper()
+	ctx := as("author")
+	res, err := e.app.API.ProposeBreakdown(ctx, api.ProposeBreakdownRequestObject{DocId: e.b.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := api.BreakdownProposal(res.(api.ProposeBreakdown202JSONResponse)); p.Status != api.BreakdownProposalStatusQueued {
+		t.Fatalf("proposal status %s, want queued", p.Status)
+	}
+	for range 500 {
+		got, err := e.app.API.GetBreakdownProposal(ctx, api.GetBreakdownProposalRequestObject{DocId: e.b.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := api.BreakdownProposal(got.(api.GetBreakdownProposal200JSONResponse))
+		if p.Status == api.BreakdownProposalStatusFailed {
+			t.Fatalf("the proposal failed: %v", *p.Error)
+		}
+		if p.Status == api.BreakdownProposalStatusComplete {
+			out, err := e.app.API.GetBreakdown(ctx, api.GetBreakdownRequestObject{DocId: e.b.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return api.Breakdown(out.(api.GetBreakdown200JSONResponse))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the proposal did not end")
+	return api.Breakdown{}
 }

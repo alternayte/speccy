@@ -245,9 +245,11 @@ The profile sets how many approvals a bundle needs, and who approves a waiver. [
 Each person makes personal API tokens under **Account → API tokens**, with **Make a token**. A token starts with `spy_` and has the role of its owner. It stops working when the owner loses the role.
 
 - `speccy review --server https://speccy.example.com` reads the token from `SPECCY_TOKEN`. It waits until the review on the server ends.
-- MCP clients reach the Speccy tools at `/mcp` over streamable HTTP, with `Authorization: Bearer <token>`. A tool can do what the owner of the token can do in the app, and nothing more. The `review_content` and `review_url` tools wait for the review to end, and they send progress notifications.
+- MCP clients reach the Speccy tools at `/mcp` over streamable HTTP, with `Authorization: Bearer <token>`. A tool can do what the owner of the token can do in the app, and nothing more. The `review_bundle`, `review_content` and `review_url` tools wait up to 45 seconds for the review, and they send progress notifications. A longer review answers `status: running` with a `run_id`. The agent then calls `get_run` with that ID until the review ends.
 
 `POST /api/v1/reviews` and `POST /api/v1/reviews/url` queue the review and answer `202` with a review request: its `id`, its `kind` and its `status`. `GET /api/v1/reviews/{reviewId}` gives the status, `queued`, `running`, `complete` or `failed`, the stage, and then the result. A proxy timeout thus never cuts a review.
+
+`POST /api/v1/docs/{docId}/breakdown` queues a breakdown proposal in the same way and answers `202`. `GET /api/v1/docs/{docId}/breakdown/proposal` gives its status. The live run view holds a request open while a review runs, so set the proxy's read timeout to at least 300 seconds. On ingress-nginx, set the annotations `nginx.ingress.kubernetes.io/proxy-read-timeout` and `nginx.ingress.kubernetes.io/proxy-send-timeout` to `"300"`.
 
 ## Models and GitHub
 

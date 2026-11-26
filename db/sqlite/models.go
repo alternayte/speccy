@@ -73,6 +73,18 @@ type BreakdownIssue struct {
 	CreatedAt   time.Time
 }
 
+type BreakdownProposal struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	SpecDocID    uuid.UUID
+	Status       string
+	Acknowledged bool
+	Error        string
+	CreatedBy    string
+	CreatedAt    time.Time
+	FinishedAt   sql.NullTime
+}
+
 type Budget struct {
 	WorkspaceID uuid.UUID
 	Month       string

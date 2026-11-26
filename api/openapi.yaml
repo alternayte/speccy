@@ -175,6 +175,22 @@ paths:
         default:
           $ref: "#/components/responses/Problem"
 
+  /docs/{docId}/breakdown/proposal:
+    parameters:
+      - $ref: "#/components/parameters/DocId"
+    get:
+      operationId: getBreakdownProposal
+      summary: The newest breakdown proposal of this doc.
+      responses:
+        "200":
+          description: The proposal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BreakdownProposal"
+        default:
+          $ref: "#/components/responses/Problem"
+
   /docs/{docId}/breakdown:
     parameters:
       - $ref: "#/components/parameters/DocId"
@@ -193,6 +209,10 @@ paths:
     post:
       operationId: proposeBreakdown
       summary: Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+      description: >
+        A job makes the proposal, so no proxy timeout cuts its model call. Poll
+        GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read
+        the breakdown (docs/specs/breakdown-proposal-job.md).
       requestBody:
         required: false
         content:
@@ -200,12 +220,12 @@ paths:
             schema:
               $ref: "#/components/schemas/ProposeBreakdownRequest"
       responses:
-        "201":
-          description: The proposed breakdown.
+        "202":
+          description: The proposal, queued.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Breakdown"
+                $ref: "#/components/schemas/BreakdownProposal"
         default:
           $ref: "#/components/responses/Problem"
     patch:
@@ -7723,6 +7743,27 @@ components:
           description: Folders that are not valid bundles, for example with two main docs (REQ-001).
           items:
             $ref: "#/components/schemas/BundleProblem"
+
+    BreakdownProposal:
+      type: object
+      description: One breakdown proposal that a job makes.
+      required: [id, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, complete, failed]
+        error:
+          type: string
+          description: Why the proposal failed, when the status is failed.
+        created_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
 
     BundleProblem:
       type: object

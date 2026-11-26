@@ -7,6 +7,7 @@ package sqlitedb
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/alternayte/speccy/db/dbtype"
@@ -28,6 +29,20 @@ DELETE FROM breakdown WHERE spec_doc_id = ?1
 
 func (q *Queries) DeleteBreakdownOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteBreakdownOfSpecDoc, specDocID)
+	return err
+}
+
+const deleteBreakdownProposalsBefore = `-- name: DeleteBreakdownProposalsBefore :exec
+DELETE FROM breakdown_proposal WHERE workspace_id = ?1 AND created_at < ?2
+`
+
+type DeleteBreakdownProposalsBeforeParams struct {
+	WorkspaceID uuid.UUID
+	Before      time.Time
+}
+
+func (q *Queries) DeleteBreakdownProposalsBefore(ctx context.Context, arg DeleteBreakdownProposalsBeforeParams) error {
+	_, err := q.db.ExecContext(ctx, deleteBreakdownProposalsBefore, arg.WorkspaceID, arg.Before)
 	return err
 }
 
@@ -79,6 +94,28 @@ func (q *Queries) FindBreakdownIssue(ctx context.Context, arg FindBreakdownIssue
 		return nil, err
 	}
 	return items, nil
+}
+
+const finishBreakdownProposal = `-- name: FinishBreakdownProposal :exec
+UPDATE breakdown_proposal SET status = ?1, error = ?2, finished_at = ?3
+WHERE id = ?4
+`
+
+type FinishBreakdownProposalParams struct {
+	Status     string
+	Error      string
+	FinishedAt sql.NullTime
+	ID         uuid.UUID
+}
+
+func (q *Queries) FinishBreakdownProposal(ctx context.Context, arg FinishBreakdownProposalParams) error {
+	_, err := q.db.ExecContext(ctx, finishBreakdownProposal,
+		arg.Status,
+		arg.Error,
+		arg.FinishedAt,
+		arg.ID,
+	)
+	return err
 }
 
 const getBreakdown = `-- name: GetBreakdown :one
@@ -133,6 +170,32 @@ func (q *Queries) GetBreakdownByID(ctx context.Context, arg GetBreakdownByIDPara
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getBreakdownProposal = `-- name: GetBreakdownProposal :one
+SELECT id, workspace_id, spec_doc_id, status, acknowledged, error, created_by, created_at, finished_at FROM breakdown_proposal WHERE workspace_id = ?1 AND id = ?2
+`
+
+type GetBreakdownProposalParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetBreakdownProposal(ctx context.Context, arg GetBreakdownProposalParams) (BreakdownProposal, error) {
+	row := q.db.QueryRowContext(ctx, getBreakdownProposal, arg.WorkspaceID, arg.ID)
+	var i BreakdownProposal
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpecDocID,
+		&i.Status,
+		&i.Acknowledged,
+		&i.Error,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.FinishedAt,
 	)
 	return i, err
 }
@@ -216,6 +279,59 @@ func (q *Queries) InsertBreakdownIssue(ctx context.Context, arg InsertBreakdownI
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const insertBreakdownProposal = `-- name: InsertBreakdownProposal :exec
+INSERT INTO breakdown_proposal (id, workspace_id, spec_doc_id, status, acknowledged, created_by, created_at)
+VALUES (?1, ?2, ?3, 'queued', ?4, ?5, ?6)
+`
+
+type InsertBreakdownProposalParams struct {
+	ID           uuid.UUID
+	WorkspaceID  uuid.UUID
+	SpecDocID    uuid.UUID
+	Acknowledged bool
+	CreatedBy    string
+	CreatedAt    time.Time
+}
+
+func (q *Queries) InsertBreakdownProposal(ctx context.Context, arg InsertBreakdownProposalParams) error {
+	_, err := q.db.ExecContext(ctx, insertBreakdownProposal,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.SpecDocID,
+		arg.Acknowledged,
+		arg.CreatedBy,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const latestBreakdownProposal = `-- name: LatestBreakdownProposal :one
+SELECT id, workspace_id, spec_doc_id, status, acknowledged, error, created_by, created_at, finished_at FROM breakdown_proposal WHERE workspace_id = ?1 AND spec_doc_id = ?2
+ORDER BY created_at DESC, id DESC LIMIT 1
+`
+
+type LatestBreakdownProposalParams struct {
+	WorkspaceID uuid.UUID
+	SpecDocID   uuid.UUID
+}
+
+func (q *Queries) LatestBreakdownProposal(ctx context.Context, arg LatestBreakdownProposalParams) (BreakdownProposal, error) {
+	row := q.db.QueryRowContext(ctx, latestBreakdownProposal, arg.WorkspaceID, arg.SpecDocID)
+	var i BreakdownProposal
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SpecDocID,
+		&i.Status,
+		&i.Acknowledged,
+		&i.Error,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
 }
 
 const listBreakdownIssues = `-- name: ListBreakdownIssues :many
@@ -302,6 +418,15 @@ func (q *Queries) ListBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uu
 		return nil, err
 	}
 	return items, nil
+}
+
+const startBreakdownProposal = `-- name: StartBreakdownProposal :exec
+UPDATE breakdown_proposal SET status = 'running' WHERE id = ?1 AND status IN ('queued', 'running')
+`
+
+func (q *Queries) StartBreakdownProposal(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, startBreakdownProposal, id)
+	return err
 }
 
 const updateBreakdown = `-- name: UpdateBreakdown :execrows

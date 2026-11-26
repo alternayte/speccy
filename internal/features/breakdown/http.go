@@ -20,17 +20,14 @@ func (a *API) GetBreakdown(ctx context.Context, req api.GetBreakdownRequestObjec
 	return api.GetBreakdown200JSONResponse(a.ToAPI(ctx, v)), nil
 }
 
-// ProposeBreakdown proposes a new breakdown of the doc's current version.
+// ProposeBreakdown queues a proposal of a new breakdown of the doc's current version.
 func (a *API) ProposeBreakdown(ctx context.Context, req api.ProposeBreakdownRequestObject) (api.ProposeBreakdownResponseObject, error) {
 	ack := req.Body != nil && req.Body.Acknowledged != nil && *req.Body.Acknowledged
-	if _, err := a.Propose(ctx, req.DocId, ack); err != nil {
-		return nil, err
-	}
-	v, err := a.view(ctx, a.DB.Queries(), req.DocId)
+	out, err := a.QueueProposal(ctx, req.DocId, ack)
 	if err != nil {
 		return nil, err
 	}
-	return api.ProposeBreakdown201JSONResponse(a.ToAPI(ctx, v)), nil
+	return api.ProposeBreakdown202JSONResponse(out), nil
 }
 
 // EditBreakdown applies edits.

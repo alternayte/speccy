@@ -203,7 +203,7 @@ Prepare a GitHub review of a pull request source, as the person: a pending revie
 
 ## `propose_breakdown`
 
-Propose a breakdown of a Build Ready doc: epics, and work items under them. Each work item holds its trace IDs, its acceptance criteria quoted from the doc, the agreed build answers, its target repo, its dependencies and its open questions. A doc that is not Build Ready is refused with its MUST count; acknowledged proposes it anyway. The answer is the draft with its findings: a MUST finding blocks the push. A new proposal replaces a breakdown that has no pushed issue.
+Propose a breakdown of a Build Ready doc: epics, and work items under them. Each work item holds its trace IDs, its acceptance criteria quoted from the doc, the agreed build answers, its target repo, its dependencies and its open questions. A doc that is not Build Ready is refused with its MUST count; acknowledged proposes it anyway. The answer is the draft with its findings: a MUST finding blocks the push. A new proposal replaces a breakdown that has no pushed issue. It waits up to 45 seconds; a longer proposal answers status running, and get_breakdown answers the breakdown when it ends.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|

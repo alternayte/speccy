@@ -287,6 +287,30 @@ func (e BreakdownOpOp) Valid() bool {
 	}
 }
 
+// Defines values for BreakdownProposalStatus.
+const (
+	BreakdownProposalStatusComplete BreakdownProposalStatus = "complete"
+	BreakdownProposalStatusFailed   BreakdownProposalStatus = "failed"
+	BreakdownProposalStatusQueued   BreakdownProposalStatus = "queued"
+	BreakdownProposalStatusRunning  BreakdownProposalStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the BreakdownProposalStatus enum.
+func (e BreakdownProposalStatus) Valid() bool {
+	switch e {
+	case BreakdownProposalStatusComplete:
+		return true
+	case BreakdownProposalStatusFailed:
+		return true
+	case BreakdownProposalStatusQueued:
+		return true
+	case BreakdownProposalStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BuildQuestionLevel.
 const (
 	BuildQuestionLevelMUST   BuildQuestionLevel = "MUST"
@@ -2773,6 +2797,20 @@ type BreakdownOpAnswer string
 
 // BreakdownOpOp defines model for BreakdownOp.Op.
 type BreakdownOpOp string
+
+// BreakdownProposal One breakdown proposal that a job makes.
+type BreakdownProposal struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// Error Why the proposal failed, when the status is failed.
+	Error      *string                 `json:"error,omitempty"`
+	FinishedAt *time.Time              `json:"finished_at,omitempty"`
+	Id         openapi_types.UUID      `json:"id"`
+	Status     BreakdownProposalStatus `json:"status"`
+}
+
+// BreakdownProposalStatus defines model for BreakdownProposal.Status.
+type BreakdownProposalStatus string
 
 // Budget defines model for Budget.
 type Budget struct {
@@ -6448,6 +6486,9 @@ type ServerInterface interface {
 	// ExportBreakdown The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
 	// (GET /docs/{docId}/breakdown/export)
 	ExportBreakdown(w http.ResponseWriter, r *http.Request, docId DocId, params ExportBreakdownParams)
+	// GetBreakdownProposal The newest breakdown proposal of this doc.
+	// (GET /docs/{docId}/breakdown/proposal)
+	GetBreakdownProposal(w http.ResponseWriter, r *http.Request, docId DocId)
 	// PushBreakdown Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
 	// (POST /docs/{docId}/breakdown/push)
 	PushBreakdown(w http.ResponseWriter, r *http.Request, docId DocId)
@@ -8125,6 +8166,32 @@ func (siw *ServerInterfaceWrapper) ExportBreakdown(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ExportBreakdown(w, r, docId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetBreakdownProposal operation middleware
+func (siw *ServerInterfaceWrapper) GetBreakdownProposal(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "docId" -------------
+	var docId DocId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "docId", r.PathValue("docId"), &docId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "docId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetBreakdownProposal(w, r, docId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -11197,6 +11264,7 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.ListHandoffs)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff", wrapper.TakeHandoff)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/handoff/zip", wrapper.TakeHandoffZip)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/breakdown/proposal", wrapper.GetBreakdownProposal)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/docs/{docId}/breakdown", wrapper.GetBreakdown)
 	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/docs/{docId}/breakdown", wrapper.EditBreakdown)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/docs/{docId}/breakdown", wrapper.ProposeBreakdown)
@@ -13557,16 +13625,16 @@ type ProposeBreakdownResponseObject interface {
 	VisitProposeBreakdownResponse(w http.ResponseWriter) error
 }
 
-type ProposeBreakdown201JSONResponse Breakdown
+type ProposeBreakdown202JSONResponse BreakdownProposal
 
-func (response ProposeBreakdown201JSONResponse) VisitProposeBreakdownResponse(w http.ResponseWriter) error {
+func (response ProposeBreakdown202JSONResponse) VisitProposeBreakdownResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
 		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
+	w.WriteHeader(202)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -13683,6 +13751,45 @@ type ExportBreakdowndefaultApplicationProblemPlusJSONResponse struct {
 }
 
 func (response ExportBreakdowndefaultApplicationProblemPlusJSONResponse) VisitExportBreakdownResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(response.StatusCode)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBreakdownProposalRequestObject struct {
+	DocId DocId `json:"docId"`
+}
+
+type GetBreakdownProposalResponseObject interface {
+	VisitGetBreakdownProposalResponse(w http.ResponseWriter) error
+}
+
+type GetBreakdownProposal200JSONResponse BreakdownProposal
+
+func (response GetBreakdownProposal200JSONResponse) VisitGetBreakdownProposalResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetBreakdownProposaldefaultApplicationProblemPlusJSONResponse struct {
+	Body       Problem
+	StatusCode int
+}
+
+func (response GetBreakdownProposaldefaultApplicationProblemPlusJSONResponse) VisitGetBreakdownProposalResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
@@ -18389,6 +18496,9 @@ type StrictServerInterface interface {
 	// ExportBreakdown The breakdown as markdown or CSV, with the same Speccy blocks a push writes, for a team with no tracker connection.
 	// (GET /docs/{docId}/breakdown/export)
 	ExportBreakdown(ctx context.Context, request ExportBreakdownRequestObject) (ExportBreakdownResponseObject, error)
+	// GetBreakdownProposal The newest breakdown proposal of this doc.
+	// (GET /docs/{docId}/breakdown/proposal)
+	GetBreakdownProposal(ctx context.Context, request GetBreakdownProposalRequestObject) (GetBreakdownProposalResponseObject, error)
 	// PushBreakdown Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
 	// (POST /docs/{docId}/breakdown/push)
 	PushBreakdown(ctx context.Context, request PushBreakdownRequestObject) (PushBreakdownResponseObject, error)
@@ -20438,6 +20548,32 @@ func (sh *strictHandler) ExportBreakdown(w http.ResponseWriter, r *http.Request,
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ExportBreakdownResponseObject); ok {
 		if err := validResponse.VisitExportBreakdownResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetBreakdownProposal operation middleware
+func (sh *strictHandler) GetBreakdownProposal(w http.ResponseWriter, r *http.Request, docId DocId) {
+	var request GetBreakdownProposalRequestObject
+
+	request.DocId = docId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetBreakdownProposal(ctx, request.(GetBreakdownProposalRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetBreakdownProposal")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetBreakdownProposalResponseObject); ok {
+		if err := validResponse.VisitGetBreakdownProposalResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

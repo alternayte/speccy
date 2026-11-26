@@ -4,6 +4,8 @@
 package breakdown
 
 import (
+	"github.com/alternayte/speccy/internal/queue"
+
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -42,6 +44,8 @@ type API struct {
 	GitHub func(ctx context.Context, apiURL string) (*github.Client, error)
 	// BaseURL is the address people open Speccy at, for the work item URL in an issue.
 	BaseURL string
+	// Queue runs the proposal jobs.
+	Queue *queue.Queue
 	// Now is the clock, for tests.
 	Now func() time.Time
 }

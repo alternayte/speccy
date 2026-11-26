@@ -583,12 +583,16 @@ type ClientInterface interface {
 
 	// ProposeBreakdownWithBody Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
 	//
+	// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
+	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
 	ProposeBreakdownWithBody(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ProposeBreakdown Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	//
+	// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -604,6 +608,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
 	ExportBreakdown(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetBreakdownProposal The newest breakdown proposal of this doc.
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/proposal (the `GetBreakdownProposal` operationId).
+	GetBreakdownProposal(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PushBreakdownWithBody Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
 	//
@@ -2929,6 +2938,8 @@ func (c *Client) EditBreakdown(ctx context.Context, docId DocId, body EditBreakd
 
 // ProposeBreakdownWithBody Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
 //
+// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
+//
 // Takes any type of body and a specified content type.
 //
 // Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
@@ -2945,6 +2956,8 @@ func (c *Client) ProposeBreakdownWithBody(ctx context.Context, docId DocId, cont
 }
 
 // ProposeBreakdown Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+//
+// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
 //
 // Takes a body of the `application/json` content type.
 //
@@ -2981,6 +2994,21 @@ func (c *Client) ListBreakdownAssignees(ctx context.Context, docId DocId, params
 // Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
 func (c *Client) ExportBreakdown(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewExportBreakdownRequest(c.Server, docId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetBreakdownProposal The newest breakdown proposal of this doc.
+//
+// Corresponds with GET /docs/{docId}/breakdown/proposal (the `GetBreakdownProposal` operationId).
+func (c *Client) GetBreakdownProposal(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetBreakdownProposalRequest(c.Server, docId)
 	if err != nil {
 		return nil, err
 	}
@@ -7970,6 +7998,40 @@ func NewExportBreakdownRequest(server string, docId DocId, params *ExportBreakdo
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetBreakdownProposalRequest constructs an http.Request for the GetBreakdownProposal method
+func NewGetBreakdownProposalRequest(server string, docId DocId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "docId", docId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/docs/%s/breakdown/proposal", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -13333,12 +13395,16 @@ type ClientWithResponsesInterface interface {
 
 	// ProposeBreakdownWithBodyWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
 	//
+	// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
+	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
 	ProposeBreakdownWithBodyWithResponse(ctx context.Context, docId DocId, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ProposeBreakdownResponse, error)
 
 	// ProposeBreakdownWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+	//
+	// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -13358,6 +13424,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /docs/{docId}/breakdown/export (the `ExportBreakdown` operationId).
 	ExportBreakdownWithResponse(ctx context.Context, docId DocId, params *ExportBreakdownParams, reqEditors ...RequestEditorFn) (*ExportBreakdownResponse, error)
+
+	// GetBreakdownProposalWithResponse The newest breakdown proposal of this doc.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /docs/{docId}/breakdown/proposal (the `GetBreakdownProposal` operationId).
+	GetBreakdownProposalWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetBreakdownProposalResponse, error)
 
 	// PushBreakdownWithBodyWithResponse Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
 	//
@@ -17249,15 +17322,15 @@ func (r EditBreakdownResponse) ContentType() string {
 type ProposeBreakdownResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	// JSON201 the response for an HTTP 201 `application/json` response
-	JSON201 *Breakdown
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *BreakdownProposal
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *Problem
 }
 
-// GetJSON201 returns the response for an HTTP 201 `application/json` response
-func (r ProposeBreakdownResponse) GetJSON201() *Breakdown {
-	return r.JSON201
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r ProposeBreakdownResponse) GetJSON202() *BreakdownProposal {
+	return r.JSON202
 }
 
 // GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
@@ -17377,6 +17450,54 @@ func (r ExportBreakdownResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ExportBreakdownResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetBreakdownProposalResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *BreakdownProposal
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Problem
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetBreakdownProposalResponse) GetJSON200() *BreakdownProposal {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetBreakdownProposalResponse) GetApplicationproblemJSONDefault() *Problem {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetBreakdownProposalResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetBreakdownProposalResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetBreakdownProposalResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetBreakdownProposalResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -23781,6 +23902,8 @@ func (c *ClientWithResponses) EditBreakdownWithResponse(ctx context.Context, doc
 
 // ProposeBreakdownWithBodyWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
 //
+// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
+//
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /docs/{docId}/breakdown (the `ProposeBreakdown` operationId).
@@ -23793,6 +23916,8 @@ func (c *ClientWithResponses) ProposeBreakdownWithBodyWithResponse(ctx context.C
 }
 
 // ProposeBreakdownWithResponse Propose a new breakdown of the doc's current version. A doc that is not Build Ready is refused, unless acknowledged. It replaces a breakdown that has no pushed issue.
+//
+// A job makes the proposal, so no proxy timeout cuts its model call. Poll GET /docs/{docId}/breakdown/proposal until its status is complete or failed, then read the breakdown (docs/specs/breakdown-proposal-job.md).
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -23829,6 +23954,19 @@ func (c *ClientWithResponses) ExportBreakdownWithResponse(ctx context.Context, d
 		return nil, err
 	}
 	return ParseExportBreakdownResponse(rsp)
+}
+
+// GetBreakdownProposalWithResponse The newest breakdown proposal of this doc.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /docs/{docId}/breakdown/proposal (the `GetBreakdownProposal` operationId).
+func (c *ClientWithResponses) GetBreakdownProposalWithResponse(ctx context.Context, docId DocId, reqEditors ...RequestEditorFn) (*GetBreakdownProposalResponse, error) {
+	rsp, err := c.GetBreakdownProposal(ctx, docId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetBreakdownProposalResponse(rsp)
 }
 
 // PushBreakdownWithBodyWithResponse Create the unpushed epics and work items as tracker issues. Refused while the breakdown has a MUST finding or is stale. It never edits or closes an issue, and records one handoff with the label breakdown.
@@ -27869,12 +28007,12 @@ func ParseProposeBreakdownResponse(rsp *http.Response) (*ProposeBreakdownRespons
 	}
 
 	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
-		var dest Breakdown
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest BreakdownProposal
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON201 = &dest
+		response.JSON202 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
@@ -27935,6 +28073,39 @@ func ParseExportBreakdownResponse(rsp *http.Response) (*ExportBreakdownResponse,
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Problem
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetBreakdownProposalResponse parses an HTTP response from a GetBreakdownProposalWithResponse call
+func ParseGetBreakdownProposalResponse(rsp *http.Response) (*GetBreakdownProposalResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetBreakdownProposalResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest BreakdownProposal
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Problem
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
