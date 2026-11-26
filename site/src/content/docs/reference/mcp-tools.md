@@ -107,6 +107,14 @@ Get everything that blocks Build Ready and needs a person, in doc order: materia
 |---|---|---|---|
 | `bundle` | string | yes | the spec doc's slug or ID, or its bundle's ID: the web app URL /bundles/<bundle ID>/docs/<doc ID> shows both |
 
+## `get_run`
+
+Get a review that review_bundle, review_content or review_url handed back with status running. It waits up to 45 seconds. While the review runs it answers status running and the stage; when it ends, it answers the same result the review tool gives.
+
+| Input | Type | Required | Meaning |
+|---|---|---|---|
+| `run_id` | string | yes | the run_id that review_bundle, review_content or review_url gave |
+
 ## `get_traceability`
 
 Get a bundle's links, trace ID coverage, and suggested trace IDs.
@@ -240,7 +248,7 @@ Ask for a waiver of one MUST or SHOULD finding of a bundle: an approved exceptio
 
 ## `review_bundle`
 
-Run a review of a saved bundle and wait for the verdict. The model stages can take minutes.
+Run a review of a saved bundle. It waits up to 45 seconds for the verdict. A longer review answers status running and a run_id; the review runs on, so call get_run with that run_id until it ends.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -249,7 +257,7 @@ Run a review of a saved bundle and wait for the verdict. The model stages can ta
 
 ## `review_content`
 
-Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.
+Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days. It waits up to 45 seconds; a longer review answers status running and a run_id for get_run.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
@@ -276,7 +284,7 @@ Review many spec pull requests in one batch. Each pull request gets a pending re
 
 ## `review_url`
 
-Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line.
+Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line. It waits up to 45 seconds; a longer review answers status running and a run_id for get_run.
 
 | Input | Type | Required | Meaning |
 |---|---|---|---|
