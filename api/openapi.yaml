@@ -7492,10 +7492,15 @@ components:
         prompt_via:
           type: string
           enum: [stdin, file]
+        call_timeout_seconds:
+          type: integer
+          minimum: 30
+          maximum: 600
+          description: The limit for one model call, from 30 to 600 seconds. A new backend has 300. On an update, a missing value keeps the stored one.
 
     Backend:
       type: object
-      required: [id, kind, name, has_secret, secret_last4, roles]
+      required: [id, kind, name, has_secret, secret_last4, roles, call_timeout_seconds]
       properties:
         id:
           type: string
@@ -7518,6 +7523,9 @@ components:
             type: string
         prompt_via:
           type: string
+        call_timeout_seconds:
+          type: integer
+          description: The limit for one model call, in seconds.
         roles:
           type: array
           description: The roles that use this backend.

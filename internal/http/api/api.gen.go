@@ -2610,14 +2610,17 @@ type AssigneeList struct {
 
 // Backend defines model for Backend.
 type Backend struct {
-	BaseUrl   *string            `json:"base_url,omitempty"`
-	Command   *[]string          `json:"command,omitempty"`
-	HasSecret bool               `json:"has_secret"`
-	Id        openapi_types.UUID `json:"id"`
-	Kind      BackendKind        `json:"kind"`
-	Name      string             `json:"name"`
-	Preset    *string            `json:"preset,omitempty"`
-	PromptVia *string            `json:"prompt_via,omitempty"`
+	BaseUrl *string `json:"base_url,omitempty"`
+
+	// CallTimeoutSeconds The limit for one model call, in seconds.
+	CallTimeoutSeconds int                `json:"call_timeout_seconds"`
+	Command            *[]string          `json:"command,omitempty"`
+	HasSecret          bool               `json:"has_secret"`
+	Id                 openapi_types.UUID `json:"id"`
+	Kind               BackendKind        `json:"kind"`
+	Name               string             `json:"name"`
+	Preset             *string            `json:"preset,omitempty"`
+	PromptVia          *string            `json:"prompt_via,omitempty"`
 
 	// Roles The roles that use this backend.
 	Roles       []string `json:"roles"`
@@ -2628,6 +2631,9 @@ type Backend struct {
 type BackendInput struct {
 	// BaseUrl Overrides the provider's API address.
 	BaseUrl *string `json:"base_url,omitempty"`
+
+	// CallTimeoutSeconds The limit for one model call, from 30 to 600 seconds. A new backend has 300. On an update, a missing value keeps the stored one.
+	CallTimeoutSeconds *int `json:"call_timeout_seconds,omitempty"`
 
 	// Command For a custom agent CLI. {model}, {schema}, and {prompt_file} are replaced.
 	Command *[]string   `json:"command,omitempty"`
