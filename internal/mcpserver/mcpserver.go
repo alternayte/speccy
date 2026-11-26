@@ -39,9 +39,10 @@ func New(clientFor ClientFor) *mcp.Server {
 	t := tools{clientFor: clientFor}
 	add(s, t, "list_bundles", "List the bundles with their verdicts.", t.listBundles)
 	add(s, t, "get_bundle", "Get one bundle: its files, its verdict, and the text of its spec doc. Pass version, a version number, to read the doc as it was at that version, such as the version a work item was pushed from.", t.getBundle)
-	add(s, t, "review_bundle", "Run a review of a saved bundle and wait for the verdict. The model stages can take minutes.", t.reviewBundle)
-	add(s, t, "review_content", "Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days.", t.reviewContent)
-	add(s, t, "review_url", "Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line.", t.reviewURL)
+	add(s, t, "review_bundle", "Run a review of a saved bundle. It waits up to 45 seconds for the verdict. A longer review answers status running and a run_id; the review runs on, so call get_run with that run_id until it ends.", t.reviewBundle)
+	add(s, t, "get_run", "Get a review that review_bundle, review_content or review_url handed back with status running. It waits up to 45 seconds. While the review runs it answers status running and the stage; when it ends, it answers the same result the review tool gives.", t.getRun)
+	add(s, t, "review_content", "Review markdown files that are not saved: a spec doc with a type in its frontmatter, and its assets. No bundle changes; the server keeps the result for its report for 90 days. It waits up to 45 seconds; a longer review answers status running and a run_id for get_run.", t.reviewContent)
+	add(s, t, "review_url", "Review the spec docs of a GitHub URL: a file, a folder, a branch, a commit or a pull request. Speccy reads the files at the head commit with its own GitHub credential, so you copy nothing. For a pull request it reviews the spec docs that the pull request changes. No bundle is saved. The answer names the repo and the commit, and gives each doc with its verdict and its findings; each finding has its file, relative to the doc's dir, and its line. It waits up to 45 seconds; a longer review answers status running and a run_id for get_run.", t.reviewURL)
 	add(s, t, "get_verdict", "Get the current verdict of a bundle.", t.getVerdict)
 	add(s, t, "get_findings", "Get the fix list of a bundle: the findings of its current verdict, MUST first. Each has a message, a suggested fix, the file, line and end_line of its text, and a fix_kind. fix_kind reword means you change the words and no fact. fix_kind answer means the fix needs a fact from the person: the finding has the question to ask them. The answer also gives the state of the review: the version the AI review read, the count of sections changed since, and the trend. A section changed since has no AI result until the next review.", t.getFindings)
 	add(s, t, "save_file", "Save one file of a bundle that Speccy stores, as a new version. Give the version your edit is based on. Speccy lints the save. For a local or a GitHub bundle this tool writes nothing and says where the file is: edit that file yourself.", t.saveFile)
@@ -105,11 +106,51 @@ type progressKey struct{}
 // sends bytes through a proxy before its timeout.
 func waitReview(ctx context.Context, c *api.ClientWithResponses, queued *api.ReviewRequest) (*api.ReviewRequest, error) {
 	progress, _ := ctx.Value(progressKey{}).(func(string))
-	return api.WaitReview(ctx, c, queued.Id, 2*time.Second, func(stage string) {
+	wctx, cancel := context.WithTimeout(ctx, waitFor)
+	defer cancel()
+	stage := string(queued.Status)
+	done, err := api.WaitReview(wctx, c, queued.Id, 2*time.Second, func(now string) {
+		stage = now
 		if progress != nil {
-			progress("Review " + stage)
+			progress("Review " + now)
 		}
 	})
+	if err != nil && ctx.Err() == nil && wctx.Err() != nil {
+		return nil, stillRunning{id: queued.Id, stage: stage}
+	}
+	return done, err
+}
+
+// waitFor is how long a review tool waits for the result before it hands back the run ID:
+// under the 60 seconds after which Cursor's agent stops a tool call (docs/specs/mcp-long-reviews.md).
+var waitFor = 45 * time.Second
+
+// stillRunning is a review that did not end within waitFor. It is no failure: the review runs
+// on, and get_run reads it.
+type stillRunning struct {
+	id    uuid.UUID
+	stage string
+}
+
+func (r stillRunning) Error() string { return "the review is still running" }
+
+func (r stillRunning) answer() map[string]any {
+	out := map[string]any{"status": "running", "run_id": r.id,
+		"next": "The review runs on. Call get_run with run_id until status is complete or failed."}
+	if r.stage != "" {
+		out["stage"] = r.stage
+	}
+	return out
+}
+
+// orRunning turns a review that is still running into its answer, and leaves other results as
+// they are.
+func orRunning(out any, err error) (any, error) {
+	var r stillRunning
+	if errors.As(err, &r) {
+		return r.answer(), nil
+	}
+	return out, err
 }
 
 // problem turns an API error answer into a tool error with its detail.
@@ -410,8 +451,14 @@ func (tools) reviewBundle(ctx context.Context, c *api.ClientWithResponses, in re
 	if res.JSON202 == nil {
 		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 	}
+	return orRunning(waitRun(ctx, c, res.JSON202.Id))
+}
+
+// waitRun polls a bundle run until it ends, for at most waitFor.
+func waitRun(ctx context.Context, c *api.ClientWithResponses, id uuid.UUID) (any, error) {
+	deadline := time.Now().Add(waitFor)
 	for {
-		run, err := c.GetRunWithResponse(ctx, res.JSON202.Id)
+		run, err := c.GetRunWithResponse(ctx, id)
 		if err != nil {
 			return nil, err
 		}
@@ -424,12 +471,59 @@ func (tools) reviewBundle(ctx context.Context, c *api.ClientWithResponses, in re
 		case api.RunStatusFailed:
 			return nil, errors.New(run.JSON200.Error)
 		}
+		if !time.Now().Before(deadline) {
+			stage := string(run.JSON200.Status)
+			if run.JSON200.Stage != "" {
+				stage = run.JSON200.Stage
+			}
+			return nil, stillRunning{id: id, stage: stage}
+		}
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(2 * time.Second):
+		case <-time.After(min(2*time.Second, time.Until(deadline)+time.Millisecond)):
 		}
 	}
+}
+
+// reviewResult is what a review tool answers for a content or URL review that ended.
+func reviewResult(r *api.ReviewRequest) any {
+	if r.Kind == api.Url {
+		return r.Url
+	}
+	return r.Content
+}
+
+type runArg struct {
+	RunID string `json:"run_id" jsonschema:"the run_id that review_bundle, review_content or review_url gave"`
+}
+
+// getRun reads a review that a start tool handed back still running: a bundle run, or a content
+// or URL review request. It waits up to waitFor too (docs/specs/mcp-long-reviews.md).
+func (tools) getRun(ctx context.Context, c *api.ClientWithResponses, in runArg) (any, error) {
+	id, err := uuid.Parse(in.RunID)
+	if err != nil {
+		return nil, fmt.Errorf("run_id %q is not an ID; pass the run_id a review tool gave", in.RunID)
+	}
+	run, err := c.GetRunWithResponse(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if run.JSON200 != nil {
+		return orRunning(waitRun(ctx, c, id))
+	}
+	req, err := c.GetReviewRequestWithResponse(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if req.JSON200 == nil {
+		return nil, fmt.Errorf("no review has the run_id %s", id)
+	}
+	done, err := waitReview(ctx, c, req.JSON200)
+	if err != nil {
+		return orRunning(nil, err)
+	}
+	return reviewResult(done), nil
 }
 
 type contentFile struct {
@@ -484,7 +578,7 @@ func (tools) reviewContent(ctx context.Context, c *api.ClientWithResponses, in c
 	}
 	done, err := waitReview(ctx, c, res.JSON202)
 	if err != nil {
-		return nil, err
+		return orRunning(nil, err)
 	}
 	return done.Content, nil
 }
@@ -513,7 +607,7 @@ func (tools) reviewURL(ctx context.Context, c *api.ClientWithResponses, in urlAr
 	}
 	done, err := waitReview(ctx, c, res.JSON202)
 	if err != nil {
-		return nil, err
+		return orRunning(nil, err)
 	}
 	return done.Url, nil
 }
@@ -660,14 +754,44 @@ func (tools) getVerdict(ctx context.Context, c *api.ClientWithResponses, in bund
 	if err != nil {
 		return nil, err
 	}
+	pending, err := pendingRun(ctx, c, b.Id)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"verdict": b.Verdict, "run_error": b.RunError}
 	if b.Verdict == nil {
-		out := map[string]any{"verdict": nil, "message": "Speccy has not reviewed this bundle yet."}
+		out = map[string]any{"verdict": nil, "message": "Speccy has not reviewed this bundle yet."}
 		if b.RunError != nil {
 			out["message"] = *b.RunError
 		}
-		return out, nil
 	}
-	return map[string]any{"verdict": b.Verdict, "run_error": b.RunError}, nil
+	if pending != nil {
+		out["pending_run"] = pending
+	}
+	return out, nil
+}
+
+// pendingRun is the doc's newest model review while it is queued or running, or nil: a review
+// that a timed-out tool call started still shows (#177).
+func pendingRun(ctx context.Context, c *api.ClientWithResponses, docID uuid.UUID) (map[string]any, error) {
+	limit := api.Limit(5)
+	res, err := c.ListRunsWithResponse(ctx, docID, &api.ListRunsParams{Limit: &limit})
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	for _, r := range res.JSON200.Items {
+		if r.Kind == api.RunKindLint {
+			continue
+		}
+		if r.Status != api.RunStatusQueued && r.Status != api.RunStatusRunning {
+			return nil, nil
+		}
+		return map[string]any{"id": r.Id, "status": r.Status, "started_at": r.StartedAt}, nil
+	}
+	return nil, nil
 }
 
 type findingsArg struct {
