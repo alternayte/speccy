@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import { getMeQueryKey } from "./lib/api/@tanstack/react-query.gen";
 import { client } from "./lib/api/client.gen";
+import { statusError } from "./lib/problem";
 import { routeTree } from "./routeTree.gen";
 
 client.setConfig({ baseUrl: "/api/v1" });
@@ -18,6 +19,9 @@ client.interceptors.response.use((res) => {
   }
   return res;
 });
+// An error answer that is not a Problem, such as a proxy's 504 page, names its status instead of
+// reading as "could not reach the server".
+client.interceptors.error.use((err, res) => statusError(err, res));
 const router = createRouter({ routeTree, context: { queryClient } });
 
 declare module "@tanstack/react-router" {

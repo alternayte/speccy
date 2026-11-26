@@ -1,4 +1,5 @@
 import { useBundleId } from "@/features/bundle/params";
+import { relativeTime } from "@/features/bundle/time";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { clsx } from "clsx";
@@ -30,6 +31,7 @@ import {
   type Breakdown,
   type BreakdownFinding,
   type BreakdownOp,
+  type BreakdownProposal,
   checkBreakdownReaders,
   editBreakdown,
   proposeBreakdown,
@@ -41,6 +43,8 @@ import {
 } from "@/lib/api";
 import {
   getBreakdownOptions,
+  getBreakdownProposalOptions,
+  getBreakdownProposalQueryKey,
   getBreakdownQueryKey,
   getSpecDocOptions,
   getSpecDocQueryKey,
@@ -106,11 +110,26 @@ export function BreakdownPage({ docId, focusItem }: { docId: string; focusItem?:
   };
   const fail = (err: unknown) => setError(problemMessage(err));
 
+  // A job makes the proposal, so no proxy cuts its model call. The page polls it until it ends
+  // (docs/specs/breakdown-proposal-job.md).
+  const proposal = useQuery({
+    ...getBreakdownProposalOptions({ path: { docId } }),
+    retry: false,
+    refetchInterval: (q) => (proposing(q.state.data) ? 3000 : false),
+  });
+  const running = proposing(proposal.data);
+  const ended = proposal.data?.status;
+  useEffect(() => {
+    if (ended === "complete") void qc.invalidateQueries({ queryKey: getBreakdownQueryKey({ path: { docId } }) });
+  }, [ended, docId, qc]);
   const propose = useMutation({
     mutationFn: async () =>
       (await proposeBreakdown({ path: { docId }, body: { acknowledged: anyway || undefined }, throwOnError: true }))
         .data,
-    onSuccess: put,
+    onSuccess: (p) => {
+      setError(undefined);
+      qc.setQueryData(getBreakdownProposalQueryKey({ path: { docId } }), p);
+    },
     onError: fail,
   });
   const edit = useMutation({
@@ -175,6 +194,9 @@ export function BreakdownPage({ docId, focusItem }: { docId: string; focusItem?:
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[860px] space-y-5 px-4 py-5 sm:px-6">
           {error ? <ErrorState message={error} /> : null}
+          {!b && proposal.data?.status === "failed" && !error ? (
+            <ErrorState message={proposal.data.error ?? "The breakdown proposal failed. Propose again."} />
+          ) : null}
 
           {!b ? (
             missing ? (
@@ -199,17 +221,23 @@ export function BreakdownPage({ docId, focusItem }: { docId: string; focusItem?:
                     <Button
                       variant="primary"
                       icon={
-                        propose.isPending ? (
+                        propose.isPending || running ? (
                           <Loader2 className="size-4 animate-spin" />
                         ) : (
                           <Sparkles className="size-4" />
                         )
                       }
-                      disabled={propose.isPending || (notReady && !anyway)}
+                      disabled={propose.isPending || running || (notReady && !anyway)}
                       onClick={() => propose.mutate()}
                     >
-                      {propose.isPending ? "Proposing the breakdown" : "Propose a breakdown"}
+                      {propose.isPending || running ? "Proposing the breakdown" : "Propose a breakdown"}
                     </Button>
+                    {running && proposal.data ? (
+                      <p role="status" className="text-xs text-ink-3">
+                        Started {relativeTime(proposal.data.created_at)}. A long doc takes a few minutes. You can leave
+                        this page.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </Empty>
@@ -1288,4 +1316,9 @@ function PushPanel({
       ) : null}
     </section>
   );
+}
+
+// proposing says whether a proposal is still queued or running.
+function proposing(p: BreakdownProposal | undefined): boolean {
+  return p?.status === "queued" || p?.status === "running";
 }

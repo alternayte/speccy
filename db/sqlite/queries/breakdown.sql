@@ -40,3 +40,24 @@ DELETE FROM breakdown_issue WHERE spec_doc_id = sqlc.arg(spec_doc_id);
 
 -- name: ListBreakdownIssuesOfSpecDoc :many
 SELECT * FROM breakdown_issue WHERE spec_doc_id = sqlc.arg(spec_doc_id) ORDER BY created_at, item_id;
+
+-- name: InsertBreakdownProposal :exec
+INSERT INTO breakdown_proposal (id, workspace_id, spec_doc_id, status, acknowledged, created_by, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(spec_doc_id), 'queued', sqlc.arg(acknowledged), sqlc.arg(created_by), sqlc.arg(created_at));
+
+-- name: GetBreakdownProposal :one
+SELECT * FROM breakdown_proposal WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: LatestBreakdownProposal :one
+SELECT * FROM breakdown_proposal WHERE workspace_id = sqlc.arg(workspace_id) AND spec_doc_id = sqlc.arg(spec_doc_id)
+ORDER BY created_at DESC, id DESC LIMIT 1;
+
+-- name: StartBreakdownProposal :exec
+UPDATE breakdown_proposal SET status = 'running' WHERE id = sqlc.arg(id) AND status IN ('queued', 'running');
+
+-- name: FinishBreakdownProposal :exec
+UPDATE breakdown_proposal SET status = sqlc.arg(status), error = sqlc.arg(error), finished_at = sqlc.arg(finished_at)
+WHERE id = sqlc.arg(id);
+
+-- name: DeleteBreakdownProposalsBefore :exec
+DELETE FROM breakdown_proposal WHERE workspace_id = sqlc.arg(workspace_id) AND created_at < sqlc.arg(before);

@@ -96,6 +96,10 @@ func (a Adapter) DeleteBreakdownOfSpecDoc(ctx context.Context, specDocID uuid.UU
 	return a.q.DeleteBreakdownOfSpecDoc(ctx, specDocID)
 }
 
+func (a Adapter) DeleteBreakdownProposalsBefore(ctx context.Context, arg pgdb.DeleteBreakdownProposalsBeforeParams) error {
+	return a.q.DeleteBreakdownProposalsBefore(ctx, DeleteBreakdownProposalsBeforeParams(arg))
+}
+
 func (a Adapter) DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error {
 	return a.q.DeleteBundleAuthors(ctx, bundleID)
 }
@@ -296,6 +300,10 @@ func (a Adapter) FindBreakdownIssue(ctx context.Context, arg pgdb.FindBreakdownI
 	return out, nil
 }
 
+func (a Adapter) FinishBreakdownProposal(ctx context.Context, arg pgdb.FinishBreakdownProposalParams) error {
+	return a.q.FinishBreakdownProposal(ctx, FinishBreakdownProposalParams(arg))
+}
+
 func (a Adapter) FinishReviewRequest(ctx context.Context, arg pgdb.FinishReviewRequestParams) error {
 	return a.q.FinishReviewRequest(ctx, FinishReviewRequestParams(arg))
 }
@@ -330,6 +338,11 @@ func (a Adapter) GetBreakdown(ctx context.Context, arg pgdb.GetBreakdownParams) 
 func (a Adapter) GetBreakdownByID(ctx context.Context, arg pgdb.GetBreakdownByIDParams) (pgdb.Breakdown, error) {
 	r, err := a.q.GetBreakdownByID(ctx, GetBreakdownByIDParams(arg))
 	return pgdb.Breakdown(r), err
+}
+
+func (a Adapter) GetBreakdownProposal(ctx context.Context, arg pgdb.GetBreakdownProposalParams) (pgdb.BreakdownProposal, error) {
+	r, err := a.q.GetBreakdownProposal(ctx, GetBreakdownProposalParams(arg))
+	return pgdb.BreakdownProposal(r), err
 }
 
 func (a Adapter) GetBudget(ctx context.Context, arg pgdb.GetBudgetParams) (pgdb.Budget, error) {
@@ -530,6 +543,10 @@ func (a Adapter) InsertBreakdownIssue(ctx context.Context, arg pgdb.InsertBreakd
 	return a.q.InsertBreakdownIssue(ctx, InsertBreakdownIssueParams(arg))
 }
 
+func (a Adapter) InsertBreakdownProposal(ctx context.Context, arg pgdb.InsertBreakdownProposalParams) error {
+	return a.q.InsertBreakdownProposal(ctx, InsertBreakdownProposalParams(arg))
+}
+
 func (a Adapter) InsertBudget(ctx context.Context, arg pgdb.InsertBudgetParams) error {
 	return a.q.InsertBudget(ctx, InsertBudgetParams(arg))
 }
@@ -700,6 +717,11 @@ func (a Adapter) IsBundleMember(ctx context.Context, arg pgdb.IsBundleMemberPara
 
 func (a Adapter) IsProfileMaintainer(ctx context.Context, arg pgdb.IsProfileMaintainerParams) (bool, error) {
 	return a.q.IsProfileMaintainer(ctx, IsProfileMaintainerParams(arg))
+}
+
+func (a Adapter) LatestBreakdownProposal(ctx context.Context, arg pgdb.LatestBreakdownProposalParams) (pgdb.BreakdownProposal, error) {
+	r, err := a.q.LatestBreakdownProposal(ctx, LatestBreakdownProposalParams(arg))
+	return pgdb.BreakdownProposal(r), err
 }
 
 func (a Adapter) LatestBudget(ctx context.Context, arg pgdb.LatestBudgetParams) (pgdb.Budget, error) {
@@ -1652,6 +1674,10 @@ func (a Adapter) SpendResetLink(ctx context.Context, arg pgdb.SpendResetLinkPara
 
 func (a Adapter) StaleVerificationRuns(ctx context.Context, arg pgdb.StaleVerificationRunsParams) error {
 	return a.q.StaleVerificationRuns(ctx, StaleVerificationRunsParams(arg))
+}
+
+func (a Adapter) StartBreakdownProposal(ctx context.Context, id uuid.UUID) error {
+	return a.q.StartBreakdownProposal(ctx, id)
 }
 
 func (a Adapter) StartReviewRequest(ctx context.Context, id uuid.UUID) error {

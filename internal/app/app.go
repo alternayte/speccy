@@ -241,6 +241,7 @@ func New(ctx context.Context, db *store.DB, sealer *kernel.Sealer, o Options) (*
 		Questions: reviewAPI, People: people, Connection: adminAPI.ConnectionFor, Hosts: adminAPI.ConnectionHosts,
 		GitHub: reviews.GitHub}
 	verifyAPI.WorkItem = breakdownAPI.TraceIDs
+	breakdownAPI.RegisterJobs(jobs)
 	bundleAPI := &bundle.API{Service: svc, Profiles: profiles.Current, Deps: bundle.Deps{
 		Waiting:   waiverAPI.Waiting,
 		Questions: questionsAPI.List,

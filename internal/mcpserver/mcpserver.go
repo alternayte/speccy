@@ -50,7 +50,7 @@ func New(clientFor ClientFor) *mcp.Server {
 	add(s, t, "get_traceability", "Get a bundle's links, trace ID coverage, and suggested trace IDs.", t.getTraceability)
 	add(s, t, "list_threads", "List the discussion threads of a bundle.", t.listThreads)
 	add(s, t, "handoff_bundle", "Take the build packet of a Build Ready bundle: its spec doc, its assets, the spec doc of each bundle it links to, its trace IDs, the build questions with the answer independent readers agreed on, and a re-entry prompt to build from. Speccy records which version you took.", t.handoffBundle)
-	add(s, t, "propose_breakdown", "Propose a breakdown of a Build Ready doc: epics, and work items under them. Each work item holds its trace IDs, its acceptance criteria quoted from the doc, the agreed build answers, its target repo, its dependencies and its open questions. A doc that is not Build Ready is refused with its MUST count; acknowledged proposes it anyway. The answer is the draft with its findings: a MUST finding blocks the push. A new proposal replaces a breakdown that has no pushed issue.", t.proposeBreakdown)
+	add(s, t, "propose_breakdown", "Propose a breakdown of a Build Ready doc: epics, and work items under them. Each work item holds its trace IDs, its acceptance criteria quoted from the doc, the agreed build answers, its target repo, its dependencies and its open questions. A doc that is not Build Ready is refused with its MUST count; acknowledged proposes it anyway. The answer is the draft with its findings: a MUST finding blocks the push. A new proposal replaces a breakdown that has no pushed issue. It waits up to 45 seconds; a longer proposal answers status running, and get_breakdown answers the breakdown when it ends.", t.proposeBreakdown)
 	add(s, t, "get_breakdown", "Get the breakdown of a doc: its epics, its work items, its findings, its coverage of the doc's trace IDs, the pushed issues, and its revision. stale is true when the doc has a newer version; changed names what the new version changed in each item.", t.getBreakdown)
 	add(s, t, "update_breakdown", "Edit the breakdown of a doc. Pass based_on, the revision you read, and ops, applied in order and all or none: split (item, trace_ids, title), merge (item, into), move_trace (trace_id, from, to; empty is no item), reorder (item, before), set_dependencies (item, depends_on), set_assignee (item, assignee), set_epic_default (epic, assignee), set_note (item, note), set_title (item or epic, title), set_repos (item, repos), move_item (item, epic), add_epic (title), remove_item (item), cover (trace_id, answer out_of_scope, covered_elsewhere or no_build, and the person's reason), uncover (trace_id). A criterion is a quote: to change one, change the doc. Pass to_current_version instead of ops to move a stale breakdown to the doc's current version. Make only the changes the person asked for.", t.updateBreakdown)
 	add(s, t, "push_breakdown", "Push the breakdown to a tracker: create the epics and the work items that have no issue yet, with their dependencies and assignees. tracker is linear, jira or github; target is the Linear team, the Jira project URL, or the GitHub repo. A push never edits or closes an issue, and records one handoff with the label breakdown. It is refused while the breakdown has a MUST finding or is stale. Push only when the person tells you to push this breakdown.", t.pushBreakdown)
@@ -326,16 +326,44 @@ func (tools) proposeBreakdown(ctx context.Context, c *api.ClientWithResponses, i
 	if err != nil {
 		return nil, err
 	}
-	if res.JSON201 == nil {
+	if res.JSON202 == nil {
 		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
 	}
-	return res.JSON201, nil
+	return waitBreakdown(ctx, c, b.Id)
+}
+
+// waitBreakdown waits up to waitFor for the doc's breakdown proposal, then answers the breakdown,
+// or status running while the job still runs (docs/specs/breakdown-proposal-job.md).
+func waitBreakdown(ctx context.Context, c *api.ClientWithResponses, docID uuid.UUID) (any, error) {
+	wctx, cancel := context.WithTimeout(ctx, waitFor)
+	defer cancel()
+	p, err := api.WaitProposal(wctx, c, docID, 2*time.Second)
+	if err != nil {
+		if ctx.Err() == nil && wctx.Err() != nil && p != nil {
+			return map[string]any{"status": "running", "proposal_id": p.Id,
+				"next": "The proposal runs on. Call get_breakdown until it answers the breakdown."}, nil
+		}
+		return nil, err
+	}
+	res, err := c.GetBreakdownWithResponse(ctx, docID)
+	if err != nil {
+		return nil, err
+	}
+	if res.JSON200 == nil {
+		return nil, problem(res.ApplicationproblemJSONDefault, res.StatusCode())
+	}
+	return res.JSON200, nil
 }
 
 func (tools) getBreakdown(ctx context.Context, c *api.ClientWithResponses, in bundleArg) (any, error) {
 	b, err := bundle(ctx, c, in.Bundle)
 	if err != nil {
 		return nil, err
+	}
+	// A proposal that still runs is waited for, as propose_breakdown waits for it.
+	if p, err := c.GetBreakdownProposalWithResponse(ctx, b.Id); err == nil && p.JSON200 != nil &&
+		(p.JSON200.Status == api.BreakdownProposalStatusQueued || p.JSON200.Status == api.BreakdownProposalStatusRunning) {
+		return waitBreakdown(ctx, c, b.Id)
 	}
 	res, err := c.GetBreakdownWithResponse(ctx, b.Id)
 	if err != nil {

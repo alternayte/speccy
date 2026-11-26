@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/alternayte/speccy/internal/http/api"
 )
@@ -98,10 +99,22 @@ func runBreakdown(args []string, stdout, stderr io.Writer) int {
 		if err != nil {
 			return fail(nil, 0)
 		}
-		if res.JSON201 == nil {
+		if res.JSON202 == nil {
 			return fail(res.ApplicationproblemJSONDefault, res.StatusCode())
 		}
-		out = res.JSON201
+		// A job makes the proposal; the command waits for it (docs/specs/breakdown-proposal-job.md).
+		if _, err := api.WaitProposal(ctx, c, b.Id, 2*time.Second); err != nil {
+			msg := err.Error()
+			return fail(&api.Problem{Detail: &msg}, 0)
+		}
+		got, err := c.GetBreakdownWithResponse(ctx, b.Id)
+		if err != nil {
+			return fail(nil, 0)
+		}
+		if got.JSON200 == nil {
+			return fail(got.ApplicationproblemJSONDefault, got.StatusCode())
+		}
+		out = got.JSON200
 	case "show":
 		res, err := c.GetBreakdownWithResponse(ctx, b.Id)
 		if err != nil {

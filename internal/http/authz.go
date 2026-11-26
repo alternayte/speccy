@@ -165,6 +165,7 @@ var operations = map[string]access{
 	"getBreakdown":           bundleRead,
 	"exportBreakdown":        bundleRead,
 	"proposeBreakdown":       bundleEdit,
+	"getBreakdownProposal":   bundleRead,
 	"editBreakdown":          bundleEdit,
 	"updateBreakdown":        bundleEdit,
 	"checkBreakdownReaders":  bundleEdit,

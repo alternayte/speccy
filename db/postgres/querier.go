@@ -35,6 +35,7 @@ type Querier interface {
 	DeleteBackend(ctx context.Context, arg DeleteBackendParams) (int64, error)
 	DeleteBreakdownIssuesOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
 	DeleteBreakdownOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
+	DeleteBreakdownProposalsBefore(ctx context.Context, arg DeleteBreakdownProposalsBeforeParams) error
 	DeleteBundleAuthors(ctx context.Context, bundleID uuid.UUID) error
 	DeleteBundleRow(ctx context.Context, arg DeleteBundleRowParams) error
 	DeleteClaimsOfSpecDoc(ctx context.Context, specDocID uuid.UUID) error
@@ -87,6 +88,7 @@ type Querier interface {
 	FailVerificationRun(ctx context.Context, arg FailVerificationRunParams) error
 	// A work item by its issue key or URL, across the workspace.
 	FindBreakdownIssue(ctx context.Context, arg FindBreakdownIssueParams) ([]BreakdownIssue, error)
+	FinishBreakdownProposal(ctx context.Context, arg FinishBreakdownProposalParams) error
 	FinishReviewRequest(ctx context.Context, arg FinishReviewRequestParams) error
 	FinishRun(ctx context.Context, arg FinishRunParams) error
 	FinishVerificationRun(ctx context.Context, arg FinishVerificationRunParams) error
@@ -95,6 +97,7 @@ type Querier interface {
 	GetBlob(ctx context.Context, sha256 string) ([]byte, error)
 	GetBreakdown(ctx context.Context, arg GetBreakdownParams) (Breakdown, error)
 	GetBreakdownByID(ctx context.Context, arg GetBreakdownByIDParams) (Breakdown, error)
+	GetBreakdownProposal(ctx context.Context, arg GetBreakdownProposalParams) (BreakdownProposal, error)
 	GetBudget(ctx context.Context, arg GetBudgetParams) (Budget, error)
 	GetBundle(ctx context.Context, arg GetBundleParams) (Bundle, error)
 	GetBundleBySlug(ctx context.Context, arg GetBundleBySlugParams) (Bundle, error)
@@ -136,6 +139,7 @@ type Querier interface {
 	InsertBlob(ctx context.Context, arg InsertBlobParams) error
 	InsertBreakdown(ctx context.Context, arg InsertBreakdownParams) error
 	InsertBreakdownIssue(ctx context.Context, arg InsertBreakdownIssueParams) error
+	InsertBreakdownProposal(ctx context.Context, arg InsertBreakdownProposalParams) error
 	InsertBudget(ctx context.Context, arg InsertBudgetParams) error
 	InsertBundle(ctx context.Context, arg InsertBundleParams) error
 	InsertBundleAuthor(ctx context.Context, arg InsertBundleAuthorParams) error
@@ -180,6 +184,7 @@ type Querier interface {
 	// An author of the bundle, or a named member (reviewer) of a spec doc in it.
 	IsBundleMember(ctx context.Context, arg IsBundleMemberParams) (bool, error)
 	IsProfileMaintainer(ctx context.Context, arg IsProfileMaintainerParams) (bool, error)
+	LatestBreakdownProposal(ctx context.Context, arg LatestBreakdownProposalParams) (BreakdownProposal, error)
 	LatestBudget(ctx context.Context, arg LatestBudgetParams) (Budget, error)
 	// REQ-007: the latest finished run of a kind on a version.
 	LatestCompleteRun(ctx context.Context, arg LatestCompleteRunParams) (ReviewRun, error)
@@ -307,6 +312,7 @@ type Querier interface {
 	SpendInvite(ctx context.Context, arg SpendInviteParams) (Invite, error)
 	SpendResetLink(ctx context.Context, arg SpendResetLinkParams) (ResetLink, error)
 	StaleVerificationRuns(ctx context.Context, arg StaleVerificationRunsParams) error
+	StartBreakdownProposal(ctx context.Context, id uuid.UUID) error
 	StartReviewRequest(ctx context.Context, id uuid.UUID) error
 	StartRunExecution(ctx context.Context, arg StartRunExecutionParams) error
 	StartVerificationRun(ctx context.Context, id uuid.UUID) error

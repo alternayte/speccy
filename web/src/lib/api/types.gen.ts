@@ -2901,6 +2901,20 @@ export type BundleList = {
     problems: Array<BundleProblem>;
 };
 
+/**
+ * One breakdown proposal that a job makes.
+ */
+export type BreakdownProposal = {
+    id: string;
+    status: 'queued' | 'running' | 'complete' | 'failed';
+    /**
+     * Why the proposal failed, when the status is failed.
+     */
+    error?: string;
+    created_at: string;
+    finished_at?: string;
+};
+
 export type BundleProblem = {
     path: string;
     message: string;
@@ -3579,6 +3593,36 @@ export type TakeHandoffZipResponses = {
 
 export type TakeHandoffZipResponse = TakeHandoffZipResponses[keyof TakeHandoffZipResponses];
 
+export type GetBreakdownProposalData = {
+    body?: never;
+    path: {
+        /**
+         * The ID of one spec doc.
+         */
+        docId: string;
+    };
+    query?: never;
+    url: '/docs/{docId}/breakdown/proposal';
+};
+
+export type GetBreakdownProposalErrors = {
+    /**
+     * An error.
+     */
+    default: Problem;
+};
+
+export type GetBreakdownProposalError = GetBreakdownProposalErrors[keyof GetBreakdownProposalErrors];
+
+export type GetBreakdownProposalResponses = {
+    /**
+     * The proposal.
+     */
+    200: BreakdownProposal;
+};
+
+export type GetBreakdownProposalResponse = GetBreakdownProposalResponses[keyof GetBreakdownProposalResponses];
+
 export type GetBreakdownData = {
     body?: never;
     path: {
@@ -3662,9 +3706,9 @@ export type ProposeBreakdownError = ProposeBreakdownErrors[keyof ProposeBreakdow
 
 export type ProposeBreakdownResponses = {
     /**
-     * The proposed breakdown.
+     * The proposal, queued.
      */
-    201: Breakdown;
+    202: BreakdownProposal;
 };
 
 export type ProposeBreakdownResponse = ProposeBreakdownResponses[keyof ProposeBreakdownResponses];
